@@ -12,7 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteRouteImport } from './routes/_authed/route'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppliers/index'
+import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
+import { Route as AuthedProductsIndexRouteImport } from './routes/_authed/products/index'
 import { Route as AuthedCustomersIndexRouteImport } from './routes/_authed/customers/index'
+import { Route as AuthedSuppliersNewRouteImport } from './routes/_authed/suppliers/new'
+import { Route as AuthedSuppliersIdRouteImport } from './routes/_authed/suppliers/$id'
+import { Route as AuthedProductsNewRouteImport } from './routes/_authed/products/new'
+import { Route as AuthedProductsIdRouteImport } from './routes/_authed/products/$id'
+import { Route as AuthedCustomersNewRouteImport } from './routes/_authed/customers/new'
+import { Route as AuthedCustomersIdRouteImport } from './routes/_authed/customers/$id'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -28,35 +37,145 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedSuppliersIndexRoute = AuthedSuppliersIndexRouteImport.update({
+  id: '/suppliers/',
+  path: '/suppliers/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedSettingsIndexRoute = AuthedSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedProductsIndexRoute = AuthedProductsIndexRouteImport.update({
+  id: '/products/',
+  path: '/products/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 const AuthedCustomersIndexRoute = AuthedCustomersIndexRouteImport.update({
   id: '/customers/',
   path: '/customers/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedSuppliersNewRoute = AuthedSuppliersNewRouteImport.update({
+  id: '/suppliers/new',
+  path: '/suppliers/new',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedSuppliersIdRoute = AuthedSuppliersIdRouteImport.update({
+  id: '/suppliers/$id',
+  path: '/suppliers/$id',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedProductsNewRoute = AuthedProductsNewRouteImport.update({
+  id: '/products/new',
+  path: '/products/new',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedProductsIdRoute = AuthedProductsIdRouteImport.update({
+  id: '/products/$id',
+  path: '/products/$id',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedCustomersNewRoute = AuthedCustomersNewRouteImport.update({
+  id: '/customers/new',
+  path: '/customers/new',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedCustomersIdRoute = AuthedCustomersIdRouteImport.update({
+  id: '/customers/$id',
+  path: '/customers/$id',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/customers/$id': typeof AuthedCustomersIdRoute
+  '/customers/new': typeof AuthedCustomersNewRoute
+  '/products/$id': typeof AuthedProductsIdRoute
+  '/products/new': typeof AuthedProductsNewRoute
+  '/suppliers/$id': typeof AuthedSuppliersIdRoute
+  '/suppliers/new': typeof AuthedSuppliersNewRoute
   '/customers/': typeof AuthedCustomersIndexRoute
+  '/products/': typeof AuthedProductsIndexRoute
+  '/settings/': typeof AuthedSettingsIndexRoute
+  '/suppliers/': typeof AuthedSuppliersIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/': typeof AuthedIndexRoute
+  '/customers/$id': typeof AuthedCustomersIdRoute
+  '/customers/new': typeof AuthedCustomersNewRoute
+  '/products/$id': typeof AuthedProductsIdRoute
+  '/products/new': typeof AuthedProductsNewRoute
+  '/suppliers/$id': typeof AuthedSuppliersIdRoute
+  '/suppliers/new': typeof AuthedSuppliersNewRoute
   '/customers': typeof AuthedCustomersIndexRoute
+  '/products': typeof AuthedProductsIndexRoute
+  '/settings': typeof AuthedSettingsIndexRoute
+  '/suppliers': typeof AuthedSuppliersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/_authed/': typeof AuthedIndexRoute
+  '/_authed/customers/$id': typeof AuthedCustomersIdRoute
+  '/_authed/customers/new': typeof AuthedCustomersNewRoute
+  '/_authed/products/$id': typeof AuthedProductsIdRoute
+  '/_authed/products/new': typeof AuthedProductsNewRoute
+  '/_authed/suppliers/$id': typeof AuthedSuppliersIdRoute
+  '/_authed/suppliers/new': typeof AuthedSuppliersNewRoute
   '/_authed/customers/': typeof AuthedCustomersIndexRoute
+  '/_authed/products/': typeof AuthedProductsIndexRoute
+  '/_authed/settings/': typeof AuthedSettingsIndexRoute
+  '/_authed/suppliers/': typeof AuthedSuppliersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/customers/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/customers/$id'
+    | '/customers/new'
+    | '/products/$id'
+    | '/products/new'
+    | '/suppliers/$id'
+    | '/suppliers/new'
+    | '/customers/'
+    | '/products/'
+    | '/settings/'
+    | '/suppliers/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/' | '/customers'
-  id: '__root__' | '/_authed' | '/login' | '/_authed/' | '/_authed/customers/'
+  to:
+    | '/login'
+    | '/'
+    | '/customers/$id'
+    | '/customers/new'
+    | '/products/$id'
+    | '/products/new'
+    | '/suppliers/$id'
+    | '/suppliers/new'
+    | '/customers'
+    | '/products'
+    | '/settings'
+    | '/suppliers'
+  id:
+    | '__root__'
+    | '/_authed'
+    | '/login'
+    | '/_authed/'
+    | '/_authed/customers/$id'
+    | '/_authed/customers/new'
+    | '/_authed/products/$id'
+    | '/_authed/products/new'
+    | '/_authed/suppliers/$id'
+    | '/_authed/suppliers/new'
+    | '/_authed/customers/'
+    | '/_authed/products/'
+    | '/_authed/settings/'
+    | '/_authed/suppliers/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -87,6 +206,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/suppliers/': {
+      id: '/_authed/suppliers/'
+      path: '/suppliers'
+      fullPath: '/suppliers/'
+      preLoaderRoute: typeof AuthedSuppliersIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/settings/': {
+      id: '/_authed/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AuthedSettingsIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/products/': {
+      id: '/_authed/products/'
+      path: '/products'
+      fullPath: '/products/'
+      preLoaderRoute: typeof AuthedProductsIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
     '/_authed/customers/': {
       id: '/_authed/customers/'
       path: '/customers'
@@ -94,17 +234,77 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCustomersIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/suppliers/new': {
+      id: '/_authed/suppliers/new'
+      path: '/suppliers/new'
+      fullPath: '/suppliers/new'
+      preLoaderRoute: typeof AuthedSuppliersNewRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/suppliers/$id': {
+      id: '/_authed/suppliers/$id'
+      path: '/suppliers/$id'
+      fullPath: '/suppliers/$id'
+      preLoaderRoute: typeof AuthedSuppliersIdRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/products/new': {
+      id: '/_authed/products/new'
+      path: '/products/new'
+      fullPath: '/products/new'
+      preLoaderRoute: typeof AuthedProductsNewRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/products/$id': {
+      id: '/_authed/products/$id'
+      path: '/products/$id'
+      fullPath: '/products/$id'
+      preLoaderRoute: typeof AuthedProductsIdRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/customers/new': {
+      id: '/_authed/customers/new'
+      path: '/customers/new'
+      fullPath: '/customers/new'
+      preLoaderRoute: typeof AuthedCustomersNewRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/customers/$id': {
+      id: '/_authed/customers/$id'
+      path: '/customers/$id'
+      fullPath: '/customers/$id'
+      preLoaderRoute: typeof AuthedCustomersIdRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
   }
 }
 
 interface AuthedRouteRouteChildren {
   AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedCustomersIdRoute: typeof AuthedCustomersIdRoute
+  AuthedCustomersNewRoute: typeof AuthedCustomersNewRoute
+  AuthedProductsIdRoute: typeof AuthedProductsIdRoute
+  AuthedProductsNewRoute: typeof AuthedProductsNewRoute
+  AuthedSuppliersIdRoute: typeof AuthedSuppliersIdRoute
+  AuthedSuppliersNewRoute: typeof AuthedSuppliersNewRoute
   AuthedCustomersIndexRoute: typeof AuthedCustomersIndexRoute
+  AuthedProductsIndexRoute: typeof AuthedProductsIndexRoute
+  AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
+  AuthedSuppliersIndexRoute: typeof AuthedSuppliersIndexRoute
 }
 
 const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedIndexRoute: AuthedIndexRoute,
+  AuthedCustomersIdRoute: AuthedCustomersIdRoute,
+  AuthedCustomersNewRoute: AuthedCustomersNewRoute,
+  AuthedProductsIdRoute: AuthedProductsIdRoute,
+  AuthedProductsNewRoute: AuthedProductsNewRoute,
+  AuthedSuppliersIdRoute: AuthedSuppliersIdRoute,
+  AuthedSuppliersNewRoute: AuthedSuppliersNewRoute,
   AuthedCustomersIndexRoute: AuthedCustomersIndexRoute,
+  AuthedProductsIndexRoute: AuthedProductsIndexRoute,
+  AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
+  AuthedSuppliersIndexRoute: AuthedSuppliersIndexRoute,
 }
 
 const AuthedRouteRouteWithChildren = AuthedRouteRoute._addFileChildren(
