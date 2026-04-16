@@ -20,6 +20,7 @@ import { Route as AuthedPurchaseOrdersIndexRouteImport } from './routes/_authed/
 import { Route as AuthedProductsIndexRouteImport } from './routes/_authed/products/index'
 import { Route as AuthedOrdersIndexRouteImport } from './routes/_authed/orders/index'
 import { Route as AuthedInvoicesIndexRouteImport } from './routes/_authed/invoices/index'
+import { Route as AuthedIntegrationsIndexRouteImport } from './routes/_authed/integrations/index'
 import { Route as AuthedCustomersIndexRouteImport } from './routes/_authed/customers/index'
 import { Route as AuthedSuppliersNewRouteImport } from './routes/_authed/suppliers/new'
 import { Route as AuthedSuppliersIdRouteImport } from './routes/_authed/suppliers/$id'
@@ -35,6 +36,9 @@ import { Route as AuthedProductsIdRouteImport } from './routes/_authed/products/
 import { Route as AuthedOrdersNewRouteImport } from './routes/_authed/orders/new'
 import { Route as AuthedOrdersIdRouteImport } from './routes/_authed/orders/$id'
 import { Route as AuthedInvoicesIdRouteImport } from './routes/_authed/invoices/$id'
+import { Route as AuthedIntegrationsMarketplaceRouteImport } from './routes/_authed/integrations/marketplace'
+import { Route as AuthedIntegrationsCsvRouteImport } from './routes/_authed/integrations/csv'
+import { Route as AuthedIntegrationsBulkRouteImport } from './routes/_authed/integrations/bulk'
 import { Route as AuthedCustomersNewRouteImport } from './routes/_authed/customers/new'
 import { Route as AuthedCustomersIdRouteImport } from './routes/_authed/customers/$id'
 
@@ -92,6 +96,11 @@ const AuthedOrdersIndexRoute = AuthedOrdersIndexRouteImport.update({
 const AuthedInvoicesIndexRoute = AuthedInvoicesIndexRouteImport.update({
   id: '/invoices/',
   path: '/invoices/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedIntegrationsIndexRoute = AuthedIntegrationsIndexRouteImport.update({
+  id: '/integrations/',
+  path: '/integrations/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedCustomersIndexRoute = AuthedCustomersIndexRouteImport.update({
@@ -170,6 +179,22 @@ const AuthedInvoicesIdRoute = AuthedInvoicesIdRouteImport.update({
   path: '/invoices/$id',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedIntegrationsMarketplaceRoute =
+  AuthedIntegrationsMarketplaceRouteImport.update({
+    id: '/integrations/marketplace',
+    path: '/integrations/marketplace',
+    getParentRoute: () => AuthedRouteRoute,
+  } as any)
+const AuthedIntegrationsCsvRoute = AuthedIntegrationsCsvRouteImport.update({
+  id: '/integrations/csv',
+  path: '/integrations/csv',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedIntegrationsBulkRoute = AuthedIntegrationsBulkRouteImport.update({
+  id: '/integrations/bulk',
+  path: '/integrations/bulk',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 const AuthedCustomersNewRoute = AuthedCustomersNewRouteImport.update({
   id: '/customers/new',
   path: '/customers/new',
@@ -186,6 +211,9 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
   '/customers/new': typeof AuthedCustomersNewRoute
+  '/integrations/bulk': typeof AuthedIntegrationsBulkRoute
+  '/integrations/csv': typeof AuthedIntegrationsCsvRoute
+  '/integrations/marketplace': typeof AuthedIntegrationsMarketplaceRoute
   '/invoices/$id': typeof AuthedInvoicesIdRoute
   '/orders/$id': typeof AuthedOrdersIdRoute
   '/orders/new': typeof AuthedOrdersNewRoute
@@ -201,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/suppliers/new': typeof AuthedSuppliersNewRoute
   '/customers/': typeof AuthedCustomersIndexRoute
+  '/integrations/': typeof AuthedIntegrationsIndexRoute
   '/invoices/': typeof AuthedInvoicesIndexRoute
   '/orders/': typeof AuthedOrdersIndexRoute
   '/products/': typeof AuthedProductsIndexRoute
@@ -215,6 +244,9 @@ export interface FileRoutesByTo {
   '/': typeof AuthedIndexRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
   '/customers/new': typeof AuthedCustomersNewRoute
+  '/integrations/bulk': typeof AuthedIntegrationsBulkRoute
+  '/integrations/csv': typeof AuthedIntegrationsCsvRoute
+  '/integrations/marketplace': typeof AuthedIntegrationsMarketplaceRoute
   '/invoices/$id': typeof AuthedInvoicesIdRoute
   '/orders/$id': typeof AuthedOrdersIdRoute
   '/orders/new': typeof AuthedOrdersNewRoute
@@ -230,6 +262,7 @@ export interface FileRoutesByTo {
   '/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/suppliers/new': typeof AuthedSuppliersNewRoute
   '/customers': typeof AuthedCustomersIndexRoute
+  '/integrations': typeof AuthedIntegrationsIndexRoute
   '/invoices': typeof AuthedInvoicesIndexRoute
   '/orders': typeof AuthedOrdersIndexRoute
   '/products': typeof AuthedProductsIndexRoute
@@ -246,6 +279,9 @@ export interface FileRoutesById {
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/customers/$id': typeof AuthedCustomersIdRoute
   '/_authed/customers/new': typeof AuthedCustomersNewRoute
+  '/_authed/integrations/bulk': typeof AuthedIntegrationsBulkRoute
+  '/_authed/integrations/csv': typeof AuthedIntegrationsCsvRoute
+  '/_authed/integrations/marketplace': typeof AuthedIntegrationsMarketplaceRoute
   '/_authed/invoices/$id': typeof AuthedInvoicesIdRoute
   '/_authed/orders/$id': typeof AuthedOrdersIdRoute
   '/_authed/orders/new': typeof AuthedOrdersNewRoute
@@ -261,6 +297,7 @@ export interface FileRoutesById {
   '/_authed/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/_authed/suppliers/new': typeof AuthedSuppliersNewRoute
   '/_authed/customers/': typeof AuthedCustomersIndexRoute
+  '/_authed/integrations/': typeof AuthedIntegrationsIndexRoute
   '/_authed/invoices/': typeof AuthedInvoicesIndexRoute
   '/_authed/orders/': typeof AuthedOrdersIndexRoute
   '/_authed/products/': typeof AuthedProductsIndexRoute
@@ -277,6 +314,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/customers/$id'
     | '/customers/new'
+    | '/integrations/bulk'
+    | '/integrations/csv'
+    | '/integrations/marketplace'
     | '/invoices/$id'
     | '/orders/$id'
     | '/orders/new'
@@ -292,6 +332,7 @@ export interface FileRouteTypes {
     | '/suppliers/$id'
     | '/suppliers/new'
     | '/customers/'
+    | '/integrations/'
     | '/invoices/'
     | '/orders/'
     | '/products/'
@@ -306,6 +347,9 @@ export interface FileRouteTypes {
     | '/'
     | '/customers/$id'
     | '/customers/new'
+    | '/integrations/bulk'
+    | '/integrations/csv'
+    | '/integrations/marketplace'
     | '/invoices/$id'
     | '/orders/$id'
     | '/orders/new'
@@ -321,6 +365,7 @@ export interface FileRouteTypes {
     | '/suppliers/$id'
     | '/suppliers/new'
     | '/customers'
+    | '/integrations'
     | '/invoices'
     | '/orders'
     | '/products'
@@ -336,6 +381,9 @@ export interface FileRouteTypes {
     | '/_authed/'
     | '/_authed/customers/$id'
     | '/_authed/customers/new'
+    | '/_authed/integrations/bulk'
+    | '/_authed/integrations/csv'
+    | '/_authed/integrations/marketplace'
     | '/_authed/invoices/$id'
     | '/_authed/orders/$id'
     | '/_authed/orders/new'
@@ -351,6 +399,7 @@ export interface FileRouteTypes {
     | '/_authed/suppliers/$id'
     | '/_authed/suppliers/new'
     | '/_authed/customers/'
+    | '/_authed/integrations/'
     | '/_authed/invoices/'
     | '/_authed/orders/'
     | '/_authed/products/'
@@ -443,6 +492,13 @@ declare module '@tanstack/react-router' {
       path: '/invoices'
       fullPath: '/invoices/'
       preLoaderRoute: typeof AuthedInvoicesIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/integrations/': {
+      id: '/_authed/integrations/'
+      path: '/integrations'
+      fullPath: '/integrations/'
+      preLoaderRoute: typeof AuthedIntegrationsIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/customers/': {
@@ -550,6 +606,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedInvoicesIdRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/integrations/marketplace': {
+      id: '/_authed/integrations/marketplace'
+      path: '/integrations/marketplace'
+      fullPath: '/integrations/marketplace'
+      preLoaderRoute: typeof AuthedIntegrationsMarketplaceRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/integrations/csv': {
+      id: '/_authed/integrations/csv'
+      path: '/integrations/csv'
+      fullPath: '/integrations/csv'
+      preLoaderRoute: typeof AuthedIntegrationsCsvRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/integrations/bulk': {
+      id: '/_authed/integrations/bulk'
+      path: '/integrations/bulk'
+      fullPath: '/integrations/bulk'
+      preLoaderRoute: typeof AuthedIntegrationsBulkRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
     '/_authed/customers/new': {
       id: '/_authed/customers/new'
       path: '/customers/new'
@@ -571,6 +648,9 @@ interface AuthedRouteRouteChildren {
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedCustomersIdRoute: typeof AuthedCustomersIdRoute
   AuthedCustomersNewRoute: typeof AuthedCustomersNewRoute
+  AuthedIntegrationsBulkRoute: typeof AuthedIntegrationsBulkRoute
+  AuthedIntegrationsCsvRoute: typeof AuthedIntegrationsCsvRoute
+  AuthedIntegrationsMarketplaceRoute: typeof AuthedIntegrationsMarketplaceRoute
   AuthedInvoicesIdRoute: typeof AuthedInvoicesIdRoute
   AuthedOrdersIdRoute: typeof AuthedOrdersIdRoute
   AuthedOrdersNewRoute: typeof AuthedOrdersNewRoute
@@ -586,6 +666,7 @@ interface AuthedRouteRouteChildren {
   AuthedSuppliersIdRoute: typeof AuthedSuppliersIdRoute
   AuthedSuppliersNewRoute: typeof AuthedSuppliersNewRoute
   AuthedCustomersIndexRoute: typeof AuthedCustomersIndexRoute
+  AuthedIntegrationsIndexRoute: typeof AuthedIntegrationsIndexRoute
   AuthedInvoicesIndexRoute: typeof AuthedInvoicesIndexRoute
   AuthedOrdersIndexRoute: typeof AuthedOrdersIndexRoute
   AuthedProductsIndexRoute: typeof AuthedProductsIndexRoute
@@ -600,6 +681,9 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedCustomersIdRoute: AuthedCustomersIdRoute,
   AuthedCustomersNewRoute: AuthedCustomersNewRoute,
+  AuthedIntegrationsBulkRoute: AuthedIntegrationsBulkRoute,
+  AuthedIntegrationsCsvRoute: AuthedIntegrationsCsvRoute,
+  AuthedIntegrationsMarketplaceRoute: AuthedIntegrationsMarketplaceRoute,
   AuthedInvoicesIdRoute: AuthedInvoicesIdRoute,
   AuthedOrdersIdRoute: AuthedOrdersIdRoute,
   AuthedOrdersNewRoute: AuthedOrdersNewRoute,
@@ -615,6 +699,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedSuppliersIdRoute: AuthedSuppliersIdRoute,
   AuthedSuppliersNewRoute: AuthedSuppliersNewRoute,
   AuthedCustomersIndexRoute: AuthedCustomersIndexRoute,
+  AuthedIntegrationsIndexRoute: AuthedIntegrationsIndexRoute,
   AuthedInvoicesIndexRoute: AuthedInvoicesIndexRoute,
   AuthedOrdersIndexRoute: AuthedOrdersIndexRoute,
   AuthedProductsIndexRoute: AuthedProductsIndexRoute,
