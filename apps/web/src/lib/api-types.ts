@@ -458,3 +458,44 @@ export interface SupplierInvoice {
   status: InvoiceStatus;
   createdAt: string;
 }
+
+// ============================================================
+// Stock Items
+// ============================================================
+
+export type StockItemStatus =
+  | 'IN_STOCK'
+  | 'ALLOCATED'
+  | 'SOLD'
+  | 'RETURNED'
+  | 'WRITTEN_OFF'
+  | 'IN_TRANSIT';
+
+export interface StockItem {
+  id: string;
+  companyId: string;
+  productId: string;
+  productName?: string;
+  warehouseId: string;
+  warehouseName?: string;
+  status: StockItemStatus;
+  serialNumber: string | null;
+  batchId: string | null;
+  valuePerUnit: string;
+  currencyCode: string;
+  locationIsle: string | null;
+  locationShelf: string | null;
+  locationBin: string | null;
+  orderId: string | null;
+  createdAt: string;
+}
+
+export interface StockReportRow {
+  warehouseId: string;
+  warehouseName: string;
+  productId: string;
+  productName: string;
+  stockCode: string | null;
+  quantity: number;
+  totalValue: string;
+}
