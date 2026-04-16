@@ -1,0 +1,25 @@
+{
+  "name": "smmta-next",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "db:generate": "turbo db:generate --filter=@smmta/api",
+    "db:migrate": "turbo db:migrate --filter=@smmta/api",
+    "db:push": "turbo db:push --filter=@smmta/api"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "npm@11.9.0"
+}
