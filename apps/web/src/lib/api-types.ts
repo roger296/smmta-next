@@ -377,3 +377,84 @@ export interface Payment {
   reference: string | null;
   createdAt: string;
 }
+
+// ============================================================
+// Purchase Orders
+// ============================================================
+
+export type PODeliveryStatus = 'PENDING' | 'PARTIALLY_RECEIVED' | 'FULLY_RECEIVED' | 'CANCELLED';
+export type POInvoicedStatus = 'NOT_INVOICED' | 'PARTIALLY_INVOICED' | 'FULLY_INVOICED';
+
+export interface POLine {
+  id: string;
+  purchaseOrderId: string;
+  productId: string;
+  productName?: string;
+  quantity: string;
+  quantityReceived: string;
+  quantityInvoiced: string;
+  pricePerUnit: string;
+  taxRate: string;
+  lineTotal: string;
+  expectedDeliveryDate: string | null;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  companyId: string;
+  poNumber: string;
+  supplierId: string;
+  supplierName?: string;
+  deliveryWarehouseId: string | null;
+  currencyCode: string;
+  deliveryCharge: string;
+  subtotal: string;
+  taxAmount: string;
+  total: string;
+  vatTreatment: VatTreatment;
+  exchangeRate: string;
+  expectedDeliveryDate: string | null;
+  deliveryStatus: PODeliveryStatus;
+  invoicedStatus: POInvoicedStatus;
+  trackingNumber: string | null;
+  lines?: POLine[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GRNLine {
+  id: string;
+  grnId: string;
+  productId: string;
+  productName?: string;
+  quantityBookedIn: string;
+  serialNumbers: string[] | null;
+  valuePerUnit: string;
+}
+
+export interface GRN {
+  id: string;
+  grnNumber: string;
+  purchaseOrderId: string;
+  supplierDeliveryNoteNo: string | null;
+  dateBookedIn: string;
+  lines?: GRNLine[];
+  createdAt: string;
+}
+
+export interface SupplierInvoice {
+  id: string;
+  invoiceNumber: string;
+  supplierId: string;
+  supplierName?: string;
+  purchaseOrderId: string | null;
+  dateOfInvoice: string;
+  dueDateOfInvoice: string | null;
+  subtotal: string;
+  taxAmount: string;
+  total: string;
+  paidAmount: string;
+  outstandingAmount: string;
+  status: InvoiceStatus;
+  createdAt: string;
+}
