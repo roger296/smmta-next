@@ -238,3 +238,142 @@ export interface Manufacturer {
   techSupportPhone: string | null;
   techSupportEmail: string | null;
 }
+
+// ============================================================
+// Orders
+// ============================================================
+
+export type OrderStatus =
+  | 'DRAFT'
+  | 'CONFIRMED'
+  | 'ALLOCATED'
+  | 'PARTIALLY_ALLOCATED'
+  | 'BACK_ORDERED'
+  | 'READY_TO_SHIP'
+  | 'PARTIALLY_SHIPPED'
+  | 'SHIPPED'
+  | 'INVOICED'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'ON_HOLD';
+
+export type SourceChannel =
+  | 'MANUAL'
+  | 'SHOPIFY'
+  | 'AMAZON'
+  | 'EBAY'
+  | 'ETSY'
+  | 'WOOCOMMERCE'
+  | 'CSV'
+  | 'API';
+
+export interface OrderLine {
+  id: string;
+  orderId: string;
+  productId: string;
+  productName?: string;
+  quantity: string;
+  pricePerUnit: string;
+  taxRate: string;
+  lineTotal: string;
+  lineTax: string;
+}
+
+export interface Order {
+  id: string;
+  companyId: string;
+  orderNumber: string;
+  customerId: string;
+  customerName?: string;
+  contactId: string | null;
+  invoiceAddressId: string | null;
+  deliveryAddressId: string | null;
+  warehouseId: string | null;
+  currencyCode: string;
+  deliveryCharge: string;
+  subtotal: string;
+  taxAmount: string;
+  total: string;
+  cogs: string;
+  margin: string;
+  orderDate: string;
+  deliveryDate: string | null;
+  taxInclusive: boolean;
+  vatTreatment: VatTreatment;
+  sourceChannel: SourceChannel;
+  status: OrderStatus;
+  paymentMethod: string | null;
+  customerOrderNumber: string | null;
+  factoryOrderNumber: string | null;
+  trackingNumber: string | null;
+  trackingLink: string | null;
+  courierName: string | null;
+  lines?: OrderLine[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderNote {
+  id: string;
+  orderId: string;
+  note: string;
+  isMarked: boolean;
+  isPickingNote: boolean;
+  createdAt: string;
+}
+
+// ============================================================
+// Invoices & Credit Notes
+// ============================================================
+
+export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'VOIDED';
+
+export interface InvoiceLine {
+  id: string;
+  invoiceId: string;
+  productId: string;
+  productName?: string;
+  quantity: string;
+  pricePerUnit: string;
+  taxRate: string;
+  lineTotal: string;
+  lineTax: string;
+}
+
+export interface Invoice {
+  id: string;
+  companyId: string;
+  invoiceNumber: string;
+  orderId: string;
+  customerId: string;
+  customerName?: string;
+  status: InvoiceStatus;
+  dateOfInvoice: string;
+  dueDateOfInvoice: string | null;
+  subtotal: string;
+  taxAmount: string;
+  total: string;
+  paidAmount: string;
+  outstandingAmount: string;
+  lines?: InvoiceLine[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreditNote {
+  id: string;
+  creditNoteNumber: string;
+  invoiceId: string;
+  dateOfCreditNote: string;
+  total: string;
+  createdAt: string;
+}
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  amount: string;
+  paymentDate: string;
+  reference: string | null;
+  createdAt: string;
+}

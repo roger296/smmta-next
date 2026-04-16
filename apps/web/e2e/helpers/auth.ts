@@ -1,3 +1,4 @@
+// @ts-expect-error - Node built-in, available at runtime in Playwright environment
 import { execSync } from 'node:child_process';
 import type { Page } from '@playwright/test';
 
@@ -16,7 +17,7 @@ export function getOrGenerateToken(): string {
   const match = out.match(/=== TEST JWT TOKEN ===\s*\n(\S+)/);
   if (!match) throw new Error('Could not parse token from generate-test-token output:\n' + out);
   cachedToken = match[1]!;
-  return cachedToken;
+  return cachedToken!;
 }
 
 /**
