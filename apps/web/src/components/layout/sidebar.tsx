@@ -33,12 +33,20 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Settings', to: '/settings', icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  /** When true, always show (used inside mobile Sheet). */
+  alwaysShow?: boolean;
+}
+
+export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
   const { location } = useRouterState();
   return (
     <aside
       aria-label="Main navigation"
-      className="hidden w-60 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-card)] md:block"
+      className={cn(
+        'w-60 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-card)]',
+        alwaysShow ? 'block w-full border-r-0' : 'hidden md:block',
+      )}
     >
       <div className="flex h-14 items-center border-b border-[var(--color-border)] px-4">
         <span className="text-base font-semibold">SMMTA-Next</span>

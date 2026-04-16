@@ -27,8 +27,11 @@ import {
   useDeleteCustomerType,
 } from '@/features/customers/use-customers';
 import { WarehouseDialog, SimpleNameDialog } from '@/features/reference/warehouse-dialog';
+import { useYearEndClose } from '@/features/integrations/use-integrations';
 import type { Category, Manufacturer, Warehouse, CustomerType } from '@/lib/api-types';
-import { Edit, Plus, Trash2, Warehouse as WarehouseIcon, Tag, Factory, Users } from 'lucide-react';
+import { Edit, Plus, Trash2, Warehouse as WarehouseIcon, Tag, Factory, Users, Calendar } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export const Route = createFileRoute('/_authed/settings/')({
   component: SettingsPage,
@@ -49,6 +52,7 @@ function SettingsPage() {
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="manufacturers">Manufacturers</TabsTrigger>
           <TabsTrigger value="customer-types">Customer types</TabsTrigger>
+          <TabsTrigger value="year-end">Year-end close</TabsTrigger>
         </TabsList>
         <TabsContent value="warehouses">
           <WarehousesPanel />
@@ -62,7 +66,84 @@ function SettingsPage() {
         <TabsContent value="customer-types">
           <CustomerTypesPanel />
         </TabsContent>
+        <TabsContent value="year-end">
+          <YearEndPanel />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function YearEndPanel() {
+  const { toast } = useToast();
+  const mutation = useYearEndClose();
+  const [fromDate, setFromDate] = React.useState('');
+  const [toDate, setToDate] = React.useState('');
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-4 p-6">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-[var(--color-muted-foreground)]" aria-hidden />
+            <h3 className="text-base font-medium">Close financial year</h3>
+          </div>
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            This posts a year-end close to the Luca GL via the API. All periods within the range
+            must be reconciled. This action cannot be undone.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="ye-from">From date</Label>
+              <Input
+                id="ye-from"
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ye-to">To date</Label>
+              <Input
+                id="ye-to"
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button
+              variant="destructive"
+              disabled={!fromDate || !toDate}
+              onClick={() => setConfirmOpen(true)}
+            >
+              Close year
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Close the financial year?"
+        description={`This will post a year-end close for ${fromDate} → ${toDate} to the GL. This cannot be undone.`}
+        destructive
+        confirmLabel="Close year"
+        onConfirm={async () => {
+          try {
+            await mutation.mutateAsync({ fromDate, toDate });
+            toast({ title: 'Year closed successfully' });
+          } catch (err) {
+            toast({
+              variant: 'destructive',
+              title: 'Year-end close failed',
+              description: err instanceof Error ? err.message : 'Unknown',
+            });
+          }
+        }}
+      />
     </div>
   );
 }
