@@ -155,3 +155,7 @@ export const customerInvoiceAddressesRelations = relations(customerInvoiceAddres
 export const customerNotesRelations = relations(customerNotes, ({ one }) => ({
   customer: one(customers, { fields: [customerNotes.customerId], references: [customers.id] }),
 }));
+
+export const customerProductPricesRelations = relations(customerProductPrices, ({ one }) => ({
+  customer: one(customers, { fields: [customerProductPrices.customerId], references: [customers.id] }),
+}));

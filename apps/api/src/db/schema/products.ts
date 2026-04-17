@@ -142,3 +142,8 @@ export const stockItemsRelations = relations(stockItems, ({ one }) => ({
   product: one(products, { fields: [stockItems.productId], references: [products.id] }),
   warehouse: one(warehouses, { fields: [stockItems.warehouseId], references: [warehouses.id] }),
 }));
+
+export const productCategoryMappingsRelations = relations(productCategoryMappings, ({ one }) => ({
+  product: one(products, { fields: [productCategoryMappings.productId], references: [products.id] }),
+  category: one(categories, { fields: [productCategoryMappings.categoryId], references: [categories.id] }),
+}));

@@ -251,3 +251,12 @@ export const creditNotesRelations = relations(creditNotes, ({ one, many }) => ({
   customer: one(customers, { fields: [creditNotes.customerId], references: [customers.id] }),
   lines: many(creditNoteLines),
 }));
+
+export const creditNoteLinesRelations = relations(creditNoteLines, ({ one }) => ({
+  creditNote: one(creditNotes, { fields: [creditNoteLines.creditNoteId], references: [creditNotes.id] }),
+  product: one(products, { fields: [creditNoteLines.productId], references: [products.id] }),
+}));
+
+export const orderNotesRelations = relations(orderNotes, ({ one }) => ({
+  order: one(customerOrders, { fields: [orderNotes.orderId], references: [customerOrders.id] }),
+}));
