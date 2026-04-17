@@ -267,3 +267,16 @@ export const supplierCreditNotesRelations = relations(supplierCreditNotes, ({ on
   supplierInvoice: one(supplierInvoices, { fields: [supplierCreditNotes.supplierInvoiceId], references: [supplierInvoices.id] }),
   supplier: one(suppliers, { fields: [supplierCreditNotes.supplierId], references: [suppliers.id] }),
 }));
+
+export const supplierAddressesRelations = relations(supplierAddresses, ({ one }) => ({
+  supplier: one(suppliers, { fields: [supplierAddresses.supplierId], references: [suppliers.id] }),
+}));
+
+export const supplierNotesRelations = relations(supplierNotes, ({ one }) => ({
+  supplier: one(suppliers, { fields: [supplierNotes.supplierId], references: [suppliers.id] }),
+}));
+
+export const grnLinesRelations = relations(grnLines, ({ one }) => ({
+  grn: one(goodsReceivedNotes, { fields: [grnLines.grnId], references: [goodsReceivedNotes.id] }),
+  product: one(products, { fields: [grnLines.productId], references: [products.id] }),
+}));
