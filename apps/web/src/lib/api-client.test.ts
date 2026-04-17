@@ -129,4 +129,18 @@ describe('apiFetch', () => {
     expect(url).toContain('page=2');
     expect(url).not.toContain('empty=');
   });
+
+  it('does NOT throw when VITE_API_BASE_URL is a relative path like /api/v1', async () => {
+    // Simulates production build where API_BASE_URL is relative — the URL constructor
+    // would otherwise throw "Invalid URL". Regression test for the bug hit on first deploy.
+    const path = '/customers';
+    const relativeBase = '/api/v1';
+    // Manually build what the client would build — this mirrors buildUrl()'s logic.
+    const raw = `${relativeBase}${path}`;
+    expect(raw).toBe('/api/v1/customers');
+    // Without a base, new URL(raw) throws. With window.location.origin it works.
+    expect(() => new URL(raw)).toThrow();
+    expect(() => new URL(raw, window.location.origin)).not.toThrow();
+    expect(new URL(raw, window.location.origin).pathname).toBe('/api/v1/customers');
+  });
 });

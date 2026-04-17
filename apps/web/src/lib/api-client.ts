@@ -41,9 +41,19 @@ interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
 }
 
 function buildUrl(path: string, searchParams?: ApiFetchOptions['searchParams']): string {
-  const url = new URL(
-    path.startsWith('http') ? path : `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`,
-  );
+  // Assemble the raw URL. It can end up absolute (http://host/path) OR relative (/api/v1/path)
+  // depending on whether VITE_API_BASE_URL was set to an absolute or relative URL.
+  const raw = path.startsWith('http')
+    ? path
+    : `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+
+  // The URL constructor requires an absolute URL. When raw is relative, supply the current
+  // origin as a base so the URL can be parsed. In production with VITE_API_BASE_URL=/api/v1
+  // the request will be sent to the same origin (served by Nginx reverse-proxying /api/).
+  const base =
+    raw.startsWith('http') || typeof window === 'undefined' ? undefined : window.location.origin;
+  const url = new URL(raw, base);
+
   if (searchParams) {
     for (const [key, value] of Object.entries(searchParams)) {
       if (value === undefined || value === null || value === '') continue;
