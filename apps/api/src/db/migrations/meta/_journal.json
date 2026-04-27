@@ -15,6 +15,13 @@
       "when": 1777299205877,
       "tag": "0001_numerous_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777301682597,
+      "tag": "0002_fluffy_frog_thor",
+      "breakpoints": true
     }
   ]
 }
