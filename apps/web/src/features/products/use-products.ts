@@ -31,6 +31,20 @@ export interface CreateProductInput {
   hsCode?: string;
   supplierId?: string;
   defaultWarehouseId?: string;
+  // Storefront fields. All optional — set them via the Storefront tab.
+  groupId?: string | null;
+  colour?: string | null;
+  colourHex?: string | null;
+  slug?: string | null;
+  shortDescription?: string | null;
+  longDescription?: string | null;
+  heroImageUrl?: string | null;
+  galleryImageUrls?: string[] | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  seoKeywords?: string[] | null;
+  isPublished?: boolean;
+  sortOrderInGroup?: number;
 }
 
 const base = createResourceHooks<Product, CreateProductInput, Partial<CreateProductInput>, ProductListQuery>({

@@ -11,6 +11,7 @@ import {
   Receipt,
   Settings,
   Layers,
+  Boxes,
 } from 'lucide-react';
 
 interface NavItem {
@@ -25,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Orders', to: '/orders', icon: ShoppingCart },
   { label: 'Invoices', to: '/invoices', icon: FileText },
   { label: 'Products', to: '/products', icon: Package },
+  { label: 'Product groups', to: '/product-groups', icon: Boxes },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },

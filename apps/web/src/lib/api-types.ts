@@ -189,6 +189,41 @@ export interface Product {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  // Storefront fields (Prompt 1 / Prompt 6).
+  groupId: string | null;
+  colour: string | null;
+  colourHex: string | null;
+  slug: string | null;
+  shortDescription: string | null;
+  longDescription: string | null;
+  heroImageUrl: string | null;
+  galleryImageUrls: string[] | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  seoKeywords: string[] | null;
+  isPublished: boolean;
+  sortOrderInGroup: number;
+}
+
+export interface ProductGroup {
+  id: string;
+  companyId: string;
+  name: string;
+  description: string | null;
+  groupType: string | null;
+  // Storefront fields.
+  slug: string | null;
+  shortDescription: string | null;
+  longDescription: string | null;
+  heroImageUrl: string | null;
+  galleryImageUrls: string[] | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  seoKeywords: string[] | null;
+  isPublished: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProductImage {

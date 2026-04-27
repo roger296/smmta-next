@@ -448,4 +448,21 @@ export class ProductGroupService {
       .returning();
     return updated ?? null;
   }
+
+  /** Soft-delete (sets deleted_at). Products linked via group_id keep their
+   *  group_id pointing at the soft-deleted row — operators can re-publish a
+   *  group later without re-linking variants if the group is restored. */
+  async delete(id: string, companyId: string): Promise<boolean> {
+    const result = await this.db
+      .update(productGroups)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(productGroups.id, id),
+          eq(productGroups.companyId, companyId),
+          isNull(productGroups.deletedAt),
+        ),
+      );
+    return (result.rowCount ?? 0) > 0;
+  }
 }

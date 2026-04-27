@@ -6,6 +6,7 @@ import swaggerUi from '@fastify/swagger-ui';
 import { getEnv } from './config/env.js';
 import { errorHandler } from './shared/middleware/error-handler.js';
 import { productRoutes } from './modules/products/product.routes.js';
+import { productGroupRoutes } from './modules/products/product-group.routes.js';
 import { stockItemRoutes } from './modules/products/stock-item.routes.js';
 import { referenceRoutes } from './modules/products/reference.routes.js';
 import { supplierRoutes } from './modules/purchasing/supplier.routes.js';
@@ -59,6 +60,7 @@ export async function buildApp() {
 
   // Phase 2: Products & Stock
   await app.register(productRoutes, { prefix: '/api/v1' });
+  await app.register(productGroupRoutes, { prefix: '/api/v1' });
   await app.register(stockItemRoutes, { prefix: '/api/v1' });
   await app.register(referenceRoutes, { prefix: '/api/v1' });
 
