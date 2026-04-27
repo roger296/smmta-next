@@ -2,6 +2,7 @@ import { pgTable, varchar, decimal, boolean, integer, text, uuid, jsonb, doubleP
 import { relations } from 'drizzle-orm';
 import { pk, companyId, auditTimestamps, oldId, productTypeEnum, stockItemStatusEnum } from './common.js';
 import { categories, manufacturers, warehouses } from './reference.js';
+import { stockReservations } from './storefront.js';
 
 // ============================================================
 // Products
@@ -132,6 +133,11 @@ export const productGroups = pgTable(
 
 // ============================================================
 // Stock Items
+// ------------------------------------------------------------
+// `reservation_id` is the back-link from a held stock unit to its
+// row in `stock_reservations` (defined in storefront.ts). It is set
+// only while the item is in the RESERVED status; cleared on release
+// or when the reservation is converted to an ALLOCATED order.
 // ============================================================
 
 export const stockItems = pgTable('stock_items', {
@@ -150,6 +156,8 @@ export const stockItems = pgTable('stock_items', {
   bookedOutDate: varchar('booked_out_date', { length: 10 }),
   purchaseOrderId: uuid('purchase_order_id'),
   salesOrderId: uuid('sales_order_id'),
+  /** FK to stock_reservations.id — populated only while status='RESERVED'. */
+  reservationId: uuid('reservation_id').references(() => stockReservations.id),
   value: decimal('value', { precision: 18, scale: 2 }).default('0'),
   currencyCode: varchar('currency_code', { length: 3 }).default('GBP'),
   oldId: oldId(),
@@ -196,6 +204,10 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
 export const stockItemsRelations = relations(stockItems, ({ one }) => ({
   product: one(products, { fields: [stockItems.productId], references: [products.id] }),
   warehouse: one(warehouses, { fields: [stockItems.warehouseId], references: [warehouses.id] }),
+  reservation: one(stockReservations, {
+    fields: [stockItems.reservationId],
+    references: [stockReservations.id],
+  }),
 }));
 
 export const productCategoryMappingsRelations = relations(productCategoryMappings, ({ one }) => ({

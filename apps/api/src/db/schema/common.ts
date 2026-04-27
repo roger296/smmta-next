@@ -20,8 +20,17 @@ export const sourceChannelEnum = pgEnum('source_channel', [
   'MANUAL', 'SHOPIFY', 'AMAZON', 'EBAY', 'ETSY', 'WOOCOMMERCE', 'CSV', 'API',
 ]);
 
+// Stock item status. RESERVED sits between IN_STOCK and ALLOCATED — held
+// against an open `stock_reservations` row for the duration of a checkout.
+// See `apps/api/src/db/schema/storefront.ts` and the reservation service.
 export const stockItemStatusEnum = pgEnum('stock_item_status', [
-  'IN_STOCK', 'ALLOCATED', 'SOLD', 'RETURNED', 'WRITTEN_OFF', 'IN_TRANSIT',
+  'IN_STOCK', 'RESERVED', 'ALLOCATED', 'SOLD', 'RETURNED', 'WRITTEN_OFF', 'IN_TRANSIT',
+]);
+
+// Lifecycle of a stock_reservations row. HELD is the only state in which
+// stock_items.reservation_id remains pointing at the reservation.
+export const reservationStatusEnum = pgEnum('reservation_status', [
+  'HELD', 'RELEASED', 'CONVERTED', 'EXPIRED',
 ]);
 
 export const productTypeEnum = pgEnum('product_type', ['PHYSICAL', 'SERVICE']);
