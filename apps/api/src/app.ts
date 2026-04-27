@@ -14,7 +14,10 @@ import { customerRoutes } from './modules/customers/customer.routes.js';
 import { orderRoutes } from './modules/orders/order.routes.js';
 import { integrationRoutes } from './modules/orders/integration.routes.js';
 import { apiKeyAdminRoutes } from './modules/admin/api-keys.routes.js';
-import { storefrontReadRoutes } from './modules/storefront/storefront.routes.js';
+import {
+  storefrontReadRoutes,
+  storefrontWriteRoutes,
+} from './modules/storefront/storefront.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -73,8 +76,12 @@ export async function buildApp() {
   // Admin: service API key management (Prompt 2 of buldmeawebstore.md).
   await app.register(apiKeyAdminRoutes, { prefix: '/api/v1' });
 
-  // Storefront: public read surface, gated by apiKeyAuth (Prompt 4).
+  // Storefront: public read surface, gated by apiKeyAuth(['storefront:read']) (Prompt 4).
   await app.register(storefrontReadRoutes, { prefix: '/api/v1' });
+
+  // Storefront: write surface (reservations, order commit, status, cancel),
+  // gated by apiKeyAuth(['storefront:write']) (Prompt 5).
+  await app.register(storefrontWriteRoutes, { prefix: '/api/v1' });
 
   return app;
 }

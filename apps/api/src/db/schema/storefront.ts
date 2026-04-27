@@ -1,4 +1,4 @@
-import { pgTable, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, jsonb, timestamp, varchar, integer, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { pk, companyId, auditTimestamps, sourceChannelEnum, reservationStatusEnum } from './common.js';
 import { stockItems } from './products.js';
@@ -34,3 +34,31 @@ export const stockReservations = pgTable('stock_reservations', {
 export const stockReservationsRelations = relations(stockReservations, ({ many }) => ({
   stockItems: many(stockItems),
 }));
+
+// ============================================================
+// Storefront Idempotency
+// ------------------------------------------------------------
+// Stores `(company_id, idempotency_key) → response` so a retried
+// `POST /storefront/orders` returns the original response and never
+// creates a second order. Composite unique on (company_id, idempotency_key).
+// Rows are insert-once: the response body is captured at the moment
+// the original work succeeded (or deterministically failed) and is
+// replayed verbatim for any subsequent request with the same key.
+// ============================================================
+
+export const storefrontIdempotency = pgTable(
+  'storefront_idempotency',
+  {
+    id: pk(),
+    companyId: companyId(),
+    idempotencyKey: varchar('idempotency_key', { length: 200 }).notNull(),
+    responseStatus: integer('response_status').notNull(),
+    responseBody: jsonb('response_body').notNull(),
+    ...auditTimestamps,
+  },
+  (t) => ({
+    storefrontIdempotencyCompanyKeyUnq: uniqueIndex(
+      'storefront_idempotency_company_id_key_unq',
+    ).on(t.companyId, t.idempotencyKey),
+  }),
+);
