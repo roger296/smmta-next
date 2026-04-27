@@ -10,6 +10,12 @@ services:
       - '127.0.0.1:5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Init scripts run once on first cluster bootstrap. Adds the
+      # `smmta_store` database alongside `smmta_next` (Prompt 7 of
+      # buldmeawebstore.md). To create the second database on an
+      # existing volume, run:
+      #   docker compose exec postgres psql -U smmta -c 'CREATE DATABASE smmta_store;'
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U smmta -d smmta_next']
       interval: 5s

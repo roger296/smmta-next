@@ -6,7 +6,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
 import { OrderForm } from './order-form';
 
-const API = 'http://localhost:3000/api/v1';
+const API = 'http://localhost:8080/api/v1';
 
 function wrap(ui: React.ReactElement) {
   const client = new QueryClient({

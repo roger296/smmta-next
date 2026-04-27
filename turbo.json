@@ -3,7 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "dev": {
       "cache": false,
@@ -13,6 +13,8 @@
       "dependsOn": ["build"]
     },
     "lint": {},
+    "lint:ts": {},
+    "typecheck": {},
     "db:generate": {
       "cache": false
     },

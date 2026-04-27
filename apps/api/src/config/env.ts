@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   // Server
-  PORT: z.coerce.number().default(3000),
+  // Default API port. The storefront (Prompt 7) takes :3000, so the API
+  // moves to :8080. Override via PORT env if you're running outside the
+  // monorepo conventions.
+  PORT: z.coerce.number().default(8080),
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
