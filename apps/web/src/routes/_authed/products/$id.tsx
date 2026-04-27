@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ProductForm } from '@/features/products/product-form';
 import { ProductImagesTab, ProductStockTab } from '@/features/products/product-tabs';
+import { StorefrontTab } from '@/features/products/storefront-tab';
 import {
   useDeleteProduct,
   useProduct,
@@ -71,6 +72,7 @@ function ProductDetailPage() {
       <Tabs defaultValue="general">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="storefront">Storefront</TabsTrigger>
           <TabsTrigger value="images">Images</TabsTrigger>
           <TabsTrigger value="stock">Stock</TabsTrigger>
         </TabsList>
@@ -116,6 +118,9 @@ function ProductDetailPage() {
               />
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="storefront">
+          <StorefrontTab product={data} />
         </TabsContent>
         <TabsContent value="images">
           <ProductImagesTab productId={data.id} />

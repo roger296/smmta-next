@@ -18,6 +18,7 @@ import { Route as AuthedStockIndexRouteImport } from './routes/_authed/stock/ind
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedPurchaseOrdersIndexRouteImport } from './routes/_authed/purchase-orders/index'
 import { Route as AuthedProductsIndexRouteImport } from './routes/_authed/products/index'
+import { Route as AuthedProductGroupsIndexRouteImport } from './routes/_authed/product-groups/index'
 import { Route as AuthedOrdersIndexRouteImport } from './routes/_authed/orders/index'
 import { Route as AuthedInvoicesIndexRouteImport } from './routes/_authed/invoices/index'
 import { Route as AuthedIntegrationsIndexRouteImport } from './routes/_authed/integrations/index'
@@ -33,6 +34,8 @@ import { Route as AuthedPurchaseOrdersNewRouteImport } from './routes/_authed/pu
 import { Route as AuthedPurchaseOrdersIdRouteImport } from './routes/_authed/purchase-orders/$id'
 import { Route as AuthedProductsNewRouteImport } from './routes/_authed/products/new'
 import { Route as AuthedProductsIdRouteImport } from './routes/_authed/products/$id'
+import { Route as AuthedProductGroupsNewRouteImport } from './routes/_authed/product-groups/new'
+import { Route as AuthedProductGroupsIdRouteImport } from './routes/_authed/product-groups/$id'
 import { Route as AuthedOrdersNewRouteImport } from './routes/_authed/orders/new'
 import { Route as AuthedOrdersIdRouteImport } from './routes/_authed/orders/$id'
 import { Route as AuthedInvoicesIdRouteImport } from './routes/_authed/invoices/$id'
@@ -88,6 +91,12 @@ const AuthedProductsIndexRoute = AuthedProductsIndexRouteImport.update({
   path: '/products/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedProductGroupsIndexRoute =
+  AuthedProductGroupsIndexRouteImport.update({
+    id: '/product-groups/',
+    path: '/product-groups/',
+    getParentRoute: () => AuthedRouteRoute,
+  } as any)
 const AuthedOrdersIndexRoute = AuthedOrdersIndexRouteImport.update({
   id: '/orders/',
   path: '/orders/',
@@ -164,6 +173,16 @@ const AuthedProductsIdRoute = AuthedProductsIdRouteImport.update({
   path: '/products/$id',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedProductGroupsNewRoute = AuthedProductGroupsNewRouteImport.update({
+  id: '/product-groups/new',
+  path: '/product-groups/new',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedProductGroupsIdRoute = AuthedProductGroupsIdRouteImport.update({
+  id: '/product-groups/$id',
+  path: '/product-groups/$id',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 const AuthedOrdersNewRoute = AuthedOrdersNewRouteImport.update({
   id: '/orders/new',
   path: '/orders/new',
@@ -217,6 +236,8 @@ export interface FileRoutesByFullPath {
   '/invoices/$id': typeof AuthedInvoicesIdRoute
   '/orders/$id': typeof AuthedOrdersIdRoute
   '/orders/new': typeof AuthedOrdersNewRoute
+  '/product-groups/$id': typeof AuthedProductGroupsIdRoute
+  '/product-groups/new': typeof AuthedProductGroupsNewRoute
   '/products/$id': typeof AuthedProductsIdRoute
   '/products/new': typeof AuthedProductsNewRoute
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
@@ -232,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/integrations/': typeof AuthedIntegrationsIndexRoute
   '/invoices/': typeof AuthedInvoicesIndexRoute
   '/orders/': typeof AuthedOrdersIndexRoute
+  '/product-groups/': typeof AuthedProductGroupsIndexRoute
   '/products/': typeof AuthedProductsIndexRoute
   '/purchase-orders/': typeof AuthedPurchaseOrdersIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
@@ -250,6 +272,8 @@ export interface FileRoutesByTo {
   '/invoices/$id': typeof AuthedInvoicesIdRoute
   '/orders/$id': typeof AuthedOrdersIdRoute
   '/orders/new': typeof AuthedOrdersNewRoute
+  '/product-groups/$id': typeof AuthedProductGroupsIdRoute
+  '/product-groups/new': typeof AuthedProductGroupsNewRoute
   '/products/$id': typeof AuthedProductsIdRoute
   '/products/new': typeof AuthedProductsNewRoute
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
@@ -265,6 +289,7 @@ export interface FileRoutesByTo {
   '/integrations': typeof AuthedIntegrationsIndexRoute
   '/invoices': typeof AuthedInvoicesIndexRoute
   '/orders': typeof AuthedOrdersIndexRoute
+  '/product-groups': typeof AuthedProductGroupsIndexRoute
   '/products': typeof AuthedProductsIndexRoute
   '/purchase-orders': typeof AuthedPurchaseOrdersIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
@@ -285,6 +310,8 @@ export interface FileRoutesById {
   '/_authed/invoices/$id': typeof AuthedInvoicesIdRoute
   '/_authed/orders/$id': typeof AuthedOrdersIdRoute
   '/_authed/orders/new': typeof AuthedOrdersNewRoute
+  '/_authed/product-groups/$id': typeof AuthedProductGroupsIdRoute
+  '/_authed/product-groups/new': typeof AuthedProductGroupsNewRoute
   '/_authed/products/$id': typeof AuthedProductsIdRoute
   '/_authed/products/new': typeof AuthedProductsNewRoute
   '/_authed/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
@@ -300,6 +327,7 @@ export interface FileRoutesById {
   '/_authed/integrations/': typeof AuthedIntegrationsIndexRoute
   '/_authed/invoices/': typeof AuthedInvoicesIndexRoute
   '/_authed/orders/': typeof AuthedOrdersIndexRoute
+  '/_authed/product-groups/': typeof AuthedProductGroupsIndexRoute
   '/_authed/products/': typeof AuthedProductsIndexRoute
   '/_authed/purchase-orders/': typeof AuthedPurchaseOrdersIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
@@ -320,6 +348,8 @@ export interface FileRouteTypes {
     | '/invoices/$id'
     | '/orders/$id'
     | '/orders/new'
+    | '/product-groups/$id'
+    | '/product-groups/new'
     | '/products/$id'
     | '/products/new'
     | '/purchase-orders/$id'
@@ -335,6 +365,7 @@ export interface FileRouteTypes {
     | '/integrations/'
     | '/invoices/'
     | '/orders/'
+    | '/product-groups/'
     | '/products/'
     | '/purchase-orders/'
     | '/settings/'
@@ -353,6 +384,8 @@ export interface FileRouteTypes {
     | '/invoices/$id'
     | '/orders/$id'
     | '/orders/new'
+    | '/product-groups/$id'
+    | '/product-groups/new'
     | '/products/$id'
     | '/products/new'
     | '/purchase-orders/$id'
@@ -368,6 +401,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/invoices'
     | '/orders'
+    | '/product-groups'
     | '/products'
     | '/purchase-orders'
     | '/settings'
@@ -387,6 +421,8 @@ export interface FileRouteTypes {
     | '/_authed/invoices/$id'
     | '/_authed/orders/$id'
     | '/_authed/orders/new'
+    | '/_authed/product-groups/$id'
+    | '/_authed/product-groups/new'
     | '/_authed/products/$id'
     | '/_authed/products/new'
     | '/_authed/purchase-orders/$id'
@@ -402,6 +438,7 @@ export interface FileRouteTypes {
     | '/_authed/integrations/'
     | '/_authed/invoices/'
     | '/_authed/orders/'
+    | '/_authed/product-groups/'
     | '/_authed/products/'
     | '/_authed/purchase-orders/'
     | '/_authed/settings/'
@@ -478,6 +515,13 @@ declare module '@tanstack/react-router' {
       path: '/products'
       fullPath: '/products/'
       preLoaderRoute: typeof AuthedProductsIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/product-groups/': {
+      id: '/_authed/product-groups/'
+      path: '/product-groups'
+      fullPath: '/product-groups/'
+      preLoaderRoute: typeof AuthedProductGroupsIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/orders/': {
@@ -585,6 +629,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedProductsIdRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/product-groups/new': {
+      id: '/_authed/product-groups/new'
+      path: '/product-groups/new'
+      fullPath: '/product-groups/new'
+      preLoaderRoute: typeof AuthedProductGroupsNewRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/product-groups/$id': {
+      id: '/_authed/product-groups/$id'
+      path: '/product-groups/$id'
+      fullPath: '/product-groups/$id'
+      preLoaderRoute: typeof AuthedProductGroupsIdRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
     '/_authed/orders/new': {
       id: '/_authed/orders/new'
       path: '/orders/new'
@@ -654,6 +712,8 @@ interface AuthedRouteRouteChildren {
   AuthedInvoicesIdRoute: typeof AuthedInvoicesIdRoute
   AuthedOrdersIdRoute: typeof AuthedOrdersIdRoute
   AuthedOrdersNewRoute: typeof AuthedOrdersNewRoute
+  AuthedProductGroupsIdRoute: typeof AuthedProductGroupsIdRoute
+  AuthedProductGroupsNewRoute: typeof AuthedProductGroupsNewRoute
   AuthedProductsIdRoute: typeof AuthedProductsIdRoute
   AuthedProductsNewRoute: typeof AuthedProductsNewRoute
   AuthedPurchaseOrdersIdRoute: typeof AuthedPurchaseOrdersIdRoute
@@ -669,6 +729,7 @@ interface AuthedRouteRouteChildren {
   AuthedIntegrationsIndexRoute: typeof AuthedIntegrationsIndexRoute
   AuthedInvoicesIndexRoute: typeof AuthedInvoicesIndexRoute
   AuthedOrdersIndexRoute: typeof AuthedOrdersIndexRoute
+  AuthedProductGroupsIndexRoute: typeof AuthedProductGroupsIndexRoute
   AuthedProductsIndexRoute: typeof AuthedProductsIndexRoute
   AuthedPurchaseOrdersIndexRoute: typeof AuthedPurchaseOrdersIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
@@ -687,6 +748,8 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedInvoicesIdRoute: AuthedInvoicesIdRoute,
   AuthedOrdersIdRoute: AuthedOrdersIdRoute,
   AuthedOrdersNewRoute: AuthedOrdersNewRoute,
+  AuthedProductGroupsIdRoute: AuthedProductGroupsIdRoute,
+  AuthedProductGroupsNewRoute: AuthedProductGroupsNewRoute,
   AuthedProductsIdRoute: AuthedProductsIdRoute,
   AuthedProductsNewRoute: AuthedProductsNewRoute,
   AuthedPurchaseOrdersIdRoute: AuthedPurchaseOrdersIdRoute,
@@ -702,6 +765,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedIntegrationsIndexRoute: AuthedIntegrationsIndexRoute,
   AuthedInvoicesIndexRoute: AuthedInvoicesIndexRoute,
   AuthedOrdersIndexRoute: AuthedOrdersIndexRoute,
+  AuthedProductGroupsIndexRoute: AuthedProductGroupsIndexRoute,
   AuthedProductsIndexRoute: AuthedProductsIndexRoute,
   AuthedPurchaseOrdersIndexRoute: AuthedPurchaseOrdersIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
