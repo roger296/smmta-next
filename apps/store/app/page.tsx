@@ -1,61 +1,163 @@
 /**
- * Storefront home — Prompt 7 scaffold only.
+ * Home (`/`). RSC, revalidate 300s.
  *
- * Prompt 8 replaces this with the real catalogue-driven home page. For now
- * the page exists primarily to verify the brand-token wiring and to give
- * Lighthouse something content-shaped to score.
+ *   - Hero section
+ *   - Featured groups grid (uses the published catalogue)
+ *   - Brand story block
+ *   - JSON-LD: Organization (sitewide, from layout) + WebSite + SearchAction (here)
  */
-export default function HomePage() {
+import Image from 'next/image';
+import Link from 'next/link';
+import type { Metadata } from 'next';
+import { listGroups } from '@/lib/smmta';
+import { getEnv } from '@/lib/env';
+import { priceFromString, stringifyJsonLd, websiteLd } from '@/lib/seo/structured-data';
+
+export const revalidate = 300;
+
+export const metadata: Metadata = {
+  title: 'Hand-finished LED filament lighting',
+  description:
+    'A small, considered range of LED filament lamps. Designed in the UK, delivered in days, dimmable on any standard switch.',
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    url: '/',
+    title: 'Filament Store — Hand-finished LED filament lighting',
+    description:
+      'A small, considered range of LED filament lamps. Designed in the UK, delivered in days, dimmable on any standard switch.',
+  },
+};
+
+export default async function HomePage() {
+  const env = getEnv();
+  const baseUrl = (() => {
+    try {
+      return new URL(env.STORE_BASE_URL);
+    } catch {
+      return new URL('http://localhost:3000');
+    }
+  })();
+
+  // Failure here mustn't break the home page — render the hero + brand
+  // story even if the catalogue read fails (5xx, dropped connection, etc.).
+  let groups: Awaited<ReturnType<typeof listGroups>> = [];
+  try {
+    groups = await listGroups();
+  } catch {
+    groups = [];
+  }
+  const featured = groups.slice(0, 3);
+
+  const websiteJsonLd = stringifyJsonLd(websiteLd(baseUrl));
+
   return (
-    <section className="space-y-6">
-      <header className="space-y-2">
+    <>
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: websiteJsonLd }}
+      />
+
+      <section className="space-y-4">
         <h1
-          className="text-4xl font-semibold tracking-tight"
+          className="text-4xl font-semibold tracking-tight md:text-5xl"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          Hand-finished LED filament lighting.
+          Light, hand-finished.
         </h1>
-        <p className="text-lg text-[var(--brand-muted)]">
-          A new home for the Filament Store. The shopfront opens in stages — this is the storefront
-          scaffold that the catalogue, cart, and checkout build on.
+        <p className="max-w-2xl text-lg text-[var(--brand-muted)]">
+          A small, considered range of LED filament lamps. Designed in the UK, delivered in days,
+          dimmable on any standard trailing-edge switch.
         </p>
-      </header>
+        <p>
+          <Link
+            href="/shop"
+            className="inline-block rounded-[var(--radius)] bg-[var(--brand-ink)] px-6 py-3 text-base font-medium text-[var(--brand-paper)] transition-colors hover:bg-[var(--brand-accent)]"
+          >
+            Browse the range
+          </Link>
+        </p>
+      </section>
 
-      <div
-        data-testid="brand-token-probe"
-        className="grid gap-3 sm:grid-cols-2 md:grid-cols-3"
+      {featured.length > 0 && (
+        <section className="mt-16 space-y-6">
+          <h2
+            className="text-2xl font-semibold tracking-tight"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            Featured ranges
+          </h2>
+          <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {featured.map((g) => (
+              <li key={g.id}>
+                <FeaturedCard group={g} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section
+        className="mt-16 max-w-2xl space-y-3 text-[var(--brand-muted)]"
+        aria-labelledby="brand-story"
       >
-        <BrandTokenSwatch label="Paper" varName="--brand-paper" />
-        <BrandTokenSwatch label="Ink" varName="--brand-ink" />
-        <BrandTokenSwatch label="Accent" varName="--brand-accent" />
-        <BrandTokenSwatch label="Muted" varName="--brand-muted" />
-        <BrandTokenSwatch label="Border" varName="--brand-border" />
-      </div>
-
-      <p>
-        <a
-          href="/healthz"
-          className="inline-block rounded-[var(--radius)] border border-[var(--brand-border)] px-4 py-2 text-sm hover:bg-[var(--brand-accent)] hover:text-[var(--brand-paper)]"
+        <h2
+          id="brand-story"
+          className="text-2xl font-semibold tracking-tight text-[var(--brand-ink)]"
+          style={{ fontFamily: 'var(--font-display)' }}
         >
-          Health probe →
-        </a>
-      </p>
-    </section>
+          A small workshop, a sharp focus.
+        </h2>
+        <p>
+          We make a single product range, very well. Every lamp is hand-finished, dimmable on any
+          standard trailing-edge dimmer, rated for 25,000 hours, and shipped from a small workshop
+          in the UK.
+        </p>
+        <p>
+          We don&rsquo;t do flash sales, sponsored placements, or made-up &ldquo;was&rdquo; prices.
+          The price you see is the price.
+        </p>
+      </section>
+    </>
   );
 }
 
-function BrandTokenSwatch({ label, varName }: { label: string; varName: string }) {
+function FeaturedCard({
+  group,
+}: {
+  group: Awaited<ReturnType<typeof listGroups>>[number];
+}) {
+  const href = group.slug ? `/shop/${group.slug}` : '/shop';
+  const priceFrom = priceFromString(group);
   return (
-    <div className="flex items-center gap-3 rounded-[var(--radius)] border border-[var(--brand-border)] p-3">
-      <span
-        aria-hidden="true"
-        className="h-10 w-10 flex-shrink-0 rounded-[var(--radius)]"
-        style={{ background: `var(${varName})`, border: '1px solid var(--brand-border)' }}
-      />
-      <span className="text-sm">
-        <span className="block font-medium">{label}</span>
-        <code className="text-xs text-[var(--brand-muted)]">{varName}</code>
-      </span>
-    </div>
+    <Link
+      href={href}
+      className="group block overflow-hidden rounded-[var(--radius)] border border-[var(--brand-border)] transition-colors hover:border-[var(--brand-ink)]"
+    >
+      <div className="aspect-[4/5] overflow-hidden bg-[var(--brand-border)]">
+        {group.heroImageUrl ? (
+          <Image
+            src={group.heroImageUrl}
+            alt={group.name}
+            width={800}
+            height={1000}
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-[var(--brand-muted)]">
+            No image
+          </div>
+        )}
+      </div>
+      <div className="space-y-1 p-4">
+        <h3 className="font-medium">{group.name}</h3>
+        {group.shortDescription && (
+          <p className="line-clamp-2 text-sm text-[var(--brand-muted)]">{group.shortDescription}</p>
+        )}
+        {priceFrom && <p className="text-sm font-medium">From {priceFrom}</p>}
+      </div>
+    </Link>
   );
 }
