@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
 import { useDashboardKpis } from './use-dashboard';
 
-const API = 'http://localhost:3000/api/v1';
+const API = 'http://localhost:8080/api/v1';
 
 function wrapper() {
   const client = new QueryClient({

@@ -45,7 +45,7 @@ function wrap(ui: React.ReactElement) {
   );
 }
 
-const API = 'http://localhost:3000/api/v1';
+const API = 'http://localhost:8080/api/v1';
 
 const baseProduct: Product = {
   id: 'p-1',

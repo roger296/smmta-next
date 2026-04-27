@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 
-const API = 'http://localhost:3000/api/v1';
+const API = 'http://localhost:8080/api/v1';
 
 export const handlers = [
   // Default: empty customers list
