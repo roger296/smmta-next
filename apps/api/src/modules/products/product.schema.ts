@@ -14,6 +14,29 @@ export const marketplaceIdentifiersSchema = z.object({
   etsyListingId: z.string().optional(),
 }).optional();
 
+// ----------------------------------------------------------------
+// Storefront fields — see apps/api/src/db/schema/products.ts.
+// All fields are optional at the schema level; products can be
+// created without any storefront content and remain unpublished
+// (`is_published` defaults to false in the DB).
+// ----------------------------------------------------------------
+
+export const storefrontProductFieldsSchema = z.object({
+  groupId: z.string().uuid().nullable().optional(),
+  colour: z.string().max(80).nullable().optional(),
+  colourHex: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'colourHex must be #RRGGBB').nullable().optional(),
+  slug: z.string().min(1).max(200).nullable().optional(),
+  shortDescription: z.string().max(280).nullable().optional(),
+  longDescription: z.string().nullable().optional(),
+  heroImageUrl: z.string().url().max(500).nullable().optional(),
+  galleryImageUrls: z.array(z.string().url()).nullable().optional(),
+  seoTitle: z.string().max(70).nullable().optional(),
+  seoDescription: z.string().max(160).nullable().optional(),
+  seoKeywords: z.array(z.string()).nullable().optional(),
+  isPublished: z.boolean().optional(),
+  sortOrderInGroup: z.coerce.number().int().min(0).optional(),
+});
+
 export const createProductSchema = z.object({
   name: z.string().min(1).max(500),
   stockCode: z.string().max(100).optional(),
@@ -36,7 +59,32 @@ export const createProductSchema = z.object({
   supplierId: z.string().uuid().optional(),
   defaultWarehouseId: z.string().uuid().optional(),
   marketplaceIdentifiers: marketplaceIdentifiersSchema,
+}).merge(storefrontProductFieldsSchema);
+
+// ----------------------------------------------------------------
+// Product Groups — Zod schemas for storefront content management.
+// ----------------------------------------------------------------
+
+export const storefrontGroupFieldsSchema = z.object({
+  slug: z.string().min(1).max(200).nullable().optional(),
+  shortDescription: z.string().max(280).nullable().optional(),
+  longDescription: z.string().nullable().optional(),
+  heroImageUrl: z.string().url().max(500).nullable().optional(),
+  galleryImageUrls: z.array(z.string().url()).nullable().optional(),
+  seoTitle: z.string().max(70).nullable().optional(),
+  seoDescription: z.string().max(160).nullable().optional(),
+  seoKeywords: z.array(z.string()).nullable().optional(),
+  isPublished: z.boolean().optional(),
+  sortOrder: z.coerce.number().int().min(0).optional(),
 });
+
+export const createProductGroupSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().nullable().optional(),
+  groupType: z.string().max(50).nullable().optional(),
+}).merge(storefrontGroupFieldsSchema);
+
+export const updateProductGroupSchema = createProductGroupSchema.partial();
 
 export const updateProductSchema = createProductSchema.partial();
 
@@ -56,3 +104,5 @@ export const productImageSchema = z.object({
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 export type ProductQueryInput = z.infer<typeof productQuerySchema>;
+export type CreateProductGroupInput = z.infer<typeof createProductGroupSchema>;
+export type UpdateProductGroupInput = z.infer<typeof updateProductGroupSchema>;

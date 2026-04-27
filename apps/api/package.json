@@ -9,10 +9,12 @@
     "start": "node dist/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.test.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "seed:storefront": "tsx scripts/seed-storefront.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",
@@ -30,7 +32,9 @@
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "@types/pg": "^8.11.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "drizzle-kit": "^0.31.0",
+    "pino-pretty": "^13.1.3",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "vitest": "^3.2.0"

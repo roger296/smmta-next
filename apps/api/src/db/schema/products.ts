@@ -1,46 +1,75 @@
-import { pgTable, varchar, decimal, boolean, integer, text, uuid, jsonb, doublePrecision } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, decimal, boolean, integer, text, uuid, jsonb, doublePrecision, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { pk, companyId, auditTimestamps, oldId, productTypeEnum, stockItemStatusEnum } from './common.js';
 import { categories, manufacturers, warehouses } from './reference.js';
 
 // ============================================================
 // Products
+// ------------------------------------------------------------
+// Storefront convention: products with the same `group_id` are
+// colour variants of the same item. `group_id` may be NULL for
+// standalone products that are not part of any group.
 // ============================================================
 
-export const products = pgTable('products', {
-  id: pk(),
-  companyId: companyId(),
-  name: varchar('name', { length: 500 }).notNull(),
-  stockCode: varchar('stock_code', { length: 100 }),
-  manufacturerId: uuid('manufacturer_id').references(() => manufacturers.id),
-  manufacturerPartNumber: varchar('manufacturer_part_number', { length: 100 }),
-  description: text('description'),
-  expectedNextCost: decimal('expected_next_cost', { precision: 18, scale: 2 }).default('0'),
-  minSellingPrice: decimal('min_selling_price', { precision: 18, scale: 2 }),
-  maxSellingPrice: decimal('max_selling_price', { precision: 18, scale: 2 }),
-  ean: varchar('ean', { length: 50 }),
-  productType: productTypeEnum('product_type').notNull().default('PHYSICAL'),
-  requireSerialNumber: boolean('require_serial_number').notNull().default(false),
-  requireBatchNumber: boolean('require_batch_number').notNull().default(false),
-  weight: decimal('weight', { precision: 10, scale: 3 }),
-  length: decimal('length', { precision: 10, scale: 2 }),
-  width: decimal('width', { precision: 10, scale: 2 }),
-  height: decimal('height', { precision: 10, scale: 2 }),
-  countryOfOrigin: varchar('country_of_origin', { length: 3 }),
-  hsCode: varchar('hs_code', { length: 20 }),
-  supplierId: uuid('supplier_id'),
-  defaultWarehouseId: uuid('default_warehouse_id').references(() => warehouses.id),
-  marketplaceIdentifiers: jsonb('marketplace_identifiers').$type<{
-    sellerSkus?: string[];
-    asins?: string[];
-    fnskus?: string[];
-    shopifyProductId?: string;
-    ebayItemId?: string;
-    etsyListingId?: string;
-  }>(),
-  oldId: oldId(),
-  ...auditTimestamps,
-});
+export const products = pgTable(
+  'products',
+  {
+    id: pk(),
+    companyId: companyId(),
+    name: varchar('name', { length: 500 }).notNull(),
+    stockCode: varchar('stock_code', { length: 100 }),
+    manufacturerId: uuid('manufacturer_id').references(() => manufacturers.id),
+    manufacturerPartNumber: varchar('manufacturer_part_number', { length: 100 }),
+    description: text('description'),
+    expectedNextCost: decimal('expected_next_cost', { precision: 18, scale: 2 }).default('0'),
+    minSellingPrice: decimal('min_selling_price', { precision: 18, scale: 2 }),
+    maxSellingPrice: decimal('max_selling_price', { precision: 18, scale: 2 }),
+    ean: varchar('ean', { length: 50 }),
+    productType: productTypeEnum('product_type').notNull().default('PHYSICAL'),
+    requireSerialNumber: boolean('require_serial_number').notNull().default(false),
+    requireBatchNumber: boolean('require_batch_number').notNull().default(false),
+    weight: decimal('weight', { precision: 10, scale: 3 }),
+    length: decimal('length', { precision: 10, scale: 2 }),
+    width: decimal('width', { precision: 10, scale: 2 }),
+    height: decimal('height', { precision: 10, scale: 2 }),
+    countryOfOrigin: varchar('country_of_origin', { length: 3 }),
+    hsCode: varchar('hs_code', { length: 20 }),
+    supplierId: uuid('supplier_id'),
+    defaultWarehouseId: uuid('default_warehouse_id').references(() => warehouses.id),
+    marketplaceIdentifiers: jsonb('marketplace_identifiers').$type<{
+      sellerSkus?: string[];
+      asins?: string[];
+      fnskus?: string[];
+      shopifyProductId?: string;
+      ebayItemId?: string;
+      etsyListingId?: string;
+    }>(),
+    // Storefront fields ------------------------------------------------
+    /** FK to product_groups. Nullable: a product with group_id = NULL is a standalone
+     *  product (not part of any group). Products with the same group_id are colour
+     *  variants of the same item. */
+    groupId: uuid('group_id').references(() => productGroups.id),
+    colour: varchar('colour', { length: 80 }),
+    colourHex: varchar('colour_hex', { length: 7 }),
+    slug: varchar('slug', { length: 200 }),
+    shortDescription: varchar('short_description', { length: 280 }),
+    longDescription: text('long_description'),
+    heroImageUrl: varchar('hero_image_url', { length: 500 }),
+    galleryImageUrls: jsonb('gallery_image_urls').$type<string[]>(),
+    seoTitle: varchar('seo_title', { length: 70 }),
+    seoDescription: varchar('seo_description', { length: 160 }),
+    seoKeywords: jsonb('seo_keywords').$type<string[]>(),
+    isPublished: boolean('is_published').notNull().default(false),
+    sortOrderInGroup: integer('sort_order_in_group').notNull().default(0),
+    // ------------------------------------------------------------------
+    oldId: oldId(),
+    ...auditTimestamps,
+  },
+  (t) => ({
+    productsCompanySlugUnq: uniqueIndex('products_company_id_slug_unq').on(t.companyId, t.slug),
+    productsGroupIdIdx: index('products_group_id_idx').on(t.groupId),
+  }),
+);
 
 // ============================================================
 // Product Images
@@ -70,15 +99,36 @@ export const productCategoryMappings = pgTable('product_category_mappings', {
 // Product Groups
 // ============================================================
 
-export const productGroups = pgTable('product_groups', {
-  id: pk(),
-  companyId: companyId(),
-  name: varchar('name', { length: 200 }).notNull(),
-  description: text('description'),
-  groupType: varchar('group_type', { length: 50 }),
-  oldId: oldId(),
-  ...auditTimestamps,
-});
+export const productGroups = pgTable(
+  'product_groups',
+  {
+    id: pk(),
+    companyId: companyId(),
+    name: varchar('name', { length: 200 }).notNull(),
+    description: text('description'),
+    groupType: varchar('group_type', { length: 50 }),
+    // Storefront fields ------------------------------------------------
+    slug: varchar('slug', { length: 200 }),
+    shortDescription: varchar('short_description', { length: 280 }),
+    longDescription: text('long_description'),
+    heroImageUrl: varchar('hero_image_url', { length: 500 }),
+    galleryImageUrls: jsonb('gallery_image_urls').$type<string[]>(),
+    seoTitle: varchar('seo_title', { length: 70 }),
+    seoDescription: varchar('seo_description', { length: 160 }),
+    seoKeywords: jsonb('seo_keywords').$type<string[]>(),
+    isPublished: boolean('is_published').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+    // ------------------------------------------------------------------
+    oldId: oldId(),
+    ...auditTimestamps,
+  },
+  (t) => ({
+    productGroupsCompanySlugUnq: uniqueIndex('product_groups_company_id_slug_unq').on(
+      t.companyId,
+      t.slug,
+    ),
+  }),
+);
 
 // ============================================================
 // Stock Items
@@ -129,9 +179,14 @@ export const pallets = pgTable('pallets', {
 
 export const productsRelations = relations(products, ({ one, many }) => ({
   manufacturer: one(manufacturers, { fields: [products.manufacturerId], references: [manufacturers.id] }),
+  group: one(productGroups, { fields: [products.groupId], references: [productGroups.id] }),
   images: many(productImages),
   categoryMappings: many(productCategoryMappings),
   stockItems: many(stockItems),
+}));
+
+export const productGroupsRelations = relations(productGroups, ({ many }) => ({
+  products: many(products),
 }));
 
 export const productImagesRelations = relations(productImages, ({ one }) => ({
