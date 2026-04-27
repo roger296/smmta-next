@@ -13,6 +13,7 @@ import { purchasingRoutes } from './modules/purchasing/purchasing.routes.js';
 import { customerRoutes } from './modules/customers/customer.routes.js';
 import { orderRoutes } from './modules/orders/order.routes.js';
 import { integrationRoutes } from './modules/orders/integration.routes.js';
+import { apiKeyAdminRoutes } from './modules/admin/api-keys.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -67,6 +68,9 @@ export async function buildApp() {
 
   // Phase 5: Integrations, Bulk Ops, Year-End
   await app.register(integrationRoutes, { prefix: '/api/v1' });
+
+  // Admin: service API key management (Prompt 2 of buldmeawebstore.md).
+  await app.register(apiKeyAdminRoutes, { prefix: '/api/v1' });
 
   return app;
 }
