@@ -1,7 +1,19 @@
 import { eq, and, ilike, isNull, sql, count } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
-import { products, productImages, productCategoryMappings, stockItems } from '../../db/schema/index.js';
-import type { CreateProductInput, UpdateProductInput, ProductQueryInput } from './product.schema.js';
+import {
+  products,
+  productGroups,
+  productImages,
+  productCategoryMappings,
+  stockItems,
+} from '../../db/schema/index.js';
+import type {
+  CreateProductInput,
+  UpdateProductInput,
+  ProductQueryInput,
+  CreateProductGroupInput,
+  UpdateProductGroupInput,
+} from './product.schema.js';
 import { paginationOffset, paginationMeta } from '../../shared/utils/pagination.js';
 
 /**
@@ -176,6 +188,20 @@ export class ProductService {
         supplierId: input.supplierId,
         defaultWarehouseId: input.defaultWarehouseId,
         marketplaceIdentifiers: input.marketplaceIdentifiers ?? null,
+        // Storefront fields — all optional; pass through nullables and let DB defaults apply.
+        groupId: input.groupId ?? null,
+        colour: input.colour ?? null,
+        colourHex: input.colourHex ?? null,
+        slug: input.slug ?? null,
+        shortDescription: input.shortDescription ?? null,
+        longDescription: input.longDescription ?? null,
+        heroImageUrl: input.heroImageUrl ?? null,
+        galleryImageUrls: input.galleryImageUrls ?? null,
+        seoTitle: input.seoTitle ?? null,
+        seoDescription: input.seoDescription ?? null,
+        seoKeywords: input.seoKeywords ?? null,
+        ...(input.isPublished !== undefined ? { isPublished: input.isPublished } : {}),
+        ...(input.sortOrderInGroup !== undefined ? { sortOrderInGroup: input.sortOrderInGroup } : {}),
       })
       .returning();
 
@@ -242,6 +268,20 @@ export class ProductService {
     if (input.supplierId !== undefined) updateData.supplierId = input.supplierId;
     if (input.defaultWarehouseId !== undefined) updateData.defaultWarehouseId = input.defaultWarehouseId;
     if (input.marketplaceIdentifiers !== undefined) updateData.marketplaceIdentifiers = input.marketplaceIdentifiers;
+    // Storefront fields — only set when explicitly present in the input.
+    if (input.groupId !== undefined) updateData.groupId = input.groupId;
+    if (input.colour !== undefined) updateData.colour = input.colour;
+    if (input.colourHex !== undefined) updateData.colourHex = input.colourHex;
+    if (input.slug !== undefined) updateData.slug = input.slug;
+    if (input.shortDescription !== undefined) updateData.shortDescription = input.shortDescription;
+    if (input.longDescription !== undefined) updateData.longDescription = input.longDescription;
+    if (input.heroImageUrl !== undefined) updateData.heroImageUrl = input.heroImageUrl;
+    if (input.galleryImageUrls !== undefined) updateData.galleryImageUrls = input.galleryImageUrls;
+    if (input.seoTitle !== undefined) updateData.seoTitle = input.seoTitle;
+    if (input.seoDescription !== undefined) updateData.seoDescription = input.seoDescription;
+    if (input.seoKeywords !== undefined) updateData.seoKeywords = input.seoKeywords;
+    if (input.isPublished !== undefined) updateData.isPublished = input.isPublished;
+    if (input.sortOrderInGroup !== undefined) updateData.sortOrderInGroup = input.sortOrderInGroup;
 
     const [updated] = await this.db
       .update(products)
@@ -326,5 +366,86 @@ export class ProductValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ProductValidationError';
+  }
+}
+
+// ================================================================
+// ProductGroupService — minimal CRUD for the productGroups table.
+// Used by the storefront seed script in this prompt; the admin SPA
+// content-management UI lands in Prompt 6.
+// ================================================================
+
+export class ProductGroupService {
+  private db = getDb();
+
+  async list(companyId: string) {
+    return this.db.query.productGroups.findMany({
+      where: and(eq(productGroups.companyId, companyId), isNull(productGroups.deletedAt)),
+      orderBy: (g, { asc }) => [asc(g.sortOrder), asc(g.name)],
+    });
+  }
+
+  async getById(id: string, companyId: string) {
+    return this.db.query.productGroups.findFirst({
+      where: and(
+        eq(productGroups.id, id),
+        eq(productGroups.companyId, companyId),
+        isNull(productGroups.deletedAt),
+      ),
+      with: { products: true },
+    });
+  }
+
+  async create(companyId: string, input: CreateProductGroupInput) {
+    const [group] = await this.db
+      .insert(productGroups)
+      .values({
+        companyId,
+        name: input.name,
+        description: input.description ?? null,
+        groupType: input.groupType ?? null,
+        slug: input.slug ?? null,
+        shortDescription: input.shortDescription ?? null,
+        longDescription: input.longDescription ?? null,
+        heroImageUrl: input.heroImageUrl ?? null,
+        galleryImageUrls: input.galleryImageUrls ?? null,
+        seoTitle: input.seoTitle ?? null,
+        seoDescription: input.seoDescription ?? null,
+        seoKeywords: input.seoKeywords ?? null,
+        ...(input.isPublished !== undefined ? { isPublished: input.isPublished } : {}),
+        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+      })
+      .returning();
+    return group;
+  }
+
+  async update(id: string, companyId: string, input: UpdateProductGroupInput) {
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.name !== undefined) updateData.name = input.name;
+    if (input.description !== undefined) updateData.description = input.description;
+    if (input.groupType !== undefined) updateData.groupType = input.groupType;
+    if (input.slug !== undefined) updateData.slug = input.slug;
+    if (input.shortDescription !== undefined) updateData.shortDescription = input.shortDescription;
+    if (input.longDescription !== undefined) updateData.longDescription = input.longDescription;
+    if (input.heroImageUrl !== undefined) updateData.heroImageUrl = input.heroImageUrl;
+    if (input.galleryImageUrls !== undefined) updateData.galleryImageUrls = input.galleryImageUrls;
+    if (input.seoTitle !== undefined) updateData.seoTitle = input.seoTitle;
+    if (input.seoDescription !== undefined) updateData.seoDescription = input.seoDescription;
+    if (input.seoKeywords !== undefined) updateData.seoKeywords = input.seoKeywords;
+    if (input.isPublished !== undefined) updateData.isPublished = input.isPublished;
+    if (input.sortOrder !== undefined) updateData.sortOrder = input.sortOrder;
+
+    const [updated] = await this.db
+      .update(productGroups)
+      .set(updateData)
+      .where(
+        and(
+          eq(productGroups.id, id),
+          eq(productGroups.companyId, companyId),
+          isNull(productGroups.deletedAt),
+        ),
+      )
+      .returning();
+    return updated ?? null;
   }
 }
