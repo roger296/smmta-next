@@ -69,3 +69,44 @@ export interface ApiEnvelope<T> {
   data?: T;
   error?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Public order projection — returned by GET /storefront/orders/:id.
+// Mirrors `PublicOrder` in apps/api/src/modules/storefront/order-commit.service.ts.
+// ---------------------------------------------------------------------------
+
+export interface PublicOrderLine {
+  productSlug: string | null;
+  productName: string | null;
+  colour: string | null;
+  quantity: number;
+  pricePerUnit: string;
+  lineTotal: string;
+}
+
+export interface PublicOrder {
+  id: string;
+  orderNumber: string;
+  status: string;
+  /** ISO-8601 string. */
+  orderDate: string;
+  /** ISO-8601 string or null. */
+  shippedDate: string | null;
+  currencyCode: string;
+  totals: {
+    orderTotal: string;
+    taxTotal: string;
+    deliveryCharge: string;
+    grandTotal: string;
+  };
+  lines: PublicOrderLine[];
+  deliveryAddress: { line1: string; city: string; postCode: string } | null;
+  tracking: {
+    trackingNumber: string | null;
+    trackingLink: string | null;
+    courierName: string | null;
+  } | null;
+  /** Status changes the API can prove from columns it has today. JSON-
+   *  serialised, so `at` arrives as an ISO string over the wire. */
+  statusHistory: Array<{ status: string; at: string }>;
+}

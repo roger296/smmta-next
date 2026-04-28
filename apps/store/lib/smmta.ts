@@ -17,6 +17,7 @@ import type {
   FullGroup,
   FullProduct,
   GroupListItem,
+  PublicOrder,
 } from './api-types';
 
 export class SmmtaApiError extends Error {
@@ -174,6 +175,20 @@ export function getProductBySlug(
   return smmtaFetch<FullProduct>(`storefront/products/${encodeURIComponent(slug)}`, {
     revalidate: 60,
     tags: [`storefront:product:${slug}`],
+    ...opts,
+  });
+}
+
+/** GET /storefront/orders/:id — public-safe order projection used by
+ *  the customer-facing `/track/[orderId]` page. Throws SmmtaApiError(404)
+ *  if the order doesn't exist. The page handler turns that into notFound(). */
+export function getPublicOrder(
+  orderId: string,
+  opts?: RequestOptions,
+): Promise<PublicOrder> {
+  return smmtaFetch<PublicOrder>(`storefront/orders/${encodeURIComponent(orderId)}`, {
+    // The status timeline must reflect the latest API state — never cache.
+    revalidate: false,
     ...opts,
   });
 }
