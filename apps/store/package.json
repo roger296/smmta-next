@@ -9,9 +9,12 @@
     "start": "next start -p 3000",
     "lint:ts": "tsc --noEmit",
     "typecheck": "tsc -p tsconfig.test.json",
+    "typecheck:e2e": "tsc -p tsconfig.e2e.json",
     "gen:api-types": "openapi-typescript http://localhost:8080/docs/json -o lib/openapi-spec.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install --with-deps chromium",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -30,6 +33,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.11.0",

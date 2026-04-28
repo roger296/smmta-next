@@ -17,7 +17,19 @@
 import 'server-only';
 import { getEnv } from './env';
 
-const MOLLIE_BASE = 'https://api.mollie.com/v2/';
+/** Resolve Mollie's base URL. In production this is hard-coded to
+ *  api.mollie.com; in CI / local E2E the env override
+ *  `MOLLIE_API_BASE_URL` lets the Playwright suite point at a mock
+ *  server (apps/store/e2e/_helpers/mock-mollie.ts) without going to
+ *  the real Mollie sandbox. The trailing slash is enforced so URL
+ *  resolution against `payments`, `payments/<id>`, etc. is consistent. */
+function getMollieBase(): string {
+  const override = process.env.MOLLIE_API_BASE_URL;
+  const base = override && override.length > 0 ? override : 'https://api.mollie.com/v2/';
+  return base.endsWith('/') ? base : `${base}/`;
+}
+
+const MOLLIE_BASE = getMollieBase();
 
 export type MollieStatus =
   | 'open'

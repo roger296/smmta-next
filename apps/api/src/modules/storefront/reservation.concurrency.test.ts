@@ -1,14 +1,18 @@
 /**
  * Concurrency stress test for ReservationService.
  *
- * Iterates 100 times: seed exactly 1 IN_STOCK row, fire 10 parallel
+ * Iterates 100 times: seed exactly 1 IN_STOCK row, fire 50 parallel
  * `createReservation` calls for quantity 1. Asserts that exactly one
- * call succeeds and the other nine throw `InsufficientStockError`.
+ * call succeeds and the other 49 throw `InsufficientStockError`.
  * If `FOR UPDATE SKIP LOCKED` isn't doing its job, this either
  * over-allocates (multiple successes) or deadlocks (no progress).
  *
- * The test single-threadedly drives the loop but each iteration's
- * 10 calls run truly in parallel via `Promise.allSettled`.
+ * The Prompt 15 brief calls for 50 parallel callers and 100 iterations
+ * — that's the spec the underlying `FOR UPDATE SKIP LOCKED` query
+ * needs to satisfy under realistic last-unit contention.
+ *
+ * The test single-threadedly drives the iteration loop but each
+ * iteration's 50 calls run truly in parallel via `Promise.allSettled`.
  */
 import { afterAll, describe, expect, it } from 'vitest';
 import { closeDatabase } from '../../config/database.js';
@@ -21,7 +25,7 @@ import {
 
 const COMPANY_ID = '66666666-6666-4666-8666-666666666666';
 const ITERATIONS = 100;
-const PARALLEL_CALLS = 10;
+const PARALLEL_CALLS = 50;
 
 const service = new ReservationService();
 
@@ -78,8 +82,9 @@ describe(`createReservation race for the last unit (${ITERATIONS}x)`, () => {
       expect(totalSuccesses).toBe(ITERATIONS);
       expect(totalFailures).toBe(ITERATIONS * (PARALLEL_CALLS - 1));
     },
-    // 100 iterations × ~10 parallel transactions each is generally well under
-    // 60s on a local Postgres but allow plenty of headroom for CI.
-    180_000,
+    // 100 iterations × 50 parallel transactions each will run for 30-60s
+    // on a local Postgres + a few seconds longer in CI; the timeout is
+    // generous on purpose so a slow CI runner doesn't false-positive.
+    300_000,
   );
 });
