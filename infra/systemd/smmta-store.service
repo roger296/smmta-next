@@ -28,12 +28,20 @@ Group=smmta
 WorkingDirectory=/opt/smmta-next/apps/store
 EnvironmentFile=/etc/smmta/store.env
 
-# The standalone server is emitted into `.next/standalone/` by
-# `next build`. Static assets live at `.next/static/`; nginx serves
-# them with a 1-year cache header (see infra/nginx/...). The server
-# expects `static` to live alongside it under
-# `.next/standalone/apps/store/.next/static`, which the deploy script
-# arranges with a symlink during deployment.
+# The standalone server is emitted into
+# `.next/standalone/apps/store/server.js` by `next build` when
+# `output: 'standalone'` is set in next.config.js (which it is — see
+# apps/store/next.config.js). Static assets live at `.next/static/`;
+# the standalone server expects them at
+# `.next/standalone/apps/store/.next/static`, and the customer-
+# facing `public/` at `.next/standalone/apps/store/public` —
+# infra/scripts/deploy-store.sh arranges both with `ln -sfn` during
+# deployment so this ExecStart path Just Works.
+#
+# We deliberately invoke node directly rather than `npm run start`:
+# the package's `start` script uses the regular `next start` (so
+# Lighthouse CI / dev mode don't need the symlinks). Production
+# wants the smaller standalone bundle, hence this explicit path.
 ExecStart=/usr/bin/node .next/standalone/apps/store/server.js
 
 Restart=on-failure
