@@ -346,6 +346,34 @@ export async function finalizeFromMollie(molliePaymentId: string): Promise<Final
       await db.delete(cartItems).where(eq(cartItems.cartId, checkout.cartId));
     }
 
+    // Enqueue the order_confirmation email. Idempotent on
+    // (orderId, template) so a duplicate webhook delivery doesn't
+    // queue a second email. Failure is logged but doesn't fail the
+    // commit — the confirmation page also enqueues as a backstop.
+    const customerForEmail = checkout.customer as
+      | { email?: string; firstName?: string; lastName?: string }
+      | null;
+    if (customerForEmail?.email) {
+      const { enqueue } = await import('./email');
+      await enqueue(
+        'order_confirmation',
+        {
+          orderId: result.orderId,
+          orderNumber: `STORE-${(checkout.idempotencyKey ?? checkout.id).slice(-12).toUpperCase()}`,
+          firstName: customerForEmail.firstName,
+          grandTotal: payment.amount.value,
+          currency: payment.amount.currency,
+          storeBaseUrl: env.STORE_BASE_URL,
+        },
+        customerForEmail.email,
+        { orderId: result.orderId },
+      ).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[checkout] enqueue order_confirmation failed:', err);
+        return { enqueued: false };
+      });
+    }
+
     return {
       status: 'COMMITTED',
       smmtaOrderId: result.orderId,

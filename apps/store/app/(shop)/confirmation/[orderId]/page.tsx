@@ -10,10 +10,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
-import { emailOutbox, checkouts } from '@/drizzle/schema';
+import { checkouts } from '@/drizzle/schema';
 import { smmtaFetch, SmmtaApiError } from '@/lib/smmta';
+import { enqueue } from '@/lib/email';
+import { getEnv } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -44,29 +46,6 @@ interface PublicOrder {
   deliveryAddress: { line1: string; city: string; postCode: string } | null;
 }
 
-/** Insert a `order_confirmation` outbox row, idempotent via the unique
- *  partial index on `(order_id, template)`. */
-async function enqueueConfirmationEmail(
-  orderId: string,
-  toEmail: string,
-  payload: Record<string, unknown>,
-): Promise<void> {
-  const db = getDb();
-  // ON CONFLICT DO NOTHING via a try/catch — the unique index throws on
-  // duplicate. Cheap and clear; no need for raw SQL.
-  try {
-    await db.insert(emailOutbox).values({
-      toEmail,
-      template: 'order_confirmation',
-      payload,
-      sendStatus: 'PENDING',
-      orderId,
-    });
-  } catch {
-    // Already enqueued — fine.
-  }
-}
-
 export default async function ConfirmationPage({
   params,
 }: {
@@ -85,24 +64,32 @@ export default async function ConfirmationPage({
     throw err;
   }
 
-  // Best-effort: enqueue the confirmation email. Pull the customer's email
-  // from the local checkouts row that drove this order.
+  // Best-effort backstop: the primary enqueue happens in
+  // `finalizeFromMollie` so the email can ship before the customer
+  // reaches this page. If for any reason that didn't fire (e.g.
+  // pre-existing checkout from before Prompt 11), enqueue here too.
+  // Idempotent on (orderId, template).
   const checkoutRow = await db.query.checkouts.findFirst({
-    where: and(eq(checkouts.smmtaOrderId, orderId)),
+    where: eq(checkouts.smmtaOrderId, orderId),
   });
   const customer = checkoutRow?.customer as
     | { email?: string; firstName?: string; lastName?: string }
     | null
     | undefined;
   if (customer?.email) {
-    await enqueueConfirmationEmail(orderId, customer.email, {
-      orderId,
-      orderNumber: order.orderNumber,
-      grandTotal: order.totals.grandTotal,
-      currency: order.currencyCode,
-      firstName: customer.firstName,
-      lastName: customer.lastName,
-    });
+    await enqueue(
+      'order_confirmation',
+      {
+        orderId,
+        orderNumber: order.orderNumber,
+        firstName: customer.firstName,
+        grandTotal: order.totals.grandTotal,
+        currency: order.currencyCode,
+        storeBaseUrl: getEnv().STORE_BASE_URL,
+      },
+      customer.email,
+      { orderId },
+    );
   }
 
   return (
