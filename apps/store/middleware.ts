@@ -1,11 +1,24 @@
 /**
- * Edge middleware — gates `/admin/*` (excluding `/admin/login`) and
- * `/api/admin/*` (excluding `/api/admin/login`) on the signed
- * `admin_session` cookie.
+ * Edge middleware — two responsibilities:
  *
- * We can't import `node:crypto` from middleware (Edge runtime), so the
- * verify is implemented inline using the Web Crypto API — same HMAC,
- * same constant-time comparison.
+ *   1. **Admin gating.** `/admin/*` (excluding `/admin/login`) and
+ *      `/api/admin/*` (excluding `/api/admin/login`) require the signed
+ *      `admin_session` cookie. We can't import `node:crypto` from
+ *      middleware (Edge runtime), so verify uses Web Crypto inline —
+ *      same HMAC, same constant-time comparison.
+ *
+ *   2. **SEO canonicalisation.** Mixed-case slugs under `/shop/...`
+ *      308-redirect to their lowercase form so search engines index
+ *      one canonical URL. `utm_*` params are stripped on shop /
+ *      catalogue pages — analytics still capture them via the
+ *      Referer / first-page navigation, but they shouldn't fragment
+ *      caches or appear as duplicate content. `?colour=` is preserved
+ *      because it's a real UI state on group pages (the page's
+ *      `<link rel="canonical">` points at the bare `/shop/[slug]`).
+ *
+ *      We don't redirect `/api/*` or `/admin/*` (admin login + API
+ *      routes legitimately receive utm_* on cross-origin POSTs in
+ *      some flows).
  */
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -46,9 +59,51 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
   return timingSafeEqual(expected, value);
 }
 
+/** Walk the URL searchParams and drop any `utm_*` keys. Returns the new
+ *  URL when at least one was removed; null when there's nothing to do. */
+function stripUtmParams(url: URL): URL | null {
+  const toRemove: string[] = [];
+  for (const key of url.searchParams.keys()) {
+    if (key.toLowerCase().startsWith('utm_')) toRemove.push(key);
+  }
+  if (toRemove.length === 0) return null;
+  const next = new URL(url.toString());
+  for (const k of toRemove) next.searchParams.delete(k);
+  return next;
+}
+
+/** Lower-case the path portion of `/shop/<...>` URLs. Returns the new
+ *  URL when the path actually had any uppercase chars; null otherwise. */
+function lowerCaseShopPath(url: URL): URL | null {
+  const path = url.pathname;
+  if (!path.startsWith('/shop')) return null;
+  if (path === path.toLowerCase()) return null;
+  const next = new URL(url.toString());
+  next.pathname = path.toLowerCase();
+  return next;
+}
+
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
+  // ------------------------------------------------------------------
+  // 1. SEO canonicalisation (only for storefront paths under /shop —
+  //    admin / API are handled separately below).
+  // ------------------------------------------------------------------
+  if (pathname.startsWith('/shop')) {
+    const stripped = stripUtmParams(request.nextUrl);
+    if (stripped) {
+      return NextResponse.redirect(stripped, { status: 308 });
+    }
+    const lowered = lowerCaseShopPath(request.nextUrl);
+    if (lowered) {
+      return NextResponse.redirect(lowered, { status: 308 });
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 2. Admin gating.
+  // ------------------------------------------------------------------
   // Allow login surface itself.
   if (pathname === '/admin/login' || pathname === '/api/admin/login') {
     return NextResponse.next();
@@ -76,5 +131,8 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/api/admin/:path*'],
+  // Match the admin surface (gating) plus /shop/* (canonicalisation).
+  // Other public paths (/, /faq, /track, /cart, /checkout) don't need
+  // either, so we keep the matcher narrow.
+  matcher: ['/admin/:path*', '/api/admin/:path*', '/shop/:path*'],
 };

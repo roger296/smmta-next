@@ -23,36 +23,15 @@ import {
   stringifyJsonLd,
 } from '@/lib/seo/structured-data';
 import { Markdown } from '@/lib/markdown';
+import { SHIPPING_FAQ } from '@/lib/seo/faq-data';
 import { SwatchPicker } from '../../_components/swatch-picker';
+import { YouMayAlsoLike } from '../../_components/you-may-also-like';
 
 export const revalidate = 60;
 
 interface RouteParams {
   groupSlug: string;
 }
-
-const SHIPPING_FAQ = [
-  {
-    question: 'How long does delivery take?',
-    answer:
-      'Orders ship from our UK workshop within 1–2 working days. Standard tracked delivery arrives next-day in most of the UK; remote postcodes can take an extra day.',
-  },
-  {
-    question: 'Do you ship outside the UK?',
-    answer:
-      'EU shipping is available at checkout. Duties and import VAT are payable on arrival per your country&rsquo;s rules.',
-  },
-  {
-    question: 'What&rsquo;s your returns policy?',
-    answer:
-      'Unused lamps can be returned within 30 days for a full refund. Email orders@filament.shop and we&rsquo;ll send you a prepaid label.',
-  },
-  {
-    question: 'Are the lamps dimmable?',
-    answer:
-      'Yes — every lamp in the range is dimmable on any standard trailing-edge dimmer. Old leading-edge dimmers may need replacing for flicker-free operation.',
-  },
-];
 
 export async function generateStaticParams(): Promise<RouteParams[]> {
   try {
@@ -124,6 +103,15 @@ export default async function GroupPage({
     throw err;
   }
 
+  // Side-load the catalogue for "you may also like". Failure mustn't
+  // block the group page itself — the suggestion strip is a nice-to-have.
+  let allGroups: Awaited<ReturnType<typeof listGroups>> = [];
+  try {
+    allGroups = await listGroups();
+  } catch {
+    allGroups = [];
+  }
+
   const url = `/shop/${group.slug ?? groupSlug}`;
   const productJsonLd = stringifyJsonLd(groupProductLd(baseUrl, group, url));
   const breadcrumb = stringifyJsonLd(
@@ -178,6 +166,8 @@ export default async function GroupPage({
           <Markdown source={group.longDescription} />
         </section>
       )}
+
+      <YouMayAlsoLike currentSlug={group.slug ?? groupSlug} groups={allGroups} />
 
       <section
         className="mt-16 max-w-2xl space-y-4"
