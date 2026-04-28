@@ -172,3 +172,94 @@ export function isCommitableStatus(status: MollieStatus): boolean {
 export function isTerminalNonPaid(status: MollieStatus): boolean {
   return status === 'canceled' || status === 'expired' || status === 'failed';
 }
+
+// ---------------------------------------------------------------------------
+// Refunds (Prompt 12)
+// ---------------------------------------------------------------------------
+
+export interface MollieRefund {
+  id: string;
+  paymentId: string;
+  status: string;
+  amount: { value: string; currency: string };
+  description: string | null;
+}
+
+interface CreateRefundInput {
+  paymentId: string;
+  amount: { value: string; currency: string };
+  description?: string;
+  /** Idempotency-Key — derive from credit-note id so a repeated
+   *  operator click doesn't refund twice. */
+  idempotencyKey: string;
+}
+
+function toMollieRefund(raw: unknown): MollieRefund {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const amount = (r.amount ?? {}) as { value?: string; currency?: string };
+  return {
+    id: String(r.id ?? ''),
+    paymentId: String(r.paymentId ?? ''),
+    status: String(r.status ?? ''),
+    amount: { value: amount.value ?? '0.00', currency: amount.currency ?? 'GBP' },
+    description: typeof r.description === 'string' ? r.description : null,
+  };
+}
+
+/** POST /v2/payments/:id/refunds. */
+export async function createRefund(input: CreateRefundInput): Promise<MollieRefund> {
+  const key = ensureKey();
+  const url = new URL(
+    `payments/${encodeURIComponent(input.paymentId)}/refunds`,
+    MOLLIE_BASE,
+  );
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      'Idempotency-Key': input.idempotencyKey,
+    },
+    body: JSON.stringify({
+      amount: input.amount,
+      description: input.description,
+    }),
+    cache: 'no-store',
+  });
+  const raw = await safeJson(res);
+  if (!res.ok) {
+    throw new MollieApiError(
+      `Mollie createRefund failed (${res.status})`,
+      res.status,
+      raw,
+    );
+  }
+  return toMollieRefund(raw);
+}
+
+/** GET /v2/payments/:id/refunds — used by the webhook to refresh the
+ *  local mollie_refunds rows after Mollie re-triggers the payment
+ *  webhook for a refund event. */
+export async function listRefunds(paymentId: string): Promise<MollieRefund[]> {
+  const key = ensureKey();
+  const url = new URL(
+    `payments/${encodeURIComponent(paymentId)}/refunds`,
+    MOLLIE_BASE,
+  );
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+    cache: 'no-store',
+  });
+  const raw = await safeJson(res);
+  if (!res.ok) {
+    throw new MollieApiError(
+      `Mollie listRefunds failed (${res.status})`,
+      res.status,
+      raw,
+    );
+  }
+  const embedded = (raw as { _embedded?: { refunds?: unknown[] } })?._embedded?.refunds;
+  if (!Array.isArray(embedded)) return [];
+  return embedded.map(toMollieRefund);
+}

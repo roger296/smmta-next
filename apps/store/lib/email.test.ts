@@ -30,7 +30,7 @@ beforeAll(() => {
   process.env.SENDGRID_API_KEY = 'SG.test_key';
   process.env.SENDGRID_FROM = 'orders@example.invalid';
   process.env.STORE_BASE_URL = 'http://localhost:3000';
-  process.env.NODE_ENV = 'test';
+  Object.assign(process.env, { NODE_ENV: 'test' });
   _resetForTests();
 });
 
@@ -154,8 +154,8 @@ describe('processOutbox', () => {
     expect(sendMock).toHaveBeenCalled();
 
     // The send call carried the rendered subject + sandbox flag.
-    const [arg] = sendMock.mock.calls.at(-1)!;
-    const sent = arg as {
+    const lastCall = sendMock.mock.calls.at(-1) as unknown as readonly unknown[] | undefined;
+    const sent = lastCall?.[0] as {
       to: string;
       from: string;
       subject: string;
@@ -232,8 +232,8 @@ describe('processOutbox', () => {
       );
       sendMock.mockResolvedValueOnce([{ statusCode: 202 }]);
       await processOutbox();
-      const [arg] = sendMock.mock.calls.at(-1)!;
-      const sent = arg as { mailSettings?: { sandboxMode?: { enable: boolean } } };
+      const lastCall = sendMock.mock.calls.at(-1) as unknown as readonly unknown[] | undefined;
+      const sent = lastCall?.[0] as { mailSettings?: { sandboxMode?: { enable: boolean } } };
       expect(sent.mailSettings?.sandboxMode?.enable).toBe(false);
     } finally {
       Object.assign(process.env, { NODE_ENV: previous ?? 'test' });

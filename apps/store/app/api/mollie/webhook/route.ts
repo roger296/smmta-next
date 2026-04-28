@@ -21,6 +21,7 @@ import { getDb } from '@/lib/db';
 import { webhookDeliveries } from '@/drizzle/schema';
 import { finalizeFromMollie } from '@/lib/checkout';
 import { MollieApiError } from '@/lib/mollie';
+import { refreshRefundsForPayment } from '@/lib/refunds';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,6 +68,18 @@ export async function POST(request: NextRequest) {
     // 2. Re-fetch + finalize. Idempotent on subsequent webhook deliveries.
     const result = await finalizeFromMollie(molliePaymentId);
 
+    // 2a. Mollie re-triggers the **payment** webhook for refund events,
+    //     so every delivery is also a refund-sync opportunity. Best-
+    //     effort: failures don't fail the webhook.
+    let refundsUpdated = 0;
+    try {
+      const refundResult = await refreshRefundsForPayment(molliePaymentId);
+      refundsUpdated = refundResult.updated;
+    } catch (refundErr) {
+      // eslint-disable-next-line no-console
+      console.error('[mollie-webhook] refund refresh failed:', refundErr);
+    }
+
     // 3. Mark the delivery as verified + record the action taken.
     if (delivery) {
       await db
@@ -74,12 +87,16 @@ export async function POST(request: NextRequest) {
         .set({
           signatureOk: true,
           fetchedPaymentStatus: result.mollieStatus,
-          actionTaken:
+          actionTaken: [
             result.status === 'COMMITTED'
               ? `committed order ${result.smmtaOrderId}`
               : result.status === 'FAILED'
                 ? 'released reservation'
                 : `held in ${result.status}`,
+            refundsUpdated > 0 ? `refreshed ${refundsUpdated} refund(s)` : null,
+          ]
+            .filter(Boolean)
+            .join('; '),
         })
         .where(eq(webhookDeliveries.id, delivery.id));
     }
