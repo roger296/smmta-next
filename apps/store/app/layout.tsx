@@ -4,6 +4,7 @@ import { fontVariables } from '@/lib/fonts';
 import { getEnv } from '@/lib/env';
 import { QueryProvider } from '@/components/query-provider';
 import { CartHeaderLink } from '@/components/cart-header-link';
+import { SiteFooter } from '@/components/site-footer';
 
 const STORE_NAME = 'Filament Store';
 const STORE_TAGLINE = 'Hand-finished LED filament lighting.';
@@ -39,10 +40,9 @@ export const metadata: Metadata = {
     title: STORE_NAME,
     description: STORE_TAGLINE,
   },
-  icons: {
-    // No real icon yet — placeholder so browsers don't 404 noisily.
-    icon: '/favicon.ico',
-  },
+  // The icon set is provided by `app/icon.tsx` and `app/apple-icon.tsx`
+  // (dynamic ImageResponse routes). Next picks them up automatically; we
+  // don't list them here.
 };
 
 export const viewport: Viewport = {
@@ -82,7 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main id="main" className="mx-auto max-w-6xl px-6 py-10">
             {children}
           </main>
-          <Footer />
+          <SiteFooter />
         </QueryProvider>
       </body>
     </html>
@@ -113,15 +113,3 @@ function Header() {
   );
 }
 
-function Footer() {
-  return (
-    <footer className="border-t border-[var(--brand-border)] py-8 text-sm text-[var(--brand-muted)]">
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 md:flex-row md:items-center md:justify-between">
-        <p>
-          © {new Date().getFullYear()} {STORE_NAME}
-        </p>
-        <p>{STORE_TAGLINE}</p>
-      </div>
-    </footer>
-  );
-}
