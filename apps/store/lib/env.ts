@@ -40,6 +40,14 @@ const envSchema = z.object({
     .string()
     .min(16)
     .default('dev-cookie-secret-change-in-production-please'),
+
+  // Fixed shipping rate for v1 (Prompt 10). Real shipping rules / zones
+  // arrive in a later phase per the architecture doc's "stop and ask"
+  // list. Major-unit decimal string, e.g. "4.95".
+  STORE_DEFAULT_SHIPPING_GBP: z
+    .string()
+    .regex(/^\d+(\.\d{2})?$/, 'STORE_DEFAULT_SHIPPING_GBP must be a major-unit string')
+    .default('4.95'),
 });
 
 export type Env = z.infer<typeof envSchema>;
