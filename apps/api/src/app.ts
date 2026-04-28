@@ -19,6 +19,7 @@ import {
   storefrontReadRoutes,
   storefrontWriteRoutes,
 } from './modules/storefront/storefront.routes.js';
+import { registerStorefrontRequestId } from './modules/storefront/log.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -77,6 +78,13 @@ export async function buildApp() {
 
   // Admin: service API key management (Prompt 2 of buldmeawebstore.md).
   await app.register(apiKeyAdminRoutes, { prefix: '/api/v1' });
+
+  // Per-request requestId hook for storefront routes — binds an
+  // X-Request-Id off the inbound headers (or mints one) and mirrors
+  // it back on the response so the storefront can correlate logs +
+  // Sentry events end to end. Registered before the storefront
+  // routes so the hook runs ahead of every handler.
+  await registerStorefrontRequestId(app);
 
   // Storefront: public read surface, gated by apiKeyAuth(['storefront:read']) (Prompt 4).
   await app.register(storefrontReadRoutes, { prefix: '/api/v1' });

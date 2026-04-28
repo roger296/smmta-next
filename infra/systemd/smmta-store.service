@@ -1,0 +1,65 @@
+# Systemd unit for the Filament Store storefront (Next.js).
+#
+# Runs the standalone server bundled by `next build` (output: 'standalone'
+# in apps/store/next.config.js). Reads its environment from
+# /etc/smmta/store.env (must be mode 0600, owned by smmta:smmta) so
+# secrets — Mollie / SendGrid / SMMTA / cookie — never appear on a
+# command line or in /proc.
+#
+# Install:
+#   sudo cp infra/systemd/smmta-store.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now smmta-store
+#
+# Logs:
+#   journalctl -u smmta-store -f          # tail JSON logs
+#   journalctl -u smmta-store --since "1 hour ago"
+
+[Unit]
+Description=Filament Store (Next.js storefront)
+Documentation=https://github.com/roger296/smmta-next
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smmta
+Group=smmta
+WorkingDirectory=/opt/smmta-next/apps/store
+EnvironmentFile=/etc/smmta/store.env
+
+# The standalone server is emitted into `.next/standalone/` by
+# `next build`. Static assets live at `.next/static/`; nginx serves
+# them with a 1-year cache header (see infra/nginx/...). The server
+# expects `static` to live alongside it under
+# `.next/standalone/apps/store/.next/static`, which the deploy script
+# arranges with a symlink during deployment.
+ExecStart=/usr/bin/node .next/standalone/apps/store/server.js
+
+Restart=on-failure
+RestartSec=5s
+
+# Limit blast radius. The storefront only needs network egress + a
+# read-only filesystem outside its working tree.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadOnlyPaths=/
+ReadWritePaths=/opt/smmta-next/apps/store /var/log/smmta-store
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Standard limits.
+LimitNOFILE=65536
+
+# Send stdout / stderr to journald — Pino emits one JSON line per
+# event so journald + the standard `journalctl -u smmta-store` flow
+# is enough; no separate log shipping needed.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smmta-store
+
+[Install]
+WantedBy=multi-user.target
