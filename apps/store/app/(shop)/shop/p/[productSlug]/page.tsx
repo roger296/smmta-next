@@ -17,6 +17,7 @@ import { getProductBySlug, SmmtaApiError } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
 import { breadcrumbLd, productLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { Markdown } from '@/lib/markdown';
+import { AddToCartButton } from '@/components/add-to-cart-button';
 
 export const revalidate = 60;
 
@@ -185,16 +186,10 @@ export default async function StandaloneProductPage({
                 : 'In stock.'
               : 'Out of stock — check back soon.'}
           </p>
-          <button
-            type="button"
-            disabled={product.availableQty === 0}
-            className="w-full rounded-[var(--radius)] bg-[var(--brand-ink)] px-6 py-3 text-base font-medium text-[var(--brand-paper)] transition-colors hover:bg-[var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {product.availableQty > 0 ? 'Add to cart' : 'Notify me'}
-          </button>
-          <p className="text-xs text-[var(--brand-muted)]">
-            Cart and checkout land in Prompt 9.
-          </p>
+          <AddToCartButton
+            productId={product.id}
+            inStock={product.availableQty > 0}
+          />
         </div>
       </div>
 

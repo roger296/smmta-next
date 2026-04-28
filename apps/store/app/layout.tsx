@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { fontVariables } from '@/lib/fonts';
 import { getEnv } from '@/lib/env';
+import { QueryProvider } from '@/components/query-provider';
+import { CartHeaderLink } from '@/components/cart-header-link';
 
 const STORE_NAME = 'Filament Store';
 const STORE_TAGLINE = 'Hand-finished LED filament lighting.';
@@ -75,11 +77,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main" className="skip-link">
           Skip to main content
         </a>
-        <Header />
-        <main id="main" className="mx-auto max-w-6xl px-6 py-10">
-          {children}
-        </main>
-        <Footer />
+        <QueryProvider>
+          <Header />
+          <main id="main" className="mx-auto max-w-6xl px-6 py-10">
+            {children}
+          </main>
+          <Footer />
+        </QueryProvider>
       </body>
     </html>
   );
@@ -100,9 +104,7 @@ function Header() {
               </a>
             </li>
             <li>
-              <a href="/cart" className="hover:underline">
-                Cart
-              </a>
+              <CartHeaderLink />
             </li>
           </ul>
         </nav>

@@ -11,6 +11,7 @@ import * as React from 'react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { FullVariant } from '@/lib/api-types';
+import { AddToCartButton } from '@/components/add-to-cart-button';
 
 export interface SwatchPickerProps {
   groupName: string;
@@ -146,17 +147,10 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
               : 'Out of stock — check back soon.'}
           </p>
 
-          <button
-            type="button"
-            disabled={selected.availableQty === 0}
-            className="w-full rounded-[var(--radius)] bg-[var(--brand-ink)] px-6 py-3 text-base font-medium text-[var(--brand-paper)] transition-colors hover:bg-[var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {selected.availableQty > 0 ? 'Add to cart' : 'Notify me'}
-          </button>
-          <p className="text-xs text-[var(--brand-muted)]">
-            Cart and checkout land in Prompt 9. The button above is wired up to the basket once
-            that prompt ships.
-          </p>
+          <AddToCartButton
+            productId={selected.id}
+            inStock={selected.availableQty > 0}
+          />
         </div>
       </div>
     </div>
