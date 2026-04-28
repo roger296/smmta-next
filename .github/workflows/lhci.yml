@@ -1,0 +1,54 @@
+name: Lighthouse CI
+
+# Runs Lighthouse against the production build of @smmta/store on every
+# pull request that touches the storefront. The thresholds live in
+# apps/store/lighthouserc.json — failures block the PR.
+#
+# This workflow stubs the SMMTA-NEXT API: we don't spin up Postgres or
+# the Fastify API in CI for Lighthouse. The storefront's runtime
+# fetches will fall through gracefully (catalogue empty), exercising
+# the same code paths Lighthouse cares about (HTML structure, headers,
+# image perf, manifest, robots, sitemap).
+
+on:
+  pull_request:
+    paths:
+      - 'apps/store/**'
+      - '.github/workflows/lhci.yml'
+  workflow_dispatch:
+
+jobs:
+  lhci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build storefront
+        env:
+          NODE_ENV: production
+          # Point storefront at a stub API origin; the catalogue read
+          # will fail gracefully and the page renders an empty grid.
+          SMMTA_API_BASE_URL: http://localhost:9999/api/v1
+          STORE_BASE_URL: http://localhost:3000
+          STORE_COOKIE_SECRET: ci-cookie-secret-32bytes-min-padding
+        run: npm run build -w @smmta/store
+
+      - name: Run Lighthouse CI
+        working-directory: apps/store
+        env:
+          NODE_ENV: production
+          SMMTA_API_BASE_URL: http://localhost:9999/api/v1
+          STORE_BASE_URL: http://localhost:3000
+          STORE_COOKIE_SECRET: ci-cookie-secret-32bytes-min-padding
+        run: |
+          npm install --no-save @lhci/cli@0.14.x
+          npx lhci autorun
