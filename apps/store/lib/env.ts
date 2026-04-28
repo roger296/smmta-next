@@ -32,6 +32,14 @@ const envSchema = z.object({
 
   // Public storefront origin — used for canonical URLs / OG images.
   STORE_BASE_URL: z.string().default('http://localhost:3000'),
+
+  // HMAC secret used to sign the cart_id cookie (Prompt 9). The default
+  // here is unsafe in production but fine for tests; the deploy in
+  // Prompt 14 sets a 64-byte random secret in /etc/smmta/store.env.
+  STORE_COOKIE_SECRET: z
+    .string()
+    .min(16)
+    .default('dev-cookie-secret-change-in-production-please'),
 });
 
 export type Env = z.infer<typeof envSchema>;
