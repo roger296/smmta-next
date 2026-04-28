@@ -30,6 +30,15 @@ const envSchema = z.object({
   // Operator-only admin surface (Prompt 12).
   ADMIN_API_KEY: z.string().default(''),
 
+  // Observability (Prompt 14). Both are optional — empty values disable
+  // the Sentry SDK at boot so dev / test runs never emit events.
+  SENTRY_DSN: z.string().default(''),
+  /** Sample rate for performance traces (0..1). 0 disables tracing. */
+  SENTRY_TRACES_SAMPLE_RATE: z
+    .string()
+    .regex(/^(0(\.\d+)?|1(\.0+)?)$/)
+    .default('0'),
+
   // Public storefront origin — used for canonical URLs / OG images.
   STORE_BASE_URL: z.string().default('http://localhost:3000'),
 

@@ -38,12 +38,19 @@ interface RequestOptions {
   /** Tags for fine-grained `revalidateTag` invalidation. */
   tags?: string[];
   signal?: AbortSignal;
+  /** Optional `X-Request-Id` to propagate. The API mirrors it back so a
+   *  single id ties storefront → API → Mollie / SendGrid log lines
+   *  together for end-to-end tracing. Omit to skip the header. */
+  requestId?: string;
 }
 
 interface MutationOptions {
   signal?: AbortSignal;
   /** Optional Idempotency-Key forwarded to SMMTA (used by order commit). */
   idempotencyKey?: string;
+  /** Optional `X-Request-Id` for trace propagation — same role as on
+   *  RequestOptions above. */
+  requestId?: string;
 }
 
 const DEFAULT_RETRIES = 3;
@@ -90,6 +97,7 @@ export async function smmtaFetch<T>(
 
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (env.SMMTA_API_KEY) headers.Authorization = `Bearer ${env.SMMTA_API_KEY}`;
+  if (options.requestId) headers['X-Request-Id'] = options.requestId;
 
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -264,6 +272,7 @@ async function smmtaPost<T>(
   };
   if (env.SMMTA_API_KEY) headers.Authorization = `Bearer ${env.SMMTA_API_KEY}`;
   if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
+  if (opts.requestId) headers['X-Request-Id'] = opts.requestId;
   const res = await fetch(url, {
     method: 'POST',
     headers,
@@ -293,6 +302,7 @@ async function smmtaDelete(
   );
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (env.SMMTA_API_KEY) headers.Authorization = `Bearer ${env.SMMTA_API_KEY}`;
+  if (opts.requestId) headers['X-Request-Id'] = opts.requestId;
   const res = await fetch(url, {
     method: 'DELETE',
     headers,

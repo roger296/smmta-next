@@ -63,6 +63,10 @@ interface CreatePaymentInput {
   metadata?: Record<string, unknown>;
   /** Idempotency-Key; we set it to checkoutId so retries can't duplicate. */
   idempotencyKey: string;
+  /** Optional X-Request-Id for trace propagation — surfaced in the
+   *  Mollie request log so a single trace ties storefront → API →
+   *  Mollie → log lines together. Mollie ignores unknown headers. */
+  requestId?: string;
 }
 
 async function safeJson(res: Response): Promise<unknown> {
@@ -111,13 +115,15 @@ function toMolliePayment(raw: unknown): MolliePayment {
 export async function createPayment(input: CreatePaymentInput): Promise<MolliePayment> {
   const key = ensureKey();
   const url = new URL('payments', MOLLIE_BASE);
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+    'Idempotency-Key': input.idempotencyKey,
+  };
+  if (input.requestId) headers['X-Request-Id'] = input.requestId;
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': input.idempotencyKey,
-    },
+    headers,
     body: JSON.stringify({
       amount: input.amount,
       description: input.description,
@@ -192,6 +198,8 @@ interface CreateRefundInput {
   /** Idempotency-Key — derive from credit-note id so a repeated
    *  operator click doesn't refund twice. */
   idempotencyKey: string;
+  /** Optional X-Request-Id for trace propagation. */
+  requestId?: string;
 }
 
 function toMollieRefund(raw: unknown): MollieRefund {
@@ -213,13 +221,15 @@ export async function createRefund(input: CreateRefundInput): Promise<MollieRefu
     `payments/${encodeURIComponent(input.paymentId)}/refunds`,
     MOLLIE_BASE,
   );
+  const refundHeaders: Record<string, string> = {
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+    'Idempotency-Key': input.idempotencyKey,
+  };
+  if (input.requestId) refundHeaders['X-Request-Id'] = input.requestId;
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': input.idempotencyKey,
-    },
+    headers: refundHeaders,
     body: JSON.stringify({
       amount: input.amount,
       description: input.description,
