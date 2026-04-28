@@ -45,10 +45,12 @@ test.describe('Storefront sad paths', () => {
     await page.goto(`/shop/${SEEDED_GROUP_SLUG}`);
     const swatch = page.locator('[data-test="swatch"]').first();
     if ((await swatch.count()) > 0) await swatch.click();
-    await page
-      .locator('button[type="submit"]', { hasText: /add to cart/i })
-      .click();
-    await page.waitForURL(/\/cart/);
+    await page.getByRole('button', { name: /^add to cart$/i }).click();
+    await expect(
+      page.getByRole('button', { name: /^added/i }),
+    ).toBeVisible({ timeout: 5_000 });
+    await page.goto('/cart');
+    await expect(page).toHaveURL(/\/cart/);
     await page.locator('a, button', { hasText: /checkout/i }).first().click();
     await page.waitForURL(/\/checkout/);
 
@@ -86,10 +88,12 @@ test.describe('Storefront sad paths', () => {
     await page.goto(`/shop/${SEEDED_GROUP_SLUG}`);
     const swatch = page.locator('[data-test="swatch"]').first();
     if ((await swatch.count()) > 0) await swatch.click();
-    await page
-      .locator('button[type="submit"]', { hasText: /add to cart/i })
-      .click();
-    await page.waitForURL(/\/cart/);
+    await page.getByRole('button', { name: /^add to cart$/i }).click();
+    await expect(
+      page.getByRole('button', { name: /^added/i }),
+    ).toBeVisible({ timeout: 5_000 });
+    await page.goto('/cart');
+    await expect(page).toHaveURL(/\/cart/);
     await page.locator('a, button', { hasText: /checkout/i }).first().click();
     await page.waitForURL(/\/checkout/);
 

@@ -52,7 +52,15 @@ test.describe('Storefront happy path', () => {
     }
 
     // ---------------- 3. Add to cart ------------------------------
-    await page.locator('button[type="submit"]', { hasText: /add to cart/i }).click();
+    // The Add-to-Cart control is a `type="button"` that fires a fetch
+    // and toggles to "Added ✓"; it does NOT navigate. Use the role +
+    // accessible name to find it, wait for the success label so we know
+    // the mutation completed, then drive the navigation ourselves.
+    await page.getByRole('button', { name: /^add to cart$/i }).click();
+    await expect(
+      page.getByRole('button', { name: /^added/i }),
+    ).toBeVisible({ timeout: 5_000 });
+    await page.goto('/cart');
     await expect(page).toHaveURL(/\/cart/);
 
     // ---------------- 4. Checkout ---------------------------------
