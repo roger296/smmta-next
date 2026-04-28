@@ -39,6 +39,12 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+interface MutationOptions {
+  signal?: AbortSignal;
+  /** Optional Idempotency-Key forwarded to SMMTA (used by order commit). */
+  idempotencyKey?: string;
+}
+
 const DEFAULT_RETRIES = 3;
 /** Base back-off in ms. Final delay = uniform(0, base * 2^attempt + base). */
 const BASE_BACKOFF_MS = 200;
@@ -184,6 +190,200 @@ export function getProductsByIds(
     revalidate: false,
     ...opts,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Storefront write surface (Prompt 5 endpoints) — used by checkout in Prompt 10.
+// These intentionally do NOT go through `smmtaFetch` because:
+//   - They're POST/DELETE; the retry loop is GET-shaped (idempotent reads).
+//   - They need to map specific status codes (409 INSUFFICIENT_STOCK, 422
+//     total mismatch, 410 reservation expired) into typed errors the
+//     checkout orchestrator branches on.
+// ---------------------------------------------------------------------------
+
+export interface ReservationLineInput {
+  productId: string;
+  quantity: number;
+}
+
+export interface ReservationResult {
+  reservationId: string;
+  expiresAt: string;
+  lines: Array<{ productId: string; quantity: number; stockItemIds: string[] }>;
+}
+
+export interface InsufficientStockResponse {
+  productId: string;
+  available: number;
+  requested: number;
+}
+
+export class InsufficientStockError extends Error {
+  readonly productId: string;
+  readonly available: number;
+  readonly requested: number;
+  constructor(body: InsufficientStockResponse) {
+    super(
+      `Insufficient stock for product ${body.productId}: only ${body.available} of ${body.requested} available`,
+    );
+    this.name = 'InsufficientStockError';
+    this.productId = body.productId;
+    this.available = body.available;
+    this.requested = body.requested;
+  }
+}
+
+async function smmtaPost<T>(
+  path: string,
+  body: unknown,
+  opts: MutationOptions = {},
+): Promise<{ status: number; data: T | null; rawBody: unknown }> {
+  const env = getEnv();
+  const url = new URL(
+    path.startsWith('/') ? path.slice(1) : path,
+    ensureTrailingSlash(env.SMMTA_API_BASE_URL),
+  );
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (env.SMMTA_API_KEY) headers.Authorization = `Bearer ${env.SMMTA_API_KEY}`;
+  if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal: opts.signal,
+    cache: 'no-store',
+  });
+  const raw = await safeJson(res);
+  return {
+    status: res.status,
+    data:
+      typeof raw === 'object' && raw && 'data' in raw
+        ? ((raw as { data: T }).data ?? null)
+        : null,
+    rawBody: raw,
+  };
+}
+
+async function smmtaDelete(
+  path: string,
+  opts: MutationOptions = {},
+): Promise<{ status: number; rawBody: unknown }> {
+  const env = getEnv();
+  const url = new URL(
+    path.startsWith('/') ? path.slice(1) : path,
+    ensureTrailingSlash(env.SMMTA_API_BASE_URL),
+  );
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (env.SMMTA_API_KEY) headers.Authorization = `Bearer ${env.SMMTA_API_KEY}`;
+  const res = await fetch(url, {
+    method: 'DELETE',
+    headers,
+    signal: opts.signal,
+    cache: 'no-store',
+  });
+  const rawBody = res.status === 204 ? null : await safeJson(res);
+  return { status: res.status, rawBody };
+}
+
+/** POST /storefront/reservations. Throws InsufficientStockError on 409. */
+export async function createReservation(
+  items: ReservationLineInput[],
+  opts: { ttlSeconds?: number } & MutationOptions = {},
+): Promise<ReservationResult> {
+  const { status, data, rawBody } = await smmtaPost<ReservationResult>(
+    'storefront/reservations',
+    { items, ttlSeconds: opts.ttlSeconds ?? 15 * 60 },
+    opts,
+  );
+  if (status === 201 && data) return data;
+  if (status === 409) {
+    const body = rawBody as Partial<InsufficientStockResponse> & { error?: string };
+    if (body && body.error === 'INSUFFICIENT_STOCK' && body.productId && body.available !== undefined) {
+      throw new InsufficientStockError({
+        productId: body.productId,
+        available: body.available,
+        requested: body.requested ?? 0,
+      });
+    }
+  }
+  throw new SmmtaApiError(
+    `Reservation failed (${status})`,
+    status,
+    rawBody,
+  );
+}
+
+/** DELETE /storefront/reservations/:id — idempotent. 204 on success, 404
+ *  for an unknown id. */
+export async function releaseReservation(
+  reservationId: string,
+  opts?: MutationOptions,
+): Promise<void> {
+  const { status, rawBody } = await smmtaDelete(
+    `storefront/reservations/${encodeURIComponent(reservationId)}`,
+    opts,
+  );
+  if (status === 204 || status === 404) return;
+  throw new SmmtaApiError(
+    `Reservation release failed (${status})`,
+    status,
+    rawBody,
+  );
+}
+
+export interface OrderCommitInput {
+  reservationId: string;
+  customer: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+  };
+  deliveryAddress: {
+    line1: string;
+    line2?: string;
+    city: string;
+    region?: string;
+    postCode: string;
+    country: string;
+    contactName?: string;
+  };
+  invoiceAddress?: OrderCommitInput['deliveryAddress'];
+  mollie: {
+    paymentId: string;
+    amount: string;
+    currency: string;
+    methodPaid: string;
+    status: string;
+  };
+  deliveryCharge?: string;
+}
+
+export interface OrderCommitResult {
+  orderId: string;
+  status: string;
+}
+
+/** POST /storefront/orders. Idempotent on Idempotency-Key. */
+export async function commitOrder(
+  input: OrderCommitInput,
+  idempotencyKey: string,
+  opts?: MutationOptions,
+): Promise<OrderCommitResult> {
+  const { status, data, rawBody } = await smmtaPost<OrderCommitResult>(
+    'storefront/orders',
+    input,
+    { ...opts, idempotencyKey },
+  );
+  if ((status === 201 || status === 200) && data) return data;
+  throw new SmmtaApiError(
+    `Order commit failed (${status})`,
+    status,
+    rawBody,
+  );
 }
 
 /**
