@@ -94,6 +94,13 @@ jobs:
       - name: Seed the storefront catalogue
         run: npm run seed:storefront -w @smmta/api
 
+      - name: Build apps/api
+        # `npm run start` invokes `node dist/server.js` — so the API has to be
+        # compiled first. Without this step the start script exits in
+        # milliseconds with `Cannot find module .../dist/server.js`, the API
+        # is never up, and every storefront request to /api/v1/* fails.
+        run: npm run build -w @smmta/api
+
       - name: Boot apps/api
         run: |
           npm run start -w @smmta/api > /tmp/api.log 2>&1 &
@@ -105,6 +112,11 @@ jobs:
             fi
             sleep 2
           done
+          if ! curl -fsS http://127.0.0.1:8080/health >/dev/null; then
+            echo "::error::API failed to come up — dumping log:"
+            cat /tmp/api.log
+            exit 1
+          fi
 
       - name: Mint a storefront API key
         id: store-key
@@ -120,24 +132,38 @@ jobs:
           DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
         run: npm run build -w @smmta/store
 
+      - name: Prepare apps/store standalone bundle
+        # Next.js's `output: 'standalone'` writes a self-contained server to
+        # `.next/standalone/`, but it does NOT copy the static asset and
+        # public directories — those have to be put in place manually.
+        # See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats
+        run: |
+          mkdir -p apps/store/.next/standalone/apps/store/.next
+          cp -r apps/store/.next/static apps/store/.next/standalone/apps/store/.next/static
+          if [ -d apps/store/public ]; then
+            cp -r apps/store/public apps/store/.next/standalone/apps/store/public
+          fi
+
       - name: Boot apps/store
         env:
           SMMTA_API_KEY: ${{ steps.store-key.outputs.KEY }}
           DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
-          # The Playwright suite stands up its own mock Mollie on a
-          # random port and exposes it via the test runner. The
-          # storefront process itself doesn't talk to it directly —
-          # checkouts go through the storefront Mollie client which
-          # respects MOLLIE_API_BASE_URL.
-          # In CI we leave the storefront pointing at the *suite*-
-          # provided base URL by reading from a file the test writes
-          # before navigation. The simplest workable harness is to
-          # bind the mock on a known port (4000) and start the
-          # storefront with the matching env. This is what the
-          # workflow does below.
+          # The Playwright suite drives Mollie via an in-test mock bound on
+          # a fixed port (MOCK_MOLLIE_PORT=4000 below). The storefront's
+          # outbound Mollie client respects MOLLIE_API_BASE_URL, so we
+          # point it at the mock for the duration of the run.
           MOLLIE_API_BASE_URL: http://127.0.0.1:4000/v2/
+          # The Next.js standalone server reads PORT and HOSTNAME from env.
+          PORT: '3000'
+          HOSTNAME: '0.0.0.0'
         run: |
-          npm run start -w @smmta/store > /tmp/store.log 2>&1 &
+          # `npm run start` for apps/store maps to `next start`, which Next
+          # explicitly warns is broken with `output: 'standalone'` — it
+          # serves dynamic routes with NoFallbackError and the e2e suite
+          # never sees a working PDP. Boot the standalone bundle directly,
+          # the same way Prompt 14's systemd unit does in production.
+          node apps/store/.next/standalone/apps/store/server.js \
+            > /tmp/store.log 2>&1 &
           echo "STORE_PID=$!" >> $GITHUB_ENV
           for i in 1 2 3 4 5 6 7 8 9 10; do
             if curl -fsS http://127.0.0.1:3000/healthz >/dev/null; then
@@ -146,6 +172,11 @@ jobs:
             fi
             sleep 2
           done
+          if ! curl -fsS http://127.0.0.1:3000/healthz >/dev/null; then
+            echo "::error::Store failed to come up — dumping log:"
+            cat /tmp/store.log
+            exit 1
+          fi
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
