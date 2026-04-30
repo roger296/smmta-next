@@ -29,3 +29,9 @@ imports, lint nits) is omitted.
 ## Prompt 15 (follow-up #3) — CI must build shared-types before the API
 
 - Added `npm run build -w @smmta/shared-types` to `.github/workflows/e2e.yml` immediately before the `Build apps/api` step. `apps/api` imports from `@smmta/shared-types`, which is a workspace package whose `package.json` declares `main: ./dist/index.js` and `types: ./dist/index.d.ts` — and those files only exist after that package's own `tsc` runs. Without this step, the API's tsc fails with `Cannot find package '@smmta/shared-types/dist/index.js'` and the workflow stops before the API can boot. Locally `npm run build` from the root works because Turbo orchestrates dependency order; CI builds workspaces individually so it has to be explicit.
+
+## Prompt 15 (follow-up #4) — decouple storefront build from API
+
+- The previous CI patch cleared the API build issue, which exposed the next failure point: `next build` was running `generateStaticParams` on `/shop/[groupSlug]/page.tsx`, fetching the seeded slug from the API, and then prerendering the page for that slug — and the page's own render path re-threw any non-404 error from `getGroupBySlug`. A single transient API failure during prerender therefore took down the whole build.
+- Made `generateStaticParams` opt-in via `STOREFRONT_PRERENDER=1` (default off) so the build no longer fetches the API at build time. The page is still RSC with `revalidate = 60`, so it server-renders on first request and is cached after — same end-to-end UX, no build-time coupling.
+- Made the group page's render-path catch return `notFound()` during the build phase (`NEXT_PHASE === 'phase-production-build'`) so that — even if a future config does opt back into prerender — a transient API hiccup downgrades to a 404 in the prerendered HTML rather than killing the whole build. Runtime rendering still re-throws so real failures are visible to the user and to error tracking.
