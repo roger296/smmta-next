@@ -94,6 +94,18 @@ jobs:
       - name: Seed the storefront catalogue
         run: npm run seed:storefront -w @smmta/api
 
+      - name: Build shared workspace packages
+        # `apps/api` imports from `@smmta/shared-types`, which is a
+        # workspace package whose `package.json` advertises
+        # `main: ./dist/index.js` and `types: ./dist/index.d.ts`. Those
+        # files don't exist until tsc runs in `packages/shared-types`,
+        # so the API's own tsc step (below) fails with
+        # `Cannot find package '.../@smmta/shared-types/dist/index.js'`
+        # if this hasn't been done first. (Locally, `npm run build` from
+        # the root works because Turbo orchestrates dep order — CI here
+        # builds workspaces individually so the order has to be explicit.)
+        run: npm run build -w @smmta/shared-types
+
       - name: Build apps/api
         # `npm run start` invokes `node dist/server.js` — so the API has to be
         # compiled first. Without this step the start script exits in

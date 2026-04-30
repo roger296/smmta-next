@@ -25,3 +25,7 @@ imports, lint nits) is omitted.
   2. **The storefront started in degraded mode.** `apps/store/package.json`'s `start` script was `next start -p 3000`, but `next.config.js` declares `output: 'standalone'`. Next.js prints `"next start" does not work with "output: standalone" configuration` and dynamic routes throw `NoFallbackError` at request time — so `/shop/[groupSlug]` returned an internal error instead of the rendered group page. Switched the CI boot to `node apps/store/.next/standalone/apps/store/server.js` (the same launcher Prompt 14's production systemd unit uses), with the documented manual copy of `.next/static` and `public/` into the standalone bundle.
 
   Together, these two unblock the e2e suite — the previous selector and seed-stock fixes both stop being hidden.
+
+## Prompt 15 (follow-up #3) — CI must build shared-types before the API
+
+- Added `npm run build -w @smmta/shared-types` to `.github/workflows/e2e.yml` immediately before the `Build apps/api` step. `apps/api` imports from `@smmta/shared-types`, which is a workspace package whose `package.json` declares `main: ./dist/index.js` and `types: ./dist/index.d.ts` — and those files only exist after that package's own `tsc` runs. Without this step, the API's tsc fails with `Cannot find package '@smmta/shared-types/dist/index.js'` and the workflow stops before the API can boot. Locally `npm run build` from the root works because Turbo orchestrates dependency order; CI builds workspaces individually so it has to be explicit.
