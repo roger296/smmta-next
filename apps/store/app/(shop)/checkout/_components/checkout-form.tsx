@@ -203,6 +203,7 @@ export function CheckoutForm() {
       <label className="flex items-start gap-2 text-sm">
         <input
           type="checkbox"
+          name="termsAccepted"
           checked={state.termsAccepted}
           onChange={(e) => set('termsAccepted', e.target.checked)}
           required

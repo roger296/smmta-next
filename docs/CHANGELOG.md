@@ -50,3 +50,7 @@ imports, lint nits) is omitted.
 - Added an optional `name?: string` prop to `Field` and threaded `name="…"` through every call site (firstName, lastName, email, phone, line1, line2, city, region, postCode, country, plus the `billing-…` variants for the separate-billing branch). The input's `name` defaults to its `id` if no name is passed, so native form-submission semantics keep working everywhere else.
 - Added `name="termsAccepted"` to the terms checkbox so it matches the same naming pattern.
 - Updated both e2e spec files to `page.check('input[name="termsAccepted"]')` before the Pay click — the form's `onSubmit` early-returns when `termsAccepted === false`, which would otherwise leave the URL wait hanging and produce the "next layer" failure on the run after this one. Same fix lands in all three call-sites (one in happy-path, two in sad-paths).
+
+## Prompt 15 (follow-up #7) — terms checkbox missed in 0007
+
+- Patch 0007 added `name="termsAccepted"` to the terms checkbox via a literal-string match that assumed a 12-space indent; the file actually uses 10 spaces, so the replacement silently no-op'd. The other Field name additions in the same patch worked because they used an id-driven regex. Result: the e2e tests successfully fill the new `name=`-attributed inputs (firstName, etc.) and then time out on `page.check('input[name="termsAccepted"]')` because the checkbox still has no name. Add it via regex this time.
