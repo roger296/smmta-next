@@ -17,7 +17,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules', '.next', 'dist'],
+    // e2e/ holds Playwright specs (driven by `npm run e2e`). They use
+    // @playwright/test, not Vitest, and would error if Vitest tried to
+    // load them.
+    exclude: ['node_modules', '.next', 'dist', 'e2e/**'],
     setupFiles: ['./test/setup.ts'],
     fileParallelism: false,
     testTimeout: 15_000,

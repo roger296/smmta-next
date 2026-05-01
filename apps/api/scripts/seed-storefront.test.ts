@@ -8,7 +8,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { and, eq, isNull } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../src/config/database.js';
-import { products, productGroups } from '../src/db/schema/index.js';
+import { products, productGroups, stockItems } from '../src/db/schema/index.js';
 import { STOREFRONT_DEMO_COMPANY_ID, seedStorefront } from './seed-storefront.js';
 
 afterAll(async () => {
@@ -22,6 +22,10 @@ describe('seedStorefront() — integration', () => {
     expect(result.companyId).toBe(STOREFRONT_DEMO_COMPANY_ID);
     expect(result.variantIds).toHaveLength(3);
     expect(typeof result.standaloneId).toBe('string');
+    expect(typeof result.warehouseId).toBe('string');
+    // 4 SKUs (3 variants + 1 standalone) × STOCK_PER_SKU.
+    // The exact count is asserted in the dedicated test below.
+    expect(result.stockItemsCreated).toBeGreaterThan(0);
 
     const db = getDb();
 
@@ -63,6 +67,39 @@ describe('seedStorefront() — integration', () => {
     expect(standalones[0]?.slug).toBe('brushed-brass-pendant-cord-set');
   });
 
+  it('seeds IN_STOCK stock_items for every variant and the standalone product', async () => {
+    // Storefront catalogue read uses count(stock_items WHERE status='IN_STOCK')
+    // to populate available_qty, which drives whether the PDP renders the
+    // "Add to cart" button or the disabled "Notify me" button. This test locks
+    // that contract so a future change can't silently break the e2e suite.
+    const result = await seedStorefront();
+
+    const db = getDb();
+    const allCompanyStock = await db.query.stockItems.findMany({
+      where: and(
+        eq(stockItems.companyId, STOREFRONT_DEMO_COMPANY_ID),
+        isNull(stockItems.deletedAt),
+      ),
+    });
+
+    // 4 SKUs × STOCK_PER_SKU rows, all IN_STOCK.
+    expect(allCompanyStock).toHaveLength(result.stockItemsCreated);
+    for (const item of allCompanyStock) {
+      expect(item.status).toBe('IN_STOCK');
+      expect(item.warehouseId).toBe(result.warehouseId);
+    }
+
+    // Each variant + the standalone gets STOCK_PER_SKU rows.
+    const perProduct = new Map<string, number>();
+    for (const item of allCompanyStock) {
+      perProduct.set(item.productId, (perProduct.get(item.productId) ?? 0) + 1);
+    }
+    expect(perProduct.size).toBe(4);
+    for (const count of perProduct.values()) {
+      expect(count).toBe(result.stockItemsCreated / 4);
+    }
+  });
+
   it('is idempotent: re-seeding leaves the same row counts', async () => {
     await seedStorefront();
     await seedStorefront();
@@ -84,6 +121,16 @@ describe('seedStorefront() — integration', () => {
       ),
     });
     expect(productCount).toHaveLength(4);
+
+    // Stock items are wiped and re-seeded each time; count must stay stable.
+    const stock = await db.query.stockItems.findMany({
+      where: and(
+        eq(stockItems.companyId, STOREFRONT_DEMO_COMPANY_ID),
+        isNull(stockItems.deletedAt),
+      ),
+    });
+    expect(stock.length).toBeGreaterThan(0);
+    expect(stock.every((s) => s.status === 'IN_STOCK')).toBe(true);
   });
 
   it('exposes the new storefront fields on the products read path', async () => {

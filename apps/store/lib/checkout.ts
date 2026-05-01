@@ -16,7 +16,7 @@
  * Server-only.
  */
 import 'server-only';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { getDb } from './db';
 import { getEnv } from './env';
 import {
@@ -231,23 +231,61 @@ export async function startCheckout(input: StartCheckoutInput): Promise<StartChe
   }
 
   // 5. Persist the local mollie_payments row + flip checkout to PAYING.
-  await db.insert(molliePayments).values({
-    id: payment.id,
-    checkoutId,
-    amountGbp: payment.amount.value,
-    currency: payment.amount.currency,
-    method: payment.method ?? null,
-    status: payment.status,
-    rawPayload: payment as unknown as Record<string, unknown>,
-  });
+  // UPSERT on the PK: a Mollie payment id can re-appear under perfectly
+  // valid conditions (test environments where the mock resets, webhook
+  // retries from Mollie under network instability, manual operator
+  // re-trigger of a stuck checkout). A plain INSERT would 500 the route
+  // — return-path redirect never happens, customer sees a banner. Treat
+  // a duplicate id as authoritative — overwrite our local cache with the
+  // freshly-fetched payment and re-bind it to the new checkout.
   await db
-    .update(checkouts)
-    .set({
-      status: 'PAYING',
-      molliePaymentId: payment.id,
-      updatedAt: new Date(),
+    .insert(molliePayments)
+    .values({
+      id: payment.id,
+      checkoutId,
+      amountGbp: payment.amount.value,
+      currency: payment.amount.currency,
+      method: payment.method ?? null,
+      status: payment.status,
+      rawPayload: payment as unknown as Record<string, unknown>,
     })
-    .where(eq(checkouts.id, checkoutId));
+    .onConflictDoUpdate({
+      target: molliePayments.id,
+      set: {
+        checkoutId,
+        amountGbp: payment.amount.value,
+        currency: payment.amount.currency,
+        method: payment.method ?? null,
+        status: payment.status,
+        rawPayload: payment as unknown as Record<string, unknown>,
+        updatedAt: new Date(),
+      },
+    });
+  // `checkouts.mollie_payment_id` carries a UNIQUE constraint, so we have
+  // to atomically transfer the binding away from any prior checkout that
+  // claimed this payment id (test-mock resets, webhook replays under
+  // network instability, operator re-trigger) before we can assign it to
+  // the current checkout. Same transaction so a concurrent reader never
+  // sees a moment where neither checkout owns it.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(checkouts)
+      .set({ molliePaymentId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(checkouts.molliePaymentId, payment.id),
+          ne(checkouts.id, checkoutId),
+        ),
+      );
+    await tx
+      .update(checkouts)
+      .set({
+        status: 'PAYING',
+        molliePaymentId: payment.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(checkouts.id, checkoutId));
+  });
 
   return { ok: true, checkoutId, checkoutUrl: payment.checkoutUrl };
 }

@@ -1,7 +1,8 @@
 /**
- * Group page (`/shop/[groupSlug]`). RSC, revalidate 60s.
+ * Group page (`/shop/[groupSlug]`). RSC, fully dynamic at runtime, with a
+ * 60-second revalidate window for cache hits. Not statically generated at
+ * build time — see the `dynamic = 'force-dynamic'` block below for why.
  *
- *   - generateStaticParams from /storefront/groups
  *   - generateMetadata uses seo_title || name etc.
  *   - Variant swatch picker (client island) updates ?colour= without a full nav
  *   - Long description rendered from markdown via a strict allow-list
@@ -27,23 +28,22 @@ import { SHIPPING_FAQ } from '@/lib/seo/faq-data';
 import { SwatchPicker } from '../../_components/swatch-picker';
 import { YouMayAlsoLike } from '../../_components/you-may-also-like';
 
+// `output: 'standalone'` + dynamic route + `generateStaticParams` returning
+// `[]` is a footgun: Next.js's standalone runtime treats the empty list as
+// "this is the exhaustive set of valid slugs" and answers any other request
+// with `NoFallbackError` (see store.log on the failing CI run). We don't
+// pre-render any group slugs at build time (the build doesn't have a
+// reliable API to call), so the route is fully dynamic. `force-dynamic`
+// removes the static-generation pipeline entirely and the standalone
+// runtime renders on every request.
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
 export const revalidate = 60;
 
 interface RouteParams {
   groupSlug: string;
 }
 
-export async function generateStaticParams(): Promise<RouteParams[]> {
-  try {
-    const groups = await listGroups();
-    return groups
-      .filter((g): g is typeof g & { slug: string } => Boolean(g.slug))
-      .map((g) => ({ groupSlug: g.slug }));
-  } catch {
-    // If the API isn't up at build time, fall back to runtime SSR.
-    return [];
-  }
-}
 
 export async function generateMetadata({
   params,

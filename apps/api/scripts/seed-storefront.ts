@@ -20,6 +20,8 @@ import {
   productGroups,
   productImages,
   products,
+  stockItems,
+  warehouses,
 } from '../src/db/schema/index.js';
 
 /** Stable identifier for the Storefront Demo company. */
@@ -35,7 +37,15 @@ interface SeedResult {
   groupId: string;
   variantIds: string[];
   standaloneId: string;
+  warehouseId: string;
+  stockItemsCreated: number;
 }
+
+/**
+ * Units of stock seeded per SKU. Generous so a CI run with up to 3 retries
+ * (each consuming 1–N units across happy and sad paths) doesn't run dry.
+ */
+export const STOCK_PER_SKU = 50;
 
 export async function seedStorefront(): Promise<SeedResult> {
   const db = getDb();
@@ -52,6 +62,8 @@ export async function seedStorefront(): Promise<SeedResult> {
 
     if (productIds.length > 0) {
       const ids = productIds.map((r) => r.id);
+      // Stock items reference products, so they must go first.
+      await tx.delete(stockItems).where(inArray(stockItems.productId, ids));
       await tx.delete(productImages).where(inArray(productImages.productId, ids));
       await tx
         .delete(productCategoryMappings)
@@ -59,8 +71,28 @@ export async function seedStorefront(): Promise<SeedResult> {
       await tx.delete(products).where(inArray(products.id, ids));
     }
     await tx.delete(productGroups).where(eq(productGroups.companyId, companyId));
+    // Wipe and re-create the demo warehouse so re-runs produce identical state.
+    await tx.delete(warehouses).where(eq(warehouses.companyId, companyId));
 
-    // -------- 2. Group ---------------------------------------------------
+    // -------- 2. Warehouse ----------------------------------------------
+    // The storefront's reservation primitive flips stock_items to RESERVED in
+    // a specific warehouse. The seed needs at least one warehouse per company
+    // for stock_items.warehouse_id (NOT NULL) to satisfy the FK.
+    const [warehouse] = await tx
+      .insert(warehouses)
+      .values({
+        companyId,
+        name: 'Demo Warehouse',
+        addressLine1: '1 Demo Way',
+        city: 'London',
+        postCode: 'SW1A 1AA',
+        country: 'GB',
+        isDefault: true,
+      })
+      .returning();
+    if (!warehouse) throw new Error('Failed to insert demo warehouse');
+
+    // -------- 3. Group ---------------------------------------------------
     const [group] = await tx
       .insert(productGroups)
       .values({
@@ -94,7 +126,7 @@ export async function seedStorefront(): Promise<SeedResult> {
       .returning();
     if (!group) throw new Error('Failed to insert product group');
 
-    // -------- 3. Three colour variants -----------------------------------
+    // -------- 4. Three colour variants -----------------------------------
     const variantsInput = [
       {
         name: 'Aurora Filament Lamp — Smoke',
@@ -151,7 +183,7 @@ export async function seedStorefront(): Promise<SeedResult> {
       )
       .returning({ id: products.id });
 
-    // -------- 4. Standalone product --------------------------------------
+    // -------- 5. Standalone product --------------------------------------
     const [standalone] = await tx
       .insert(products)
       .values({
@@ -182,11 +214,39 @@ export async function seedStorefront(): Promise<SeedResult> {
       .returning({ id: products.id });
     if (!standalone) throw new Error('Failed to insert standalone product');
 
+    // -------- 6. Stock items ---------------------------------------------
+    // Seed STOCK_PER_SKU units of each variant + the standalone product as
+    // IN_STOCK. The storefront's available_qty counter — which determines
+    // whether the AddToCartButton renders "Add to cart" vs "Notify me" — is
+    // a count of these rows. Without them, the e2e tests time out trying to
+    // find an "Add to cart" button that the component never renders.
+    const productIdsForStock: string[] = [
+      ...variantRows.map((r) => r.id),
+      standalone.id,
+    ];
+    const stockRows: Array<typeof stockItems.$inferInsert> = [];
+    for (const productId of productIdsForStock) {
+      for (let i = 0; i < STOCK_PER_SKU; i++) {
+        stockRows.push({
+          companyId,
+          productId,
+          warehouseId: warehouse.id,
+          quantity: 1,
+          status: 'IN_STOCK',
+          value: '12.00',
+          currencyCode: 'GBP',
+        });
+      }
+    }
+    await tx.insert(stockItems).values(stockRows);
+
     return {
       companyId,
       groupId: group.id,
       variantIds: variantRows.map((r) => r.id),
       standaloneId: standalone.id,
+      warehouseId: warehouse.id,
+      stockItemsCreated: stockRows.length,
     };
   });
 }
@@ -208,7 +268,7 @@ if (isCliEntry) {
     .then((result) => {
       // eslint-disable-next-line no-console
       console.log(
-        `[seed:storefront] OK — company=${result.companyId} group=${result.groupId} variants=${result.variantIds.length} standalone=${result.standaloneId}`,
+        `[seed:storefront] OK — company=${result.companyId} group=${result.groupId} variants=${result.variantIds.length} standalone=${result.standaloneId} warehouse=${result.warehouseId} stockItems=${result.stockItemsCreated}`,
       );
     })
     .catch((err) => {

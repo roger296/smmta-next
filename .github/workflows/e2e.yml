@@ -1,0 +1,254 @@
+name: E2E + concurrency
+
+# End-to-end harness for the Filament Store stack:
+#   - Postgres 16 (service container)
+#   - Drizzle migrations (apps/api + apps/store)
+#   - apps/api on :8080
+#   - apps/store on :3000 (production build)
+#   - Playwright in apps/store/e2e/
+#   - The api-side concurrency stress test (Vitest, 100 × 50 parallel)
+#
+# Mollie's hosted-checkout is mocked at the network boundary by the
+# in-test mock-mollie helper (apps/store/e2e/_helpers/mock-mollie.ts).
+# SendGrid runs in sandbox mode (NODE_ENV != production).
+#
+# Triggers on PRs that touch the storefront, the API storefront module,
+# or this workflow itself. Manual dispatch is also wired in for ad-hoc
+# runs.
+
+on:
+  pull_request:
+    paths:
+      - 'apps/store/**'
+      - 'apps/api/src/modules/storefront/**'
+      - 'apps/api/scripts/**'
+      - '.github/workflows/e2e.yml'
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: smmta
+          POSTGRES_PASSWORD: smmta
+          POSTGRES_DB: smmta_next
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smmta -d smmta_next"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # API
+      NODE_ENV: test
+      DATABASE_URL: postgresql://smmta:smmta@localhost:5432/smmta_next
+      JWT_SECRET: e2e-jwt-secret-32bytes-padding-padd
+      PORT: 8080
+      LOG_LEVEL: warn
+      # Storefront (apps/store/.env contracts)
+      STORE_DATABASE_URL: postgresql://smmta:smmta@localhost:5432/smmta_store
+      SMMTA_API_BASE_URL: http://127.0.0.1:8080/api/v1
+      STORE_BASE_URL: http://127.0.0.1:3000
+      MOLLIE_API_KEY: test_mock_key
+      MOLLIE_WEBHOOK_URL_BASE: http://127.0.0.1:3000
+      SENDGRID_API_KEY: SG.e2e_sandbox
+      SENDGRID_FROM: orders@e2e.invalid
+      ADMIN_API_KEY: e2e-admin-key-padding-padding-padding-padding-pa
+      STORE_COOKIE_SECRET: e2e-cookie-secret-32bytes-padding-padding-padding
+      STORE_DEFAULT_SHIPPING_GBP: '4.95'
+      # Playwright knobs
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      E2E_GROUP_SLUG: aurora-filament-lamp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create the smmta_store database
+        run: |
+          PGPASSWORD=smmta psql -h 127.0.0.1 -U smmta -d smmta_next \
+            -c "CREATE DATABASE smmta_store;"
+
+      - name: Run API migrations
+        run: npm run db:migrate -w @smmta/api
+
+      - name: Run storefront migrations
+        env:
+          DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
+        run: npm run db:migrate -w @smmta/store
+
+      - name: Seed the storefront catalogue
+        run: npm run seed:storefront -w @smmta/api
+
+      - name: Build shared workspace packages
+        # `apps/api` imports from `@smmta/shared-types`, which is a
+        # workspace package whose `package.json` advertises
+        # `main: ./dist/index.js` and `types: ./dist/index.d.ts`. Those
+        # files don't exist until tsc runs in `packages/shared-types`,
+        # so the API's own tsc step (below) fails with
+        # `Cannot find package '.../@smmta/shared-types/dist/index.js'`
+        # if this hasn't been done first. (Locally, `npm run build` from
+        # the root works because Turbo orchestrates dep order — CI here
+        # builds workspaces individually so the order has to be explicit.)
+        run: npm run build -w @smmta/shared-types
+
+      - name: Build apps/api
+        # `npm run start` invokes `node dist/server.js` — so the API has to be
+        # compiled first. Without this step the start script exits in
+        # milliseconds with `Cannot find module .../dist/server.js`, the API
+        # is never up, and every storefront request to /api/v1/* fails.
+        run: npm run build -w @smmta/api
+
+      - name: Boot apps/api
+        run: |
+          npm run start -w @smmta/api > /tmp/api.log 2>&1 &
+          echo "API_PID=$!" >> $GITHUB_ENV
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then
+              echo "API ready"
+              break
+            fi
+            sleep 2
+          done
+          if ! curl -fsS http://127.0.0.1:8080/health >/dev/null; then
+            echo "::error::API failed to come up — dumping log:"
+            cat /tmp/api.log
+            exit 1
+          fi
+
+      - name: Mint a storefront API key
+        id: store-key
+        run: |
+          KEY_OUTPUT=$(npx tsx apps/api/scripts/issue-store-key.ts | tail -1)
+          echo "$KEY_OUTPUT"
+          echo "$KEY_OUTPUT" >> $GITHUB_OUTPUT
+
+      - name: Build apps/store
+        env:
+          SMMTA_API_KEY: ${{ steps.store-key.outputs.KEY }}
+          # Storefront DB env name is `DATABASE_URL` per apps/store/lib/env.ts
+          DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
+        run: npm run build -w @smmta/store
+
+      - name: Prepare apps/store standalone bundle
+        # Next.js's `output: 'standalone'` writes a self-contained server to
+        # `.next/standalone/`, but it does NOT copy the static asset and
+        # public directories — those have to be put in place manually.
+        # See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats
+        run: |
+          mkdir -p apps/store/.next/standalone/apps/store/.next
+          cp -r apps/store/.next/static apps/store/.next/standalone/apps/store/.next/static
+          if [ -d apps/store/public ]; then
+            cp -r apps/store/public apps/store/.next/standalone/apps/store/public
+          fi
+
+      - name: Boot apps/store
+        env:
+          SMMTA_API_KEY: ${{ steps.store-key.outputs.KEY }}
+          DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
+          # The Playwright suite drives Mollie via an in-test mock bound on
+          # a fixed port (MOCK_MOLLIE_PORT=4000 below). The storefront's
+          # outbound Mollie client respects MOLLIE_API_BASE_URL, so we
+          # point it at the mock for the duration of the run.
+          MOLLIE_API_BASE_URL: http://127.0.0.1:4000/v2/
+          # The Next.js standalone server reads PORT and HOSTNAME from env.
+          PORT: '3000'
+          HOSTNAME: '0.0.0.0'
+        run: |
+          # `npm run start` for apps/store maps to `next start`, which Next
+          # explicitly warns is broken with `output: 'standalone'` — it
+          # serves dynamic routes with NoFallbackError and the e2e suite
+          # never sees a working PDP. Boot the standalone bundle directly,
+          # the same way Prompt 14's systemd unit does in production.
+          node apps/store/.next/standalone/apps/store/server.js \
+            > /tmp/store.log 2>&1 &
+          echo "STORE_PID=$!" >> $GITHUB_ENV
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://127.0.0.1:3000/healthz >/dev/null; then
+              echo "Store ready"
+              break
+            fi
+            sleep 2
+          done
+          if ! curl -fsS http://127.0.0.1:3000/healthz >/dev/null; then
+            echo "::error::Store failed to come up — dumping log:"
+            cat /tmp/store.log
+            exit 1
+          fi
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/store
+
+      - name: Run Playwright e2e
+        env:
+          # The mock Mollie helper binds on this fixed port in CI so
+          # the storefront's MOLLIE_API_BASE_URL above lines up.
+          MOCK_MOLLIE_PORT: 4000
+          # The /storefront/* endpoints are gated by api-key bearer auth.
+          # admin-api.ts (the e2e helper that asserts an order's status
+          # post-checkout) reads this env to authenticate.
+          SMMTA_API_KEY: ${{ steps.store-key.outputs.KEY }}
+          SMMTA_API_BASE_URL: http://127.0.0.1:8080/api/v1
+        run: npm run e2e -w @smmta/store
+
+      - name: Run concurrency stress test (50 parallel × 100 iterations)
+        # Postgres FOR UPDATE SKIP LOCKED correctness check. Lives in
+        # apps/api/src/modules/storefront/reservation.concurrency.test.ts.
+        run: |
+          npx vitest run \
+            apps/api/src/modules/storefront/reservation.concurrency.test.ts \
+            --root apps/api \
+            --no-file-parallelism
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/store/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload Playwright test-results on failure
+        # Per-test screenshots, traces (trace.zip), and videos live here
+        # regardless of the reporter config. Without this artifact the
+        # workflow loses the most useful diagnostic surface on a failure.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: apps/store/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: |
+            /tmp/api.log
+            /tmp/store.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down
+        if: always()
+        run: |
+          if [[ -n "${API_PID:-}" ]]; then kill "$API_PID" 2>/dev/null || true; fi
+          if [[ -n "${STORE_PID:-}" ]]; then kill "$STORE_PID" 2>/dev/null || true; fi

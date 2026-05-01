@@ -138,7 +138,7 @@ export function CheckoutForm() {
       <fieldset className="space-y-3">
         <legend className="text-base font-medium">Contact</legend>
         <Field
-          id="cf-email"
+          id="cf-email" name="email"
           label="Email"
           required
           value={state.email}
@@ -146,23 +146,23 @@ export function CheckoutForm() {
           type="email"
         />
         <div className="grid gap-3 md:grid-cols-2">
-          <Field id="cf-first" label="First name" required value={state.firstName} onChange={(v) => set('firstName', v)} />
-          <Field id="cf-last" label="Last name" required value={state.lastName} onChange={(v) => set('lastName', v)} />
+          <Field id="cf-first" name="firstName" label="First name" required value={state.firstName} onChange={(v) => set('firstName', v)} />
+          <Field id="cf-last" name="lastName" label="Last name" required value={state.lastName} onChange={(v) => set('lastName', v)} />
         </div>
-        <Field id="cf-phone" label="Phone (optional)" value={state.phone} onChange={(v) => set('phone', v)} type="tel" />
+        <Field id="cf-phone" name="phone" label="Phone (optional)" value={state.phone} onChange={(v) => set('phone', v)} type="tel" />
       </fieldset>
 
       <fieldset className="space-y-3">
         <legend className="text-base font-medium">Delivery address</legend>
-        <Field id="cf-line1" label="Address line 1" required value={state.line1} onChange={(v) => set('line1', v)} />
-        <Field id="cf-line2" label="Address line 2 (optional)" value={state.line2} onChange={(v) => set('line2', v)} />
+        <Field id="cf-line1" name="line1" label="Address line 1" required value={state.line1} onChange={(v) => set('line1', v)} />
+        <Field id="cf-line2" name="line2" label="Address line 2 (optional)" value={state.line2} onChange={(v) => set('line2', v)} />
         <div className="grid gap-3 md:grid-cols-2">
-          <Field id="cf-city" label="City" required value={state.city} onChange={(v) => set('city', v)} />
-          <Field id="cf-region" label="County / region" value={state.region} onChange={(v) => set('region', v)} />
+          <Field id="cf-city" name="city" label="City" required value={state.city} onChange={(v) => set('city', v)} />
+          <Field id="cf-region" name="region" label="County / region" value={state.region} onChange={(v) => set('region', v)} />
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          <Field id="cf-postcode" label="Post code" required value={state.postCode} onChange={(v) => set('postCode', v)} />
-          <Field id="cf-country" label="Country" required value={state.country} onChange={(v) => set('country', v)} />
+          <Field id="cf-postcode" name="postCode" label="Post code" required value={state.postCode} onChange={(v) => set('postCode', v)} />
+          <Field id="cf-country" name="country" label="Country" required value={state.country} onChange={(v) => set('country', v)} />
         </div>
       </fieldset>
 
@@ -178,15 +178,15 @@ export function CheckoutForm() {
         </label>
         {state.separateBilling && (
           <div className="space-y-3">
-            <Field id="bf-line1" label="Address line 1" required value={state.billing.line1} onChange={(v) => setBilling('line1', v)} />
-            <Field id="bf-line2" label="Address line 2 (optional)" value={state.billing.line2} onChange={(v) => setBilling('line2', v)} />
+            <Field id="bf-line1" name="billing-line1" label="Address line 1" required value={state.billing.line1} onChange={(v) => setBilling('line1', v)} />
+            <Field id="bf-line2" name="billing-line2" label="Address line 2 (optional)" value={state.billing.line2} onChange={(v) => setBilling('line2', v)} />
             <div className="grid gap-3 md:grid-cols-2">
-              <Field id="bf-city" label="City" required value={state.billing.city} onChange={(v) => setBilling('city', v)} />
-              <Field id="bf-region" label="County / region" value={state.billing.region} onChange={(v) => setBilling('region', v)} />
+              <Field id="bf-city" name="billing-city" label="City" required value={state.billing.city} onChange={(v) => setBilling('city', v)} />
+              <Field id="bf-region" name="billing-region" label="County / region" value={state.billing.region} onChange={(v) => setBilling('region', v)} />
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <Field id="bf-postcode" label="Post code" required value={state.billing.postCode} onChange={(v) => setBilling('postCode', v)} />
-              <Field id="bf-country" label="Country" required value={state.billing.country} onChange={(v) => setBilling('country', v)} />
+              <Field id="bf-postcode" name="billing-postCode" label="Post code" required value={state.billing.postCode} onChange={(v) => setBilling('postCode', v)} />
+              <Field id="bf-country" name="billing-country" label="Country" required value={state.billing.country} onChange={(v) => setBilling('country', v)} />
             </div>
           </div>
         )}
@@ -203,6 +203,7 @@ export function CheckoutForm() {
       <label className="flex items-start gap-2 text-sm">
         <input
           type="checkbox"
+          name="termsAccepted"
           checked={state.termsAccepted}
           onChange={(e) => set('termsAccepted', e.target.checked)}
           required
@@ -237,13 +238,15 @@ export function CheckoutForm() {
 
 interface FieldProps {
   id: string;
+  /** Form-element `name` — also what e2e/Playwright targets via `input[name=…]`. */
+  name?: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   required?: boolean;
   type?: string;
 }
-function Field({ id, label, value, onChange, required, type = 'text' }: FieldProps) {
+function Field({ id, name, label, value, onChange, required, type = 'text' }: FieldProps) {
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="text-sm">
@@ -252,6 +255,7 @@ function Field({ id, label, value, onChange, required, type = 'text' }: FieldPro
       </label>
       <input
         id={id}
+        name={name ?? id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
