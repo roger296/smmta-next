@@ -16,7 +16,7 @@
  * Server-only.
  */
 import 'server-only';
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { getDb } from './db';
 import { getEnv } from './env';
 import {
@@ -261,14 +261,31 @@ export async function startCheckout(input: StartCheckoutInput): Promise<StartChe
         updatedAt: new Date(),
       },
     });
-  await db
-    .update(checkouts)
-    .set({
-      status: 'PAYING',
-      molliePaymentId: payment.id,
-      updatedAt: new Date(),
-    })
-    .where(eq(checkouts.id, checkoutId));
+  // `checkouts.mollie_payment_id` carries a UNIQUE constraint, so we have
+  // to atomically transfer the binding away from any prior checkout that
+  // claimed this payment id (test-mock resets, webhook replays under
+  // network instability, operator re-trigger) before we can assign it to
+  // the current checkout. Same transaction so a concurrent reader never
+  // sees a moment where neither checkout owns it.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(checkouts)
+      .set({ molliePaymentId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(checkouts.molliePaymentId, payment.id),
+          ne(checkouts.id, checkoutId),
+        ),
+      );
+    await tx
+      .update(checkouts)
+      .set({
+        status: 'PAYING',
+        molliePaymentId: payment.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(checkouts.id, checkoutId));
+  });
 
   return { ok: true, checkoutId, checkoutUrl: payment.checkoutUrl };
 }

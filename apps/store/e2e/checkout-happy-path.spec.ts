@@ -121,6 +121,11 @@ test.describe('Storefront happy path', () => {
     // ---------------- 10. /track page renders ---------------------
     await page.goto(`/track/${orderId}`);
     await expect(page.locator('h1')).toContainText(/STORE-/);
-    await expect(page.getByText(/Confirmed|Picked/i)).toBeVisible();
+    // The status timeline renders multiple stage labels ("Confirmed",
+    // "Picked & packed", "Shipped", "Delivered"). The original regex
+    // /Confirmed|Picked/i hit two elements, which Playwright's strict
+    // mode rejects. Assert on the specific "Confirmed" label — that's
+    // the canonical "order acknowledged" stage that's always present.
+    await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
   });
 });
