@@ -35,7 +35,7 @@ export type MollieScenario =
 
 interface PaymentRecord {
   id: string;
-  status: 'open' | 'paid' | 'cancelled';
+  status: 'open' | 'paid' | 'canceled';
   amount: { value: string; currency: string };
   redirectUrl: string;
   webhookUrl: string;
@@ -137,7 +137,11 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
     if (scenario === 'paid' || scenario === 'webhook-fails') {
       record.status = 'paid';
     } else if (scenario === 'cancelled') {
-      record.status = 'cancelled';
+      // Mollie's canonical spelling is the American "canceled" (one L).
+      // The storefront's `isTerminalNonPaid()` and the `MollieStatus` type
+      // both match that spelling — emitting British "cancelled" here
+      // means the cancelled-path is silently never taken.
+      record.status = 'canceled';
     }
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(

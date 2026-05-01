@@ -83,3 +83,10 @@ imports, lint nits) is omitted.
 - Added `lastMockPaymentId()` to `apps/store/e2e/_helpers/mock-mollie.ts` returning the most recently created mock payment id (it's authoritative — the test runner is single-threaded so there's no concurrent payment creation).
 - Updated the cancelled-test in `apps/store/e2e/checkout-sad-paths.spec.ts` to call `lastMockPaymentId()` instead of hard-coding. Webhook now fires for the right payment, finalizeFromMollie finds the active checkout, the cancelled status flips to FAILED, the polling sees it, and the failure banner renders.
 - The webhook-fails sad-path doesn't fire a webhook (it tests the polling fallback), so it doesn't need this fix and continues to pass.
+
+## Prompt 15 (follow-up #14) — mock-mollie returns Mollie's canonical "canceled" spelling
+
+- Patch 0014 fixed the wrong-payment-id problem but the cancelled sad-path was still red, with the page stuck on "Status: PAYING (Mollie: open)". The webhook handler was being invoked (refund-refresh log line proves it), `finalizeFromMollie` was called, but neither `mollie_payments.status` nor `checkouts.status` was updating.
+- Cause: the mock-mollie helper emitted `record.status = 'cancelled'` (British spelling, two Ls) but Mollie's actual API uses `'canceled'` (American spelling, one L). The storefront's `MollieStatus` type and `isTerminalNonPaid()` check (in `apps/store/lib/mollie.ts`) match Mollie's canonical spelling — so when the mock returned `'cancelled'`, `isTerminalNonPaid` returned false, the cancelled-path branch in `finalizeFromMollie` never fired, and the checkout stayed in PAYING. The page polled forever, the failure-banner toBeVisible() timed out at 15s.
+- Changed the mock to emit `'canceled'` (one L). Both the `PaymentRecord['status']` type and the runtime status assignment.
+- The `MollieScenario` type in the helper still uses `'cancelled'` — that's an *internal* test-only enum, never sent over the wire. Leaving it British so test code reads naturally; only the wire-format flips. The storefront never sees the enum.
