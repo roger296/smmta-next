@@ -20,6 +20,7 @@
 import { expect, test } from '@playwright/test';
 import {
   fireWebhook,
+  lastMockPaymentId,
   setMollieScenario,
   startMockMollie,
   stopMockMollie,
@@ -71,9 +72,13 @@ test.describe('Storefront sad paths', () => {
       page.locator('button[type="submit"]', { hasText: /pay/i }).click(),
     ]);
 
-    // Fire the webhook so the storefront re-fetches Mollie and sees
-    // `cancelled`. The reservation should be released.
-    await fireWebhook(baseURL!, 'tr_mock_1');
+    // Fire the webhook for THIS test's actual payment id, not a hardcoded
+    // "tr_mock_1". The mock's in-memory counter doesn't reliably reset
+    // between Playwright workers — earlier tests in the same worker may
+    // have advanced it — so we capture whatever the storefront-side
+    // POST /v2/payments just created. The storefront re-fetches that id
+    // from Mollie, sees `cancelled`, and releases the reservation.
+    await fireWebhook(baseURL!, lastMockPaymentId());
 
     // Return page polls; we just confirm it doesn't bounce to
     // /confirmation/ within the polling window. A "payment failed"

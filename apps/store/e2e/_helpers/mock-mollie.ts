@@ -178,6 +178,20 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
   res.end(JSON.stringify({ status: 404, title: 'Not Found', url }));
 }
 
+/**
+ * Returns the id of the most recently created mock payment. Used by tests
+ * that need to fire a webhook for "the payment this test just created" —
+ * hardcoding `tr_mock_1` is unsafe because the in-memory counter doesn't
+ * reliably reset between Playwright workers, and even when it does, the
+ * order of tests in the worker affects which id the storefront gets.
+ */
+export function lastMockPaymentId(): string {
+  if (nextPaymentId <= 1) {
+    throw new Error('lastMockPaymentId(): no mock payments created yet');
+  }
+  return `tr_mock_${nextPaymentId - 1}`;
+}
+
 /** Trigger the storefront's webhook handler from the test, which is
  *  what Mollie would do in production. */
 export async function fireWebhook(
