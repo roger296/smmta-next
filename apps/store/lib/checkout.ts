@@ -231,15 +231,36 @@ export async function startCheckout(input: StartCheckoutInput): Promise<StartChe
   }
 
   // 5. Persist the local mollie_payments row + flip checkout to PAYING.
-  await db.insert(molliePayments).values({
-    id: payment.id,
-    checkoutId,
-    amountGbp: payment.amount.value,
-    currency: payment.amount.currency,
-    method: payment.method ?? null,
-    status: payment.status,
-    rawPayload: payment as unknown as Record<string, unknown>,
-  });
+  // UPSERT on the PK: a Mollie payment id can re-appear under perfectly
+  // valid conditions (test environments where the mock resets, webhook
+  // retries from Mollie under network instability, manual operator
+  // re-trigger of a stuck checkout). A plain INSERT would 500 the route
+  // — return-path redirect never happens, customer sees a banner. Treat
+  // a duplicate id as authoritative — overwrite our local cache with the
+  // freshly-fetched payment and re-bind it to the new checkout.
+  await db
+    .insert(molliePayments)
+    .values({
+      id: payment.id,
+      checkoutId,
+      amountGbp: payment.amount.value,
+      currency: payment.amount.currency,
+      method: payment.method ?? null,
+      status: payment.status,
+      rawPayload: payment as unknown as Record<string, unknown>,
+    })
+    .onConflictDoUpdate({
+      target: molliePayments.id,
+      set: {
+        checkoutId,
+        amountGbp: payment.amount.value,
+        currency: payment.amount.currency,
+        method: payment.method ?? null,
+        status: payment.status,
+        rawPayload: payment as unknown as Record<string, unknown>,
+        updatedAt: new Date(),
+      },
+    });
   await db
     .update(checkouts)
     .set({
