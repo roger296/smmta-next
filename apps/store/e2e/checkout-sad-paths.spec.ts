@@ -61,6 +61,11 @@ test.describe('Storefront sad paths', () => {
     await page.fill('input[name="city"]', 'London');
     await page.fill('input[name="postCode"]', 'SW1A 1AA');
 
+    // Tick the terms-and-conditions checkbox — the form's onSubmit handler
+    // early-returns if termsAccepted is false, so the Pay click would
+    // otherwise never navigate and the URL wait would time out.
+    await page.check('input[name="termsAccepted"]');
+
     await Promise.all([
       page.waitForURL(/\/checkout\/return/, { timeout: 30_000 }),
       page.locator('button[type="submit"]', { hasText: /pay/i }).click(),
@@ -103,6 +108,11 @@ test.describe('Storefront sad paths', () => {
     await page.fill('input[name="line1"]', '12 Test Street');
     await page.fill('input[name="city"]', 'London');
     await page.fill('input[name="postCode"]', 'SW1A 1AA');
+
+    // Tick the terms-and-conditions checkbox — the form's onSubmit handler
+    // early-returns if termsAccepted is false, so the Pay click would
+    // otherwise never navigate and the URL wait would time out.
+    await page.check('input[name="termsAccepted"]');
 
     await Promise.all([
       page.waitForURL(/\/checkout\/return/, { timeout: 30_000 }),

@@ -85,6 +85,11 @@ test.describe('Storefront happy path', () => {
     // to Mollie. Our mock Mollie's checkoutUrl points back at
     // /checkout/return immediately, so the navigation chain ends on
     // the return page.
+    // Tick the terms-and-conditions checkbox — the form's onSubmit handler
+    // early-returns if termsAccepted is false, so the Pay click would
+    // otherwise never navigate and the URL wait would time out.
+    await page.check('input[name="termsAccepted"]');
+
     await Promise.all([
       page.waitForURL(/\/checkout\/return/, { timeout: 30_000 }),
       page.locator('button[type="submit"]', { hasText: /pay/i }).click(),
