@@ -23,8 +23,26 @@ export function apiBaseUrl(): string {
   );
 }
 
+/**
+ * The /storefront/* endpoints are gated by an api-key bearer token. The CI
+ * workflow mints a key in the "Mint a storefront API key" step and exposes
+ * it as SMMTA_API_KEY on this process. Locally, set the same env var
+ * before running e2e (see docs/runbooks).
+ */
+function authHeaders(): Record<string, string> {
+  const key = process.env.SMMTA_API_KEY;
+  if (!key) {
+    throw new Error(
+      'SMMTA_API_KEY is not set. The /storefront/* endpoints require a ' +
+        'bearer token; the e2e helpers cannot fetch order state without it. ' +
+        'Set SMMTA_API_KEY in the test runner environment.',
+    );
+  }
+  return { Authorization: `Bearer ${key}` };
+}
+
 export async function getStorefrontGroup(slug: string): Promise<unknown | null> {
-  const ctx = await request.newContext();
+  const ctx = await request.newContext({ extraHTTPHeaders: authHeaders() });
   const res = await ctx.get(`${apiBaseUrl()}/storefront/groups/${slug}`);
   await ctx.dispose();
   if (res.status() === 404) return null;
@@ -39,7 +57,7 @@ export async function getStorefrontGroup(slug: string): Promise<unknown | null> 
 export async function getPublicOrder(
   orderId: string,
 ): Promise<{ id: string; status: string } | null> {
-  const ctx = await request.newContext();
+  const ctx = await request.newContext({ extraHTTPHeaders: authHeaders() });
   const res = await ctx.get(`${apiBaseUrl()}/storefront/orders/${orderId}`);
   await ctx.dispose();
   if (res.status() === 404) return null;

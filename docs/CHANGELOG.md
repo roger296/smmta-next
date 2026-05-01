@@ -54,3 +54,9 @@ imports, lint nits) is omitted.
 ## Prompt 15 (follow-up #7) — terms checkbox missed in 0007
 
 - Patch 0007 added `name="termsAccepted"` to the terms checkbox via a literal-string match that assumed a 12-space indent; the file actually uses 10 spaces, so the replacement silently no-op'd. The other Field name additions in the same patch worked because they used an id-driven regex. Result: the e2e tests successfully fill the new `name=`-attributed inputs (firstName, etc.) and then time out on `page.check('input[name="termsAccepted"]')` because the checkbox still has no name. Add it via regex this time.
+
+## Prompt 15 (follow-up #8) — admin-api e2e helper auth + capture trace artifacts
+
+- The previous CI run actually got an order all the way through the storefront flow on the happy-path test's first attempt (4.8 s, end-to-end). It only failed at the very last step — `getPublicOrder(orderId)` returned 401 — because `apps/store/e2e/_helpers/admin-api.ts` calls the gated `/storefront/orders/:id` endpoint without an Authorization header. Added a `Bearer ${process.env.SMMTA_API_KEY}` header to both helpers (`getPublicOrder` and `getStorefrontGroup`), with a clear thrown error if the env isn't set so the failure mode is unmistakable next time.
+- The e2e workflow step didn't expose `SMMTA_API_KEY` to the test runner. Set it (and `SMMTA_API_BASE_URL`) on the `Run Playwright e2e` step so the helper has something to read.
+- Added a second artifact upload for `apps/store/test-results/`. The CI Playwright reporter is `[['github'], ['list']]` — no HTML reporter — so `playwright-report/` is never produced and the existing artifact upload silently no-ops. The per-test `trace.zip`, screenshots, and videos live in `test-results/` regardless. The next failure will include them in the artifacts list.
