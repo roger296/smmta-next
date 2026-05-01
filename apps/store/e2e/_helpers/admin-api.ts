@@ -42,13 +42,19 @@ function authHeaders(): Record<string, string> {
 }
 
 export async function getStorefrontGroup(slug: string): Promise<unknown | null> {
+  // Read the body BEFORE disposing the context: ctx.dispose() also disposes
+  // any response objects it produced, and reading res.json() after that
+  // throws "apiResponse.json: Response has been disposed".
   const ctx = await request.newContext({ extraHTTPHeaders: authHeaders() });
-  const res = await ctx.get(`${apiBaseUrl()}/storefront/groups/${slug}`);
-  await ctx.dispose();
-  if (res.status() === 404) return null;
-  if (!res.ok()) throw new Error(`getStorefrontGroup ${slug}: ${res.status()}`);
-  const body = (await res.json()) as { data?: unknown };
-  return body.data ?? null;
+  try {
+    const res = await ctx.get(`${apiBaseUrl()}/storefront/groups/${slug}`);
+    if (res.status() === 404) return null;
+    if (!res.ok()) throw new Error(`getStorefrontGroup ${slug}: ${res.status()}`);
+    const body = (await res.json()) as { data?: unknown };
+    return body.data ?? null;
+  } finally {
+    await ctx.dispose();
+  }
 }
 
 /** GET /storefront/orders/:id — the public order projection used by
@@ -57,11 +63,17 @@ export async function getStorefrontGroup(slug: string): Promise<unknown | null> 
 export async function getPublicOrder(
   orderId: string,
 ): Promise<{ id: string; status: string } | null> {
+  // Read the body BEFORE disposing the context: ctx.dispose() also disposes
+  // any response objects it produced, and reading res.json() after that
+  // throws "apiResponse.json: Response has been disposed".
   const ctx = await request.newContext({ extraHTTPHeaders: authHeaders() });
-  const res = await ctx.get(`${apiBaseUrl()}/storefront/orders/${orderId}`);
-  await ctx.dispose();
-  if (res.status() === 404) return null;
-  if (!res.ok()) throw new Error(`getPublicOrder ${orderId}: ${res.status()}`);
-  const body = (await res.json()) as { data?: { id: string; status: string } };
-  return body.data ?? null;
+  try {
+    const res = await ctx.get(`${apiBaseUrl()}/storefront/orders/${orderId}`);
+    if (res.status() === 404) return null;
+    if (!res.ok()) throw new Error(`getPublicOrder ${orderId}: ${res.status()}`);
+    const body = (await res.json()) as { data?: { id: string; status: string } };
+    return body.data ?? null;
+  } finally {
+    await ctx.dispose();
+  }
 }
