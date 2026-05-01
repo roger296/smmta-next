@@ -1,7 +1,8 @@
 /**
- * Group page (`/shop/[groupSlug]`). RSC, revalidate 60s.
+ * Group page (`/shop/[groupSlug]`). RSC, fully dynamic at runtime, with a
+ * 60-second revalidate window for cache hits. Not statically generated at
+ * build time — see the `dynamic = 'force-dynamic'` block below for why.
  *
- *   - generateStaticParams from /storefront/groups
  *   - generateMetadata uses seo_title || name etc.
  *   - Variant swatch picker (client island) updates ?colour= without a full nav
  *   - Long description rendered from markdown via a strict allow-list
@@ -27,37 +28,22 @@ import { SHIPPING_FAQ } from '@/lib/seo/faq-data';
 import { SwatchPicker } from '../../_components/swatch-picker';
 import { YouMayAlsoLike } from '../../_components/you-may-also-like';
 
+// `output: 'standalone'` + dynamic route + `generateStaticParams` returning
+// `[]` is a footgun: Next.js's standalone runtime treats the empty list as
+// "this is the exhaustive set of valid slugs" and answers any other request
+// with `NoFallbackError` (see store.log on the failing CI run). We don't
+// pre-render any group slugs at build time (the build doesn't have a
+// reliable API to call), so the route is fully dynamic. `force-dynamic`
+// removes the static-generation pipeline entirely and the standalone
+// runtime renders on every request.
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
 export const revalidate = 60;
 
 interface RouteParams {
   groupSlug: string;
 }
 
-export async function generateStaticParams(): Promise<RouteParams[]> {
-  // Pre-rendering at build time requires the SMMTA API to be reachable
-  // from the build environment — and even when it is, *every* listed slug
-  // gets prerendered, which means a single transient API failure during
-  // prerender of one page kills the whole build (Next throws and the
-  // page's own try/catch only swallows 404s).
-  //
-  // The page is RSC with `revalidate = 60`, so the first request renders
-  // it and subsequent ones hit Next's route cache anyway — pre-rendering
-  // at build is an optimisation, not a requirement. Default to off, gated
-  // behind STOREFRONT_PRERENDER=1 for environments (local dev, staging
-  // with a known-good API) that want the catalogue baked into the build.
-  if (process.env.STOREFRONT_PRERENDER !== '1') {
-    return [];
-  }
-  try {
-    const groups = await listGroups();
-    return groups
-      .filter((g): g is typeof g & { slug: string } => Boolean(g.slug))
-      .map((g) => ({ groupSlug: g.slug }));
-  } catch {
-    // If the API isn't up at build time, fall back to runtime SSR.
-    return [];
-  }
-}
 
 export async function generateMetadata({
   params,
@@ -112,13 +98,6 @@ export default async function GroupPage({
     group = await getGroupBySlug(groupSlug);
   } catch (err) {
     if (err instanceof SmmtaApiError && err.status === 404) {
-      notFound();
-    }
-    // Re-throw at runtime so the user sees a 5xx and our error tracker
-    // catches it; but during build-time prerender we don't want a single
-    // API hiccup to fail the whole build. (`STOREFRONT_PRERENDER=1`
-    // opts back into prerender; the rendered page would then 404.)
-    if (process.env.NEXT_PHASE === 'phase-production-build') {
       notFound();
     }
     throw err;
