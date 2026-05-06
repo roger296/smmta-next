@@ -17,8 +17,15 @@ const csp = [
   `img-src 'self' data: blob: https://picsum.photos https://fastly.picsum.photos https:`,
   `font-src 'self' data:`,
   `style-src 'self' 'unsafe-inline'`,
+  // Next 15 with React Server Components emits inline `<script>` tags into
+  // every HTML response to ship the RSC payload to the browser. Without
+  // 'unsafe-inline' those scripts are CSP-blocked, hydration fails, and the
+  // page goes blank ~100ms after the server-rendered HTML arrives. The
+  // long-term fix is nonce-based CSP via middleware (issue #TBD); for now
+  // 'unsafe-inline' matches dev mode and is the same fix used by most Next 15
+  // RSC production deployments.
   isProd
-    ? `script-src 'self'`
+    ? `script-src 'self' 'unsafe-inline'`
     : `script-src 'self' 'unsafe-inline' 'unsafe-eval'`,
   `connect-src 'self' https://api.mollie.com https://*.sentry.io ${
     process.env.SMMTA_API_BASE_URL ? new URL(process.env.SMMTA_API_BASE_URL).origin : ''
