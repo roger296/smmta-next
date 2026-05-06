@@ -2,9 +2,13 @@
  * /manifest.webmanifest — PWA manifest. Lighthouse SEO + Best-Practices
  * rewards an installable manifest even for a non-PWA storefront.
  *
- * The icons reference the `/icon` (favicon, 32) and `/apple-icon` (180)
- * file-based metadata routes also under `app/`, so a single source of
- * truth governs the favicon, manifest, and apple-touch-icon.
+ * The icons reference the `/icon` and `/apple-icon` static metadata
+ * routes (apps/store/app/icon.png and apple-icon.png) — the storefront
+ * presents under the CleverDeals parent identity, so the mark is the
+ * CleverDeals favicon, not a Filament-specific glyph.
+ *
+ * `sizes: 'any'` tells browsers the source is high-resolution and they
+ * may downscale freely; the underlying PNG is 512×512.
  */
 import type { MetadataRoute } from 'next';
 
@@ -21,7 +25,7 @@ export default function manifest(): MetadataRoute.Manifest {
     icons: [
       {
         src: '/icon',
-        sizes: '32x32',
+        sizes: 'any',
         type: 'image/png',
       },
       {
