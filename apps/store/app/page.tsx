@@ -1,10 +1,11 @@
 /**
  * Home (`/`). RSC, revalidate 300s.
  *
- *   - Hero section
- *   - Featured groups grid (uses the published catalogue)
- *   - Brand story block
- *   - JSON-LD: Organization (sitewide, from layout) + WebSite + SearchAction (here)
+ *   - Hero: filament-store-positioned headline + the technical specs that
+ *     read as confident-without-shouting in the industrial brand
+ *   - Featured ranges grid (uses the published catalogue, up to 6 items)
+ *   - Brand story block — "made for makers", workshop angle, no flash sales
+ *   - JSON-LD: Organization (sitewide, from layout) + WebSite + SearchAction
  */
 import Image from 'next/image';
 import Link from 'next/link';
@@ -16,16 +17,16 @@ import { priceFromString, stringifyJsonLd, websiteLd } from '@/lib/seo/structure
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: 'Hand-finished LED filament lighting',
+  title: 'Premium 3D Printer Filament — PLA, PETG, ABS, ASA, TPU',
   description:
-    'A small, considered range of LED filament lamps. Designed in the UK, delivered in days, dimmable on any standard switch.',
+    'PLA, PETG, ABS, ASA, and TPU 3D printer filament — 1.75mm, 1kg spools, ±0.02mm tolerance. Vacuum-sealed, fast UK delivery, fair prices.',
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
     url: '/',
-    title: 'Filament Store — Hand-finished LED filament lighting',
+    title: 'Filament Store — Premium 3D Printer Filament',
     description:
-      'A small, considered range of LED filament lamps. Designed in the UK, delivered in days, dimmable on any standard switch.',
+      'PLA, PETG, ABS, ASA, and TPU 3D printer filament — tight tolerances, fast UK delivery.',
   },
 };
 
@@ -47,7 +48,9 @@ export default async function HomePage() {
   } catch {
     groups = [];
   }
-  const featured = groups.slice(0, 3);
+  // Up to 6 featured ranges — fills two rows on a 3-up grid for visual weight
+  // on a workshop-style home page.
+  const featured = groups.slice(0, 6);
 
   const websiteJsonLd = stringifyJsonLd(websiteLd(baseUrl));
 
@@ -59,38 +62,69 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: websiteJsonLd }}
       />
 
-      <section className="space-y-4">
+      {/* Hero */}
+      <section className="space-y-6 border-b border-[var(--brand-border)] pb-16">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
+          1.75mm · 1kg · vacuum-sealed
+        </p>
         <h1
-          className="text-4xl font-semibold tracking-tight md:text-5xl"
+          className="max-w-4xl text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          Light, hand-finished.
+          Filament that prints first time.
         </h1>
-        <p className="max-w-2xl text-lg text-[var(--brand-muted)]">
-          A small, considered range of LED filament lamps. Designed in the UK, delivered in days,
-          dimmable on any standard trailing-edge switch.
+        <p className="max-w-2xl text-lg leading-relaxed text-[var(--brand-muted)]">
+          PLA, PETG, ABS, ASA, and TPU from Landau. Tight tolerances, vacuum-sealed
+          cardboard spools, same-day dispatch from our UK warehouse on orders
+          before 2pm.
         </p>
-        <p>
+        <div className="flex flex-wrap items-center gap-3 pt-2">
           <Link
             href="/shop"
-            className="inline-block rounded-[var(--radius)] bg-[var(--brand-ink)] px-6 py-3 text-base font-medium text-[var(--brand-paper)] transition-colors hover:bg-[var(--brand-accent)]"
+            className="inline-block bg-[var(--brand-ink)] px-7 py-4 text-sm font-semibold uppercase tracking-wider text-[var(--brand-paper)] transition-colors hover:bg-[var(--brand-accent)]"
           >
             Browse the range
           </Link>
-        </p>
+          <Link
+            href="/faq"
+            className="inline-block border border-[var(--brand-border)] px-7 py-4 text-sm font-semibold uppercase tracking-wider transition-colors hover:border-[var(--brand-ink)]"
+          >
+            Print specs &amp; FAQ
+          </Link>
+        </div>
       </section>
 
+      {/* Featured ranges */}
       {featured.length > 0 && (
-        <section className="mt-16 space-y-6">
-          <h2
-            className="text-2xl font-semibold tracking-tight"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            Featured ranges
-          </h2>
-          <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="mt-20 space-y-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
+                Materials
+              </p>
+              <h2
+                className="text-3xl font-bold tracking-tight md:text-4xl"
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                Choose your filament.
+              </h2>
+            </div>
+            <Link
+              href="/shop"
+              className="text-sm font-semibold uppercase tracking-wider text-[var(--brand-accent)] hover:underline"
+            >
+              View all ranges →
+            </Link>
+          </div>
+
+          {/*
+            Grid implemented as a 1px-gap arrangement on a steel-coloured
+            backdrop — the gap itself becomes the divider, no card borders
+            needed. Reads clean and "spec-sheet" in the industrial brand.
+          */}
+          <ul className="grid gap-px bg-[var(--brand-border)] sm:grid-cols-2 lg:grid-cols-3">
             {featured.map((g) => (
-              <li key={g.id}>
+              <li key={g.id} className="bg-[var(--brand-paper)]">
                 <FeaturedCard group={g} />
               </li>
             ))}
@@ -98,26 +132,34 @@ export default async function HomePage() {
         </section>
       )}
 
+      {/* Brand story */}
       <section
-        className="mt-16 max-w-2xl space-y-3 text-[var(--brand-muted)]"
+        className="mt-24 grid max-w-5xl gap-12 md:grid-cols-2 md:gap-16"
         aria-labelledby="brand-story"
       >
-        <h2
-          id="brand-story"
-          className="text-2xl font-semibold tracking-tight text-[var(--brand-ink)]"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          A small workshop, a sharp focus.
-        </h2>
-        <p>
-          We make a single product range, very well. Every lamp is hand-finished, dimmable on any
-          standard trailing-edge dimmer, rated for 25,000 hours, and shipped from a small workshop
-          in the UK.
-        </p>
-        <p>
-          We don&rsquo;t do flash sales, sponsored placements, or made-up &ldquo;was&rdquo; prices.
-          The price you see is the price.
-        </p>
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
+            Made for makers
+          </p>
+          <h2
+            id="brand-story"
+            className="text-3xl font-bold tracking-tight md:text-4xl"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            A workshop in the UK. Filament that prints first time.
+          </h2>
+        </div>
+        <div className="space-y-4 text-base leading-relaxed text-[var(--brand-muted)]">
+          <p>
+            We hold stock of every standard 3D printer filament — five materials, dozens of
+            colours. Vacuum-sealed in cardboard boxes (recyclable, like the spools).
+          </p>
+          <p>
+            Orders before 2pm ship same day from our UK warehouse. No flash sales, no
+            sponsored placements, no made-up &ldquo;was&rdquo; prices. The price you see is
+            the price you pay.
+          </p>
+        </div>
       </section>
     </>
   );
@@ -133,30 +175,36 @@ function FeaturedCard({
   return (
     <Link
       href={href}
-      className="group block overflow-hidden rounded-[var(--radius)] border border-[var(--brand-border)] transition-colors hover:border-[var(--brand-ink)]"
+      className="group block h-full transition-colors hover:bg-[var(--brand-bone)]"
     >
-      <div className="aspect-[4/5] overflow-hidden bg-[var(--brand-border)]">
+      <div className="aspect-square overflow-hidden bg-[var(--brand-bone)]">
         {group.heroImageUrl ? (
           <Image
             src={group.heroImageUrl}
             alt={group.name}
             width={800}
-            height={1000}
+            height={800}
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-[var(--brand-muted)]">
+          <div className="flex h-full items-center justify-center text-xs uppercase tracking-wider text-[var(--brand-muted)]">
             No image
           </div>
         )}
       </div>
-      <div className="space-y-1 p-4">
-        <h3 className="font-medium">{group.name}</h3>
+      <div className="space-y-2 p-5">
+        <h3 className="text-base font-semibold leading-snug">{group.name}</h3>
         {group.shortDescription && (
-          <p className="line-clamp-2 text-sm text-[var(--brand-muted)]">{group.shortDescription}</p>
+          <p className="line-clamp-2 text-sm text-[var(--brand-muted)]">
+            {group.shortDescription}
+          </p>
         )}
-        {priceFrom && <p className="text-sm font-medium">From {priceFrom}</p>}
+        {priceFrom && (
+          <p className="pt-1 text-sm font-semibold text-[var(--brand-accent)]">
+            From {priceFrom}
+          </p>
+        )}
       </div>
     </Link>
   );

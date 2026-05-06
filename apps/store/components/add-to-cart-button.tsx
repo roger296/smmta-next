@@ -56,26 +56,26 @@ export function AddToCartButton({ productId, inStock, label = 'Add to cart' }: A
       <button
         type="button"
         disabled
-        className="w-full rounded-[var(--radius)] bg-[var(--brand-ink)] px-6 py-3 text-base font-medium text-[var(--brand-paper)] opacity-60"
+        className="w-full border border-[var(--brand-border)] bg-[var(--brand-bone)] px-6 py-4 text-sm font-semibold uppercase tracking-wider text-[var(--brand-muted)]"
       >
-        Notify me
+        Notify me when back
       </button>
     );
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <button
         type="button"
         onClick={() => mutation.mutate({ productId })}
         disabled={mutation.isPending}
         aria-live="polite"
-        className="w-full rounded-[var(--radius)] bg-[var(--brand-ink)] px-6 py-3 text-base font-medium text-[var(--brand-paper)] transition-colors hover:bg-[var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full bg-[var(--brand-ink)] px-6 py-4 text-sm font-semibold uppercase tracking-wider text-[var(--brand-paper)] transition-colors hover:bg-[var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {mutation.isPending ? 'Adding…' : justAdded ? 'Added ✓' : label}
       </button>
       {error && (
-        <p role="alert" className="text-xs text-[color:red]">
+        <p role="alert" className="text-xs font-medium text-[#c43333]">
           {error}
         </p>
       )}

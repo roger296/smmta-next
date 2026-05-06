@@ -7,12 +7,17 @@
  *
  * Server component; reads `listGroups` directly. Failures fall back to
  * a footer with no category links so the page still renders.
+ *
+ * The "Powered by CleverDeals" link in the bottom strip acknowledges
+ * the parent retailer relationship without requiring the storefront's
+ * visual identity to inherit CleverDeals' yellow-on-black palette.
  */
 import Link from 'next/link';
 import { listGroups } from '@/lib/smmta';
 
 const STORE_NAME = 'Filament Store';
-const STORE_TAGLINE = 'Hand-finished LED filament lighting.';
+const ABOUT_BLURB =
+  'Premium 3D printer filament for makers, hobbyists, and engineers. PLA, PETG, ABS, ASA, and TPU — vacuum-sealed, tight tolerances, fast UK delivery.';
 
 export async function SiteFooter() {
   let groups: Awaited<ReturnType<typeof listGroups>> = [];
@@ -28,16 +33,24 @@ export async function SiteFooter() {
     return a.name.localeCompare(b.name);
   });
 
+  const year = new Date().getFullYear();
+
   return (
-    <footer className="mt-16 border-t border-[var(--brand-border)] py-10 text-sm text-[var(--brand-muted)]">
-      <div className="mx-auto grid max-w-6xl gap-8 px-6 md:grid-cols-4">
+    <footer className="mt-24 border-t border-[var(--brand-border)] bg-[var(--brand-bone)] py-12 text-sm text-[var(--brand-muted)]">
+      <div className="mx-auto grid max-w-6xl gap-10 px-6 md:grid-cols-4">
         <section aria-labelledby="footer-shop">
-          <h2 id="footer-shop" className="mb-3 font-medium text-[var(--brand-ink)]">
+          <h2
+            id="footer-shop"
+            className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--brand-ink)]"
+          >
             Shop
           </h2>
-          <ul className="space-y-1.5">
+          <ul className="space-y-2">
             <li>
-              <Link href="/shop" className="hover:underline">
+              <Link
+                href="/shop"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
                 All ranges
               </Link>
             </li>
@@ -45,7 +58,10 @@ export async function SiteFooter() {
               .filter((g): g is typeof g & { slug: string } => Boolean(g.slug))
               .map((g) => (
                 <li key={g.id}>
-                  <Link href={`/shop/${g.slug}`} className="hover:underline">
+                  <Link
+                    href={`/shop/${g.slug}`}
+                    className="transition-colors hover:text-[var(--brand-ink)]"
+                  >
                     {g.name}
                   </Link>
                 </li>
@@ -54,39 +70,57 @@ export async function SiteFooter() {
         </section>
 
         <section aria-labelledby="footer-help">
-          <h2 id="footer-help" className="mb-3 font-medium text-[var(--brand-ink)]">
+          <h2
+            id="footer-help"
+            className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--brand-ink)]"
+          >
             Help
           </h2>
-          <ul className="space-y-1.5">
+          <ul className="space-y-2">
             <li>
-              <Link href="/faq" className="hover:underline">
+              <Link
+                href="/faq"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
                 Shipping &amp; FAQ
               </Link>
             </li>
             <li>
-              <a href="mailto:orders@filament.shop" className="hover:underline">
-                orders@filament.shop
+              <a
+                href="mailto:orders@filament.shop.cleverdeals.net"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                orders@filament.shop.cleverdeals.net
               </a>
             </li>
           </ul>
         </section>
 
         <section aria-labelledby="footer-about" className="md:col-span-2">
-          <h2 id="footer-about" className="mb-3 font-medium text-[var(--brand-ink)]">
+          <h2
+            id="footer-about"
+            className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--brand-ink)]"
+          >
             About
           </h2>
-          <p className="max-w-md leading-relaxed">
-            {STORE_TAGLINE} Designed and finished in a small UK workshop. Every
-            lamp is dimmable on any standard trailing-edge dimmer and rated for
-            25,000 hours.
-          </p>
+          <p className="max-w-md leading-relaxed">{ABOUT_BLURB}</p>
         </section>
       </div>
-      <div className="mx-auto mt-8 flex max-w-6xl flex-col gap-2 border-t border-[var(--brand-border)] px-6 pt-6 md:flex-row md:items-center md:justify-between">
+
+      <div className="mx-auto mt-10 flex max-w-6xl flex-col gap-3 border-t border-[var(--brand-border)] px-6 pt-6 text-xs md:flex-row md:items-center md:justify-between">
         <p>
-          © {new Date().getFullYear()} {STORE_NAME}
+          © {year} {STORE_NAME}
         </p>
-        <p>{STORE_TAGLINE}</p>
+        <p>
+          Powered by{' '}
+          <a
+            href="https://cleverdeals.net/"
+            className="font-semibold text-[var(--brand-ink)] transition-colors hover:text-[var(--brand-accent)]"
+            rel="noopener"
+          >
+            CleverDeals
+          </a>
+        </p>
       </div>
     </footer>
   );

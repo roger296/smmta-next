@@ -17,7 +17,7 @@ export function renderOrderConfirmation(p: OrderConfirmationPayload): RenderedEm
   const greeting = p.firstName ? `Hi ${p.firstName},` : 'Hi there,';
   const link = trackUrl(p.storeBaseUrl, p.orderId);
   const subject = `Your Filament Store order ${p.orderNumber} is confirmed`;
-  const preheader = `Thanks for your order — we're getting it ready in the workshop.`;
+  const preheader = `Thanks for your order — we're getting it packed for dispatch.`;
 
   const linesHtml = p.lines && p.lines.length > 0 ? renderLinesHtml(p.lines) : '';
   const linesText =
@@ -45,9 +45,9 @@ export function renderOrderConfirmation(p: OrderConfirmationPayload): RenderedEm
           : ''
       }
       <p style="margin:24px 0;">
-        <a href="${escapeHtml(link)}" style="display:inline-block;background:#18181b;color:#fafaf7;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Track your order</a>
+        <a href="${escapeHtml(link)}" style="display:inline-block;background:#15161A;color:#ECECE8;text-decoration:none;padding:14px 22px;letter-spacing:1.5px;text-transform:uppercase;font-size:13px;font-weight:600;">Track your order</a>
       </p>
-      <p style="margin:0;color:#71717a;font-size:13px;">We'll email again as soon as it ships.</p>`,
+      <p style="margin:0;color:#6B6E76;font-size:13px;">We'll email again the moment it ships.</p>`,
   });
 
   const text = [

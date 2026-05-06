@@ -39,12 +39,12 @@ export function CartHeaderLink() {
   return (
     <Link
       href="/cart"
-      className="inline-flex items-center gap-2 hover:underline"
+      className="inline-flex items-center gap-2 transition-colors hover:text-[var(--brand-accent)]"
       aria-label={count === 0 ? 'Cart, empty' : `Cart, ${count} item${count === 1 ? '' : 's'}`}
     >
       Cart
       {count > 0 && (
-        <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--brand-ink)] px-1.5 text-xs font-medium text-[var(--brand-paper)]">
+        <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center bg-[var(--brand-accent)] px-1.5 text-xs font-semibold text-[var(--brand-paper)]">
           {count}
         </span>
       )}

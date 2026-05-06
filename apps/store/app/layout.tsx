@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { fontVariables } from '@/lib/fonts';
+import { fontClassName } from '@/lib/fonts';
 import { getEnv } from '@/lib/env';
 import { QueryProvider } from '@/components/query-provider';
 import { CartHeaderLink } from '@/components/cart-header-link';
 import { SiteFooter } from '@/components/site-footer';
 
 const STORE_NAME = 'Filament Store';
-const STORE_TAGLINE = 'Hand-finished LED filament lighting.';
+const STORE_TAGLINE =
+  'Premium 3D printer filament — PLA, PETG, ABS, ASA, TPU. Tight tolerances, fast UK delivery.';
 
 // `metadataBase` so OG / canonical / sitemap URLs resolve to absolute paths.
 const env = getEnv();
@@ -41,16 +42,15 @@ export const metadata: Metadata = {
     description: STORE_TAGLINE,
   },
   // The icon set is provided by `app/icon.tsx` and `app/apple-icon.tsx`
-  // (dynamic ImageResponse routes). Next picks them up automatically; we
-  // don't list them here.
+  // (dynamic ImageResponse routes). Next picks them up automatically.
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fafaf7' },
-    { media: '(prefers-color-scheme: dark)', color: '#18181b' },
+    { media: '(prefers-color-scheme: light)', color: '#ECECE8' },
+    { media: '(prefers-color-scheme: dark)', color: '#15161A' },
   ],
 };
 
@@ -64,7 +64,7 @@ const organizationLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" style={fontVariables}>
+    <html lang="en" className={fontClassName}>
       <head>
         {/* Organization JSON-LD lives at the layout level so every page emits it. */}
         <script
@@ -79,7 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <QueryProvider>
           <Header />
-          <main id="main" className="mx-auto max-w-6xl px-6 py-10">
+          <main id="main" className="mx-auto max-w-6xl px-6 py-12 md:py-16">
             {children}
           </main>
           <SiteFooter />
@@ -91,16 +91,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 function Header() {
   return (
-    <header className="border-b border-[var(--brand-border)]">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <a href="/" className="text-xl font-medium" style={{ fontFamily: 'var(--font-display)' }}>
+    <header className="border-b border-[var(--brand-border)] bg-[var(--brand-paper)]">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-5">
+        <a
+          href="/"
+          className="text-lg font-bold tracking-tight transition-colors hover:text-[var(--brand-accent)]"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
           {STORE_NAME}
         </a>
         <nav aria-label="Primary">
-          <ul className="flex gap-6 text-sm">
+          <ul className="flex items-center gap-7 text-sm font-medium">
             <li>
-              <a href="/shop" className="hover:underline">
+              <a
+                href="/shop"
+                className="transition-colors hover:text-[var(--brand-accent)]"
+              >
                 Shop
+              </a>
+            </li>
+            <li>
+              <a
+                href="/faq"
+                className="transition-colors hover:text-[var(--brand-accent)]"
+              >
+                FAQ
               </a>
             </li>
             <li>
@@ -112,4 +127,3 @@ function Header() {
     </header>
   );
 }
-

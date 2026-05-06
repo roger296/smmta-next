@@ -141,28 +141,28 @@ export default async function GroupPage({
         dangerouslySetInnerHTML={{ __html: faqJson }}
       />
 
-      <nav aria-label="Breadcrumb" className="text-sm text-[var(--brand-muted)]">
-        <ol className="flex flex-wrap gap-1">
+      <nav aria-label="Breadcrumb" className="text-xs uppercase tracking-wider text-[var(--brand-muted)]">
+        <ol className="flex flex-wrap gap-2">
           <li>
-            <a href="/" className="hover:underline">
+            <a href="/" className="hover:text-[var(--brand-ink)] transition-colors">
               Home
             </a>
           </li>
           <li aria-hidden="true">/</li>
           <li>
-            <a href="/shop" className="hover:underline">
+            <a href="/shop" className="hover:text-[var(--brand-ink)] transition-colors">
               Shop
             </a>
           </li>
           <li aria-hidden="true">/</li>
-          <li aria-current="page">{group.name}</li>
+          <li aria-current="page" className="text-[var(--brand-ink)]">{group.name}</li>
         </ol>
       </nav>
 
       <SwatchPicker groupName={group.name} variants={group.variants} />
 
       {group.longDescription && (
-        <section className="mt-10 max-w-2xl">
+        <section className="mt-12 max-w-2xl border-t border-[var(--brand-border)] pt-10">
           <Markdown source={group.longDescription} />
         </section>
       )}
@@ -170,25 +170,25 @@ export default async function GroupPage({
       <YouMayAlsoLike currentSlug={group.slug ?? groupSlug} groups={allGroups} />
 
       <section
-        className="mt-16 max-w-2xl space-y-4"
+        className="mt-20 max-w-2xl"
         aria-labelledby="shipping-faq"
       >
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
+          The practical bits
+        </p>
         <h2
           id="shipping-faq"
-          className="text-2xl font-semibold tracking-tight"
+          className="mt-2 text-3xl font-bold tracking-tight md:text-4xl"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          Shipping &amp; returns
+          Shipping &amp; returns.
         </h2>
-        <ul className="space-y-3">
+        <ul className="mt-8 divide-y divide-[var(--brand-border)] border-y border-[var(--brand-border)]">
           {SHIPPING_FAQ.map((entry) => (
-            <li
-              key={entry.question}
-              className="rounded-[var(--radius)] border border-[var(--brand-border)] p-4"
-            >
-              <h3 className="font-medium">{entry.question}</h3>
+            <li key={entry.question} className="py-5">
+              <h3 className="text-base font-semibold">{entry.question}</h3>
               <p
-                className="mt-1 text-sm text-[var(--brand-muted)]"
+                className="mt-2 text-sm leading-relaxed text-[var(--brand-muted)]"
                 dangerouslySetInnerHTML={{ __html: entry.answer }}
               />
             </li>

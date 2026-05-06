@@ -1,40 +1,61 @@
 /**
- * Self-hosted font wiring.
+ * Self-hosted font wiring via next/font/google.
  *
- * v1 deliberately uses system stacks via CSS variables: the Filament Store's
- * brand fonts (display + body) haven't been finalised yet — that's a Prompt 4
- * launch-checklist item. When the WOFF2 files arrive, drop them under
- * `public/fonts/` and replace the constants below with `next/font/local`
- * loaders. The CSS-variable contract (`--font-display`, `--font-body`) is
- * already wired into `globals.css` and Tailwind's `@theme`, so no consumer
- * code needs to change.
+ * Inter — the storefront's body + display family. `next/font/google`
+ * downloads and self-hosts the WOFF2s at build time, so:
+ *   - No external request at runtime (CSP `font-src` and `connect-src` stay clean)
+ *   - Lighthouse performance unaffected (no third-party block)
+ *   - Lighthouse SEO unaffected (no FOIT)
  *
- * Sketch for when fonts land:
+ * Two CSS variables are exposed via the className applied to <html>:
+ *   --font-display  → Inter at 600/700/800 for headings (`var(--font-display)`)
+ *   --font-body     → Inter at 400/500 for body text (`var(--font-body)`)
  *
- *     import localFont from 'next/font/local';
+ * Both come from the same family so we get visual cohesion + a single woff2
+ * payload covering all weights.
  *
- *     export const displayFont = localFont({
- *       src: [
- *         { path: '../public/fonts/brand-display-regular.woff2', weight: '400', style: 'normal' },
- *         { path: '../public/fonts/brand-display-bold.woff2', weight: '700', style: 'normal' },
- *       ],
- *       variable: '--font-display',
- *       display: 'swap',
- *     });
- *     export const bodyFont = localFont({ ... variable: '--font-body' });
- *
- * The CSS-variable-bound system stack used today still hits Lighthouse SEO
- * and Performance ≥ 95 because there is no font network request to wait on.
+ * If a more distinctive display face is wanted later (e.g. Söhne, Inter
+ * Display, or a paid foundry release), this is the only file that needs
+ * to change — `globals.css` and consumers reference the variables, not the
+ * concrete family.
  */
+import { Inter } from 'next/font/google';
 
-const SYSTEM_DISPLAY_STACK =
-  'ui-serif, "Iowan Old Style", Georgia, "Times New Roman", Times, serif';
-const SYSTEM_BODY_STACK =
-  'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+const interBody = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-body',
+  display: 'swap',
+  fallback: [
+    'ui-sans-serif',
+    'system-ui',
+    '-apple-system',
+    'BlinkMacSystemFont',
+    'Segoe UI',
+    'Roboto',
+    'sans-serif',
+  ],
+});
 
-/** Inline style that exposes both CSS variables on the <html> element. Until
- *  next/font/local is wired in this is a plain object with the system stacks. */
-export const fontVariables: Record<string, string> = {
-  '--font-display': SYSTEM_DISPLAY_STACK,
-  '--font-body': SYSTEM_BODY_STACK,
-};
+const interDisplay = Inter({
+  subsets: ['latin'],
+  weight: ['600', '700', '800'],
+  variable: '--font-display',
+  display: 'swap',
+  fallback: [
+    'ui-sans-serif',
+    'system-ui',
+    '-apple-system',
+    'BlinkMacSystemFont',
+    'Segoe UI',
+    'Roboto',
+    'sans-serif',
+  ],
+});
+
+/**
+ * className to apply to <html> (or any high-level wrapper). Setting it on
+ * <html> lets every descendant resolve `var(--font-display)` / `var(--font-body)`
+ * via the CSS variables that next/font injects.
+ */
+export const fontClassName = `${interBody.variable} ${interDisplay.variable}`.trim();

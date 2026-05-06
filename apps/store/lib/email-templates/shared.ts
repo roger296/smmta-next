@@ -31,27 +31,27 @@ export function htmlWrapper({ preheader, body }: WrapperInput): string {
     <meta name="viewport" content="width=device-width" />
     <title>${escapeHtml(BRAND_NAME)}</title>
   </head>
-  <body style="margin:0;padding:0;background:#fafaf7;color:#18181b;font-family:Arial,Helvetica,sans-serif;">
+  <body style="margin:0;padding:0;background:#ECECE8;color:#15161A;font-family:Arial,Helvetica,sans-serif;">
     <span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;mso-hide:all;">
       ${safePre}
     </span>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
         <td align="center" style="padding:24px 12px;">
-          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border:1px solid #e4e4e7;border-radius:8px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border:1px solid #C7CCD1;">
             <tr>
-              <td style="padding:24px 32px;border-bottom:1px solid #e4e4e7;">
-                <h1 style="margin:0;font-size:20px;font-weight:600;color:#18181b;">${escapeHtml(BRAND_NAME)}</h1>
+              <td style="padding:24px 32px;border-bottom:1px solid #C7CCD1;">
+                <h1 style="margin:0;font-size:20px;font-weight:700;color:#15161A;letter-spacing:-0.5px;">${escapeHtml(BRAND_NAME)}</h1>
               </td>
             </tr>
             <tr>
-              <td style="padding:32px;font-size:15px;line-height:1.55;color:#18181b;">
+              <td style="padding:32px;font-size:15px;line-height:1.55;color:#15161A;">
                 ${body}
               </td>
             </tr>
             <tr>
-              <td style="padding:16px 32px;border-top:1px solid #e4e4e7;color:#71717a;font-size:12px;">
-                © ${new Date().getFullYear()} ${escapeHtml(BRAND_NAME)} · Hand-finished LED filament lighting.
+              <td style="padding:16px 32px;border-top:1px solid #C7CCD1;color:#6B6E76;font-size:12px;">
+                © ${new Date().getFullYear()} ${escapeHtml(BRAND_NAME)} · Premium 3D printer filament. Powered by CleverDeals.
               </td>
             </tr>
           </table>

@@ -4,8 +4,9 @@
  * Catalogue grid + colour / price filters. Client-only filtering on the
  * already-fetched groups — no extra requests.
  *
- * The group grid is the canonical surface; standalone products surface as
- * single-card "ranges" with one variant.
+ * Visual treatment matches the home page Featured grid: groups arranged on a
+ * 1px-gap steel-coloured backdrop so the gaps themselves become hairline
+ * dividers (no per-card borders needed). Industrial / spec-sheet feel.
  */
 import * as React from 'react';
 import Image from 'next/image';
@@ -47,44 +48,36 @@ export function CatalogueGrid({
   }, [groups, colour, maxPrice]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-4 rounded-[var(--radius)] border border-[var(--brand-border)] bg-[var(--brand-paper)] p-4">
+    <div className="space-y-8">
+      {/* Filter bar — sits above the grid in a contrasting bone surface. */}
+      <div className="flex flex-wrap items-end gap-6 border border-[var(--brand-border)] bg-[var(--brand-bone)] p-5">
         <fieldset>
-          <legend className="text-sm font-medium">Colour</legend>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
+          <legend className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--brand-ink)]">
+            Colour
+          </legend>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <FilterChip
+              label="All"
+              active={colour === null}
               onClick={() => setColour(null)}
-              aria-pressed={colour === null}
-              className={`rounded-full border px-3 py-1 text-xs ${
-                colour === null
-                  ? 'border-[var(--brand-ink)] bg-[var(--brand-ink)] text-[var(--brand-paper)]'
-                  : 'border-[var(--brand-border)]'
-              }`}
-            >
-              All
-            </button>
+            />
             {colourOptions.map((c) => (
-              <button
+              <FilterChip
                 key={c}
-                type="button"
+                label={c}
+                active={colour === c}
                 onClick={() => setColour(c)}
-                aria-pressed={colour === c}
-                className={`rounded-full border px-3 py-1 text-xs ${
-                  colour === c
-                    ? 'border-[var(--brand-ink)] bg-[var(--brand-ink)] text-[var(--brand-paper)]'
-                    : 'border-[var(--brand-border)]'
-                }`}
-              >
-                {c}
-              </button>
+              />
             ))}
           </div>
         </fieldset>
 
-        <fieldset className="min-w-[200px] flex-1">
-          <legend className="text-sm font-medium">
-            Max price: £{maxPrice.toFixed(2)}
+        <fieldset className="min-w-[220px] flex-1">
+          <legend className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--brand-ink)]">
+            Max price{' '}
+            <span className="font-mono font-normal text-[var(--brand-muted)]">
+              · £{maxPrice.toFixed(2)}
+            </span>
           </legend>
           <input
             type="range"
@@ -93,26 +86,52 @@ export function CatalogueGrid({
             step={1}
             value={maxPrice}
             onChange={(e) => setMaxPrice(Number(e.target.value))}
-            className="mt-3 w-full"
+            className="mt-3 w-full accent-[var(--brand-accent)]"
             aria-label="Maximum price"
           />
         </fieldset>
       </div>
 
+      {/* Grid */}
       {filtered.length === 0 ? (
-        <p className="text-sm text-[var(--brand-muted)]">
+        <p className="border-y border-[var(--brand-border)] py-10 text-center text-sm text-[var(--brand-muted)]">
           No products match those filters. Reset the colour or price range to see more.
         </p>
       ) : (
-        <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid gap-px bg-[var(--brand-border)] sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map(({ group }) => (
-            <li key={group.id}>
+            <li key={group.id} className="bg-[var(--brand-paper)]">
               <CatalogueCard group={group} />
             </li>
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={
+        active
+          ? 'border border-[var(--brand-ink)] bg-[var(--brand-ink)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--brand-paper)] transition-colors'
+          : 'border border-[var(--brand-border)] bg-[var(--brand-paper)] px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors hover:border-[var(--brand-ink)]'
+      }
+    >
+      {label}
+    </button>
   );
 }
 
@@ -123,39 +142,46 @@ function CatalogueCard({ group }: { group: GroupListItem }) {
       ? `£${group.priceRange.min}`
       : `£${group.priceRange.min} – £${group.priceRange.max}`
     : null;
+  const outOfStock = group.totalAvailableQty === 0;
 
   return (
     <Link
       href={href}
-      className="group block overflow-hidden rounded-[var(--radius)] border border-[var(--brand-border)] transition-colors hover:border-[var(--brand-ink)]"
+      className="group block h-full transition-colors hover:bg-[var(--brand-bone)]"
     >
-      <div className="aspect-[4/5] overflow-hidden bg-[var(--brand-border)]">
+      <div className="relative aspect-square overflow-hidden bg-[var(--brand-bone)]">
         {group.heroImageUrl ? (
           <Image
             src={group.heroImageUrl}
             alt={group.name}
             width={800}
-            height={1000}
+            height={800}
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-[var(--brand-muted)]">
+          <div className="flex h-full items-center justify-center text-xs uppercase tracking-wider text-[var(--brand-muted)]">
             No image
           </div>
         )}
-      </div>
-      <div className="space-y-1 p-4">
-        <h3 className="font-medium">{group.name}</h3>
-        {group.shortDescription && (
-          <p className="line-clamp-2 text-sm text-[var(--brand-muted)]">{group.shortDescription}</p>
+        {outOfStock && (
+          <span className="absolute right-3 top-3 border border-[var(--brand-ink)] bg-[var(--brand-paper)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider">
+            Out of stock
+          </span>
         )}
-        <div className="flex items-baseline justify-between pt-1">
-          {priceFrom && <p className="text-sm font-medium">From {priceFrom}</p>}
-          {group.totalAvailableQty === 0 && (
-            <span className="text-xs text-[var(--brand-muted)]">Out of stock</span>
-          )}
-        </div>
+      </div>
+      <div className="space-y-2 p-5">
+        <h3 className="text-base font-semibold leading-snug">{group.name}</h3>
+        {group.shortDescription && (
+          <p className="line-clamp-2 text-sm text-[var(--brand-muted)]">
+            {group.shortDescription}
+          </p>
+        )}
+        {priceFrom && (
+          <p className="pt-1 text-sm font-semibold text-[var(--brand-accent)]">
+            From {priceFrom}
+          </p>
+        )}
       </div>
     </Link>
   );
