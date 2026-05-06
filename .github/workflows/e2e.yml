@@ -65,7 +65,10 @@ jobs:
       STORE_DEFAULT_SHIPPING_GBP: '4.95'
       # Playwright knobs
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
-      E2E_GROUP_SLUG: aurora-filament-lamp
+      # E2E_GROUP_SLUG intentionally NOT set — the test files default to
+      # `landau-pla-basic-1-75mm-1kg` which matches the seed fixture's first
+      # group. Override here only if you need to point Playwright at a
+      # different group slug for ad-hoc debug.
 
     steps:
       - uses: actions/checkout@v4
