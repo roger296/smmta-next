@@ -20,7 +20,7 @@ import {
 } from './_helpers/mock-mollie';
 import { getPublicOrder } from './_helpers/admin-api';
 
-const SEEDED_GROUP_SLUG = process.env.E2E_GROUP_SLUG ?? 'aurora-filament-lamp';
+const SEEDED_GROUP_SLUG = process.env.E2E_GROUP_SLUG ?? 'landau-pla-basic-1-75mm-1kg';
 
 test.describe('Storefront happy path', () => {
   test.beforeAll(async () => {
