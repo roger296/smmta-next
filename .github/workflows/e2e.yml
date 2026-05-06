@@ -92,6 +92,12 @@ jobs:
         run: npm run db:migrate -w @smmta/store
 
       - name: Seed the storefront catalogue
+        # Use the small CI fixture xlsx (six rows across three groups). The
+        # production .tmp-catalogue.xlsx is gitignored and isn't available
+        # in CI; the fixture gives the e2e tests a deterministic catalogue
+        # with `landau-pla-basic-1-75mm-1kg` as the default group slug.
+        env:
+          CATALOGUE_XLSX_PATH: ${{ github.workspace }}/apps/api/test/fixtures/catalogue.xlsx
         run: npm run seed:storefront -w @smmta/api
 
       - name: Build shared workspace packages
