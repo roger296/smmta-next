@@ -71,9 +71,14 @@ const nextConfig = {
             { protocol: 'http', hostname: 'localhost' },
             { protocol: 'http', hostname: '127.0.0.1' },
           ]),
-      // picsum.photos for seeded placeholder images (Prompt 1 seed).
+      // picsum.photos for legacy placeholder images (kept for tests).
       { protocol: 'https', hostname: 'picsum.photos' },
       { protocol: 'https', hostname: 'fastly.picsum.photos' },
+      // Real catalogue product images: Roger's existing inventory
+      // image host plus eBay's image CDN (some product photos still
+      // live there pending re-hosting).
+      { protocol: 'https', hostname: 'app.etailsupport.com' },
+      { protocol: 'https', hostname: 'i.ebayimg.com' },
     ],
   },
 
