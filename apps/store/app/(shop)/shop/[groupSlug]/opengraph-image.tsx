@@ -158,10 +158,13 @@ export default async function GroupOpenGraphImage({
           <div
             style={{
               fontSize: 22,
-              color: '#71717a',
+              color: '#6B6E76',
+              letterSpacing: 2,
+              textTransform: 'uppercase',
+              fontWeight: 600,
             }}
           >
-            Hand-finished in the UK
+            1.75mm · 1kg · vacuum-sealed
           </div>
         </div>
       </div>

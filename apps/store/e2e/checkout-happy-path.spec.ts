@@ -38,7 +38,11 @@ test.describe('Storefront happy path', () => {
 
     // ---------------- 1. Home → Shop → Group ---------------------
     await page.goto('/');
-    await expect(page.locator('h1')).toContainText(/light/i);
+    // Hero H1 is the brand tagline. The exact phrasing is allowed to
+    // evolve with marketing copy — assert on the word "filament" so the
+    // test survives copy tweaks but still confirms we landed on the
+    // storefront homepage and not, say, an error page.
+    await expect(page.locator('h1')).toContainText(/filament/i);
     await page.goto(`/shop/${SEEDED_GROUP_SLUG}`);
     await expect(page).toHaveURL(new RegExp(`/shop/${SEEDED_GROUP_SLUG}`));
 

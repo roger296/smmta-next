@@ -15,13 +15,13 @@ export const revalidate = 60;
 export const metadata: Metadata = {
   title: 'Shop',
   description:
-    'The full Filament Store range. Browse by colour, filter by price, every lamp dimmable on any standard switch.',
+    'The full Filament Store range — PLA, PETG, ABS, ASA, TPU. Browse by material, filter by colour and price.',
   alternates: { canonical: '/shop' },
   openGraph: {
     type: 'website',
     url: '/shop',
     title: 'Shop | Filament Store',
-    description: 'The full Filament Store range, by colour and price.',
+    description: 'The full Filament Store range — every material, every colour.',
   },
   robots: { index: true, follow: true },
 };
@@ -74,32 +74,35 @@ export default async function ShopPage() {
         dangerouslySetInnerHTML={{ __html: breadcrumb }}
       />
 
-      <header className="space-y-2">
-        <nav aria-label="Breadcrumb" className="text-sm text-[var(--brand-muted)]">
-          <ol className="flex gap-1">
+      <header className="space-y-3">
+        <nav aria-label="Breadcrumb" className="text-xs uppercase tracking-wider text-[var(--brand-muted)]">
+          <ol className="flex gap-2">
             <li>
-              <a href="/" className="hover:underline">
+              <a href="/" className="hover:text-[var(--brand-ink)] transition-colors">
                 Home
               </a>
             </li>
             <li aria-hidden="true">/</li>
-            <li aria-current="page">Shop</li>
+            <li aria-current="page" className="text-[var(--brand-ink)]">Shop</li>
           </ol>
         </nav>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
+          The full range
+        </p>
         <h1
-          className="text-3xl font-semibold tracking-tight md:text-4xl"
+          className="text-4xl font-bold tracking-tight md:text-5xl"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          The full range
+          Filament, by material.
         </h1>
         <p className="max-w-2xl text-base text-[var(--brand-muted)]">
           {groups.length === 0
-            ? 'The catalogue is loading. Check back in a moment, or visit /healthz to see what the API is reporting.'
-            : 'Each lamp comes in two or three colourways. Pick a colour, filter by price, the rest is just light.'}
+            ? 'The catalogue is loading. Check back in a moment.'
+            : 'Pick a material, filter by colour or price. Every spool is 1.75mm, 1kg, vacuum-sealed in a recyclable cardboard box.'}
         </p>
       </header>
 
-      <div className="mt-8">
+      <div className="mt-10">
         <CatalogueGrid
           groups={groups}
           priceMin={priceMin}

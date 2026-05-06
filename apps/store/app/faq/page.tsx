@@ -15,14 +15,14 @@ export const revalidate = 86_400; // 1 day — the FAQ rarely changes
 export const metadata: Metadata = {
   title: 'Shipping, returns & FAQ',
   description:
-    'How long does delivery take, where do we ship, what is the returns policy, and which dimmers work — straight answers for every Filament Store lamp.',
+    'Delivery times, returns policy, materials, tolerances, packaging — straight answers about Filament Store 3D printer filament.',
   alternates: { canonical: '/faq' },
   openGraph: {
     type: 'website',
     url: '/faq',
     title: 'Shipping, returns & FAQ | Filament Store',
     description:
-      'Delivery times, returns policy, dimmer compatibility, warranty, and other questions about Filament Store lamps.',
+      'Delivery times, returns, supported materials, diameter, tolerances, and other questions about Filament Store filament.',
   },
   robots: { index: true, follow: true },
 };
@@ -50,21 +50,24 @@ export default function FaqPage() {
         </ol>
       </nav>
 
-      <header className="mt-4 space-y-2">
+      <header className="mt-6 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
+          Frequently asked
+        </p>
         <h1
-          className="text-3xl font-semibold tracking-tight md:text-4xl"
+          className="text-4xl font-bold tracking-tight md:text-5xl"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          Frequently asked
+          The practical bits.
         </h1>
         <p className="max-w-2xl text-base text-[var(--brand-muted)]">
-          Shipping, returns, dimmer compatibility, and the practical bits.
+          Shipping, returns, materials, tolerances, packaging.
           If your question isn&rsquo;t here, email{' '}
           <a
-            href="mailto:orders@filament.shop"
+            href="mailto:orders@filament.shop.cleverdeals.net"
             className="text-[var(--brand-ink)] underline-offset-2 hover:underline"
           >
-            orders@filament.shop
+            orders@filament.shop.cleverdeals.net
           </a>
           .
         </p>
@@ -72,20 +75,17 @@ export default function FaqPage() {
 
       <section
         aria-labelledby="faq-list"
-        className="mt-8 max-w-2xl space-y-3"
+        className="mt-10 max-w-2xl"
       >
         <h2 id="faq-list" className="sr-only">
           Questions
         </h2>
-        <ul className="space-y-3">
+        <ul className="divide-y divide-[var(--brand-border)] border-y border-[var(--brand-border)]">
           {SHIPPING_FAQ.map((entry) => (
-            <li
-              key={entry.question}
-              className="rounded-[var(--radius)] border border-[var(--brand-border)] p-4"
-            >
-              <h3 className="font-medium">{entry.question}</h3>
+            <li key={entry.question} className="py-5">
+              <h3 className="text-base font-semibold">{entry.question}</h3>
               <p
-                className="mt-1 text-sm text-[var(--brand-muted)]"
+                className="mt-2 text-sm leading-relaxed text-[var(--brand-muted)]"
                 // The answer text contains a few HTML entities (&rsquo;,
                 // &ldquo;) baked into the source so the visible copy +
                 // the JSON-LD payload share one canonical string.

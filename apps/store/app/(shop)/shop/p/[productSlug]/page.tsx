@@ -111,27 +111,27 @@ export default async function StandaloneProductPage({
         dangerouslySetInnerHTML={{ __html: breadcrumb }}
       />
 
-      <nav aria-label="Breadcrumb" className="text-sm text-[var(--brand-muted)]">
-        <ol className="flex flex-wrap gap-1">
+      <nav aria-label="Breadcrumb" className="text-xs uppercase tracking-wider text-[var(--brand-muted)]">
+        <ol className="flex flex-wrap gap-2">
           <li>
-            <a href="/" className="hover:underline">
+            <a href="/" className="hover:text-[var(--brand-ink)] transition-colors">
               Home
             </a>
           </li>
           <li aria-hidden="true">/</li>
           <li>
-            <a href="/shop" className="hover:underline">
+            <a href="/shop" className="hover:text-[var(--brand-ink)] transition-colors">
               Shop
             </a>
           </li>
           <li aria-hidden="true">/</li>
-          <li aria-current="page">{product.name}</li>
+          <li aria-current="page" className="text-[var(--brand-ink)]">{product.name}</li>
         </ol>
       </nav>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="mt-6 grid gap-10 md:grid-cols-2 md:gap-12">
         <div className="space-y-3">
-          <div className="aspect-square overflow-hidden rounded-[var(--radius)] bg-[var(--brand-border)]">
+          <div className="aspect-square overflow-hidden border border-[var(--brand-border)] bg-[var(--brand-bone)]">
             {product.heroImageUrl ? (
               <Image
                 src={product.heroImageUrl}
@@ -143,7 +143,7 @@ export default async function StandaloneProductPage({
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-sm text-[var(--brand-muted)]">
+              <div className="flex h-full items-center justify-center text-xs uppercase tracking-wider text-[var(--brand-muted)]">
                 No image
               </div>
             )}
@@ -151,7 +151,10 @@ export default async function StandaloneProductPage({
           {product.galleryImageUrls && product.galleryImageUrls.length > 0 && (
             <ul className="grid grid-cols-3 gap-2">
               {product.galleryImageUrls.map((u, idx) => (
-                <li key={`${u}-${idx}`} className="aspect-square overflow-hidden rounded-[var(--radius)] bg-[var(--brand-border)]">
+                <li
+                  key={`${u}-${idx}`}
+                  className="aspect-square overflow-hidden border border-[var(--brand-border)] bg-[var(--brand-bone)]"
+                >
                   <Image
                     src={u}
                     alt={`${product.name} — gallery ${idx + 1}`}
@@ -166,26 +169,50 @@ export default async function StandaloneProductPage({
           )}
         </div>
 
-        <div className="space-y-4">
-          <h1
-            className="text-3xl font-semibold tracking-tight md:text-4xl"
-            style={{ fontFamily: 'var(--font-display)' }}
+        <div className="flex flex-col gap-6">
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
+              Landau · 1.75mm · 1kg
+            </p>
+            <h1
+              className="text-3xl font-bold tracking-tight md:text-4xl"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {product.name}
+            </h1>
+            {product.shortDescription && (
+              <p className="text-base leading-relaxed text-[var(--brand-muted)]">
+                {product.shortDescription}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-baseline gap-4 border-y border-[var(--brand-border)] py-5">
+            <p className="text-3xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>
+              {product.priceGbp ? `£${product.priceGbp}` : 'Price on request'}
+            </p>
+            <p className="text-xs uppercase tracking-wider text-[var(--brand-muted)]">
+              per spool · ex VAT
+            </p>
+          </div>
+
+          <p
+            className={`text-sm font-medium ${
+              product.availableQty === 0
+                ? 'text-[var(--brand-muted)]'
+                : product.availableQty <= 5
+                  ? 'text-[var(--brand-accent)]'
+                  : 'text-[var(--brand-ink)]'
+            }`}
+            aria-live="polite"
           >
-            {product.name}
-          </h1>
-          {product.shortDescription && (
-            <p className="text-base text-[var(--brand-muted)]">{product.shortDescription}</p>
-          )}
-          <p className="text-2xl font-medium">
-            {product.priceGbp ? `£${product.priceGbp}` : 'Price on request'}
-          </p>
-          <p className="text-sm text-[var(--brand-muted)]" aria-live="polite">
             {product.availableQty > 0
               ? product.availableQty <= 5
                 ? `Only ${product.availableQty} left in stock.`
-                : 'In stock.'
+                : `In stock — ${product.availableQty} available.`
               : 'Out of stock — check back soon.'}
           </p>
+
           <AddToCartButton
             productId={product.id}
             inStock={product.availableQty > 0}
@@ -194,7 +221,7 @@ export default async function StandaloneProductPage({
       </div>
 
       {product.longDescription && (
-        <section className="mt-10 max-w-2xl">
+        <section className="mt-12 max-w-2xl border-t border-[var(--brand-border)] pt-10">
           <Markdown source={product.longDescription} />
         </section>
       )}
