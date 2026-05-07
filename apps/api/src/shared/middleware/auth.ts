@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { getSingletonCompanyId } from '../auth/company.js';
 
 /** JWT payload shape */
 export interface JwtPayload {
@@ -11,6 +12,11 @@ export interface JwtPayload {
 /**
  * Pre-handler hook that verifies the JWT and attaches decoded payload
  * to request.user. Returns 401 if token is missing or invalid.
+ *
+ * Single-tenant: the JWT's `companyId` claim is no longer trusted for
+ * authorization. We accept any signature-valid token and overwrite
+ * `companyId` with the singleton, so service code that filters by
+ * `user.companyId` always reads the singleton's id.
  */
 export async function requireAuth(
   request: FastifyRequest,
@@ -18,8 +24,11 @@ export async function requireAuth(
 ) {
   try {
     const decoded = await request.jwtVerify<JwtPayload>();
-    // Attach to request for downstream use
-    (request as any).user = decoded;
+    const singletonCompanyId = getSingletonCompanyId();
+    (request as any).user = {
+      ...decoded,
+      companyId: singletonCompanyId,
+    };
   } catch {
     return reply.status(401).send({
       success: false,

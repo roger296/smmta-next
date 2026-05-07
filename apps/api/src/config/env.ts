@@ -15,6 +15,12 @@ const envSchema = z.object({
   // Auth
   JWT_SECRET: z.string().default('dev-secret-change-in-production'),
 
+  // Singleton tenant id. smmta-next is single-tenant per deployment;
+  // every row's `company_id` is set to this value. Defaults to the
+  // Filament Store production UUID so existing deployments keep working
+  // without any env change.
+  COMPANY_ID: z.string().default('11111111-1111-4111-8111-111111111111'),
+
   // Luca GL API
   LUCA_API_BASE_URL: z.string().default('http://localhost:4000'),
   LUCA_API_TIMEOUT_MS: z.coerce.number().default(10000),

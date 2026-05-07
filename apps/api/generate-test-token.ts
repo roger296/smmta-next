@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { config } from 'dotenv';
 import { randomUUID } from 'crypto';
+import { getSingletonCompanyId } from './src/shared/auth/company.js';
 
 config();
 
@@ -12,7 +13,7 @@ if (!secret) {
 
 const payload = {
   userId: randomUUID(),
-  companyId: randomUUID(),
+  companyId: getSingletonCompanyId(),
   email: 'test@example.com',
   roles: ['admin'],
 };

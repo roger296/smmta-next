@@ -75,6 +75,11 @@ export function apiKeyAuth(requiredScopes: string[] = []): preHandlerHookHandler
       }
     }
 
+    // Single-tenant: every key in production is issued under the
+    // singleton company id, so the row's `companyId` is the singleton
+    // by construction. We pass it through as-is rather than overriding
+    // it here so test fixtures that mint keys under their own throwaway
+    // UUIDs continue to work.
     request.apiKey = {
       companyId: row.companyId,
       scopes: row.scopes,
