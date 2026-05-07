@@ -15,6 +15,7 @@ import { customerRoutes } from './modules/customers/customer.routes.js';
 import { orderRoutes } from './modules/orders/order.routes.js';
 import { integrationRoutes } from './modules/orders/integration.routes.js';
 import { apiKeyAdminRoutes } from './modules/admin/api-keys.routes.js';
+import { authRoutes } from './modules/auth/auth.routes.js';
 import {
   storefrontReadRoutes,
   storefrontWriteRoutes,
@@ -78,6 +79,10 @@ export async function buildApp() {
 
   // Admin: service API key management (Prompt 2 of buldmeawebstore.md).
   await app.register(apiKeyAdminRoutes, { prefix: '/api/v1' });
+
+  // Auth: email/password login. Issues the same JWT shape every other
+  // route already consumes; only the issuance path is new.
+  await app.register(authRoutes, { prefix: '/api/v1' });
 
   // Per-request requestId hook for storefront routes — binds an
   // X-Request-Id off the inbound headers (or mints one) and mirrors

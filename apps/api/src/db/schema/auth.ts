@@ -50,3 +50,31 @@ export const apiKeys = pgTable(
     apiKeysPrefixIdx: uniqueIndex('api_keys_prefix_unq').on(t.prefix),
   }),
 );
+
+// ============================================================
+// Users
+// ------------------------------------------------------------
+// Admin operators who log in via the SPA. The login endpoint
+// (`POST /api/v1/auth/login`) verifies email + password against
+// this table and issues a JWT. The JWT format is unchanged from
+// the previous paste-a-token flow; only the issuance mechanism
+// changes.
+//
+// Password hashing uses Node's `crypto.scrypt`, same format as
+// `api_keys.key_hash`: `<salt-hex>:<hash-hex>`.
+// ============================================================
+
+export const users = pgTable('users', {
+  id: pk(),
+  companyId: companyId(),
+  email: varchar('email', { length: 320 }).notNull().unique(),
+  /** scrypt-derived password, formatted `<salt-hex>:<hash-hex>`. */
+  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  name: varchar('name', { length: 200 }).notNull(),
+  roles: text('roles')
+    .array()
+    .notNull()
+    .default(sql`ARRAY['admin']::text[]`),
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+  ...auditTimestamps,
+});
