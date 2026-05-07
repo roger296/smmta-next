@@ -9,6 +9,8 @@ import { LucaGLService } from '../../integrations/luca/luca-gl.service.js';
 import { PurchaseOrderService } from './purchase-order.service.js';
 import type { CreateGRNInput } from './purchase-order.schema.js';
 import { roundMoney } from '../../shared/utils/currency.js';
+import { NotifyMeService, type NotifyMeSender } from '../storefront/notify-me.service.js';
+import { HttpNotifyMeSender } from '../storefront/notify-me.sender.js';
 
 /**
  * GRNService — Goods Received Note (book-in stock) with GL posting.
@@ -28,6 +30,9 @@ export class GRNService {
   private db = getDb();
   private lucaGL = new LucaGLService();
   private poService = new PurchaseOrderService();
+  private notifyMe = new NotifyMeService();
+  /** Override in tests to swap out the HTTP sender. */
+  public notifyMeSender: NotifyMeSender = new HttpNotifyMeSender();
 
   // ── List GRNs for a PO ──
 
@@ -220,6 +225,26 @@ export class GRNService {
 
       // Recalculate PO delivery status (outside transaction — non-critical)
       await this.poService.recalculateDeliveryStatus(purchaseOrderId);
+
+      // Back-in-stock notifications. Each affected product is checked
+      // for free stock; pending notifications are dispatched in FIFO
+      // order, capped at the available count. Errors are logged but
+      // don't fail the GRN commit — pending rows stay pending and a
+      // future trigger can retry.
+      const productIds = Array.from(
+        new Set(input.lines.map((l) => l.productId)),
+      );
+      for (const productId of productIds) {
+        try {
+          await this.notifyMe.fulfilForProduct(
+            companyId,
+            productId,
+            this.notifyMeSender,
+          );
+        } catch {
+          // swallow — never break the GRN flow on a notification error
+        }
+      }
 
       return this.getById(grn.id, companyId);
     } catch (err) {

@@ -17,12 +17,14 @@ import { renderOrderConfirmation, type OrderConfirmationPayload } from './order-
 import { renderOrderShipped, type OrderShippedPayload } from './order-shipped';
 import { renderOrderCancelled, type OrderCancelledPayload } from './order-cancelled';
 import { renderRefundIssued, type RefundIssuedPayload } from './refund-issued';
+import { renderBackInStock, type BackInStockPayload } from './back-in-stock';
 
 export type TemplateName =
   | 'order_confirmation'
   | 'order_shipped'
   | 'order_cancelled'
-  | 'refund_issued';
+  | 'refund_issued'
+  | 'back_in_stock';
 
 export interface RenderedEmail {
   subject: string;
@@ -37,6 +39,7 @@ export interface TemplatePayloads {
   order_shipped: OrderShippedPayload;
   order_cancelled: OrderCancelledPayload;
   refund_issued: RefundIssuedPayload;
+  back_in_stock: BackInStockPayload;
 }
 
 /**
@@ -57,6 +60,8 @@ export function renderTemplate<T extends TemplateName>(
       return renderOrderCancelled(payload as OrderCancelledPayload);
     case 'refund_issued':
       return renderRefundIssued(payload as RefundIssuedPayload);
+    case 'back_in_stock':
+      return renderBackInStock(payload as BackInStockPayload);
     default: {
       const exhaustive: never = template;
       throw new Error(`Unknown template: ${String(exhaustive)}`);
@@ -69,4 +74,5 @@ export type {
   OrderShippedPayload,
   OrderCancelledPayload,
   RefundIssuedPayload,
+  BackInStockPayload,
 };

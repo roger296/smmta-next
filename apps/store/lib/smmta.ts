@@ -341,6 +341,28 @@ export async function createReservation(
   );
 }
 
+/**
+ * POST /storefront/notify-me — record a "notify me when back in stock"
+ * request. Idempotent on (productId, email) for currently-pending rows.
+ * Returns true on success.
+ */
+export async function notifyMe(
+  input: { productId: string; email: string; subscribeToNewsletter: boolean },
+  opts?: MutationOptions,
+): Promise<{ ok: true }> {
+  const { status, rawBody } = await smmtaPost<{ ok: true }>(
+    'storefront/notify-me',
+    input,
+    opts,
+  );
+  if (status === 200 || status === 201) return { ok: true };
+  throw new SmmtaApiError(
+    `notify-me failed (${status})`,
+    status,
+    rawBody,
+  );
+}
+
 /** DELETE /storefront/reservations/:id — idempotent. 204 on success, 404
  *  for an unknown id. */
 export async function releaseReservation(

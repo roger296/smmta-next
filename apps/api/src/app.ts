@@ -21,6 +21,7 @@ import {
   storefrontReadRoutes,
   storefrontWriteRoutes,
 } from './modules/storefront/storefront.routes.js';
+import { notifyMeRoutes } from './modules/storefront/notify-me.routes.js';
 import { registerStorefrontRequestId } from './modules/storefront/log.js';
 
 export async function buildApp() {
@@ -101,6 +102,9 @@ export async function buildApp() {
   // Storefront: write surface (reservations, order commit, status, cancel),
   // gated by apiKeyAuth(['storefront:write']) (Prompt 5).
   await app.register(storefrontWriteRoutes, { prefix: '/api/v1' });
+
+  // Storefront: notify-me when back in stock.
+  await app.register(notifyMeRoutes, { prefix: '/api/v1' });
 
   return app;
 }

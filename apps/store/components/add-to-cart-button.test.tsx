@@ -26,17 +26,19 @@ const SOURCE = readFileSync(
 );
 
 describe('AddToCartButton — component contract', () => {
-  it('uses `type="button"` (the e2e selectors depend on this)', () => {
-    // Both branches of the component (in-stock and out-of-stock) must
-    // render type="button". A submit button would re-introduce the
-    // 60-second Playwright timeout the Prompt 15 fix resolved.
-    const buttonTypeMatches = SOURCE.match(/<button\s[^>]*type="([^"]+)"/g) ?? [];
-    expect(buttonTypeMatches.length).toBeGreaterThanOrEqual(2);
-    for (const m of buttonTypeMatches) {
-      expect(m).toContain('type="button"');
-    }
-    // And nothing in this file should ever render type="submit".
-    expect(SOURCE).not.toMatch(/type="submit"/);
+  it('the in-stock add-to-cart button uses `type="button"` (the e2e selectors depend on this)', () => {
+    // The in-stock branch lives inside `AddToCartActiveButton` — that's
+    // the component the Playwright tests target. It must render
+    // type="button"; a submit button would re-introduce the 60-second
+    // timeout the Prompt 15 fix resolved.
+    //
+    // The notify-me form (out-of-stock branch) legitimately uses
+    // `<button type="submit">` because it's inside an actual <form> —
+    // that's a different component and the e2e tests don't touch it.
+    const activeBlock =
+      SOURCE.match(/function AddToCartActiveButton[\s\S]+?\n\}/)?.[0] ?? '';
+    expect(activeBlock).toMatch(/type="button"/);
+    expect(activeBlock).not.toMatch(/type="submit"/);
   });
 
   it('keeps the accessible name "Add to cart" as the default label', () => {
