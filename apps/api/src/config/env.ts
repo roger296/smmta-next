@@ -27,6 +27,13 @@ const envSchema = z.object({
 
   // Redis (for BullMQ)
   REDIS_URL: z.string().default('redis://localhost:6379'),
+
+  // Storefront — used when the API needs to call the storefront's
+  // internal email-rendering route (e.g. back-in-stock notifications
+  // triggered by a GRN). Empty string disables the call (the queue
+  // stays pending and a subsequent trigger retries when the env is set).
+  STORE_BASE_URL: z.string().default(''),
+  STORE_INTERNAL_API_KEY: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

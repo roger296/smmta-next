@@ -95,6 +95,7 @@ Most of these override what an older internal architecture doc says. The doc is 
 - **Stock reservations use Postgres `SELECT ... FOR UPDATE SKIP LOCKED`**, 15-minute TTL. Storefront `/storefront/checkout/start` reserves stock; the Mollie webhook (or polling fallback) commits the reservation into an order. Concurrency-correctness covered by `apps/api/src/modules/storefront/reservation.concurrency.test.ts` (100 × 50 parallel test runs in CI).
 - **Mollie integration uses the Payments API**, NOT the Orders API. Webhooks always re-fetch `GET /payments/:id` rather than trusting webhook payloads. Live keys configured.
 - **SendGrid runs in sandbox mode** unless `NODE_ENV=production`. Real send paths covered by integration tests.
+- **"Notify me when back in stock"** is a real flow now: customer submits the form on the PDP → storefront `POST /api/notify-me` → API `POST /api/v1/storefront/notify-me` upserts into `stock_notifications` (and optionally `newsletter_subscribers`). When a GRN books in free stock for that SKU, `NotifyMeService.fulfilForProduct` posts to the storefront's `POST /api/internal/send-back-in-stock`, which enqueues a `back_in_stock` outbox row that the existing `process-outbox` cron picks up. Free-stock semantics are the same `IN_STOCK`-only count `CatalogueService.availableQtyMap` uses, so the trigger never disagrees with the PDP. Pending row uniqueness is enforced by a partial unique index on `(productId, email) WHERE fulfilled_at IS NULL`, so a customer can re-enrol after a future stock-out.
 
 ---
 
