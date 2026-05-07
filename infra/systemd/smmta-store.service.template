@@ -1,0 +1,43 @@
+# Systemd unit for the storefront (Next.js).
+#
+# Tokens replaced by infra/install.sh:
+#   __SMMTA_USER__       — Linux user that owns the deploy
+#   __SMMTA_HOME__       — that user's home directory
+#   __SMMTA_NODE_BIN__   — full path to the node binary
+#
+# Reads <repo>/apps/store/.env (mode 0600). The standalone server is
+# emitted by `next build` (output: 'standalone'); apps/store/.next/static
+# and apps/store/public must be symlinked into the standalone tree —
+# infra/install.sh and infra/scripts/deploy-store.sh both handle that.
+
+[Unit]
+Description=smmta-next storefront (Next.js standalone)
+Documentation=https://github.com/roger296/smmta-next
+After=network-online.target smmta-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__SMMTA_USER__
+Group=__SMMTA_USER__
+WorkingDirectory=__SMMTA_HOME__/smmta-next/apps/store
+EnvironmentFile=__SMMTA_HOME__/smmta-next/apps/store/.env
+Environment=PATH=__SMMTA_HOME__/.nvm/versions/node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=production
+Environment=PORT=4000
+
+ExecStart=__SMMTA_NODE_BIN__ .next/standalone/apps/store/server.js
+
+Restart=on-failure
+RestartSec=5s
+
+NoNewPrivileges=true
+PrivateTmp=true
+LimitNOFILE=65536
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smmta-store
+
+[Install]
+WantedBy=multi-user.target
