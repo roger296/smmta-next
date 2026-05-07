@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, varchar, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { pk, companyId, auditTimestamps } from './common.js';
 
 // ============================================================
@@ -41,6 +41,12 @@ export const apiKeys = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** Optional FK to channels.id. When set, this api-key is scoped to a
+     *  single channel — storefront read endpoints will filter the catalogue
+     *  to products offered on that channel and use the channel-specific
+     *  price. NULL means "see everything" (back-compat, and what
+     *  generic operator keys want). */
+    channelId: uuid('channel_id'),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     ...auditTimestamps,

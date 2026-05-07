@@ -43,6 +43,13 @@
       "when": 1778135250645,
       "tag": "0005_mixed_wolverine",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778135609409,
+      "tag": "0006_mean_cannonball",
+      "breakpoints": true
     }
   ]
 }

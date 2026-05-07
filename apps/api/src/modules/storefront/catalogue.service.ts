@@ -7,10 +7,17 @@
  *
  * `available_qty` is the count of `stock_items` in `IN_STOCK` status only —
  * RESERVED and ALLOCATED rows do not count as available.
+ *
+ * Channel scoping: each query method takes an optional `channelId`. When
+ * provided, products are filtered to those offered on that channel and the
+ * `priceGbp` returned is the per-channel override (or the base when no
+ * override exists). When `channelId` is null, no per-channel filtering or
+ * pricing is applied — the back-compat behaviour for operator keys and
+ * any storefront key minted before channels existed.
  */
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
-import { productGroups, products, stockItems } from '../../db/schema/index.js';
+import { productChannels, productGroups, products, stockItems } from '../../db/schema/index.js';
 
 // ---------------------------------------------------------------------------
 // Public-safe shapes
@@ -68,14 +75,17 @@ export interface FullProduct extends FullVariant {
 // Service
 // ---------------------------------------------------------------------------
 
+interface ChannelDecision {
+  /** True if the product is offered on the requested channel. */
+  isOffered: boolean;
+  /** The price the storefront should display: override OR base. */
+  priceGbp: string | null;
+}
+
 export class CatalogueService {
   private db = getDb();
 
-  /**
-   * GET /storefront/groups payload — published groups with thin variant list,
-   * price range, and total available stock.
-   */
-  async listGroups(companyId: string): Promise<GroupListItem[]> {
+  async listGroups(companyId: string, channelId: string | null = null): Promise<GroupListItem[]> {
     const groups = await this.db.query.productGroups.findMany({
       where: and(
         eq(productGroups.companyId, companyId),
@@ -88,7 +98,6 @@ export class CatalogueService {
 
     const groupIds = groups.map((g) => g.id);
 
-    // Pull all published variants for these groups in a single query.
     const variantRows = await this.db.query.products.findMany({
       where: and(
         eq(products.companyId, companyId),
@@ -99,62 +108,72 @@ export class CatalogueService {
       orderBy: (p, { asc }) => [asc(p.sortOrderInGroup), asc(p.name)],
     });
 
-    // Compute per-product available_qty in one aggregate query.
     const variantIds = variantRows.map((v) => v.id);
     const stockMap = await this.availableQtyMap(companyId, variantIds);
+    const channelMap = await this.channelDecisionMap(variantIds, channelId);
 
-    // Group variants by groupId.
     const variantsByGroup = new Map<string, ThinVariant[]>();
     for (const v of variantRows) {
       if (!v.groupId) continue;
+      const decision = channelMap.get(v.id) ?? {
+        isOffered: true,
+        priceGbp: v.minSellingPrice ?? null,
+      };
+      if (!decision.isOffered) continue;
       const arr = variantsByGroup.get(v.groupId) ?? [];
       arr.push({
         id: v.id,
         slug: v.slug,
         colour: v.colour,
         colourHex: v.colourHex,
-        priceGbp: v.minSellingPrice ?? null,
+        priceGbp: decision.priceGbp ?? v.minSellingPrice ?? null,
         availableQty: stockMap.get(v.id) ?? 0,
         heroImageUrl: v.heroImageUrl,
       });
       variantsByGroup.set(v.groupId, arr);
     }
 
-    return groups.map((g) => {
-      const variants = variantsByGroup.get(g.id) ?? [];
-      const prices = variants
-        .map((v) => v.priceGbp)
-        .filter((p): p is string => p !== null);
-      const priceRange =
-        prices.length > 0
-          ? {
-              min: prices.reduce((a, b) =>
-                Number.parseFloat(a) <= Number.parseFloat(b) ? a : b,
-              ),
-              max: prices.reduce((a, b) =>
-                Number.parseFloat(a) >= Number.parseFloat(b) ? a : b,
-              ),
-            }
-          : null;
-      return {
-        id: g.id,
-        slug: g.slug,
-        name: g.name,
-        shortDescription: g.shortDescription,
-        heroImageUrl: g.heroImageUrl,
-        galleryImageUrls: g.galleryImageUrls ?? null,
-        seoTitle: g.seoTitle,
-        seoDescription: g.seoDescription,
-        sortOrder: g.sortOrder,
-        priceRange,
-        totalAvailableQty: variants.reduce((s, v) => s + v.availableQty, 0),
-        variants,
-      };
-    });
+    return groups
+      .map((g) => {
+        const variants = variantsByGroup.get(g.id) ?? [];
+        const prices = variants
+          .map((v) => v.priceGbp)
+          .filter((p): p is string => p !== null);
+        const priceRange =
+          prices.length > 0
+            ? {
+                min: prices.reduce((a, b) =>
+                  Number.parseFloat(a) <= Number.parseFloat(b) ? a : b,
+                ),
+                max: prices.reduce((a, b) =>
+                  Number.parseFloat(a) >= Number.parseFloat(b) ? a : b,
+                ),
+              }
+            : null;
+        return {
+          id: g.id,
+          slug: g.slug,
+          name: g.name,
+          shortDescription: g.shortDescription,
+          heroImageUrl: g.heroImageUrl,
+          galleryImageUrls: g.galleryImageUrls ?? null,
+          seoTitle: g.seoTitle,
+          seoDescription: g.seoDescription,
+          sortOrder: g.sortOrder,
+          priceRange,
+          totalAvailableQty: variants.reduce((s, v) => s + v.availableQty, 0),
+          variants,
+        };
+      })
+      // Hide groups whose variants are all not-offered on this channel.
+      .filter((g) => g.variants.length > 0);
   }
 
-  /** GET /storefront/groups/:slug — full group with full variants. */
-  async getGroupBySlug(companyId: string, slug: string): Promise<FullGroup | null> {
+  async getGroupBySlug(
+    companyId: string,
+    slug: string,
+    channelId: string | null = null,
+  ): Promise<FullGroup | null> {
     const group = await this.db.query.productGroups.findFirst({
       where: and(
         eq(productGroups.companyId, companyId),
@@ -178,24 +197,43 @@ export class CatalogueService {
       companyId,
       variantRows.map((v) => v.id),
     );
+    const channelMap = await this.channelDecisionMap(
+      variantRows.map((v) => v.id),
+      channelId,
+    );
 
-    const variants: FullVariant[] = variantRows.map((v) => ({
-      id: v.id,
-      slug: v.slug,
-      name: v.name,
-      colour: v.colour,
-      colourHex: v.colourHex,
-      priceGbp: v.minSellingPrice ?? null,
-      availableQty: stockMap.get(v.id) ?? 0,
-      heroImageUrl: v.heroImageUrl,
-      shortDescription: v.shortDescription,
-      longDescription: v.longDescription,
-      galleryImageUrls: v.galleryImageUrls ?? null,
-      seoTitle: v.seoTitle,
-      seoDescription: v.seoDescription,
-      seoKeywords: v.seoKeywords ?? null,
-      sortOrderInGroup: v.sortOrderInGroup,
-    }));
+    const variants: FullVariant[] = variantRows
+      .map((v) => {
+        const d = channelMap.get(v.id) ?? {
+          isOffered: true,
+          priceGbp: v.minSellingPrice ?? null,
+        };
+        return { v, d };
+      })
+      .filter(({ d }) => d.isOffered)
+      .map(({ v, d }) => ({
+        id: v.id,
+        slug: v.slug,
+        name: v.name,
+        colour: v.colour,
+        colourHex: v.colourHex,
+        priceGbp: d.priceGbp ?? v.minSellingPrice ?? null,
+        availableQty: stockMap.get(v.id) ?? 0,
+        heroImageUrl: v.heroImageUrl,
+        shortDescription: v.shortDescription,
+        longDescription: v.longDescription,
+        galleryImageUrls: v.galleryImageUrls ?? null,
+        seoTitle: v.seoTitle,
+        seoDescription: v.seoDescription,
+        seoKeywords: v.seoKeywords ?? null,
+        sortOrderInGroup: v.sortOrderInGroup,
+      }));
+
+    if (variants.length === 0 && channelId) {
+      // Group exists but is empty for this channel — treat as missing so
+      // the storefront 404s rather than rendering an empty PDP.
+      return null;
+    }
 
     const prices = variants
       .map((v) => v.priceGbp)
@@ -226,8 +264,11 @@ export class CatalogueService {
     };
   }
 
-  /** GET /storefront/products/:slug — single product (group-aware). */
-  async getProductBySlug(companyId: string, slug: string): Promise<FullProduct | null> {
+  async getProductBySlug(
+    companyId: string,
+    slug: string,
+    channelId: string | null = null,
+  ): Promise<FullProduct | null> {
     const p = await this.db.query.products.findFirst({
       where: and(
         eq(products.companyId, companyId),
@@ -238,13 +279,19 @@ export class CatalogueService {
     });
     if (!p) return null;
     const stockMap = await this.availableQtyMap(companyId, [p.id]);
+    const channelMap = await this.channelDecisionMap([p.id], channelId);
+    const decision = channelMap.get(p.id) ?? {
+      isOffered: true,
+      priceGbp: p.minSellingPrice ?? null,
+    };
+    if (!decision.isOffered) return null;
     return {
       id: p.id,
       slug: p.slug,
       name: p.name,
       colour: p.colour,
       colourHex: p.colourHex,
-      priceGbp: p.minSellingPrice ?? null,
+      priceGbp: decision.priceGbp ?? p.minSellingPrice ?? null,
       availableQty: stockMap.get(p.id) ?? 0,
       heroImageUrl: p.heroImageUrl,
       shortDescription: p.shortDescription,
@@ -258,8 +305,11 @@ export class CatalogueService {
     };
   }
 
-  /** GET /storefront/products?ids=<csv> — batch lookup for cart price snapshots. */
-  async getProductsByIds(companyId: string, ids: string[]): Promise<FullProduct[]> {
+  async getProductsByIds(
+    companyId: string,
+    ids: string[],
+    channelId: string | null = null,
+  ): Promise<FullProduct[]> {
     if (ids.length === 0) return [];
     const rows = await this.db.query.products.findMany({
       where: and(
@@ -274,24 +324,37 @@ export class CatalogueService {
       companyId,
       rows.map((r) => r.id),
     );
-    return rows.map((p) => ({
-      id: p.id,
-      slug: p.slug,
-      name: p.name,
-      colour: p.colour,
-      colourHex: p.colourHex,
-      priceGbp: p.minSellingPrice ?? null,
-      availableQty: stockMap.get(p.id) ?? 0,
-      heroImageUrl: p.heroImageUrl,
-      shortDescription: p.shortDescription,
-      longDescription: p.longDescription,
-      galleryImageUrls: p.galleryImageUrls ?? null,
-      seoTitle: p.seoTitle,
-      seoDescription: p.seoDescription,
-      seoKeywords: p.seoKeywords ?? null,
-      sortOrderInGroup: p.sortOrderInGroup,
-      groupId: p.groupId,
-    }));
+    const channelMap = await this.channelDecisionMap(
+      rows.map((r) => r.id),
+      channelId,
+    );
+    return rows
+      .map((p) => {
+        const d = channelMap.get(p.id) ?? {
+          isOffered: true,
+          priceGbp: p.minSellingPrice ?? null,
+        };
+        return { p, d };
+      })
+      .filter(({ d }) => d.isOffered)
+      .map(({ p, d }) => ({
+        id: p.id,
+        slug: p.slug,
+        name: p.name,
+        colour: p.colour,
+        colourHex: p.colourHex,
+        priceGbp: d.priceGbp ?? p.minSellingPrice ?? null,
+        availableQty: stockMap.get(p.id) ?? 0,
+        heroImageUrl: p.heroImageUrl,
+        shortDescription: p.shortDescription,
+        longDescription: p.longDescription,
+        galleryImageUrls: p.galleryImageUrls ?? null,
+        seoTitle: p.seoTitle,
+        seoDescription: p.seoDescription,
+        seoKeywords: p.seoKeywords ?? null,
+        sortOrderInGroup: p.sortOrderInGroup,
+        groupId: p.groupId,
+      }));
   }
 
   /**
@@ -321,6 +384,43 @@ export class CatalogueService {
       .groupBy(stockItems.productId);
     const map = new Map<string, number>();
     for (const r of rows) map.set(r.productId, Number(r.n));
+    return map;
+  }
+
+  /**
+   * Per-product channel decision map. Empty when channelId is null —
+   * callers fall through to the implicit "offered at base price" default.
+   * For products with no row in `product_channels`, the map omits the
+   * entry; the caller's fallback supplies the implicit-default decision.
+   */
+  private async channelDecisionMap(
+    productIds: string[],
+    channelId: string | null,
+  ): Promise<Map<string, ChannelDecision>> {
+    if (!channelId || productIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({
+        productId: productChannels.productId,
+        isOffered: productChannels.isOffered,
+        priceOverrideGbp: productChannels.priceOverrideGbp,
+        basePrice: products.minSellingPrice,
+      })
+      .from(productChannels)
+      .innerJoin(products, eq(productChannels.productId, products.id))
+      .where(
+        and(
+          eq(productChannels.channelId, channelId),
+          inArray(productChannels.productId, productIds),
+          isNull(productChannels.deletedAt),
+        ),
+      );
+    const map = new Map<string, ChannelDecision>();
+    for (const r of rows) {
+      map.set(r.productId, {
+        isOffered: r.isOffered,
+        priceGbp: r.priceOverrideGbp ?? r.basePrice ?? null,
+      });
+    }
     return map;
   }
 }

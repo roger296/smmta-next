@@ -55,7 +55,7 @@ export async function storefrontReadRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const ctx = getApiKeyContext(request);
-      const data = await service.listGroups(ctx.companyId);
+      const data = await service.listGroups(ctx.companyId, ctx.channelId);
       return reply.header('Cache-Control', CACHE_HEADER).send({ success: true, data });
     },
   );
@@ -72,7 +72,7 @@ export async function storefrontReadRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const ctx = getApiKeyContext(request);
       const { slug } = slugParamSchema.parse(request.params);
-      const group = await service.getGroupBySlug(ctx.companyId, slug);
+      const group = await service.getGroupBySlug(ctx.companyId, slug, ctx.channelId);
       if (!group) {
         return reply.status(404).send({ success: false, error: 'Group not found' });
       }
@@ -99,7 +99,7 @@ export async function storefrontReadRoutes(app: FastifyInstance) {
           .status(400)
           .send({ success: false, error: 'Missing or invalid ids parameter' });
       }
-      const data = await service.getProductsByIds(ctx.companyId, parsed.data.ids);
+      const data = await service.getProductsByIds(ctx.companyId, parsed.data.ids, ctx.channelId);
       return reply.header('Cache-Control', CACHE_HEADER).send({ success: true, data });
     },
   );
@@ -117,7 +117,7 @@ export async function storefrontReadRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const ctx = getApiKeyContext(request);
       const { slug } = slugParamSchema.parse(request.params);
-      const product = await service.getProductBySlug(ctx.companyId, slug);
+      const product = await service.getProductBySlug(ctx.companyId, slug, ctx.channelId);
       if (!product) {
         return reply.status(404).send({ success: false, error: 'Product not found' });
       }
