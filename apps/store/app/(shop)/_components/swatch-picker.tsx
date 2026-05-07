@@ -15,6 +15,7 @@ import * as React from 'react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { FullVariant } from '@/lib/api-types';
+import { resolveInitialVariant } from '@/lib/variants';
 import { AddToCartButton } from '@/components/add-to-cart-button';
 
 export interface SwatchPickerProps {
@@ -27,9 +28,7 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
   const searchParams = useSearchParams();
   const queriedColour = searchParams.get('colour');
 
-  const initial =
-    variants.find((v) => v.colour && queriedColour && v.colour.toLowerCase() === queriedColour.toLowerCase()) ??
-    variants[0];
+  const initial = resolveInitialVariant(variants, queriedColour);
   const [selectedId, setSelectedId] = React.useState<string | undefined>(initial?.id);
 
   // Sync state when the URL query changes (back/forward navigation).
