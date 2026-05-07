@@ -16,6 +16,7 @@ import { orderRoutes } from './modules/orders/order.routes.js';
 import { integrationRoutes } from './modules/orders/integration.routes.js';
 import { apiKeyAdminRoutes } from './modules/admin/api-keys.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
+import { channelRoutes } from './modules/channels/channel.routes.js';
 import {
   storefrontReadRoutes,
   storefrontWriteRoutes,
@@ -83,6 +84,9 @@ export async function buildApp() {
   // Auth: email/password login. Issues the same JWT shape every other
   // route already consumes; only the issuance path is new.
   await app.register(authRoutes, { prefix: '/api/v1' });
+
+  // Channels: per-product channel availability + per-channel pricing.
+  await app.register(channelRoutes, { prefix: '/api/v1' });
 
   // Per-request requestId hook for storefront routes — binds an
   // X-Request-Id off the inbound headers (or mints one) and mirrors

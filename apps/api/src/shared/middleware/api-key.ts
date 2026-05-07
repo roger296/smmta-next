@@ -22,6 +22,11 @@ export interface ApiKeyContext {
   scopes: string[];
   keyId: string;
   prefix: string;
+  /** When non-null, storefront read endpoints scope the catalogue + price
+   *  to this channel. Null (the default) means "no per-channel scoping" —
+   *  used by operator keys and back-compat for keys minted before this
+   *  feature existed. */
+  channelId: string | null;
 }
 
 declare module 'fastify' {
@@ -85,6 +90,7 @@ export function apiKeyAuth(requiredScopes: string[] = []): preHandlerHookHandler
       scopes: row.scopes,
       keyId: row.id,
       prefix: row.prefix,
+      channelId: row.channelId ?? null,
     };
 
     // Best-effort `last_used_at` refresh. We deliberately do not await
