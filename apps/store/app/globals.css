@@ -26,6 +26,12 @@
  * Accent — two-tone steel blue:
  *   --brand-accent-ice  hover surfaces, active swatch background
  *   --brand-accent      primary CTA, focus ring, link underline
+ *
+ * Stock indicator (small flags on swatches):
+ *   --brand-stock-in     "in stock" — ink-shifted dark green, industrial
+ *                        rather than candy. Passes WCAG AA on --brand-bone.
+ *   --brand-stock-out    "out of stock" — dark muted red, same metric
+ *                        family as the in-stock token.
  */
 :root {
   /* Surfaces */
@@ -42,6 +48,10 @@
   /* Two-tone steel-blue accent */
   --brand-accent-ice: #B4C6D2;
   --brand-accent: #3B5266;
+
+  /* Stock state */
+  --brand-stock-in: #1F5C3D;
+  --brand-stock-out: #7A2630;
 
   /* Industrial = sharp corners. The token stays as 0; the few places that
    * legitimately want a pill (chips, badges, the swatch picker outline)
@@ -65,6 +75,8 @@
     --brand-border: #2E3239;
     --brand-accent-ice: #2E3946;
     --brand-accent: #95B0C7;
+    --brand-stock-in: #4FB07F;
+    --brand-stock-out: #D77A86;
   }
 }
 

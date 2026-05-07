@@ -142,13 +142,18 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
             <div className="mt-3 flex flex-wrap gap-2">
               {variants.map((v) => {
                 const isSelected = v.id === selectedId;
+                const variantInStock = v.availableQty > 0;
+                const colourLabel = v.colour ?? 'Default';
+                const stockLabel = variantInStock ? 'In stock' : 'Out of stock';
                 return (
                   <button
                     key={v.id}
                     type="button"
+                    data-test="swatch"
                     onClick={() => onPick(v)}
                     aria-pressed={isSelected}
-                    title={v.colour ?? 'Default'}
+                    aria-label={`${colourLabel}. ${stockLabel}.`}
+                    title={`${colourLabel} — ${stockLabel}`}
                     className={
                       isSelected
                         ? 'flex items-center gap-2 border-2 border-[var(--brand-accent)] bg-[var(--brand-accent-ice)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors'
@@ -162,7 +167,20 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
                         style={{ backgroundColor: v.colourHex }}
                       />
                     )}
-                    {v.colour ?? 'Default'}
+                    <span>{colourLabel}</span>
+                    <span
+                      aria-hidden="true"
+                      data-test={variantInStock ? 'stock-flag-in' : 'stock-flag-out'}
+                      className="border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]"
+                      style={{
+                        color: variantInStock ? 'var(--brand-stock-in)' : 'var(--brand-stock-out)',
+                        borderColor: variantInStock
+                          ? 'var(--brand-stock-in)'
+                          : 'var(--brand-stock-out)',
+                      }}
+                    >
+                      {variantInStock ? 'In stock' : 'Out of stock'}
+                    </span>
                   </button>
                 );
               })}
