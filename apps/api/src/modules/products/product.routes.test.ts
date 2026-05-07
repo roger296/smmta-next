@@ -17,6 +17,50 @@ import {
 let app: FastifyInstance;
 let token: string;
 
+/**
+ * Minimal in-memory catalogue fixture. Seeds two products in one group
+ * (Landau PLA Basic, Black + White) so the route test can assert
+ * storefront fields without depending on a particular xlsx export.
+ */
+const FIXTURE_ROWS = [
+  {
+    stockCode: 'V3-PLA-BAS-BLACK',
+    manufacturer: 'Landau',
+    fullyQualifiedName: '1Kg Roll of FDM Printer Filament BLACK PLA Basic',
+    oldGroupId: 55118,
+    description: '1Kg Roll of FDM Printer Filament',
+    netWeight: 1,
+    shippingWeight: 1.3,
+    dimensionH: 19,
+    dimensionW: 19,
+    dimensionD: 7,
+    measurementUnit: 'cm',
+    sellingPrice: 6.0,
+    expectedNextCost: 3.42,
+    rawColour: 'BLACKPLA Basic',
+    stockQty: 5,
+    imageUrl: 'https://example.com/landau-pla-basic-black.png',
+  },
+  {
+    stockCode: 'V3-PLA-BAS-WHITE',
+    manufacturer: 'Landau',
+    fullyQualifiedName: '1Kg Roll of FDM Printer Filament WHITE PLA Basic',
+    oldGroupId: 55118,
+    description: '1Kg Roll of FDM Printer Filament',
+    netWeight: 1,
+    shippingWeight: 1.3,
+    dimensionH: 19,
+    dimensionW: 19,
+    dimensionD: 7,
+    measurementUnit: 'cm',
+    sellingPrice: 6.0,
+    expectedNextCost: 3.42,
+    rawColour: 'WHITEPLA Basic',
+    stockQty: 0,
+    imageUrl: 'https://example.com/landau-pla-basic-white.png',
+  },
+];
+
 beforeAll(async () => {
   // Match the JWT_SECRET default in env.ts so jwt.sign here matches
   // jwt.verify inside the app under test.
@@ -32,7 +76,7 @@ beforeAll(async () => {
     roles: ['admin'],
   });
 
-  await seedStorefront();
+  await seedStorefront({ rows: FIXTURE_ROWS });
 });
 
 afterAll(async () => {
@@ -41,12 +85,12 @@ afterAll(async () => {
 });
 
 describe('GET /api/v1/products — returns storefront fields', () => {
-  it('returns Aurora variants with colour, slug, hero image, and SEO fields', async () => {
+  it('returns seeded variants with colour, slug, hero image, and SEO fields', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/products',
       headers: { authorization: `Bearer ${token}` },
-      query: { search: 'Aurora' },
+      query: { search: 'Landau' },
     });
 
     expect(res.statusCode).toBe(200);
@@ -55,35 +99,17 @@ describe('GET /api/v1/products — returns storefront fields', () => {
       data: Array<Record<string, unknown>>;
     };
     expect(body.success).toBe(true);
-    expect(body.data.length).toBeGreaterThanOrEqual(3);
+    expect(body.data.length).toBeGreaterThanOrEqual(FIXTURE_ROWS.length);
 
-    const smoke = body.data.find((p) => p.slug === 'aurora-filament-lamp-smoke');
-    expect(smoke).toBeDefined();
-    expect(smoke?.colour).toBe('Smoke');
-    expect(smoke?.colourHex).toBe('#3a3a3a');
-    expect(smoke?.isPublished).toBe(true);
-    expect(smoke?.heroImageUrl).toMatch(/^https:\/\/picsum\.photos\//);
-    expect(smoke?.seoTitle).toContain('Smoke');
-    expect(typeof smoke?.groupId).toBe('string');
-    // sortOrderInGroup is an integer column with default 0
-    expect(typeof smoke?.sortOrderInGroup).toBe('number');
-  });
-
-  it('returns the standalone product with groupId = null', async () => {
-    const res = await app.inject({
-      method: 'GET',
-      url: '/api/v1/products',
-      headers: { authorization: `Bearer ${token}` },
-      query: { search: 'Pendant' },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as {
-      data: Array<Record<string, unknown>>;
-    };
-    const standalone = body.data.find((p) => p.slug === 'brushed-brass-pendant-cord-set');
-    expect(standalone).toBeDefined();
-    expect(standalone?.groupId).toBeNull();
-    expect(standalone?.isPublished).toBe(true);
+    const black = body.data.find((p) => p.slug === 'landau-pla-basic-1-75mm-1kg-black');
+    expect(black).toBeDefined();
+    expect(black?.colour).toBe('Black');
+    expect(black?.colourHex).toMatch(/^#[0-9a-fA-F]{6}$/);
+    expect(black?.isPublished).toBe(true);
+    expect(black?.heroImageUrl).toMatch(/^https:\/\//);
+    expect(black?.seoTitle).toContain('Black');
+    expect(typeof black?.groupId).toBe('string');
+    expect(typeof black?.sortOrderInGroup).toBe('number');
   });
 
   it('rejects unauthenticated requests', async () => {

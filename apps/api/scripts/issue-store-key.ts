@@ -8,10 +8,10 @@ import { eq } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../src/config/database.js';
 import { apiKeys } from '../src/db/schema/index.js';
 import { ApiKeyService } from '../src/modules/admin/api-keys.service.js';
-
-const COMPANY = '11111111-1111-4111-8111-111111111111';
+import { getSingletonCompanyId } from '../src/shared/auth/company.js';
 
 async function main() {
+  const COMPANY = getSingletonCompanyId();
   const db = getDb();
   await db.delete(apiKeys).where(eq(apiKeys.companyId, COMPANY));
   const svc = new ApiKeyService();

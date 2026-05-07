@@ -20,8 +20,9 @@ import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
 import { apiKeys } from '../../db/schema/index.js';
 import { apiKeyAuth } from '../../shared/middleware/api-key.js';
+import { getSingletonCompanyId } from '../../shared/auth/company.js';
 
-const TEST_COMPANY_ID = '44444444-4444-4444-8444-444444444444';
+const TEST_COMPANY_ID = getSingletonCompanyId();
 
 let app: FastifyInstance;
 let jwt: string;

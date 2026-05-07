@@ -45,9 +45,15 @@ import {
   stockItems,
   warehouses,
 } from '../src/db/schema/index.js';
+import { getSingletonCompanyId } from '../src/shared/auth/company.js';
 
-/** Stable identifier for the Storefront Demo company. */
-export const STOREFRONT_DEMO_COMPANY_ID = '11111111-1111-4111-8111-111111111111';
+/**
+ * Stable identifier for the singleton company. smmta-next is single-tenant
+ * per deployment, so this resolves to the deployment's `COMPANY_ID` env
+ * var (default `11111111-1111-4111-8111-111111111111`, matching the
+ * existing Filament Store production deploy).
+ */
+export const STOREFRONT_DEMO_COMPANY_ID = getSingletonCompanyId();
 export const STOREFRONT_DEMO_COMPANY_NAME = 'Storefront Demo';
 
 // ============================================================
