@@ -21,13 +21,15 @@ When weighing implementation choices, prefer the option that holds up across mul
 
 ## Deployment model
 
-A self-hoster's install story is the simple path:
+A self-hoster's install story is the simple path: `sudo bash infra/install.sh`. The script (Ubuntu 22.04+/Debian 12+) installs Docker + nginx + certbot + Node 22 (NVM), clones the repo to `/home/smmta/smmta-next`, generates secrets (JWT, DB password, store cookie, COMPANY_ID), brings Postgres up in Docker, runs drizzle migrations, creates the singleton company, the first admin user, and the storefront API key, installs systemd units, configures nginx, and issues TLS certs. Re-runs are idempotent (prompts before overwriting `.env` files; `SMMTA_FORCE=1` to skip).
+
+Manual / piecemeal install (kept as the long-form path):
 
 1. Clone the repo: `git clone https://github.com/roger296/smmta-next`
 2. Configure environment files for their business (`apps/api/.env`, `apps/store/.env`, plus any `apps/store-<other-brand>/.env` if running multiple storefronts).
 3. `docker compose up -d` to bring up Postgres (the canonical pattern; the VPS today runs Postgres in a Docker container).
 4. Run drizzle migrations: `npm run db:migrate -w @smmta/api` (and per-storefront migrations for `smmta_store` etc.).
-5. Boot the API and storefront(s) under systemd (templates in `infra/`).
+5. Boot the API and storefront(s) under systemd (templates in `infra/systemd/`).
 6. Issue a Let's Encrypt cert per public hostname (storefront, admin SPA).
 
 The Filament Store production deploy on `striped-acrobats.metalseed.io` is the working reference for this story — see the **VPS deployment** section below for the concrete commands and the conventions that deviate from the older deploy guide.

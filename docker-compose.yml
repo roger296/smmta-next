@@ -2,10 +2,13 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    # Defaults are dev-friendly; production installs override the password
+    # via `infra/install.sh`, which writes a `.env.compose` and brings the
+    # service up with `docker compose --env-file .env.compose ...`.
     environment:
-      POSTGRES_USER: smmta
-      POSTGRES_PASSWORD: smmta
-      POSTGRES_DB: smmta_next
+      POSTGRES_USER: ${POSTGRES_USER:-smmta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smmta}
+      POSTGRES_DB: ${POSTGRES_DB:-smmta_next}
     ports:
       - '127.0.0.1:5432:5432'
     volumes:
