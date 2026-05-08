@@ -57,6 +57,13 @@
       "when": 1778159201618,
       "tag": "0007_windy_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778241782784,
+      "tag": "0008_same_ser_duncan",
+      "breakpoints": true
     }
   ]
 }
