@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { pickDefaultVariant, resolveInitialVariant } from './variants';
+import type { StockState } from './api-types';
 
-const v = (id: string, colour: string | null, availableQty: number) => ({
-  id,
-  colour,
-  availableQty,
-});
+const v = (
+  id: string,
+  colour: string | null,
+  availableQty: number,
+  stockState?: StockState,
+) => ({ id, colour, availableQty, stockState });
 
 describe('pickDefaultVariant', () => {
   it('returns undefined for an empty list', () => {
@@ -39,6 +41,25 @@ describe('pickDefaultVariant', () => {
     const a = v('a', 'Amber', 0);
     const b = v('b', 'Smoke', 0);
     expect(pickDefaultVariant([a, b])).toBe(a);
+  });
+
+  it('prefers IN_STOCK over AVAILABLE_FROM_SUPPLIER', () => {
+    const a = v('a', 'Amber', 0, 'AVAILABLE_FROM_SUPPLIER');
+    const b = v('b', 'Smoke', 5, 'IN_STOCK');
+    expect(pickDefaultVariant([a, b])).toBe(b);
+  });
+
+  it('falls back to AVAILABLE_FROM_SUPPLIER when no IN_STOCK variant exists', () => {
+    const a = v('a', 'Amber', 0, 'OUT_OF_STOCK');
+    const b = v('b', 'Smoke', 0, 'AVAILABLE_FROM_SUPPLIER');
+    const c = v('c', 'Sand', 0, 'OUT_OF_STOCK');
+    expect(pickDefaultVariant([a, b, c])).toBe(b);
+  });
+
+  it('uses availableQty as the back-compat signal when stockState is absent', () => {
+    const a = v('a', 'Amber', 0); // no stockState — back-compat OOS
+    const b = v('b', 'Smoke', 3); // no stockState — back-compat IN_STOCK
+    expect(pickDefaultVariant([a, b])).toBe(b);
   });
 });
 
