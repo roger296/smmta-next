@@ -7,6 +7,7 @@ import {
   pk, companyId, auditTimestamps, oldId,
   orderStatusEnum, sourceChannelEnum, invoiceStatusEnum,
   creditNoteStatusEnum, allocationItemTypeEnum, vatTreatmentEnum,
+  fulfilmentSourceEnum,
 } from './common.js';
 import { customers, customerContacts, customerDeliveryAddresses, customerInvoiceAddresses } from './customers.js';
 import { products } from './products.js';
@@ -84,6 +85,16 @@ export const orderLines = pgTable('order_lines', {
   numberShipped: doublePrecision('number_shipped').default(0),
   remainingQuantity: integer('remaining_quantity').default(0),
   thirdPartyProductId: varchar('third_party_product_id', { length: 100 }),
+  /** WAREHOUSE = standard reserve-from-stock flow.
+   *  SUPPLIER = drop-ship; no warehouse reservation, supplier order
+   *  placed by the placer worker on payment confirmation. */
+  fulfilmentSource: fulfilmentSourceEnum('fulfilment_source')
+    .notNull()
+    .default('WAREHOUSE'),
+  /** When fulfilmentSource=SUPPLIER, the supplier the line was routed
+   *  to (chosen by `pickSupplierForProduct` at checkout-start). NULL
+   *  for warehouse lines. */
+  supplierId: uuid('supplier_id'),
   oldId: oldId(),
   ...auditTimestamps,
 });

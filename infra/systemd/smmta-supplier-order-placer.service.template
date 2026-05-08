@@ -1,0 +1,37 @@
+# Systemd unit (Type=simple) — runs the supplier-order placer in a
+# 30-second loop. The worker is idempotent (deterministic key per
+# customer-order line) so re-runs of the same row never produce a
+# duplicate supplier order.
+#
+# Tokens replaced by infra/install.sh:
+#   __SMMTA_USER__, __SMMTA_HOME__, __SMMTA_NODE_BIN__
+
+[Unit]
+Description=smmta-next supplier-order placer
+Documentation=https://github.com/roger296/smmta-next
+After=network-online.target docker.service smmta-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__SMMTA_USER__
+Group=__SMMTA_USER__
+WorkingDirectory=__SMMTA_HOME__/smmta-next
+EnvironmentFile=__SMMTA_HOME__/smmta-next/apps/api/.env
+Environment=PATH=__SMMTA_HOME__/.nvm/versions/node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=production
+
+ExecStart=/bin/bash -c 'while true; do __SMMTA_NODE_BIN__ __SMMTA_HOME__/smmta-next/node_modules/.bin/tsx apps/api/scripts/run-supplier-order-placer.ts; sleep 30; done'
+
+Restart=on-failure
+RestartSec=5s
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smmta-supplier-order-placer
+
+[Install]
+WantedBy=multi-user.target
