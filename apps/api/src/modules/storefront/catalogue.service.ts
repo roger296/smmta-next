@@ -18,6 +18,7 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { productChannels, productGroups, products, stockItems } from '../../db/schema/index.js';
+import { getVariantAvailabilityBatch, type StockState } from './availability.js';
 
 // ---------------------------------------------------------------------------
 // Public-safe shapes
@@ -30,6 +31,10 @@ export interface ThinVariant {
   colourHex: string | null;
   priceGbp: string | null;
   availableQty: number;
+  /** Three-state stock summary: IN_STOCK (warehouse) / AVAILABLE_FROM_SUPPLIER
+   *  (warehouse=0, supplier>0) / OUT_OF_STOCK (both 0). Derived once per
+   *  request via getVariantAvailabilityBatch — no second source of truth. */
+  stockState: StockState;
   heroImageUrl: string | null;
 }
 
@@ -111,6 +116,7 @@ export class CatalogueService {
     const variantIds = variantRows.map((v) => v.id);
     const stockMap = await this.availableQtyMap(companyId, variantIds);
     const channelMap = await this.channelDecisionMap(variantIds, channelId);
+    const availabilityMap = await getVariantAvailabilityBatch(companyId, variantIds);
 
     const variantsByGroup = new Map<string, ThinVariant[]>();
     for (const v of variantRows) {
@@ -120,6 +126,7 @@ export class CatalogueService {
         priceGbp: v.minSellingPrice ?? null,
       };
       if (!decision.isOffered) continue;
+      const avail = availabilityMap.get(v.id);
       const arr = variantsByGroup.get(v.groupId) ?? [];
       arr.push({
         id: v.id,
@@ -128,6 +135,7 @@ export class CatalogueService {
         colourHex: v.colourHex,
         priceGbp: decision.priceGbp ?? v.minSellingPrice ?? null,
         availableQty: stockMap.get(v.id) ?? 0,
+        stockState: avail?.stockState ?? 'OUT_OF_STOCK',
         heroImageUrl: v.heroImageUrl,
       });
       variantsByGroup.set(v.groupId, arr);
@@ -193,14 +201,10 @@ export class CatalogueService {
       ),
       orderBy: (p, { asc }) => [asc(p.sortOrderInGroup), asc(p.name)],
     });
-    const stockMap = await this.availableQtyMap(
-      companyId,
-      variantRows.map((v) => v.id),
-    );
-    const channelMap = await this.channelDecisionMap(
-      variantRows.map((v) => v.id),
-      channelId,
-    );
+    const variantIds = variantRows.map((v) => v.id);
+    const stockMap = await this.availableQtyMap(companyId, variantIds);
+    const channelMap = await this.channelDecisionMap(variantIds, channelId);
+    const availabilityMap = await getVariantAvailabilityBatch(companyId, variantIds);
 
     const variants: FullVariant[] = variantRows
       .map((v) => {
@@ -219,6 +223,7 @@ export class CatalogueService {
         colourHex: v.colourHex,
         priceGbp: d.priceGbp ?? v.minSellingPrice ?? null,
         availableQty: stockMap.get(v.id) ?? 0,
+        stockState: availabilityMap.get(v.id)?.stockState ?? 'OUT_OF_STOCK',
         heroImageUrl: v.heroImageUrl,
         shortDescription: v.shortDescription,
         longDescription: v.longDescription,
@@ -280,6 +285,7 @@ export class CatalogueService {
     if (!p) return null;
     const stockMap = await this.availableQtyMap(companyId, [p.id]);
     const channelMap = await this.channelDecisionMap([p.id], channelId);
+    const availabilityMap = await getVariantAvailabilityBatch(companyId, [p.id]);
     const decision = channelMap.get(p.id) ?? {
       isOffered: true,
       priceGbp: p.minSellingPrice ?? null,
@@ -293,6 +299,7 @@ export class CatalogueService {
       colourHex: p.colourHex,
       priceGbp: decision.priceGbp ?? p.minSellingPrice ?? null,
       availableQty: stockMap.get(p.id) ?? 0,
+      stockState: availabilityMap.get(p.id)?.stockState ?? 'OUT_OF_STOCK',
       heroImageUrl: p.heroImageUrl,
       shortDescription: p.shortDescription,
       longDescription: p.longDescription,
@@ -320,14 +327,10 @@ export class CatalogueService {
       ),
     });
     if (rows.length === 0) return [];
-    const stockMap = await this.availableQtyMap(
-      companyId,
-      rows.map((r) => r.id),
-    );
-    const channelMap = await this.channelDecisionMap(
-      rows.map((r) => r.id),
-      channelId,
-    );
+    const ids2 = rows.map((r) => r.id);
+    const stockMap = await this.availableQtyMap(companyId, ids2);
+    const channelMap = await this.channelDecisionMap(ids2, channelId);
+    const availabilityMap = await getVariantAvailabilityBatch(companyId, ids2);
     return rows
       .map((p) => {
         const d = channelMap.get(p.id) ?? {
@@ -345,6 +348,7 @@ export class CatalogueService {
         colourHex: p.colourHex,
         priceGbp: d.priceGbp ?? p.minSellingPrice ?? null,
         availableQty: stockMap.get(p.id) ?? 0,
+        stockState: availabilityMap.get(p.id)?.stockState ?? 'OUT_OF_STOCK',
         heroImageUrl: p.heroImageUrl,
         shortDescription: p.shortDescription,
         longDescription: p.longDescription,

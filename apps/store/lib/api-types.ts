@@ -10,6 +10,8 @@
  * pin a representative subset of the shape so a divergence shows up.
  */
 
+export type StockState = 'IN_STOCK' | 'AVAILABLE_FROM_SUPPLIER' | 'OUT_OF_STOCK';
+
 export interface ThinVariant {
   id: string;
   slug: string | null;
@@ -18,6 +20,11 @@ export interface ThinVariant {
   /** Decimal string in major units (e.g. "24.00"). */
   priceGbp: string | null;
   availableQty: number;
+  /** Three-state availability: warehouse / supplier / out. Older API
+   *  responses without the field default to OUT_OF_STOCK at the
+   *  consumer side — use `availableQty > 0` as the back-compat
+   *  signal until every storefront read is on the new shape. */
+  stockState?: StockState;
   heroImageUrl: string | null;
 }
 

@@ -16,6 +16,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { FullVariant } from '@/lib/api-types';
 import { resolveInitialVariant } from '@/lib/variants';
+import { DISPATCH_COPY, effectiveStockState, isSellable } from '@/lib/dispatch-copy';
 import { AddToCartButton } from '@/components/add-to-cart-button';
 
 export interface SwatchPickerProps {
@@ -51,8 +52,11 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
     }
   };
 
-  const inStock = selected.availableQty > 0;
-  const lowStock = inStock && selected.availableQty <= 5;
+  const selectedState = effectiveStockState(selected);
+  const sellable = isSellable(selectedState);
+  const inStock = sellable; // back-compat for the AddToCartButton prop
+  const lowStock =
+    selectedState === 'IN_STOCK' && selected.availableQty > 0 && selected.availableQty <= 5;
 
   return (
     <div className="mt-6">
@@ -142,9 +146,16 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
             <div className="mt-3 flex flex-wrap gap-2">
               {variants.map((v) => {
                 const isSelected = v.id === selectedId;
-                const variantInStock = v.availableQty > 0;
+                const state = effectiveStockState(v);
+                const sellable = isSellable(state);
                 const colourLabel = v.colour ?? 'Default';
-                const stockLabel = variantInStock ? 'In stock' : 'Out of stock';
+                const stockLabel = DISPATCH_COPY[state].badgeLabel;
+                // Two greens, no amber: IN_STOCK and AVAILABLE_FROM_SUPPLIER
+                // both render the green token. Only OUT_OF_STOCK uses red.
+                const flagColour = sellable
+                  ? 'var(--brand-stock-in)'
+                  : 'var(--brand-stock-out)';
+                const flagDataTest = sellable ? 'stock-flag-in' : 'stock-flag-out';
                 return (
                   <button
                     key={v.id}
@@ -170,16 +181,12 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
                     <span>{colourLabel}</span>
                     <span
                       aria-hidden="true"
-                      data-test={variantInStock ? 'stock-flag-in' : 'stock-flag-out'}
+                      data-test={flagDataTest}
+                      data-stock-state={state}
                       className="border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]"
-                      style={{
-                        color: variantInStock ? 'var(--brand-stock-in)' : 'var(--brand-stock-out)',
-                        borderColor: variantInStock
-                          ? 'var(--brand-stock-in)'
-                          : 'var(--brand-stock-out)',
-                      }}
+                      style={{ color: flagColour, borderColor: flagColour }}
                     >
-                      {variantInStock ? 'In stock' : 'Out of stock'}
+                      {stockLabel}
                     </span>
                   </button>
                 );
@@ -189,19 +196,20 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
 
           <p
             className={`text-sm font-medium ${
-              !inStock
+              !sellable
                 ? 'text-[var(--brand-muted)]'
                 : lowStock
                   ? 'text-[var(--brand-accent)]'
                   : 'text-[var(--brand-ink)]'
             }`}
             aria-live="polite"
+            data-stock-state={selectedState}
           >
-            {inStock
+            {selectedState === 'IN_STOCK'
               ? lowStock
                 ? `Only ${selected.availableQty} left in ${selected.colour ?? 'this colour'}.`
-                : `In stock — ${selected.availableQty} available.`
-              : 'Out of stock — check back soon.'}
+                : DISPATCH_COPY.IN_STOCK.primary
+              : DISPATCH_COPY[selectedState].primary}
           </p>
 
           <AddToCartButton

@@ -13,16 +13,31 @@
  * sorted by `sortOrderInGroup` / colour name (which is what the API
  * does). The helper does not re-sort.
  */
+import { effectiveStockState } from './dispatch-copy';
+import type { StockState } from './api-types';
+
 export interface PickableVariant {
   id: string;
   colour: string | null;
   availableQty: number;
+  stockState?: StockState;
 }
 
+/**
+ * Default-variant preference, in order:
+ *   1. First variant with `stockState === 'IN_STOCK'` (warehouse-fulfilled,
+ *      ships within 1 day — shortest path to a buyable product).
+ *   2. First variant with `stockState === 'AVAILABLE_FROM_SUPPLIER'`
+ *      (drop-ship, 2 working days).
+ *   3. Alphabetical / input-order fallback when every variant is OOS.
+ */
 export function pickDefaultVariant<T extends PickableVariant>(variants: T[]): T | undefined {
   if (variants.length === 0) return undefined;
-  const firstInStock = variants.find((v) => v.availableQty > 0);
-  return firstInStock ?? variants[0];
+  const inStock = variants.find((v) => effectiveStockState(v) === 'IN_STOCK');
+  if (inStock) return inStock;
+  const supplier = variants.find((v) => effectiveStockState(v) === 'AVAILABLE_FROM_SUPPLIER');
+  if (supplier) return supplier;
+  return variants[0];
 }
 
 /**
