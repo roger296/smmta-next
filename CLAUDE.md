@@ -254,6 +254,28 @@ DATABASE_URL=... npx tsx apps/api/scripts/run-supplier-poll.ts
 # vs lastPolledAt and skips suppliers polled too recently.
 ```
 
+**Run the supplier-order placer manually:**
+
+```bash
+cd ~/smmta-next
+DATABASE_URL=... npx tsx apps/api/scripts/run-supplier-order-placer.ts
+# Picks up PENDING + retryable FAILED rows from supplier_orders, calls
+# the connector, applies exponential-backoff retry. In production it
+# runs continuously under smmta-supplier-order-placer.service (sleep 30s loop).
+```
+
+**Seed demo data for both stores:**
+
+```bash
+cd ~/smmta-next
+DATABASE_URL=... ENCRYPTION_KEY=... npm run seed:demo -w @smmta/api
+# Idempotent. Inserts the two storefront channels (filament-store +
+# clothes-shop), one demo Uneek supplier, and a small Clothes Shop
+# catalogue with size+colour variants and stub stock counts. Run after
+# `npm run seed:storefront -w @smmta/api` to also have Filament Store
+# data in place.
+```
+
 The home-page H1 assertion is regex `/filament/i` — survives copy tweaks but still proves the homepage rendered.
 
 ---
