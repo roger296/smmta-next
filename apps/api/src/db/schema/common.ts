@@ -90,6 +90,15 @@ export const supplierConnectorKindEnum = pgEnum('supplier_connector_kind', [
   'NONE', 'UNEEK', 'STUB',
 ]);
 
+/** Per-line fulfilment source, decided at checkout-start by the
+ *  reservation service. WAREHOUSE = the existing reserve-from-stock
+ *  flow. SUPPLIER = no warehouse reservation; a `supplier_orders` row
+ *  is inserted on payment confirmation and the placer worker calls
+ *  the supplier's order API. */
+export const fulfilmentSourceEnum = pgEnum('fulfilment_source', [
+  'WAREHOUSE', 'SUPPLIER',
+]);
+
 // ============================================================
 // Shared column helpers
 // ============================================================
