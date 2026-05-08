@@ -242,6 +242,17 @@ CATALOGUE_XLSX_PATH=./.tmp-catalogue.xlsx npm run seed:storefront -w @smmta/api
 npm run e2e -w @smmta/store
 ```
 
+**Trigger a supplier-poll manually (drop-shipping):**
+
+```bash
+cd ~/smmta-next
+DATABASE_URL=... npx tsx apps/api/scripts/run-supplier-poll.ts
+# Optional flags: --supplier-id <uuid> | --ignore-cadence
+# In production this script is fired by infra/systemd/smmta-supplier-poll.timer
+# every 3 hours; the worker checks each supplier's pollIntervalMinutes
+# vs lastPolledAt and skips suppliers polled too recently.
+```
+
 The home-page H1 assertion is regex `/filament/i` — survives copy tweaks but still proves the homepage rendered.
 
 ---

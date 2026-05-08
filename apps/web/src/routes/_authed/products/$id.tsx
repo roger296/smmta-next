@@ -9,6 +9,7 @@ import { ProductForm } from '@/features/products/product-form';
 import { ProductImagesTab, ProductStockTab } from '@/features/products/product-tabs';
 import { StorefrontTab } from '@/features/products/storefront-tab';
 import { ChannelsTab } from '@/features/channels/channels-tab';
+import { SupplierMappingsTab } from '@/features/suppliers-dropship/supplier-mappings-tab';
 import {
   useDeleteProduct,
   useProduct,
@@ -75,6 +76,7 @@ function ProductDetailPage() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="storefront">Storefront</TabsTrigger>
           <TabsTrigger value="channels">Channels</TabsTrigger>
+          <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
           <TabsTrigger value="images">Images</TabsTrigger>
           <TabsTrigger value="stock">Stock</TabsTrigger>
         </TabsList>
@@ -126,6 +128,9 @@ function ProductDetailPage() {
         </TabsContent>
         <TabsContent value="channels">
           <ChannelsTab productId={data.id} basePriceGbp={data.minSellingPrice ?? null} />
+        </TabsContent>
+        <TabsContent value="suppliers">
+          <SupplierMappingsTab productId={data.id} />
         </TabsContent>
         <TabsContent value="images">
           <ProductImagesTab productId={data.id} />
