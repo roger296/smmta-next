@@ -1,0 +1,50 @@
+{
+  "name": "@smmta/store-clothes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 5000",
+    "build": "next build",
+    "start": "next start -p 5000",
+    "lint:ts": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "typecheck:e2e": "tsc -p tsconfig.e2e.json",
+    "gen:api-types": "openapi-typescript http://localhost:8080/docs/json -o lib/openapi-spec.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install --with-deps chromium",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.0",
+    "@tanstack/react-query": "^5.59.0",
+    "drizzle-orm": "^0.41.0",
+    "next": "^15.5.0",
+    "pg": "^8.14.0",
+    "pino": "^9.14.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-markdown": "^9.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitest/coverage-v8": "^3.2.0",
+    "drizzle-kit": "^0.31.0",
+    "openapi-typescript": "^7.13.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}
