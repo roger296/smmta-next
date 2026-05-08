@@ -46,6 +46,13 @@ smmta-next sits alongside other small-business apps designed to share data and p
 
 Future ecosystem integrations are expected to follow the same shape: an outbound client in `apps/api/src/integrations/<vendor>/`, a per-vendor audit table for idempotency / retry, and account/tax mappers per company. **When adding a new external integration, mirror the Luca pattern** — the existing code is the de facto reference architecture.
 
+### Suppliers / Drop-shipping
+
+- Schema lives on the existing `suppliers` table (extended with `slug`, `connectorKind`, `apiBaseUrl`, `apiKeyEnc`, `apiAuthScheme`, `isDropshipActive`, `pollIntervalMinutes`, dispatch SLA, `lastError`, `consecutiveFailures`, `showSupplierNameToCustomers`) plus three new tables: `supplier_products` (per-product mapping with cached stock+price snapshot), `supplier_orders` (audit + idempotency for outbound order placements), `supplier_poll_log` (worker observability).
+- The `SupplierConnector` interface is at `apps/api/src/integrations/suppliers/types.ts`. Each supplier vendor is a separate class implementing the interface (`UneekConnector` is the first). `connectorKind` on the row picks which class the registry instantiates.
+- API keys are encrypted at rest via AES-256-GCM (`apps/api/src/shared/crypto/encrypt.ts`). Key is derived from `ENCRYPTION_KEY` env, falling back to `JWT_SECRET` if unset. Format: `<iv-hex>:<authTag-hex>:<ciphertext-hex>`. Decrypt happens at the service boundary so connectors only ever see plaintext.
+- To add a new supplier connector: extend `supplier_connector_kind` enum, add a `<vendor>.connector.ts` file implementing `SupplierConnector`, wire the new case in `registry.ts`'s switch.
+
 ---
 
 ## What's in this repo

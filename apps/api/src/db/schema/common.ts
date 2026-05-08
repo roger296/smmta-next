@@ -75,6 +75,21 @@ export const glPostingStatusEnum = pgEnum('gl_posting_status', [
   'PENDING', 'SUCCESS', 'FAILED', 'RETRYING',
 ]);
 
+/**
+ * Drop-shipping supplier-order lifecycle. PENDING → PLACED on a successful
+ * outbound API call; ACKNOWLEDGED when the supplier confirms; SHIPPED /
+ * DELIVERED for tracking; CANCELLED if we abort; FAILED after retry budget
+ * is exhausted.
+ */
+export const supplierOrderStatusEnum = pgEnum('supplier_order_status', [
+  'PENDING', 'PLACED', 'ACKNOWLEDGED', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'FAILED',
+]);
+
+/** Discriminator for the connector module a supplier uses. */
+export const supplierConnectorKindEnum = pgEnum('supplier_connector_kind', [
+  'NONE', 'UNEEK', 'STUB',
+]);
+
 // ============================================================
 // Shared column helpers
 // ============================================================

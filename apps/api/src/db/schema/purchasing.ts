@@ -1,6 +1,6 @@
 import {
   pgTable, varchar, decimal, boolean, integer, text, uuid,
-  doublePrecision, date as pgDate,
+  doublePrecision, date as pgDate, timestamp, jsonb, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import {
@@ -8,6 +8,7 @@ import {
   vatTreatmentEnum, poDeliveryStatusEnum, poInvoiceStatusEnum,
   grnStatusEnum, supplierInvoiceStatusEnum, creditNoteStatusEnum,
   supplierAddressTypeEnum,
+  supplierOrderStatusEnum, supplierConnectorKindEnum,
 } from './common.js';
 import { products } from './products.js';
 import { warehouses } from './reference.js';
@@ -20,6 +21,10 @@ export const suppliers = pgTable('suppliers', {
   id: pk(),
   companyId: companyId(),
   name: varchar('name', { length: 200 }).notNull(),
+  /** Stable URL-safe identifier, used by the drop-ship connector registry
+   *  to look up which connector class to instantiate. Optional for
+   *  pre-existing PO suppliers that don't drop-ship. */
+  slug: varchar('slug', { length: 100 }),
   type: varchar('type', { length: 100 }),
   email: varchar('email', { length: 200 }),
   accountsEmail: varchar('accounts_email', { length: 200 }),
@@ -33,8 +38,123 @@ export const suppliers = pgTable('suppliers', {
   countryCode: varchar('country_code', { length: 3 }),
   leadTimeDays: integer('lead_time_days'),
   defaultExpenseAccountCode: varchar('default_expense_account_code', { length: 10 }),
+  // ── Drop-ship integration ─────────────────────────────────────────
+  /** Picks the connector class. NONE = no drop-ship integration (the
+   *  existing PO-only suppliers). UNEEK = the Uneek Clothing API. STUB =
+   *  in-test fixture. Add new connector kinds via this enum + registry. */
+  connectorKind: supplierConnectorKindEnum('connector_kind').notNull().default('NONE'),
+  apiBaseUrl: text('api_base_url'),
+  /** AES-256-GCM ciphertext, formatted `<iv-hex>:<authTag-hex>:<ciphertext-hex>`.
+   *  Decrypted at the service boundary; connectors only ever see plaintext. */
+  apiKeyEnc: text('api_key_enc'),
+  apiAuthScheme: varchar('api_auth_scheme', { length: 20 }).notNull().default('bearer'),
+  isDropshipActive: boolean('is_dropship_active').notNull().default(false),
+  pollIntervalMinutes: integer('poll_interval_minutes').notNull().default(180),
+  dispatchSlaMinDays: integer('dispatch_sla_min_days').notNull().default(2),
+  dispatchSlaMaxDays: integer('dispatch_sla_max_days').notNull().default(5),
+  /** Surfaces in the admin SPA's supplier list when the most recent poll
+   *  errored. Cleared on the next successful poll. */
+  lastError: text('last_error'),
+  /** Counts whole-supplier failures so the worker can self-disable a
+   *  supplier after N consecutive failures (set isDropshipActive=false). */
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  /** When true, customer-facing emails name the supplier ("ships from
+   *  Uneek Clothing"). Default false — the customer-facing copy reads
+   *  "ships from our supplier partner". */
+  showSupplierNameToCustomers: boolean('show_supplier_name_to_customers')
+    .notNull()
+    .default(false),
   oldId: oldId(),
   ...auditTimestamps,
+}, (t) => ({
+  suppliersSlugUnq: uniqueIndex('suppliers_slug_unq').on(t.slug),
+}));
+
+// ============================================================
+// Drop-ship: per-product supplier mapping
+// ------------------------------------------------------------
+// One row per (productId, supplierId) pair. Carries the supplier's
+// SKU + cost price + the cached stock/price snapshot the polling
+// worker writes on every run. See `apps/api/src/workers/supplier-poll.worker.ts`.
+// ============================================================
+
+export const supplierProducts = pgTable('supplier_products', {
+  id: pk(),
+  companyId: companyId(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  supplierId: uuid('supplier_id').notNull().references(() => suppliers.id, { onDelete: 'restrict' }),
+  supplierSku: varchar('supplier_sku', { length: 200 }).notNull(),
+  /** Manually-entered cost price, used as a fallback when the polling
+   *  worker hasn't updated `lastKnownPrice` yet. */
+  costGbp: decimal('cost_gbp', { precision: 12, scale: 2 }).notNull(),
+  /** Most recent stock count from the supplier. NULL = never polled or
+   *  the supplier didn't return this SKU. */
+  lastKnownStock: integer('last_known_stock'),
+  /** Most recent cost price returned by the supplier. NULL = price not
+   *  returned. Updated alongside lastKnownStock on every poll. */
+  lastKnownPrice: decimal('last_known_price', { precision: 12, scale: 2 }),
+  lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
+  lastPollError: text('last_poll_error'),
+  isActive: boolean('is_active').notNull().default(true),
+  /** Lower number wins when multiple suppliers carry the same SKU. */
+  priority: integer('priority').notNull().default(100),
+  ...auditTimestamps,
+}, (t) => ({
+  supplierProductsProductSupplierUnq: uniqueIndex('supplier_products_product_supplier_unq')
+    .on(t.productId, t.supplierId),
+}));
+
+// ============================================================
+// Drop-ship: outbound supplier orders (audit + idempotency)
+// ------------------------------------------------------------
+// Mirrors the gl_posting_log shape: every outbound call to a
+// supplier's order API gets one row, identified by an idempotency
+// key that lets us safely retry without double-placing.
+// ============================================================
+
+export const supplierOrders = pgTable('supplier_orders', {
+  id: pk(),
+  companyId: companyId(),
+  /** The customer order this drop-ship line came from. Link is loose —
+   *  we don't enforce the FK to keep this table independent of the
+   *  customer-orders module's lifecycle. */
+  customerOrderId: uuid('customer_order_id').notNull(),
+  supplierId: uuid('supplier_id').notNull().references(() => suppliers.id),
+  /** Deterministic per `(customerOrderId, supplierId, lineId)` —
+   *  see §D's `pickSupplierForProduct`. Replays of the same payment
+   *  webhook never produce duplicate supplier orders. */
+  idempotencyKey: varchar('idempotency_key', { length: 200 }).notNull().unique(),
+  requestPayload: jsonb('request_payload'),
+  supplierOrderRef: varchar('supplier_order_ref', { length: 200 }),
+  status: supplierOrderStatusEnum('status').notNull().default('PENDING'),
+  responsePayload: jsonb('response_payload'),
+  errorMessage: text('error_message'),
+  retryCount: integer('retry_count').notNull().default(0),
+  /** Set by the placer worker on a transient failure — the worker
+   *  skips rows whose nextRetryAt is in the future. */
+  nextRetryAt: timestamp('next_retry_at', { withTimezone: true }),
+  shippedAt: timestamp('shipped_at', { withTimezone: true }),
+  trackingCarrier: varchar('tracking_carrier', { length: 100 }),
+  trackingNumber: varchar('tracking_number', { length: 200 }),
+  ...auditTimestamps,
+});
+
+// ============================================================
+// Drop-ship: polling worker observability
+// ------------------------------------------------------------
+// One row per polling-worker run per supplier. The admin SPA reads
+// this table to render success-rate / last-poll info.
+// ============================================================
+
+export const supplierPollLog = pgTable('supplier_poll_log', {
+  id: pk(),
+  companyId: companyId(),
+  supplierId: uuid('supplier_id').notNull().references(() => suppliers.id),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  productsChecked: integer('products_checked').notNull().default(0),
+  productsUpdated: integer('products_updated').notNull().default(0),
+  errorMessage: text('error_message'),
 });
 
 // ============================================================
@@ -232,6 +352,22 @@ export const suppliersRelations = relations(suppliers, ({ many }) => ({
   purchaseOrders: many(purchaseOrders),
   invoices: many(supplierInvoices),
   notes: many(supplierNotes),
+  productMappings: many(supplierProducts),
+  dropshipOrders: many(supplierOrders),
+  pollLog: many(supplierPollLog),
+}));
+
+export const supplierProductsRelations = relations(supplierProducts, ({ one }) => ({
+  product: one(products, { fields: [supplierProducts.productId], references: [products.id] }),
+  supplier: one(suppliers, { fields: [supplierProducts.supplierId], references: [suppliers.id] }),
+}));
+
+export const supplierOrdersRelations = relations(supplierOrders, ({ one }) => ({
+  supplier: one(suppliers, { fields: [supplierOrders.supplierId], references: [suppliers.id] }),
+}));
+
+export const supplierPollLogRelations = relations(supplierPollLog, ({ one }) => ({
+  supplier: one(suppliers, { fields: [supplierPollLog.supplierId], references: [suppliers.id] }),
 }));
 
 export const supplierContactsRelations = relations(supplierContacts, ({ one }) => ({
