@@ -11,6 +11,7 @@ import {
   SupplierAddressesTab,
   SupplierNotesTab,
 } from '@/features/suppliers/supplier-tabs';
+import { DropshipTab } from '@/features/suppliers-dropship/dropship-tab';
 import {
   useSupplier,
   useUpdateSupplier,
@@ -87,6 +88,7 @@ function SupplierDetailPage() {
           <TabsTrigger value="notes">
             Notes {supplier.notes ? `(${supplier.notes.length})` : ''}
           </TabsTrigger>
+          <TabsTrigger value="dropship">Drop-ship</TabsTrigger>
         </TabsList>
         <TabsContent value="general">
           <Card>
@@ -135,6 +137,9 @@ function SupplierDetailPage() {
         </TabsContent>
         <TabsContent value="notes">
           <SupplierNotesTab supplier={supplier} />
+        </TabsContent>
+        <TabsContent value="dropship">
+          <DropshipTab supplierId={supplier.id} />
         </TabsContent>
       </Tabs>
 

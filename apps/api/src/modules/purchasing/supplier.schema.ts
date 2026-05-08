@@ -27,6 +27,50 @@ export const createSupplierSchema = z.object({
 
 export const updateSupplierSchema = createSupplierSchema.partial();
 
+// ============================================================
+// Drop-shipping fields — patched in via the same endpoints
+// ------------------------------------------------------------
+// Validation rules for the integration columns added to `suppliers`
+// in §A. Treated as optional patches: an empty object is a no-op.
+// `apiKeyPlaintext` is what the SPA submits; the route handler
+// encrypts it before persisting. A blank/missing value means
+// "leave the existing key untouched" (the SPA never displays the
+// stored key).
+// ============================================================
+
+export const dropshipSupplierSchema = z.object({
+  slug: z.string().min(1).max(100).optional(),
+  connectorKind: z.enum(['NONE', 'UNEEK', 'STUB']).optional(),
+  apiBaseUrl: z.string().url().max(500).nullable().optional(),
+  apiKeyPlaintext: z.string().min(1).max(1000).optional(),
+  apiAuthScheme: z.string().max(20).optional(),
+  isDropshipActive: z.boolean().optional(),
+  pollIntervalMinutes: z.coerce.number().int().min(5).max(60 * 24).optional(),
+  dispatchSlaMinDays: z.coerce.number().int().min(0).max(365).optional(),
+  dispatchSlaMaxDays: z.coerce.number().int().min(0).max(365).optional(),
+  showSupplierNameToCustomers: z.boolean().optional(),
+});
+
+export type DropshipSupplierInput = z.infer<typeof dropshipSupplierSchema>;
+
+export const testConnectionSchema = z.object({
+  supplierSku: z.string().min(1).max(200),
+});
+
+export const upsertSupplierMappingsSchema = z.object({
+  mappings: z
+    .array(
+      z.object({
+        supplierId: z.string().uuid(),
+        supplierSku: z.string().min(1).max(200),
+        costGbp: z.string().regex(/^\d+(\.\d{1,2})?$/, 'costGbp must be a decimal string'),
+        priority: z.coerce.number().int().min(0).max(10_000).default(100),
+        isActive: z.boolean().default(true),
+      }),
+    )
+    .max(50),
+});
+
 export const supplierQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
   type: z.string().optional(),

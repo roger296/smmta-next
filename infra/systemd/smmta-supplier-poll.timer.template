@@ -1,0 +1,16 @@
+# Fires the supplier-poll service eight times a day. Inside each fire,
+# the worker checks each supplier's `pollIntervalMinutes` against
+# `last_polled_at` and skips suppliers polled too recently — so a
+# supplier with a 12-hour cadence still only polls twice a day even
+# though the timer fires eight times.
+
+[Unit]
+Description=Run smmta-supplier-poll every three hours
+
+[Timer]
+OnCalendar=*-*-* 00,03,06,09,12,15,18,21:00
+Persistent=true
+Unit=smmta-supplier-poll.service
+
+[Install]
+WantedBy=timers.target
