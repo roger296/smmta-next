@@ -18,6 +18,7 @@ import { apiKeyAdminRoutes } from './modules/admin/api-keys.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { channelRoutes } from './modules/channels/channel.routes.js';
 import { dropshipSupplierRoutes } from './modules/suppliers/supplier-dropship.routes.js';
+import { supplierOrdersRoutes } from './modules/suppliers/supplier-orders.routes.js';
 import {
   storefrontReadRoutes,
   storefrontWriteRoutes,
@@ -92,6 +93,9 @@ export async function buildApp() {
 
   // Drop-ship suppliers: list/edit, test connection, poll-now, per-product mapping.
   await app.register(dropshipSupplierRoutes, { prefix: '/api/v1' });
+
+  // Drop-ship: supplier-orders dashboard (admin: retry / cancel / mark-shipped).
+  await app.register(supplierOrdersRoutes, { prefix: '/api/v1' });
 
   // Per-request requestId hook for storefront routes — binds an
   // X-Request-Id off the inbound headers (or mints one) and mirrors

@@ -14,7 +14,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "seed:storefront": "tsx scripts/seed-storefront.ts"
+    "seed:storefront": "tsx scripts/seed-storefront.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",
