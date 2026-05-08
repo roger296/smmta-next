@@ -1,0 +1,37 @@
+# Systemd unit for the Clothes Shop storefront. Mirrors smmta-store
+# (Filament Store) — different port (5000), different env file path.
+#
+# Tokens replaced by infra/install.sh:
+#   __SMMTA_USER__, __SMMTA_HOME__, __SMMTA_NODE_BIN__
+
+[Unit]
+Description=Clothes Shop storefront (Next.js standalone)
+Documentation=https://github.com/roger296/smmta-next
+After=network-online.target smmta-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__SMMTA_USER__
+Group=__SMMTA_USER__
+WorkingDirectory=__SMMTA_HOME__/smmta-next/apps/store-clothes
+EnvironmentFile=__SMMTA_HOME__/smmta-next/apps/store-clothes/.env
+Environment=PATH=__SMMTA_HOME__/.nvm/versions/node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=production
+Environment=PORT=5000
+
+ExecStart=__SMMTA_NODE_BIN__ .next/standalone/apps/store-clothes/server.js
+
+Restart=on-failure
+RestartSec=5s
+
+NoNewPrivileges=true
+PrivateTmp=true
+LimitNOFILE=65536
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smmta-clothes-store
+
+[Install]
+WantedBy=multi-user.target

@@ -35,6 +35,10 @@ export interface ThinVariant {
    *  (warehouse=0, supplier>0) / OUT_OF_STOCK (both 0). Derived once per
    *  request via getVariantAvailabilityBatch — no second source of truth. */
   stockState: StockState;
+  /** Multi-axis attributes, e.g. `{ size: 'M', colour: 'Red' }`. Null
+   *  for legacy variants where the column was never set; clients should
+   *  fall back to `colour` for the Filament Store. */
+  attributes: Record<string, string> | null;
   heroImageUrl: string | null;
 }
 
@@ -48,6 +52,11 @@ export interface GroupListItem {
   seoTitle: string | null;
   seoDescription: string | null;
   sortOrder: number;
+  /** Which attribute axes the group's variants vary along. Empty array
+   *  for the Filament Store (single-axis colour); `['size', 'colour']`
+   *  for the Clothes Shop. The storefront uses this to know which
+   *  selectors to render on the PDP. */
+  attributeAxes: string[];
   /** Inclusive price range across published variants, or null if no variants. */
   priceRange: { min: string; max: string } | null;
   totalAvailableQty: number;
@@ -136,6 +145,7 @@ export class CatalogueService {
         priceGbp: decision.priceGbp ?? v.minSellingPrice ?? null,
         availableQty: stockMap.get(v.id) ?? 0,
         stockState: avail?.stockState ?? 'OUT_OF_STOCK',
+        attributes: v.attributes ?? null,
         heroImageUrl: v.heroImageUrl,
       });
       variantsByGroup.set(v.groupId, arr);
@@ -168,6 +178,7 @@ export class CatalogueService {
           seoTitle: g.seoTitle,
           seoDescription: g.seoDescription,
           sortOrder: g.sortOrder,
+          attributeAxes: g.attributeAxes ?? [],
           priceRange,
           totalAvailableQty: variants.reduce((s, v) => s + v.availableQty, 0),
           variants,
@@ -224,6 +235,7 @@ export class CatalogueService {
         priceGbp: d.priceGbp ?? v.minSellingPrice ?? null,
         availableQty: stockMap.get(v.id) ?? 0,
         stockState: availabilityMap.get(v.id)?.stockState ?? 'OUT_OF_STOCK',
+        attributes: v.attributes ?? null,
         heroImageUrl: v.heroImageUrl,
         shortDescription: v.shortDescription,
         longDescription: v.longDescription,
@@ -263,6 +275,7 @@ export class CatalogueService {
       seoDescription: group.seoDescription,
       seoKeywords: group.seoKeywords ?? null,
       sortOrder: group.sortOrder,
+      attributeAxes: group.attributeAxes ?? [],
       priceRange,
       totalAvailableQty: variants.reduce((s, v) => s + v.availableQty, 0),
       variants,
@@ -300,6 +313,7 @@ export class CatalogueService {
       priceGbp: decision.priceGbp ?? p.minSellingPrice ?? null,
       availableQty: stockMap.get(p.id) ?? 0,
       stockState: availabilityMap.get(p.id)?.stockState ?? 'OUT_OF_STOCK',
+      attributes: p.attributes ?? null,
       heroImageUrl: p.heroImageUrl,
       shortDescription: p.shortDescription,
       longDescription: p.longDescription,
@@ -349,6 +363,7 @@ export class CatalogueService {
         priceGbp: d.priceGbp ?? p.minSellingPrice ?? null,
         availableQty: stockMap.get(p.id) ?? 0,
         stockState: availabilityMap.get(p.id)?.stockState ?? 'OUT_OF_STOCK',
+        attributes: p.attributes ?? null,
         heroImageUrl: p.heroImageUrl,
         shortDescription: p.shortDescription,
         longDescription: p.longDescription,

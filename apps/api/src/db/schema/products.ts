@@ -62,6 +62,12 @@ export const products = pgTable(
     seoKeywords: jsonb('seo_keywords').$type<string[]>(),
     isPublished: boolean('is_published').notNull().default(false),
     sortOrderInGroup: integer('sort_order_in_group').notNull().default(0),
+    /** Free-form per-vertical attributes. Filament Store uses
+     *  `{ colour }`; Clothes Shop uses `{ size, colour }`. The
+     *  storefront variant-selector reads `productGroups.attributeAxes`
+     *  to know which axes to render and resolves the matching product
+     *  by exact-match against this object. */
+    attributes: jsonb('attributes').$type<Record<string, string>>(),
     // ------------------------------------------------------------------
     oldId: oldId(),
     ...auditTimestamps,
@@ -119,6 +125,10 @@ export const productGroups = pgTable(
     seoKeywords: jsonb('seo_keywords').$type<string[]>(),
     isPublished: boolean('is_published').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
+    /** Which attribute keys this group's variants vary along. Filament
+     *  uses `['colour']`; Clothes Shop uses `['size', 'colour']`. The
+     *  storefront variant-selector renders one selector per axis. */
+    attributeAxes: text('attribute_axes').array(),
     // ------------------------------------------------------------------
     oldId: oldId(),
     ...auditTimestamps,

@@ -62,9 +62,10 @@ A Turborepo monorepo with three deployable apps and one shared package:
 1. **SMMTA-NEXT** — the core platform.
    - `apps/api` — Fastify + Drizzle + Postgres back end. The thing every other module talks to.
    - `apps/web` — Vite/React admin SPA. Product / group / order / refund / customer management for company operators.
-2. **Filament Store** (`apps/store`) — the reference customer-facing storefront, currently running at **filament.shop.cleverdeals.net**, selling 3D printer filament. This is one tenant's deployment of the storefront module; the same module is intended to be re-skinned for other tenants over time.
+2. **Filament Store** (`apps/store`) — the reference customer-facing storefront, currently running at **filament.shop.cleverdeals.net**, selling 3D printer filament. This is one tenant's deployment of the storefront module; the same module is intended to be re-skinned for other tenants over time. Single-axis variants (`colour`) only.
+3. **Clothes Shop** (`apps/store-clothes`) — second storefront, friendly/colourful palette (warm cream + cheerful pink, Fraunces serif headings), drop-ship-sourced clothing. Same back end + admin SPA + data model. **Multi-axis variants** (`{ size, colour }`) via the `products.attributes` JSONB column and `productGroups.attribute_axes` array. Runs on port 5000 in production at `clothes.shop.cleverdeals.net`. nginx + systemd templates at `infra/{nginx,systemd}/clothes-store.*.template` / `smmta-clothes-store.service.template`. Bootstrap channel + api-key with `npx tsx apps/api/scripts/bootstrap-clothes-shop.ts`.
 
-**Filament Store specifics** (the one tenant currently in production): a sub-brand of CleverDeals.net, selling PLA / PETG / ABS / ASA / TPU spools (LANDU / Polymaker / Prusament etc.), 1.75mm × 1kg vacuum-sealed, customers are makers / engineers / hobbyists. **Despite older seed data still mentioning lamps / lighting in some test fixtures, the actual product is 3D printer filament.** Tenant-specific copy and assets live under `apps/store/` only.
+**Filament Store specifics** (the first tenant): a sub-brand of CleverDeals.net, selling PLA / PETG / ABS / ASA / TPU spools (LANDU / Polymaker / Prusament etc.), 1.75mm × 1kg vacuum-sealed, customers are makers / engineers / hobbyists. **Despite older seed data still mentioning lamps / lighting in some test fixtures, the actual product is 3D printer filament.** Tenant-specific copy and assets live under `apps/store/` only.
 
 The repo lives at https://github.com/roger296/smmta-next. Roger is the project owner.
 
