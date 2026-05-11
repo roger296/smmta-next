@@ -31,6 +31,14 @@
  *                       this string (case-insensitive). Useful for a
  *                       phased import where you import jackets first
  *                       and verify before importing everything else.
+ *   --channel=<slug>    Pin every imported product to this channel via
+ *                       `product_channels` (is_offered=true). Without
+ *                       this flag, imported products fall under the
+ *                       back-compat "no rows = available everywhere"
+ *                       rule and leak onto every storefront. Pass
+ *                       `--channel=clothes-shop` on a multi-store
+ *                       deploy to scope Uneek imports to the clothes
+ *                       storefront only.
  *   --limit=<n>         Process at most `n` Uneek rows (after the
  *                       category filter). Useful for first-run smoke
  *                       tests.
@@ -66,6 +74,8 @@ import 'dotenv/config';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../src/config/database.js';
 import {
+  channels,
+  productChannels,
   productGroups,
   products,
   suppliers,
@@ -86,6 +96,7 @@ interface CliOpts {
   limit: number | null;
   dryRun: boolean;
   publish: boolean;
+  channelSlug: string | null;
 }
 
 function parseArgs(argv: string[]): CliOpts {
@@ -94,6 +105,7 @@ function parseArgs(argv: string[]): CliOpts {
   let limit: number | null = null;
   let dryRun = false;
   let publish = false;
+  let channelSlug: string | null = null;
   for (const arg of argv) {
     if (arg === '--help' || arg === '-h') {
       printUsageAndExit(0);
@@ -101,6 +113,8 @@ function parseArgs(argv: string[]): CliOpts {
       supplierSlug = arg.slice('--supplier='.length).trim();
     } else if (arg.startsWith('--category=')) {
       category = arg.slice('--category='.length).trim();
+    } else if (arg.startsWith('--channel=')) {
+      channelSlug = arg.slice('--channel='.length).trim();
     } else if (arg.startsWith('--limit=')) {
       const n = Number(arg.slice('--limit='.length));
       if (!Number.isFinite(n) || n <= 0) {
@@ -121,7 +135,7 @@ function parseArgs(argv: string[]): CliOpts {
     console.error('--supplier=<slug> is required');
     printUsageAndExit(2);
   }
-  return { supplierSlug, category, limit, dryRun, publish };
+  return { supplierSlug, category, limit, dryRun, publish, channelSlug };
 }
 
 function printUsageAndExit(code: number): never {
@@ -132,6 +146,13 @@ Usage:
 Flags:
   --supplier=<slug>   (required) suppliers.slug to import for; must be UNEEK kind
   --category=<name>   filter Uneek rows by Category (case-insensitive)
+  --channel=<slug>    pin every imported product to this channel via
+                      product_channels (is_offered=true). The product
+                      then only appears on storefronts using this
+                      channel, instead of leaking onto every storefront
+                      via the back-compat "no rows = available
+                      everywhere" rule. Use this when running a
+                      multi-store deploy.
   --limit=<n>         cap row count (after category filter)
   --dry-run           print plan, write nothing
   --publish           mark new products/groups as published (default: false)
@@ -264,6 +285,8 @@ export interface ImportSummary {
   productsUpdated: number;
   supplierProductsCreated: number;
   supplierProductsUpdated: number;
+  productChannelsCreated: number;
+  productChannelsUpdated: number;
   dryRun: boolean;
 }
 
@@ -278,6 +301,9 @@ interface ImportInput {
   supplierId: string;
   /** Singleton company id for the `companyId` column on each table. */
   companyId: string;
+  /** Channel UUID to pin every imported product to (via product_channels
+   *  with is_offered=true). Pass null to skip channel pinning entirely. */
+  channelId: string | null;
   /** CLI options. */
   category: string | null;
   limit: number | null;
@@ -299,6 +325,8 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
     productsUpdated: 0,
     supplierProductsCreated: 0,
     supplierProductsUpdated: 0,
+    productChannelsCreated: 0,
+    productChannelsUpdated: 0,
     dryRun: input.dryRun,
   };
 
@@ -618,6 +646,49 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
       }
     }
 
+    // 4. product_channels mapping (only when --channel was passed)
+    //
+    // Pinning each variant to a specific channel via is_offered=true
+    // makes the catalogue service hide these products from every OTHER
+    // storefront. Without this, the back-compat "no rows = available
+    // everywhere" rule causes leakage (Uneek clothing showing up on
+    // a Filament Store catalogue, etc).
+    //
+    // Unique key is (product_id, channel_id); we upsert.
+    if (input.channelId && variantProductIds.length > 0) {
+      const existingPC = await tx
+        .select({ id: productChannels.id, productId: productChannels.productId })
+        .from(productChannels)
+        .where(
+          and(
+            eq(productChannels.channelId, input.channelId),
+            inArray(productChannels.productId, variantProductIds),
+          ),
+        );
+      const productIdToPCId = new Map<string, string>();
+      for (const pc of existingPC) productIdToPCId.set(pc.productId, pc.id);
+
+      for (const productId of variantProductIds) {
+        const existingPcId = productIdToPCId.get(productId);
+        if (existingPcId) {
+          await tx
+            .update(productChannels)
+            .set({ isOffered: true, updatedAt: new Date() })
+            .where(eq(productChannels.id, existingPcId));
+          summary.productChannelsUpdated++;
+        } else {
+          await tx
+            .insert(productChannels)
+            .values({
+              productId,
+              channelId: input.channelId,
+              isOffered: true,
+            });
+          summary.productChannelsCreated++;
+        }
+      }
+    }
+
     return summary;
   });
 }
@@ -646,6 +717,23 @@ async function main(): Promise<void> {
     );
   }
 
+  // If --channel was passed, resolve it to a channel id up-front. We
+  // do this before fetching the catalogue so the operator sees the
+  // "channel not found" error fast.
+  let channelId: string | null = null;
+  if (opts.channelSlug) {
+    const channel = await db.query.channels.findFirst({
+      where: and(eq(channels.slug, opts.channelSlug), isNull(channels.deletedAt)),
+    });
+    if (!channel) {
+      throw new Error(
+        `No channel found with slug=${opts.channelSlug}. Check 'SELECT slug FROM channels' or create the channel first.`,
+      );
+    }
+    channelId = channel.id;
+    console.log(`[import:uneek] pinning imported products to channel '${opts.channelSlug}' (${channelId}).`);
+  }
+
   const apiKey = decrypt(supplier.apiKeyEnc);
   const connector = new UneekConnector({
     apiKey,
@@ -662,6 +750,7 @@ async function main(): Promise<void> {
     rows,
     supplierId: supplier.id,
     companyId,
+    channelId,
     category: opts.category,
     limit: opts.limit,
     dryRun: opts.dryRun,
@@ -679,6 +768,9 @@ async function main(): Promise<void> {
     console.log(`  groups   created / updated  : ${summary.groupsCreated} / ${summary.groupsUpdated}`);
     console.log(`  products created / updated  : ${summary.productsCreated} / ${summary.productsUpdated}`);
     console.log(`  supplier_products c / u     : ${summary.supplierProductsCreated} / ${summary.supplierProductsUpdated}`);
+    if (opts.channelSlug) {
+      console.log(`  product_channels c / u      : ${summary.productChannelsCreated} / ${summary.productChannelsUpdated}`);
+    }
   }
   console.log(summary.dryRun ? '\n[import:uneek] dry-run complete.' : '\n[import:uneek] OK.');
 }
