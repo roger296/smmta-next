@@ -172,7 +172,7 @@ export default async function StandaloneProductPage({
         <div className="flex flex-col gap-6">
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
-              Landau · 1.75mm · 1kg
+              Friendly fit · Real sizes
             </p>
             <h1
               className="text-3xl font-bold tracking-tight md:text-4xl"
@@ -192,7 +192,7 @@ export default async function StandaloneProductPage({
               {product.priceGbp ? `£${product.priceGbp}` : 'Price on request'}
             </p>
             <p className="text-xs uppercase tracking-wider text-[var(--brand-muted)]">
-              per spool · ex VAT
+              inc VAT
             </p>
           </div>
 

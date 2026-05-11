@@ -88,7 +88,7 @@ export default async function HomePage() {
             href="/faq"
             className="inline-block border border-[var(--brand-border)] px-7 py-4 text-sm font-semibold uppercase tracking-wider transition-colors hover:border-[var(--brand-ink)]"
           >
-            Print specs &amp; FAQ
+            Sizing &amp; FAQ
           </Link>
         </div>
       </section>
