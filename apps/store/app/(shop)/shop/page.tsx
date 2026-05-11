@@ -1,8 +1,13 @@
 /**
- * Catalogue (`/shop`). RSC, revalidate 60s.
+ * Catalogue (`/shop`). RSC, request-time render.
  *
  * Pre-computes catalogue-wide price extents and the unique colour list,
  * then hands the rest off to the client filter island.
+ *
+ * `force-dynamic` instead of ISR: catalogue / channel / stock data
+ * changes need to surface immediately. The underlying API already has
+ * its own cache headers; we trade a little per-request latency for
+ * always-fresh storefronts.
  */
 import type { Metadata } from 'next';
 import { listGroups } from '@/lib/smmta';
@@ -10,7 +15,7 @@ import { getEnv } from '@/lib/env';
 import { breadcrumbLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { CatalogueGrid } from '../_components/catalogue-grid';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Shop',

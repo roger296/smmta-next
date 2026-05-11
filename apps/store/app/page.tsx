@@ -14,7 +14,9 @@ import { listGroups } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
 import { priceFromString, stringifyJsonLd, websiteLd } from '@/lib/seo/structured-data';
 
-export const revalidate = 300;
+// Always server-render so catalogue changes surface immediately. See
+// `app/(shop)/shop/page.tsx` for the longer rationale; same trade-off here.
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Premium 3D Printer Filament — PLA, PETG, ABS, ASA, TPU',
