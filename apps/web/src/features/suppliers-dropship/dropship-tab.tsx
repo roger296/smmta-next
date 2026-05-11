@@ -151,15 +151,21 @@ export function DropshipTab({ supplierId }: Props) {
             </div>
             <div className="space-y-1">
               <Label htmlFor="ds-auth">Auth scheme</Label>
-              <Input
+              <select
                 id="ds-auth"
                 value={form.apiAuthScheme ?? 'bearer'}
                 onChange={(e) => setForm((f) => ({ ...f, apiAuthScheme: e.target.value }))}
-              />
+                className="border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1.5 text-sm"
+              >
+                <option value="bearer">Bearer token</option>
+                <option value="basic">Basic — base64(user:password)</option>
+                <option value="basic_credentials">Basic — raw user:password (server base64-encodes)</option>
+                <option value="apikey">Bare API key (no scheme prefix)</option>
+              </select>
             </div>
             <div className="space-y-1 md:col-span-2">
               <Label htmlFor="ds-key">
-                API key {data.supplier.hasApiKey ? '· (current key hidden — leave blank to keep)' : ''}
+                API key / credentials {data.supplier.hasApiKey ? '· (current value hidden — leave blank to keep)' : ''}
               </Label>
               <Input
                 id="ds-key"
