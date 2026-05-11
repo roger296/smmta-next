@@ -14,7 +14,10 @@ import { listGroups } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
 import { priceFromString, stringifyJsonLd, websiteLd } from '@/lib/seo/structured-data';
 
-export const revalidate = 300;
+// Always server-render so catalogue changes (importer / channel / poll) surface
+// immediately rather than waiting for the 300s revalidate window. See
+// `app/(shop)/shop/page.tsx` for the longer rationale; same trade-off here.
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Clothes Shop — Everyday Wear, Easy Sizes',
