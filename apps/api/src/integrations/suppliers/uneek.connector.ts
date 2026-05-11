@@ -51,6 +51,13 @@ const ENDPOINTS = {
    *  as a (double-JSON-encoded) array of `{ ProductCode, ProductName,
    *  LiveStock, StockIn7, StockIn30, StockDueDate }` rows. */
   stockAll: '/stockLevel/all',
+  /** Verified 2026-05-11: GET, no params, returns the full product
+   *  catalogue (family + every variant) as a (double-JSON-encoded)
+   *  array. See `UneekProductRow` for the shape, and
+   *  `UNEEK_API_NOTES.md` for field-by-field documentation. Used by
+   *  `scripts/import-uneek-products.ts` to seed our own
+   *  `products` / `product_groups` / `supplier_products` tables. */
+  productData: '/productdata/all',
   /** Order placement — path not yet verified against live API. */
   ordersCreate: '/orders',
   /** Order status read — path not yet verified. */
@@ -72,6 +79,63 @@ interface UneekStockRow {
   StockIn7?: number | string | null;
   StockIn30?: number | string | null;
   StockDueDate?: string | null;
+}
+
+/**
+ * One row from `GET /productdata/all` — the full Uneek product
+ * catalogue. Field names mirror Uneek's wire format (PascalCase); the
+ * importer maps these into our snake_case columns.
+ *
+ * `ProductCode` is the **family** code (e.g. `UX8` for "The UX
+ * Children's Hooded Sweatshirt"). `ShortCode` is the per-variant SKU
+ * (e.g. `X08HG7` = UX8 in Heather Grey size 7/8 yrs); `ShortCode` is
+ * what gets passed to `/stockLevel/all` for stock lookups.
+ *
+ * Optional fields: every field beyond `ShortCode` is best-effort — the
+ * importer must tolerate missing / null / empty values without
+ * crashing. `Hex` in particular is messy (sometimes literal colour
+ * names like `WHITE` rather than `#FFFFFF`) — the importer normalises
+ * via `normaliseHex()`.
+ */
+export interface UneekProductRow {
+  /** Family code; multiple variants share this. e.g. `UX8`. */
+  ProductCode?: string;
+  /** Family name. e.g. `The UX Children's Hooded Sweatshirt`. */
+  ProductName?: string;
+  /** Per-variant SKU. Use this for stock lookups. e.g. `X08HG7`. */
+  ShortCode?: string;
+  /** Variant axis: colour display name. */
+  Colour?: string;
+  /** Variant axis: hex colour. May be a `#RRGGBB`, may be a literal
+   *  colour name like `WHITE`, may be empty. */
+  Hex?: string | null;
+  /** Variant axis: size. May be a clothing size (`XS`, `S`, …,
+   *  `5XL`) or an age band for kids (`7/8 YRS`). */
+  Size?: string;
+  /** Wholesale price in GBP — what we pay. */
+  MyPrice?: number | string | null;
+  /** Suggested retail in GBP — what to sell at. */
+  PriceSingle?: number | string | null;
+  /** Bulk-pricing tiers — not consumed by the importer today. */
+  Price12?: number | string | null;
+  Price36?: number | string | null;
+  Price72?: number | string | null;
+  /** Variant-specific full image URL. */
+  Image?: string | null;
+  /** Lower-resolution per-colour swatch image. */
+  SMColourImage?: string | null;
+  /** Marketing copy — multi-paragraph. */
+  FullDescription?: string | null;
+  Specifications?: string | null;
+  /** Short headline / strapline. */
+  ShortDescription?: string | null;
+  /** Category label, e.g. `Jackets`, `Children's Hooded Sweatshirts`.
+   *  The importer's `--category` flag filters on this field. */
+  Category?: string | null;
+  /** Sub-category if present. */
+  SubCategory?: string | null;
+  /** Brand if present. */
+  Brand?: string | null;
 }
 
 interface UneekOrderResponse {
@@ -190,6 +254,24 @@ export class UneekConnector implements SupplierConnector {
       });
     }
     return out;
+  }
+
+  /**
+   * Fetch the full Uneek product catalogue.
+   *
+   * Not on the neutral `SupplierConnector` interface — only the Uneek
+   * connector exposes this today, and the importer script reaches for
+   * `UneekConnector` directly. If other suppliers grow catalogue
+   * endpoints we'll lift this to a shared interface; for now it stays
+   * Uneek-specific so the contract isn't speculative.
+   *
+   * Same auth / double-JSON quirks as `getStockAndPrice` — see
+   * `parseJsonBody`.
+   */
+  async getProductCatalogue(): Promise<UneekProductRow[]> {
+    const url = joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.productData);
+    const body = await this.requestJson<unknown>('GET', url, undefined);
+    return Array.isArray(body) ? (body as UneekProductRow[]) : [];
   }
 
   async placeOrder(req: SupplierOrderRequest): Promise<SupplierOrderResponse> {

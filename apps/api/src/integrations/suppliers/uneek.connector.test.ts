@@ -162,6 +162,67 @@ describe('UneekConnector.getStockAndPrice', () => {
   });
 });
 
+describe('UneekConnector.getProductCatalogue', () => {
+  it('GETs /productdata/all and returns the parsed (double-encoded) array', async () => {
+    const sample = [
+      {
+        ProductCode: 'UX8',
+        ProductName: "The UX Children's Hooded Sweatshirt",
+        ShortCode: 'X08HG7',
+        Colour: 'Heather Grey',
+        Hex: '#A6A6A6',
+        Size: '7/8 YRS',
+        MyPrice: 7.95,
+        PriceSingle: 14.95,
+        Image: 'https://example/heather-grey-7.jpg',
+        FullDescription: 'A childrens hooded sweatshirt.',
+        Category: "Children's Hooded Sweatshirts",
+      },
+      {
+        ProductCode: 'UX10',
+        ProductName: 'The UX Soft Shell Jacket',
+        ShortCode: 'X10NV-M',
+        Colour: 'Navy',
+        Hex: 'NAVY',
+        Size: 'M',
+        MyPrice: '22.50',
+        PriceSingle: '44.95',
+        Category: 'Jackets',
+      },
+    ];
+    const calls = mockFetch(() => rawResponse(uneekStockBody(sample)));
+    const c = new UneekConnector(ctx);
+    const rows = await c.getProductCatalogue();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('https://api.uneekclothing.example/productdata/all');
+    expect(calls[0]!.init.method).toBe('GET');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.ProductCode).toBe('UX8');
+    expect(rows[0]!.ShortCode).toBe('X08HG7');
+    expect(rows[1]!.Category).toBe('Jackets');
+  });
+
+  it('returns [] when the upstream returns an empty array', async () => {
+    mockFetch(() => rawResponse(uneekStockBody([])));
+    const c = new UneekConnector(ctx);
+    const rows = await c.getProductCatalogue();
+    expect(rows).toEqual([]);
+  });
+
+  it('returns [] when the upstream returns something that is not an array', async () => {
+    mockFetch(() => jsonResponse({ unexpected: 'shape' }));
+    const c = new UneekConnector(ctx);
+    const rows = await c.getProductCatalogue();
+    expect(rows).toEqual([]);
+  });
+
+  it('propagates auth errors (401 → SupplierAuthError)', async () => {
+    mockFetch(() => jsonResponse({ error: 'no' }, 401));
+    const c = new UneekConnector(ctx);
+    await expect(c.getProductCatalogue()).rejects.toThrow(SupplierAuthError);
+  });
+});
+
 describe('UneekConnector — auth scheme variants', () => {
   it("emits 'Basic <key>' when scheme is 'basic' (key already base64-encoded)", async () => {
     const calls = mockFetch(() => rawResponse(uneekStockBody([])));
