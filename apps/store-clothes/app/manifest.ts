@@ -14,10 +14,10 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Filament Store',
-    short_name: 'Filament',
+    name: 'Clothes Shop',
+    short_name: 'Clothes',
     description:
-      'Premium 3D printer filament — PLA, PETG, ABS, ASA, TPU. Tight tolerances, fast UK delivery.',
+      'Friendly clothes in real sizes — fast UK delivery, easy returns.',
     start_url: '/',
     display: 'standalone',
     background_color: '#ECECE8',

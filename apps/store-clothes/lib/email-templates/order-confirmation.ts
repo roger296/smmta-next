@@ -16,7 +16,7 @@ export interface OrderConfirmationPayload {
 export function renderOrderConfirmation(p: OrderConfirmationPayload): RenderedEmail {
   const greeting = p.firstName ? `Hi ${p.firstName},` : 'Hi there,';
   const link = trackUrl(p.storeBaseUrl, p.orderId);
-  const subject = `Your Filament Store order ${p.orderNumber} is confirmed`;
+  const subject = `Your Clothes Shop order ${p.orderNumber} is confirmed`;
   const preheader = `Thanks for your order — we're getting it packed for dispatch.`;
 
   const linesHtml = p.lines && p.lines.length > 0 ? renderLinesHtml(p.lines) : '';
@@ -61,7 +61,7 @@ export function renderOrderConfirmation(p: OrderConfirmationPayload): RenderedEm
     '',
     `We'll email again as soon as it ships.`,
     '',
-    `— Filament Store`,
+    `— Clothes Shop`,
   ]
     .filter(Boolean)
     .join('\n');

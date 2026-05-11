@@ -106,8 +106,8 @@ describe('manifest', () => {
   it('emits a valid PWA manifest with name + theme color + icons', async () => {
     const manifest = (await import('./manifest')).default;
     const out = manifest();
-    expect(out.name).toBe('Filament Store');
-    expect(out.short_name).toBe('Filament');
+    expect(out.name).toBe('Clothes Shop');
+    expect(out.short_name).toBe('Clothes');
     expect(out.start_url).toBe('/');
     expect(out.display).toBe('standalone');
     expect(Array.isArray(out.icons)).toBe(true);

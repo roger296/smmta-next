@@ -15,13 +15,13 @@ export const revalidate = 60;
 export const metadata: Metadata = {
   title: 'Shop',
   description:
-    'The full Filament Store range — PLA, PETG, ABS, ASA, TPU. Browse by material, filter by colour and price.',
+    'Friendly clothes in real sizes — browse the whole range, filter by colour and price, pick what fits.',
   alternates: { canonical: '/shop' },
   openGraph: {
     type: 'website',
     url: '/shop',
-    title: 'Shop | Filament Store',
-    description: 'The full Filament Store range — every material, every colour.',
+    title: 'Shop | Clothes Shop',
+    description: 'The full Clothes Shop range — every colour, every size.',
   },
   robots: { index: true, follow: true },
 };

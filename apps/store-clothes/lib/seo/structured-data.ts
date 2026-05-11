@@ -11,7 +11,7 @@
  */
 import type { FullGroup, FullProduct, GroupListItem, ThinVariant } from '../api-types';
 
-export const ORG_NAME = 'Filament Store';
+export const ORG_NAME = 'Clothes Shop';
 
 // ---------------------------------------------------------------------------
 // Sitewide

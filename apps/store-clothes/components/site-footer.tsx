@@ -15,9 +15,9 @@
 import Link from 'next/link';
 import { listGroups } from '@/lib/smmta';
 
-const STORE_NAME = 'Filament Store';
+const STORE_NAME = 'Clothes Shop';
 const ABOUT_BLURB =
-  'Premium 3D printer filament for makers, hobbyists, and engineers. PLA, PETG, ABS, ASA, and TPU — vacuum-sealed, tight tolerances, fast UK delivery.';
+  'Friendly, simple clothing for everyday wear. Real sizes, honest pricing, fast UK delivery from our supplier partners. Pick your colour, pick your size, and we ship the next working day.';
 
 export async function SiteFooter() {
   let groups: Awaited<ReturnType<typeof listGroups>> = [];
@@ -87,10 +87,10 @@ export async function SiteFooter() {
             </li>
             <li>
               <a
-                href="mailto:orders@filament.shop.cleverdeals.net"
+                href="mailto:orders@clothes.shop.cleverdeals.net"
                 className="transition-colors hover:text-[var(--brand-ink)]"
               >
-                orders@filament.shop.cleverdeals.net
+                orders@clothes.shop.cleverdeals.net
               </a>
             </li>
           </ul>

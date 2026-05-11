@@ -15,7 +15,7 @@ export interface OrderShippedPayload {
 export function renderOrderShipped(p: OrderShippedPayload): RenderedEmail {
   const greeting = p.firstName ? `Hi ${p.firstName},` : 'Hi there,';
   const link = trackUrl(p.storeBaseUrl, p.orderId);
-  const subject = `Your Filament Store order ${p.orderNumber} is on its way`;
+  const subject = `Your Clothes Shop order ${p.orderNumber} is on its way`;
   const preheader = p.courierName
     ? `Out for delivery via ${p.courierName}.`
     : `Out for delivery.`;
@@ -58,7 +58,7 @@ export function renderOrderShipped(p: OrderShippedPayload): RenderedEmail {
     '',
     `If anything's not right when it arrives, just reply to this email.`,
     '',
-    '— Filament Store',
+    '— Clothes Shop',
   ]
     .filter(Boolean)
     .join('\n');

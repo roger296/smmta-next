@@ -7,9 +7,9 @@ import { QueryProvider } from '@/components/query-provider';
 import { CartHeaderLink } from '@/components/cart-header-link';
 import { SiteFooter } from '@/components/site-footer';
 
-const STORE_NAME = 'Filament Store';
+const STORE_NAME = 'Clothes Shop';
 const STORE_TAGLINE =
-  'Premium 3D printer filament — PLA, PETG, ABS, ASA, TPU. Tight tolerances, fast UK delivery.';
+  'Friendly clothes in real sizes — fast UK delivery, easy returns. Pick your colour, pick your size.';
 
 // `metadataBase` so OG / canonical / sitemap URLs resolve to absolute paths.
 const env = getEnv();

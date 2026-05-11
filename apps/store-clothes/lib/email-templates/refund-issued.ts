@@ -15,7 +15,7 @@ export interface RefundIssuedPayload {
 export function renderRefundIssued(p: RefundIssuedPayload): RenderedEmail {
   const greeting = p.firstName ? `Hi ${p.firstName},` : 'Hi there,';
   const link = trackUrl(p.storeBaseUrl, p.orderId);
-  const subject = `Refund issued for Filament Store order ${p.orderNumber}`;
+  const subject = `Refund issued for Clothes Shop order ${p.orderNumber}`;
   const preheader = `£${p.refundAmount} on its way back to your card.`;
 
   const html = htmlWrapper({
@@ -46,7 +46,7 @@ export function renderRefundIssued(p: RefundIssuedPayload): RenderedEmail {
     '',
     `If you have any questions, just reply to this email.`,
     '',
-    '— Filament Store',
+    '— Clothes Shop',
   ]
     .filter(Boolean)
     .join('\n');

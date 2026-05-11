@@ -26,7 +26,7 @@ const FAKE_PAYMENT = {
   status: 'open',
   amount: { value: '24.95', currency: 'GBP' },
   method: null,
-  description: 'Filament Store',
+  description: 'Clothes Shop',
   metadata: { checkoutId: 'cid-1', reservationId: 'rid-1' },
   redirectUrl: 'http://localhost:3000/checkout/return?cid=cid-1',
   webhookUrl: 'http://localhost:3000/api/mollie/webhook',

@@ -5,7 +5,7 @@
  * without a CSS reset.
  */
 
-const BRAND_NAME = 'Filament Store';
+const BRAND_NAME = 'Clothes Shop';
 
 export function escapeHtml(s: string): string {
   return s
@@ -51,7 +51,7 @@ export function htmlWrapper({ preheader, body }: WrapperInput): string {
             </tr>
             <tr>
               <td style="padding:16px 32px;border-top:1px solid #C7CCD1;color:#6B6E76;font-size:12px;">
-                © ${new Date().getFullYear()} ${escapeHtml(BRAND_NAME)} · Premium 3D printer filament. Powered by CleverDeals.
+                © ${new Date().getFullYear()} ${escapeHtml(BRAND_NAME)} · Friendly clothes in real sizes. Powered by CleverDeals.
               </td>
             </tr>
           </table>
