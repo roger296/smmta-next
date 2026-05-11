@@ -86,6 +86,10 @@ const nextConfig = {
       // live there pending re-hosting).
       { protocol: 'https', hostname: 'app.etailsupport.com' },
       { protocol: 'https', hostname: 'i.ebayimg.com' },
+      // Uneek Clothing — drop-ship product images come straight from
+      // their CDN. `Image` / `SmallImage` / `ColourImage` / `SMColourImage`
+      // fields on the /productdata/all response all point here.
+      { protocol: 'https', hostname: 'images.uneekclothing.com' },
     ],
   },
 
