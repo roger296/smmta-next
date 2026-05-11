@@ -142,7 +142,19 @@ function CatalogueCard({ group }: { group: GroupListItem }) {
       ? `£${group.priceRange.min}`
       : `£${group.priceRange.min} – £${group.priceRange.max}`
     : null;
-  const outOfStock = group.totalAvailableQty === 0;
+  // "Out of stock" only when EVERY variant is OOS from EVERY source
+  // (warehouse + supplier). Using `totalAvailableQty === 0` alone would
+  // flag every dropship product as OOS — dropship products never carry
+  // warehouse stock, even when the supplier has thousands of units.
+  //
+  // Three states:
+  //   IN_STOCK                — we have warehouse stock (or the variant has none, but the others do)
+  //   AVAILABLE_FROM_SUPPLIER — no warehouse but the supplier has stock
+  //   OUT_OF_STOCK            — neither source has any
+  // The badge fires only when ALL variants are in the last bucket.
+  const outOfStock =
+    group.variants.length > 0 &&
+    group.variants.every((v) => v.stockState === 'OUT_OF_STOCK');
 
   return (
     <Link
