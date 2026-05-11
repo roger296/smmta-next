@@ -98,7 +98,7 @@ export function ReturnPolling({ checkoutId }: { checkoutId: string }) {
         <p className="text-sm text-[var(--brand-muted)]">
           The payment provider hasn&rsquo;t confirmed your order in time. Check your email for the
           confirmation; if it doesn&rsquo;t arrive in 5 minutes, contact{' '}
-          <a href="mailto:orders@filament.shop">orders@filament.shop</a> with reference{' '}
+          <a href="mailto:orders@clothes.shop.cleverdeals.net">orders@clothes.shop.cleverdeals.net</a> with reference{' '}
           <code className="font-mono text-xs">{checkoutId.slice(0, 8)}</code>.
         </p>
       </div>

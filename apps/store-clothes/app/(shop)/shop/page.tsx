@@ -93,12 +93,12 @@ export default async function ShopPage() {
           className="text-4xl font-bold tracking-tight md:text-5xl"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          Filament, by material.
+          Every colour, every size.
         </h1>
         <p className="max-w-2xl text-base text-[var(--brand-muted)]">
           {groups.length === 0
             ? 'The catalogue is loading. Check back in a moment.'
-            : 'Pick a material, filter by colour or price. Every spool is 1.75mm, 1kg, vacuum-sealed in a recyclable cardboard box.'}
+            : 'Browse every range, filter by colour or price. Real sizes, friendly fits, fast UK delivery from our supplier partners.'}
         </p>
       </header>
 
