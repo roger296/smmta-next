@@ -409,8 +409,28 @@ export class CatalogueService {
   /**
    * Per-product channel decision map. Empty when channelId is null —
    * callers fall through to the implicit "offered at base price" default.
-   * For products with no row in `product_channels`, the map omits the
-   * entry; the caller's fallback supplies the implicit-default decision.
+   *
+   * Decision semantics (matches the schema docs on `product_channels`):
+   *
+   *   1. Product has **no** rows in `product_channels` at all
+   *      → not in the returned map; caller falls through to the
+   *        implicit-default (offered everywhere, base price).
+   *      → back-compat for catalogues that pre-date the channels feature.
+   *
+   *   2. Product has a row for **this** `channelId`
+   *      → use that row's `isOffered` + `priceOverrideGbp`.
+   *
+   *   3. Product has rows for **other** channels but not this one
+   *      → emit `{ isOffered: false }` so the caller filters it out.
+   *      → without this branch, a product explicitly scoped to one channel
+   *        (e.g. a Uneek clothing item pinned to `clothes-shop`) would
+   *        leak onto every other channel because it has no row for them.
+   *
+   * Implementation: one query for all rows across all channels for these
+   * products, then bucket per-product and apply the rules above. Cheaper
+   * than two round-trips and the rowcount is bounded by
+   * `productIds.length * (number of channels)` which is small in practice
+   * (typically 1-2 storefronts + a handful of marketplaces).
    */
   private async channelDecisionMap(
     productIds: string[],
@@ -420,6 +440,7 @@ export class CatalogueService {
     const rows = await this.db
       .select({
         productId: productChannels.productId,
+        channelId: productChannels.channelId,
         isOffered: productChannels.isOffered,
         priceOverrideGbp: productChannels.priceOverrideGbp,
         basePrice: products.minSellingPrice,
@@ -428,17 +449,33 @@ export class CatalogueService {
       .innerJoin(products, eq(productChannels.productId, products.id))
       .where(
         and(
-          eq(productChannels.channelId, channelId),
           inArray(productChannels.productId, productIds),
           isNull(productChannels.deletedAt),
         ),
       );
-    const map = new Map<string, ChannelDecision>();
+    // Bucket rows by product so we can detect "has rows for other
+    // channels but not this one" (case 3 in the docblock above).
+    const byProduct = new Map<string, typeof rows>();
     for (const r of rows) {
-      map.set(r.productId, {
-        isOffered: r.isOffered,
-        priceGbp: r.priceOverrideGbp ?? r.basePrice ?? null,
-      });
+      const arr = byProduct.get(r.productId);
+      if (arr) arr.push(r);
+      else byProduct.set(r.productId, [r]);
+    }
+    const map = new Map<string, ChannelDecision>();
+    for (const [productId, productRows] of byProduct) {
+      const here = productRows.find((r) => r.channelId === channelId);
+      if (here) {
+        map.set(productId, {
+          isOffered: here.isOffered,
+          priceGbp: here.priceOverrideGbp ?? here.basePrice ?? null,
+        });
+      } else {
+        // Has rows for other channels but not this one — scope it out.
+        map.set(productId, {
+          isOffered: false,
+          priceGbp: null,
+        });
+      }
     }
     return map;
   }
