@@ -2,17 +2,29 @@
  * Uneek Clothing connector.
  *
  * Implements `SupplierConnector` against https://api.uneekclothing.com/.
- * The exact endpoint paths and field names are documented (and can be
- * patched without touching the rest of the system) in the constants
- * block at the top of this file. See `UNEEK_API_NOTES.md` for what the
- * upstream API actually exposes and how the field mappings were chosen.
+ * Endpoint paths and field mappings are in the constants block below so
+ * they can be patched in one place. `UNEEK_API_NOTES.md` documents the
+ * verified shapes (and where doc-driven assumptions still apply for the
+ * order-side endpoints).
  *
- * Auth: `Authorization: <scheme> <key>`, scheme defaults to `Bearer` but
- * the supplier row carries an `apiAuthScheme` column so an operator can
- * change it without code edits if Uneek's docs say otherwise.
+ * Auth: HTTP Basic. The admin SPA's API-key field accepts either:
+ *   - a pre-encoded `<base64(user:password)>` string, with `apiAuthScheme=basic`, OR
+ *   - a raw `user:password` string, with `apiAuthScheme=basic_credentials` (the
+ *     connector base64-encodes at request time).
+ * `bearer` and `apikey` schemes are still supported for future suppliers.
  *
- * Timeouts: 10s connect, 30s overall per request. Order placement gets
- * 60s overall because batched line creation can be slow on their side.
+ * Stock endpoint quirks (verified 2026-05-11 against the live API):
+ *   - `GET /stockLevel/all` returns the full catalogue stock state — no
+ *     per-SKU filtering supported. The connector filters client-side.
+ *   - The response body is a **double-JSON-encoded** string (the API
+ *     emits `"[{...}]"` with `Content-Type: application/json`), so we
+ *     parse, detect string, and parse again.
+ *   - No cost-price field in the response. `costGbp` is returned as
+ *     `null`; the polling worker / pricing helpers fall back to the
+ *     operator-entered value on `supplier_products.cost_gbp`.
+ *
+ * Timeouts: 30s default; order placement gets 60s because batched line
+ * creation tends to be slow on the supplier's side.
  */
 import {
   SupplierAuthError,
@@ -32,41 +44,34 @@ import type {
 
 // ============================================================
 // Endpoint + field-mapping constants
-// ------------------------------------------------------------
-// These are the assumed shapes — patch here when the live API is
-// confirmed. UNEEK_API_NOTES.md documents the assumptions in detail.
 // ============================================================
 
 const ENDPOINTS = {
-  /** Batch stock-and-price lookup. Body: `{ skus: string[] }`.
-   *  Response: `{ items: Array<{ sku, stock, costPrice, updatedAt? }> }`. */
-  stockBatch: '/v1/stock/lookup',
-  /** Single-order placement. Body: see `mapOrderRequestToUpstream` below. */
-  ordersCreate: '/v1/orders',
-  /** Single-order status read. Path: `${ordersStatus}/${orderRef}`. */
-  ordersStatus: '/v1/orders',
-  /** Single-order cancel. Path: `${ordersCancel}/${orderRef}/cancel`. */
-  ordersCancel: '/v1/orders',
+  /** Verified 2026-05-11: GET, no params, returns the full catalogue
+   *  as a (double-JSON-encoded) array of `{ ProductCode, ProductName,
+   *  LiveStock, StockIn7, StockIn30, StockDueDate }` rows. */
+  stockAll: '/stockLevel/all',
+  /** Order placement — path not yet verified against live API. */
+  ordersCreate: '/orders',
+  /** Order status read — path not yet verified. */
+  ordersStatus: '/orders',
+  /** Order cancel — path not yet verified. */
+  ordersCancel: '/orders',
 } as const;
 
-const STOCK_BATCH_SIZE = 100;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const ORDER_TIMEOUT_MS = 60_000;
 
-interface UneekStockItem {
-  sku?: string;
-  stock?: number | null;
-  available?: number | null;
-  qty?: number | null;
-  costPrice?: number | string | null;
-  cost?: number | string | null;
-  updatedAt?: string | null;
-}
-
-interface UneekStockResponse {
-  items?: UneekStockItem[];
-  data?: UneekStockItem[];
-  results?: UneekStockItem[];
+/** Shape of one row in the `GET /stockLevel/all` response. The API
+ *  returns a string-encoded JSON array; we parse twice (see
+ *  `parseJsonBody` below). */
+interface UneekStockRow {
+  ProductCode?: string;
+  ProductName?: string;
+  LiveStock?: number | string | null;
+  StockIn7?: number | string | null;
+  StockIn30?: number | string | null;
+  StockDueDate?: string | null;
 }
 
 interface UneekOrderResponse {
@@ -95,6 +100,11 @@ function authHeader(ctx: SupplierConnectorContext): string {
   if (scheme === 'bearer') return `Bearer ${ctx.apiKey}`;
   if (scheme === 'apikey' || scheme === 'api-key') return ctx.apiKey;
   if (scheme === 'basic') return `Basic ${ctx.apiKey}`;
+  if (scheme === 'basic_credentials' || scheme === 'basic-credentials') {
+    // The apiKey is `user:password` plaintext — encode at request time
+    // so the operator doesn't have to.
+    return `Basic ${Buffer.from(ctx.apiKey, 'utf8').toString('base64')}`;
+  }
   return `${ctx.apiAuthScheme} ${ctx.apiKey}`;
 }
 
@@ -110,6 +120,31 @@ function pickFirstNumber(...candidates: Array<number | string | null | undefined
   return null;
 }
 
+/**
+ * Uneek returns `Content-Type: application/json` but the body is a
+ * JSON-encoded string containing a JSON-encoded array (i.e.
+ * `"[{...}]"`). One `JSON.parse` gives back a string; we have to
+ * detect that and parse again. This helper does up to two passes
+ * and returns whatever the inner value is.
+ */
+export function parseJsonBody(text: string): unknown {
+  if (!text) return undefined;
+  let v: unknown;
+  try {
+    v = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (typeof v === 'string') {
+    try {
+      return JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
+  return v;
+}
+
 // ============================================================
 // Connector
 // ============================================================
@@ -119,33 +154,40 @@ export class UneekConnector implements SupplierConnector {
 
   async getStockAndPrice(supplierSkus: string[]): Promise<SupplierStockSnapshot[]> {
     if (supplierSkus.length === 0) return [];
+
+    // Uneek doesn't support per-SKU filtering on this endpoint — we
+    // pull the whole catalogue and filter client-side. The response
+    // is small enough (few thousand rows of compact JSON) that this
+    // is reasonable at a 3-hour polling cadence.
+    const url = joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.stockAll);
+    const body = await this.requestJson<unknown>('GET', url, undefined);
+
+    const rows: UneekStockRow[] = Array.isArray(body) ? (body as UneekStockRow[]) : [];
+
+    // Build a map by ProductCode so we can look up each requested SKU.
+    const byCode = new Map<string, UneekStockRow>();
+    for (const r of rows) {
+      if (r.ProductCode) byCode.set(r.ProductCode, r);
+    }
+
     const out: SupplierStockSnapshot[] = [];
-    for (let i = 0; i < supplierSkus.length; i += STOCK_BATCH_SIZE) {
-      const chunk = supplierSkus.slice(i, i + STOCK_BATCH_SIZE);
-      const url = joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.stockBatch);
-      const body = await this.requestJson<UneekStockResponse>('POST', url, {
-        skus: chunk,
+    for (const sku of supplierSkus) {
+      const r = byCode.get(sku);
+      if (!r) {
+        // SKU not present in Uneek's catalogue. The worker will mark
+        // this as `last_poll_error = sku_not_found`.
+        out.push({ supplierSku: sku, stockQty: null, costGbp: null });
+        continue;
+      }
+      out.push({
+        supplierSku: sku,
+        stockQty: pickFirstNumber(r.LiveStock),
+        // No cost in the stock-level endpoint; the supplier_products
+        // row's operator-entered `cost_gbp` is the source of truth
+        // for pricing. Returning null here means the polling worker
+        // leaves `last_known_price` alone.
+        costGbp: null,
       });
-      const items = body.items ?? body.data ?? body.results ?? [];
-      const seen = new Set<string>();
-      for (const it of items) {
-        if (!it.sku) continue;
-        seen.add(it.sku);
-        out.push({
-          supplierSku: it.sku,
-          stockQty: pickFirstNumber(it.stock, it.available, it.qty),
-          costGbp: pickFirstNumber(it.costPrice, it.cost),
-          lastUpdatedAt: it.updatedAt ? new Date(it.updatedAt) : undefined,
-        });
-      }
-      // SKUs we asked about but the supplier didn't return — emit
-      // null-fields snapshots so the worker can mark them as
-      // `last_poll_error = sku_not_found` rather than silently dropping.
-      for (const sku of chunk) {
-        if (!seen.has(sku)) {
-          out.push({ supplierSku: sku, stockQty: null, costGbp: null });
-        }
-      }
     }
     return out;
   }
@@ -250,14 +292,7 @@ export class UneekConnector implements SupplierConnector {
     }
 
     const text = await res.text().catch(() => '');
-    let parsed: unknown = undefined;
-    if (text.length > 0) {
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        // leave as undefined; surface the raw text via the error
-      }
-    }
+    const parsed = parseJsonBody(text);
 
     if (res.status === 401 || res.status === 403) {
       throw new SupplierAuthError(`Uneek auth failed (${res.status})`, {

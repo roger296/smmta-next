@@ -1,145 +1,128 @@
 # Uneek Clothing API — integration notes
 
-Documentation home: <https://api.uneekclothing.com/docs/index.html>
+Documentation: <https://api.uneekclothing.com/docs/index.html> (account required).
 
 ## Status
 
-The docs page is **gated** — unauthenticated requests (including the
-docs and the OpenAPI JSON) return HTTP 403. The `UneekConnector`
-implementation in `uneek.connector.ts` is therefore built against a
-**reasonable set of REST/JSON assumptions**, with the field mappings
-and endpoint paths factored into clearly-labelled constants near the
-top of the file so they can be patched without touching the rest of
-the system once the live shape is confirmed.
+| Endpoint | Status | Notes |
+|---|---|---|
+| `GET /stockLevel/all` | ✅ verified 2026-05-11 | full-catalogue stock; no per-SKU filter; double-JSON-encoded body |
+| `POST /orders` (placement) | ⚠️ unverified | assumed shape; path may differ |
+| `GET /orders/<ref>` (status) | ⚠️ unverified | |
+| `POST /orders/<ref>/cancel` | ⚠️ unverified | |
 
-When you have an account login and can read the docs, run through
-[Verification checklist](#verification-checklist) below and patch any
-divergences in `uneek.connector.ts`.
+When you next hit a real order endpoint with curl, share the request + response shape and we'll lock the rest of the connector down.
 
-## Assumed shapes
+## Authentication
 
-### Authentication
+HTTP Basic auth. The `Authorization` header is `Basic <base64(user:password)>`.
 
-`Authorization: Bearer <api-key>`. The `apiAuthScheme` column on the
-`suppliers` row picks the scheme, so if Uneek uses a different one (`Api-Key`,
-`Basic <base64>`, etc.) it can be changed without code edits — the
-connector's `authHeader` helper handles the variants.
+The connector supports both encoding modes; pick which in the supplier row's `apiAuthScheme` column (or the admin SPA's Auth-scheme dropdown):
 
-### Endpoint: stock + price lookup
+| `apiAuthScheme` | What the API-key field should hold | What the connector sends |
+|---|---|---|
+| `basic` | `<base64(user:password)>` (already encoded) | `Authorization: Basic <key-verbatim>` |
+| `basic_credentials` | `user:password` (raw) | `Authorization: Basic <base64-encoded at request time>` |
 
-```
-POST /v1/stock/lookup
-Body: { "skus": ["SKU-A", "SKU-B"] }
-Response: {
-  "items": [
-    { "sku": "SKU-A", "stock": 12, "costPrice": 4.95, "updatedAt": "2026-05-08T07:00:00Z" },
-    { "sku": "SKU-B", "stock": 0,  "costPrice": 7.25 }
-  ]
-}
-```
+`basic_credentials` is the friendlier option — the operator pastes the raw username:password and the connector encodes it. The encrypted-at-rest envelope still applies, so the raw plaintext is never persisted unencrypted.
 
-**Field mapping flexibility.** The connector accepts any of
-`stock` / `available` / `qty` for the stock count and `costPrice` /
-`cost` for the price. The wrapper (`items` / `data` / `results`) is
-also flexible. SKUs in the request that are not returned in the
-response are emitted as `{ stockQty: null, costGbp: null }` so the
-polling worker can mark them as `last_poll_error = sku_not_found`.
+For the live Uneek account on the Filament Store deploy, set:
 
-### Endpoint: order placement
+- `connectorKind`: `UNEEK`
+- `apiBaseUrl`: `https://api.uneekclothing.com/`
+- `apiAuthScheme`: `basic_credentials`
+- API key field: `roger@tbv-3pl.com:<password>`
+
+## Endpoints
+
+### `GET /stockLevel/all` — full catalogue stock
+
+**Request:**
 
 ```
-POST /v1/orders
-Headers:
-  Authorization: Bearer <api-key>
-  Idempotency-Key: <our-deterministic-key>
-Body: {
-  "reference": "<our customer order ref>",
+GET https://api.uneekclothing.com/stockLevel/all
+Accept: application/json
+Authorization: Basic <base64(user:password)>
+```
+
+No query string, no body.
+
+**Response (verified):**
+
+- `Content-Type: application/json`
+- Body is **double-JSON-encoded**: the outer wrapper is a JSON string containing a JSON-encoded array. One `JSON.parse` returns a string; you have to parse it again to get the array. The connector's `parseJsonBody` helper does the two-pass parse.
+- Each row:
+
+  ```json
+  {
+    "ProductCode":   "X03WH2XL",
+    "ProductName":   "UX3 - White - 2XL - UX Sweatshirt",
+    "LiveStock":     1000.0,
+    "StockIn7":      0.00,
+    "StockIn30":     0.00,
+    "StockDueDate":  null
+  }
+  ```
+
+**Field mapping into our `SupplierStockSnapshot`:**
+
+| Uneek field | Snapshot field | Notes |
+|---|---|---|
+| `ProductCode` | `supplierSku` | their identifier |
+| `ProductName` | (ignored) | informational; not stored |
+| `LiveStock` | `stockQty` | currently-available units |
+| `StockIn7` | (not surfaced today) | inbound within 7 days — V2 candidate for "Available from supplier — ships in <7 days" copy |
+| `StockIn30` | (not surfaced today) | inbound within 30 days |
+| `StockDueDate` | (not surfaced today) | date of next delivery if known |
+| — | `costGbp` | **always null from this endpoint**; comes from operator-entered `supplier_products.cost_gbp` |
+
+**Quirks worth knowing:**
+
+- **No filtering.** The endpoint returns the entire catalogue regardless of which SKUs you care about. The connector filters client-side. At a 3-hour polling cadence this is fine; if Uneek ever adds a per-SKU endpoint, switch the connector to that for efficiency.
+- **No cost price.** This endpoint is stock-only. The system falls back to the operator-set `costGbp` on the mapping row, which is good enough for routing decisions. If Uneek exposes a per-product price endpoint later, add a second call in the connector and fill in `costGbp` properly.
+- **Response is a string-of-array, not an array.** A naïve `await res.json()` returns a string; the connector's `parseJsonBody` detects the double-encoding and re-parses.
+
+### `POST /orders` — order placement (unverified)
+
+Assumed request body:
+
+```json
+{
+  "reference": "<our customer order number>",
   "shipping": {
-    "name": "...", "addressLine1": "...", "addressLine2": "...",
-    "city": "...", "region": "...", "postCode": "...", "country": "GB"
+    "name": "...",
+    "addressLine1": "...",
+    "city": "...",
+    "postCode": "...",
+    "country": "GB"
   },
-  "lines": [{ "sku": "SKU-A", "quantity": 2 }]
-}
-Response: {
-  "orderRef": "UNEEK-12345",
-  "status": "ACCEPTED" | "REJECTED",
-  "rejectionReason": "...",       // only when REJECTED
-  "etaMinDays": 2, "etaMaxDays": 5
+  "lines": [{ "sku": "X03WH2XL", "quantity": 2 }]
 }
 ```
 
-**Idempotency.** Forwarded as the `Idempotency-Key` header. Replays of
-the same payment webhook never produce duplicate supplier orders. The
-key is `sha256(customerOrderId + supplierId + lineId)` (see §D's
-`pickSupplierForProduct`).
+Assumed response: `{ orderRef, status: "ACCEPTED" | "REJECTED", rejectionReason?, etaMinDays?, etaMaxDays? }`. **Field names need verifying** against the live API.
 
-### Endpoint: order status
+### `GET /orders/<ref>` and `POST /orders/<ref>/cancel`
 
-```
-GET /v1/orders/<orderRef>
-Response: {
-  "status": "...",           // supplier-specific string; placer worker maps
-  "trackingCarrier": "...",
-  "trackingNumber": "...",
-  "shippedAt": "...",
-  "deliveredAt": "..."
-}
-```
-
-### Endpoint: order cancel
-
-```
-POST /v1/orders/<orderRef>/cancel
-Body: {}
-Response: 200 on success; 4xx with body explaining why if cancellation
-isn't possible (e.g. already shipped).
-```
+Both unverified. The connector's shape is reasonable for a REST API but needs confirming once Roger has the order-side docs.
 
 ## Error mapping
 
 | Upstream | Connector error | Worker policy |
 |---|---|---|
-| 401 / 403 | `SupplierAuthError` | Don't retry; alert ops; stop polling. |
-| 4xx (other) | `SupplierBadRequestError` | Don't retry; bug to investigate. |
-| 5xx | `SupplierUpstreamError` | Retry with exponential backoff. |
-| Network / timeout | `SupplierUnreachableError` | Retry with exponential backoff. |
-| `status: REJECTED` body | `SupplierRejectedOrderError` | Don't retry; surface to ops. |
+| 401 / 403 | `SupplierAuthError` | Don't retry; alert ops; check the API key in admin |
+| 4xx (other) | `SupplierBadRequestError` | Don't retry; bug to investigate |
+| 5xx | `SupplierUpstreamError` | Retry with exponential backoff |
+| Network / timeout | `SupplierUnreachableError` | Retry with exponential backoff |
+| `status: "REJECTED"` body | `SupplierRejectedOrderError` | Don't retry; surface to ops |
 
-## Verification checklist
+## Verification checklist (run before declaring a deploy fully wired)
 
-When the live API access is confirmed:
-
-1. Open <https://api.uneekclothing.com/docs/index.html> and scan the
-   endpoint list. Does the path layout match
-   `ENDPOINTS.{stockBatch, ordersCreate, ordersStatus, ordersCancel}`?
-   If not, patch the constants block in `uneek.connector.ts`.
-2. Confirm the auth scheme. If non-bearer, update the deployed
-   supplier row's `apiAuthScheme`.
-3. Run the connector against a small batch of real SKUs:
-   ```ts
-   const c = new UneekConnector({ apiKey, apiBaseUrl, apiAuthScheme: 'bearer' });
-   const r = await c.getStockAndPrice(['<real SKU>']);
-   console.log(r);
-   ```
-   Verify the returned `stockQty` / `costGbp` look right. Patch the
-   field mappings (`UneekStockItem` / `pickFirstNumber` calls) if not.
-4. Place a test order against a fixture SKU, then call `getOrderStatus`
-   with the returned `orderRef`. Verify the round-trip works and the
-   status string is one of the values the placer worker handles.
-5. Capture a successful response payload and commit it as a fixture
-   under `apps/api/src/integrations/suppliers/__fixtures__/` so future
-   contract changes show up as test failures.
-
-## Rate limits
-
-Not yet documented. The polling worker uses a default 3-hour cadence
-per supplier, with batching at 100 SKUs per request, so even a busy
-catalogue should fit comfortably under any reasonable per-minute
-limit. If Uneek sends `Retry-After` or rate-limit headers, the
-connector currently ignores them — add handling once the limits are
-known.
+1. From the admin SPA: **Suppliers → Demo Uneek → Drop-ship tab** — set `connectorKind=UNEEK`, `apiBaseUrl=https://api.uneekclothing.com/`, `apiAuthScheme=basic_credentials`, paste `roger@tbv-3pl.com:<password>`.
+2. Hit **Test connection** with a real Uneek SKU (e.g. `X03WH2XL`). Should return `stockQty=<a number>`, `costGbp=null`. If it returns an auth error, the credentials are wrong; if it returns "SKU not found", the SKU isn't in their catalogue.
+3. Click **Poll now**. The poll-log row should show `productsChecked = N`, `productsUpdated = N` (assuming all your mapped SKUs are in Uneek's catalogue). Browse the supplier-products table to confirm `last_known_stock` populated.
+4. Eyeball a supplier-fulfilled product in the Clothes Shop — `stockState` should be `AVAILABLE_FROM_SUPPLIER` if the SKU has `LiveStock > 0` and no warehouse stock.
 
 ## Last reviewed
 
-2026-05-08 — initial draft, based on REST/JSON conventions because the
-docs page returned HTTP 403 to my fetcher.
+2026-05-11 — stock endpoint verified live; order endpoints still pending.

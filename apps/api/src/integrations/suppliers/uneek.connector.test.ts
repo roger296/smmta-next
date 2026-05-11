@@ -3,10 +3,15 @@
  *
  * No live HTTP — every test stubs `globalThis.fetch` with canned
  * responses, then asserts the connector maps fields, classifies errors,
- * and forwards the idempotency key correctly.
+ * handles the double-JSON-encoded body the live API returns, and
+ * forwards idempotency keys correctly.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { UneekConnector, mapOrderRequestToUpstream } from './uneek.connector.js';
+import {
+  UneekConnector,
+  mapOrderRequestToUpstream,
+  parseJsonBody,
+} from './uneek.connector.js';
 import {
   SupplierAuthError,
   SupplierBadRequestError,
@@ -19,7 +24,7 @@ import type { SupplierConnectorContext } from './types.js';
 const ctx: SupplierConnectorContext = {
   apiKey: 'test-key',
   apiBaseUrl: 'https://api.uneekclothing.example/',
-  apiAuthScheme: 'bearer',
+  apiAuthScheme: 'basic',
   timeoutMs: 5_000,
 };
 
@@ -39,11 +44,24 @@ function mockFetch(impl: (call: FetchCall) => Promise<Response> | Response) {
   return calls;
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
+/** Default Content-Type: application/json. Body is whatever the test
+ *  passes — usually a string for the stockLevel/all endpoint
+ *  (double-encoded), an object for the order endpoints. */
+function rawResponse(body: string, status = 200): Response {
+  return new Response(body, {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+function jsonResponse(body: unknown, status = 200): Response {
+  return rawResponse(JSON.stringify(body), status);
+}
+
+/** Build the same wire shape Uneek's live API actually returns from
+ *  /stockLevel/all: a JSON-encoded string containing a JSON-encoded
+ *  array. */
+function uneekStockBody(rows: Array<Record<string, unknown>>): string {
+  return JSON.stringify(JSON.stringify(rows));
 }
 
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -55,63 +73,122 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('parseJsonBody', () => {
+  it('parses a plain JSON array', () => {
+    expect(parseJsonBody('[1,2,3]')).toEqual([1, 2, 3]);
+  });
+  it('parses a JSON-encoded-string-of-array (Uneek shape)', () => {
+    expect(parseJsonBody(JSON.stringify('[1,2,3]'))).toEqual([1, 2, 3]);
+  });
+  it('returns the string as-is if the second parse fails', () => {
+    expect(parseJsonBody(JSON.stringify('not json'))).toBe('not json');
+  });
+  it('returns undefined for empty input', () => {
+    expect(parseJsonBody('')).toBeUndefined();
+  });
+  it('returns undefined for malformed json', () => {
+    expect(parseJsonBody('not-json-at-all')).toBeUndefined();
+  });
+});
+
 describe('UneekConnector.getStockAndPrice', () => {
-  it('returns one snapshot per requested SKU, mapping fields and synthesising missing ones', async () => {
-    mockFetch(() =>
-      jsonResponse({
-        items: [
-          { sku: 'SKU-A', stock: 12, costPrice: 4.95, updatedAt: '2026-05-08T07:00:00Z' },
-          { sku: 'SKU-B', available: 0, cost: '7.25' },
-        ],
-      }),
+  it('maps Uneek fields (ProductCode → supplierSku, LiveStock → stockQty); cost is always null', async () => {
+    const calls = mockFetch(() =>
+      rawResponse(
+        uneekStockBody([
+          { ProductCode: 'X03WH2XL', ProductName: 'UX3 - White - 2XL', LiveStock: 1000.0, StockIn7: 0, StockIn30: 0, StockDueDate: null },
+          { ProductCode: 'X04WH4XL', ProductName: 'UX4 - White - 4XL', LiveStock: 161.0, StockIn7: 0, StockIn30: 0, StockDueDate: null },
+        ]),
+      ),
     );
     const c = new UneekConnector(ctx);
-    const r = await c.getStockAndPrice(['SKU-A', 'SKU-B', 'SKU-MISSING']);
+    const r = await c.getStockAndPrice(['X03WH2XL', 'X04WH4XL', 'NOT-IN-CATALOGUE']);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('https://api.uneekclothing.example/stockLevel/all');
+    expect(calls[0]!.init.method).toBe('GET');
+    expect(calls[0]!.init.body).toBeUndefined();
+
     expect(r).toHaveLength(3);
-    const a = r.find((s) => s.supplierSku === 'SKU-A')!;
-    expect(a.stockQty).toBe(12);
-    expect(a.costGbp).toBe(4.95);
-    expect(a.lastUpdatedAt).toEqual(new Date('2026-05-08T07:00:00Z'));
-    const b = r.find((s) => s.supplierSku === 'SKU-B')!;
-    expect(b.stockQty).toBe(0);
-    expect(b.costGbp).toBe(7.25); // string parsed to number
-    const missing = r.find((s) => s.supplierSku === 'SKU-MISSING')!;
+    const a = r.find((s) => s.supplierSku === 'X03WH2XL')!;
+    expect(a.stockQty).toBe(1000);
+    expect(a.costGbp).toBeNull();
+    const b = r.find((s) => s.supplierSku === 'X04WH4XL')!;
+    expect(b.stockQty).toBe(161);
+    expect(b.costGbp).toBeNull();
+    const missing = r.find((s) => s.supplierSku === 'NOT-IN-CATALOGUE')!;
     expect(missing.stockQty).toBeNull();
     expect(missing.costGbp).toBeNull();
   });
 
-  it('sends bearer auth and json body to the configured base URL', async () => {
-    const calls = mockFetch(() => jsonResponse({ items: [] }));
+  it('sends the correct Basic auth + Accept headers', async () => {
+    const calls = mockFetch(() => rawResponse(uneekStockBody([])));
     const c = new UneekConnector(ctx);
     await c.getStockAndPrice(['X']);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe('https://api.uneekclothing.example/v1/stock/lookup');
     const headers = calls[0]!.init.headers as Record<string, string>;
-    expect(headers.Authorization).toBe('Bearer test-key');
-    expect(headers['Content-Type']).toBe('application/json');
-    expect(calls[0]!.init.method).toBe('POST');
-    expect(calls[0]!.init.body).toBe(JSON.stringify({ skus: ['X'] }));
+    expect(headers.Authorization).toBe('Basic test-key');
+    expect(headers.Accept).toBe('application/json');
   });
 
-  it('batches SKUs into 100 per request', async () => {
-    const calls = mockFetch(() => jsonResponse({ items: [] }));
+  it('does NOT batch requests — one call regardless of how many SKUs were asked for', async () => {
+    const calls = mockFetch(() => rawResponse(uneekStockBody([])));
     const c = new UneekConnector(ctx);
     await c.getStockAndPrice(Array.from({ length: 250 }, (_, i) => `SKU-${i}`));
-    expect(calls).toHaveLength(3); // 100 + 100 + 50
+    expect(calls).toHaveLength(1);
   });
 
-  it('returns an empty array for an empty input', async () => {
-    const calls = mockFetch(() => jsonResponse({ items: [] }));
+  it('returns an empty array for an empty input (no HTTP call)', async () => {
+    const calls = mockFetch(() => rawResponse(uneekStockBody([])));
     const c = new UneekConnector(ctx);
     const r = await c.getStockAndPrice([]);
     expect(r).toEqual([]);
     expect(calls).toHaveLength(0);
   });
+
+  it('also works when the response is a non-encoded JSON array (defensive)', async () => {
+    // Some endpoints might return a normal JSON array (not double-encoded);
+    // the parser falls through to a single-parse and the connector should
+    // still cope.
+    mockFetch(() =>
+      rawResponse(
+        JSON.stringify([
+          { ProductCode: 'A', LiveStock: 5 },
+        ]),
+      ),
+    );
+    const c = new UneekConnector(ctx);
+    const r = await c.getStockAndPrice(['A']);
+    expect(r[0]!.stockQty).toBe(5);
+  });
 });
 
 describe('UneekConnector — auth scheme variants', () => {
-  it("uses bare api key when scheme is 'apikey'", async () => {
-    const calls = mockFetch(() => jsonResponse({ items: [] }));
+  it("emits 'Basic <key>' when scheme is 'basic' (key already base64-encoded)", async () => {
+    const calls = mockFetch(() => rawResponse(uneekStockBody([])));
+    const c = new UneekConnector({ ...ctx, apiAuthScheme: 'basic', apiKey: 'cm9nZXI6cGFzcw==' });
+    await c.getStockAndPrice(['X']);
+    const h = calls[0]!.init.headers as Record<string, string>;
+    expect(h.Authorization).toBe('Basic cm9nZXI6cGFzcw==');
+  });
+
+  it("base64-encodes 'user:pass' at request time when scheme is 'basic_credentials'", async () => {
+    const calls = mockFetch(() => rawResponse(uneekStockBody([])));
+    const c = new UneekConnector({ ...ctx, apiAuthScheme: 'basic_credentials', apiKey: 'roger:pass' });
+    await c.getStockAndPrice(['X']);
+    const h = calls[0]!.init.headers as Record<string, string>;
+    expect(h.Authorization).toBe(`Basic ${Buffer.from('roger:pass').toString('base64')}`);
+  });
+
+  it("emits 'Bearer <key>' when scheme is 'bearer'", async () => {
+    const calls = mockFetch(() => rawResponse(uneekStockBody([])));
+    const c = new UneekConnector({ ...ctx, apiAuthScheme: 'bearer' });
+    await c.getStockAndPrice(['X']);
+    const h = calls[0]!.init.headers as Record<string, string>;
+    expect(h.Authorization).toBe('Bearer test-key');
+  });
+
+  it("emits the bare key when scheme is 'apikey'", async () => {
+    const calls = mockFetch(() => rawResponse(uneekStockBody([])));
     const c = new UneekConnector({ ...ctx, apiAuthScheme: 'apikey' });
     await c.getStockAndPrice(['X']);
     const h = calls[0]!.init.headers as Record<string, string>;
@@ -120,7 +197,7 @@ describe('UneekConnector — auth scheme variants', () => {
 });
 
 describe('UneekConnector.placeOrder', () => {
-  it('forwards the idempotency key and ACCEPTED upstream → ACCEPTED response', async () => {
+  it('forwards the idempotency key; ACCEPTED upstream → ACCEPTED response', async () => {
     const calls = mockFetch(() =>
       jsonResponse({ orderRef: 'UNEEK-99', status: 'ACCEPTED', etaMinDays: 2, etaMaxDays: 5 }),
     );
