@@ -15,14 +15,14 @@ export const revalidate = 86_400; // 1 day — the FAQ rarely changes
 export const metadata: Metadata = {
   title: 'Shipping, returns & FAQ',
   description:
-    'Delivery times, returns policy, materials, tolerances, packaging — straight answers about Filament Store 3D printer filament.',
+    'Delivery times, returns policy, sizing, packaging — straight answers about ordering from the Clothes Shop.',
   alternates: { canonical: '/faq' },
   openGraph: {
     type: 'website',
     url: '/faq',
-    title: 'Shipping, returns & FAQ | Filament Store',
+    title: 'Shipping, returns & FAQ | Clothes Shop',
     description:
-      'Delivery times, returns, supported materials, diameter, tolerances, and other questions about Filament Store filament.',
+      'Delivery times, returns, sizing, packaging, and other questions about ordering from the Clothes Shop.',
   },
   robots: { index: true, follow: true },
 };
@@ -64,10 +64,10 @@ export default function FaqPage() {
           Shipping, returns, materials, tolerances, packaging.
           If your question isn&rsquo;t here, email{' '}
           <a
-            href="mailto:orders@filament.shop.cleverdeals.net"
+            href="mailto:orders@clothes.shop.cleverdeals.net"
             className="text-[var(--brand-ink)] underline-offset-2 hover:underline"
           >
-            orders@filament.shop.cleverdeals.net
+            orders@clothes.shop.cleverdeals.net
           </a>
           .
         </p>

@@ -13,7 +13,7 @@ import { ImageResponse } from 'next/og';
 export const runtime = 'edge';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
-export const alt = 'Filament Store — Premium 3D printer filament';
+export const alt = 'Clothes Shop — Friendly clothes in real sizes';
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -52,10 +52,10 @@ export default function OpengraphImage() {
               letterSpacing: -1,
             }}
           >
-            F
+            C
           </div>
           <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: -0.5 }}>
-            Filament Store
+            Clothes Shop
           </div>
         </div>
 
@@ -75,7 +75,7 @@ export default function OpengraphImage() {
               color: '#3B5266',
             }}
           >
-            1.75mm · 1kg · vacuum-sealed
+            Real sizes · Easy returns · Fast UK delivery
           </div>
           <div
             style={{
@@ -86,10 +86,10 @@ export default function OpengraphImage() {
               maxWidth: 1000,
             }}
           >
-            Filament that prints first time.
+            Clothes that fit, in colours that make you smile.
           </div>
           <div style={{ fontSize: 28, color: '#6B6E76', maxWidth: 900 }}>
-            PLA · PETG · ABS · ASA · TPU. Tight tolerances, fast UK delivery.
+            Soft cotton, honest sizing, no hype. Pick your colour, pick your size.
           </div>
         </div>
       </div>

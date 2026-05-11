@@ -8,7 +8,7 @@ import { getProductBySlug } from '@/lib/smmta';
 export const runtime = 'edge';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
-export const alt = 'Filament Store product card';
+export const alt = 'Clothes Shop product card';
 
 interface RouteParams {
   productSlug: string;
@@ -49,7 +49,7 @@ export default async function ProductOpenGraphImage({
   try {
     product = await getProductBySlug(productSlug);
   } catch {
-    return brandedFallback('Filament Store');
+    return brandedFallback('Clothes Shop');
   }
 
   return new ImageResponse(
@@ -105,7 +105,7 @@ export default async function ProductOpenGraphImage({
               color: '#71717a',
             }}
           >
-            Filament Store
+            Clothes Shop
           </div>
           <div
             style={{

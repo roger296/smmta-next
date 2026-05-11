@@ -23,7 +23,7 @@ describe('organizationLd', () => {
     expect(ld['@context']).toBe('https://schema.org');
     expect(ld['@type']).toBe('Organization');
     expect(ld.url).toBe('https://example.com/');
-    expect(ld.name).toBe('Filament Store');
+    expect(ld.name).toBe('Clothes Shop');
   });
 });
 

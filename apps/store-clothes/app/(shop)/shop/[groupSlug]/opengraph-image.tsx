@@ -13,7 +13,7 @@ import { priceFromString } from '@/lib/seo/structured-data';
 export const runtime = 'edge';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
-export const alt = 'Filament Store product card';
+export const alt = 'Clothes Shop product card';
 
 interface RouteParams {
   groupSlug: string;
@@ -54,7 +54,7 @@ export default async function GroupOpenGraphImage({
   try {
     group = await getGroupBySlug(groupSlug);
   } catch {
-    return brandedFallback('Filament Store');
+    return brandedFallback('Clothes Shop');
   }
 
   const priceFrom = priceFromString(group);
@@ -112,7 +112,7 @@ export default async function GroupOpenGraphImage({
               color: '#71717a',
             }}
           >
-            Filament Store
+            Clothes Shop
           </div>
           <div
             style={{

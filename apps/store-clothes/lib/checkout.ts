@@ -117,7 +117,7 @@ function describeOrder(cart: CartView): string {
   const lineNames = cart.lines
     .map((l) => `${l.quantity}× ${l.display.name ?? l.productId}`)
     .join(', ');
-  return `Filament Store — ${lineNames}`.slice(0, 200);
+  return `Clothes Shop — ${lineNames}`.slice(0, 200);
 }
 
 // ---------------------------------------------------------------------------

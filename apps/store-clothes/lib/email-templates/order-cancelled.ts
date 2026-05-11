@@ -13,7 +13,7 @@ export interface OrderCancelledPayload {
 export function renderOrderCancelled(p: OrderCancelledPayload): RenderedEmail {
   const greeting = p.firstName ? `Hi ${p.firstName},` : 'Hi there,';
   const link = trackUrl(p.storeBaseUrl, p.orderId);
-  const subject = `Your Filament Store order ${p.orderNumber} has been cancelled`;
+  const subject = `Your Clothes Shop order ${p.orderNumber} has been cancelled`;
   const preheader = p.reason
     ? `Cancellation: ${p.reason.slice(0, 70)}`
     : `Your order has been cancelled.`;
@@ -45,7 +45,7 @@ export function renderOrderCancelled(p: OrderCancelledPayload): RenderedEmail {
     '',
     `Need a hand? Reply to this email and we'll sort it.`,
     '',
-    '— Filament Store',
+    '— Clothes Shop',
   ]
     .filter(Boolean)
     .join('\n');

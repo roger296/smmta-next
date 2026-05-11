@@ -10,7 +10,7 @@ import Link from 'next/link';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: { default: 'Admin', template: '%s — Admin | Filament Store' },
+  title: { default: 'Admin', template: '%s — Admin | Clothes Shop' },
   robots: { index: false, follow: false },
 };
 
