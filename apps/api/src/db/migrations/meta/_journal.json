@@ -78,6 +78,13 @@
       "when": 1778243944172,
       "tag": "0010_flawless_harpoon",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778696955087,
+      "tag": "0011_narrow_leo",
+      "breakpoints": true
     }
   ]
 }

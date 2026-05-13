@@ -40,7 +40,7 @@ export const updateSupplierSchema = createSupplierSchema.partial();
 
 export const dropshipSupplierSchema = z.object({
   slug: z.string().min(1).max(100).optional(),
-  connectorKind: z.enum(['NONE', 'UNEEK', 'STUB']).optional(),
+  connectorKind: z.enum(['NONE', 'UNEEK', 'RALAWISE', 'STUB']).optional(),
   apiBaseUrl: z.string().url().max(500).nullable().optional(),
   apiKeyPlaintext: z.string().min(1).max(1000).optional(),
   apiAuthScheme: z.string().max(20).optional(),

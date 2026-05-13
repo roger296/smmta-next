@@ -5,7 +5,7 @@ export interface DropshipSupplierRow {
   id: string;
   name: string;
   slug: string | null;
-  connectorKind: 'NONE' | 'UNEEK' | 'STUB';
+  connectorKind: 'NONE' | 'UNEEK' | 'RALAWISE' | 'STUB';
   apiBaseUrl: string | null;
   apiAuthScheme: string;
   isDropshipActive: boolean;
@@ -62,7 +62,7 @@ export function useDropshipSupplier(id: string | undefined) {
 
 export interface DropshipUpdateInput {
   slug?: string;
-  connectorKind?: 'NONE' | 'UNEEK' | 'STUB';
+  connectorKind?: 'NONE' | 'UNEEK' | 'RALAWISE' | 'STUB';
   apiBaseUrl?: string | null;
   apiKeyPlaintext?: string;
   apiAuthScheme?: string;

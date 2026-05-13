@@ -87,7 +87,7 @@ export const supplierOrderStatusEnum = pgEnum('supplier_order_status', [
 
 /** Discriminator for the connector module a supplier uses. */
 export const supplierConnectorKindEnum = pgEnum('supplier_connector_kind', [
-  'NONE', 'UNEEK', 'STUB',
+  'NONE', 'UNEEK', 'RALAWISE', 'STUB',
 ]);
 
 /** Per-line fulfilment source, decided at checkout-start by the

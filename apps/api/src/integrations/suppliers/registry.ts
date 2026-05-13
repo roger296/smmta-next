@@ -10,10 +10,11 @@
  * to the service layer — see `supplier.service.test.ts`.
  */
 import { decrypt } from '../../shared/crypto/encrypt.js';
+import { RalawiseConnector } from './ralawise.connector.js';
 import { UneekConnector } from './uneek.connector.js';
 import type { SupplierConnector, SupplierConnectorContext } from './types.js';
 
-export type ConnectorKind = 'NONE' | 'UNEEK' | 'STUB';
+export type ConnectorKind = 'NONE' | 'UNEEK' | 'RALAWISE' | 'STUB';
 
 export interface SupplierLikeRow {
   id: string;
@@ -69,6 +70,9 @@ export function resolveConnector(supplier: SupplierLikeRow): SupplierConnector {
   switch (supplier.connectorKind) {
     case 'UNEEK':
       conn = new UneekConnector(ctx);
+      break;
+    case 'RALAWISE':
+      conn = new RalawiseConnector(ctx);
       break;
     case 'STUB':
       throw new ConnectorConfigError(
