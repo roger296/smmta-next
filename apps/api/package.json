@@ -16,7 +16,8 @@
     "db:studio": "drizzle-kit studio",
     "seed:storefront": "tsx scripts/seed-storefront.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "import:uneek-products": "tsx scripts/import-uneek-products.ts"
+    "import:uneek-products": "tsx scripts/import-uneek-products.ts",
+    "seed:ralawise-catalogue": "tsx scripts/seed-ralawise-catalogue.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",
@@ -24,6 +25,7 @@
     "@fastify/swagger": "^9.0.0",
     "@fastify/swagger-ui": "^5.0.0",
     "@smmta/shared-types": "*",
+    "csv-parse": "^6.2.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.41.0",
     "fastify": "^5.3.0",

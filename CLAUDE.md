@@ -265,6 +265,22 @@ DATABASE_URL=... npx tsx apps/api/scripts/run-supplier-order-placer.ts
 # runs continuously under smmta-supplier-order-placer.service (sleep 30s loop).
 ```
 
+**Bulk-import the Ralawise catalogue (drop-shipping):**
+
+```bash
+cd ~/smmta-next
+# CSV file ~204 MB at /home/smmta/.tmp.Ralawise/CustomerDataFull.csv on VPS.
+# Cost prices are CSV column 46 (`Single Price`); retail = cost × markup.
+DATABASE_URL=... \
+  RALAWISE_CSV_PATH=/home/smmta/.tmp.Ralawise/CustomerDataFull.csv \
+  RALAWISE_DEFAULT_MARKUP=2.0 \
+  npm run seed:ralawise-catalogue -w @smmta/api -- --publish
+# Optional flags: --limit=N | --dry-run | --markup=X.Y | --channel=<slug>
+# Streaming + batched (1000 rows/tx). Full 103k catalogue: ~30 min.
+# Idempotent — re-running upserts in place; admin-edited price overrides
+# in product_channels are protected. See apps/api/scripts/RALAWISE_IMPORT_NOTES.md.
+```
+
 **Seed demo data for both stores:**
 
 ```bash
