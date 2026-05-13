@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "image_licence_expires_at" timestamp with time zone;

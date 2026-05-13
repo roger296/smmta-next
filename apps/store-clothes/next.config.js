@@ -90,6 +90,11 @@ const nextConfig = {
       // their CDN. `Image` / `SmallImage` / `ColourImage` / `SMColourImage`
       // fields on the /productdata/all response all point here.
       { protocol: 'https', hostname: 'images.uneekclothing.com' },
+      // Ralawise — drop-ship product images for the bulk-imported
+      // catalogue. `Primary Product Image URL` + `Colour Image` columns
+      // in CustomerDataFull.csv both point at this CDN. Licence-expiry
+      // dates are captured per-product in `products.image_licence_expires_at`.
+      { protocol: 'https', hostname: 'cdn.pimber.ly' },
     ],
   },
 

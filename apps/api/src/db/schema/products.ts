@@ -1,4 +1,4 @@
-import { pgTable, varchar, decimal, boolean, integer, text, uuid, jsonb, doublePrecision, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, decimal, boolean, integer, text, uuid, jsonb, doublePrecision, index, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { pk, companyId, auditTimestamps, oldId, productTypeEnum, stockItemStatusEnum } from './common.js';
 import { categories, manufacturers, warehouses } from './reference.js';
@@ -68,6 +68,12 @@ export const products = pgTable(
      *  to know which axes to render and resolves the matching product
      *  by exact-match against this object. */
     attributes: jsonb('attributes').$type<Record<string, string>>(),
+    /** When the supplier's image licence expires. Imported alongside
+     *  the image URL from Ralawise's CSV (column 53). A future
+     *  scheduled task can warn / hide products whose images are about
+     *  to stop loading. Nullable: legacy products + non-image-licensed
+     *  suppliers leave this NULL. */
+    imageLicenceExpiresAt: timestamp('image_licence_expires_at', { withTimezone: true }),
     // ------------------------------------------------------------------
     oldId: oldId(),
     ...auditTimestamps,
