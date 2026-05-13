@@ -1,0 +1,1 @@
+ALTER TYPE "public"."supplier_connector_kind" ADD VALUE 'RALAWISE' BEFORE 'STUB';

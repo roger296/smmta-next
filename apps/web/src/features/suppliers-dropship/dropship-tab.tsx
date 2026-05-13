@@ -138,6 +138,7 @@ export function DropshipTab({ supplierId }: Props) {
               >
                 <option value="NONE">None (no integration)</option>
                 <option value="UNEEK">Uneek Clothing</option>
+                <option value="RALAWISE">Ralawise</option>
               </select>
             </div>
             <div className="space-y-1">

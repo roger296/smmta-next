@@ -7,3 +7,8 @@ dist/
 *.tsbuildinfo
 coverage/
 .DS_Store
+
+# Vendor / supplier materials (docs, sample data, CSV dumps) and
+# local-only briefs. Kept on disk for reference; never committed.
+.tmp.*/
+.tmp-*
