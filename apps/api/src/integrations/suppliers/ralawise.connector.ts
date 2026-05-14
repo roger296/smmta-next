@@ -262,9 +262,24 @@ export class RalawiseConnector implements SupplierConnector {
    *  during refresh, they share the same network call rather than
    *  each issuing their own login. */
   private inflightLogin: Promise<string> | null = null;
+  /** Epoch-ms of the earliest moment the next request may be sent.
+   *  Updated after every `fetchRaw` call. Zero = no pending throttle. */
+  private nextRequestAllowedAt = 0;
 
   constructor(private readonly ctx: SupplierConnectorContext) {
     this.creds = parseCredentials(ctx.apiKey);
+  }
+
+  /** Internal: wait until the throttle window has elapsed. No-op when
+   *  `minRequestIntervalMs` isn't set on the context. Exposed for tests. */
+  /** @internal */
+  async _awaitThrottle(now = Date.now()): Promise<void> {
+    const interval = this.ctx.minRequestIntervalMs ?? 0;
+    if (interval <= 0) return;
+    const waitMs = this.nextRequestAllowedAt - now;
+    if (waitMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
   }
 
   // ----------------------------------------------------------
@@ -540,13 +555,27 @@ export class RalawiseConnector implements SupplierConnector {
 
   /** Raw fetch with timeout + auth-aware header construction. Used
    *  by `requestJson` and directly by `refreshToken` (to avoid the
-   *  token-refresh loop on the login call itself). */
+   *  token-refresh loop on the login call itself).
+   *
+   *  Honours `ctx.minRequestIntervalMs` to stay under supplier rate
+   *  limits: waits until the throttle window has elapsed before
+   *  issuing the request, then schedules the next allowed timestamp.
+   *  Applies to ALL outbound calls (login + inventory + order) so
+   *  the documented per-account rate limit isn't accidentally split
+   *  across endpoints. */
   private async fetchRaw(
     method: 'GET' | 'POST',
     url: string,
     body: unknown,
     opts: { token?: string; auth?: boolean; timeoutMs?: number } = {},
   ): Promise<Response> {
+    await this._awaitThrottle();
+    // Stamp the NEXT allowed timestamp before issuing this request so
+    // concurrent in-flight requests (rare, but possible) also wait.
+    const interval = this.ctx.minRequestIntervalMs ?? 0;
+    if (interval > 0) {
+      this.nextRequestAllowedAt = Date.now() + interval;
+    }
     const timeoutMs = opts.timeoutMs ?? this.ctx.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);

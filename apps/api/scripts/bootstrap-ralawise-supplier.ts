@@ -72,6 +72,10 @@ async function main(): Promise<void> {
         // refresh the connection-side fields. Note: this also doesn't reset
         // `consecutiveFailures` or `lastError` so a half-stuck supplier doesn't
         // get accidentally re-activated on a re-bootstrap.
+        // Also: only set min_request_interval_ms when it's NULL — the
+        // operator may have tuned it from the admin SPA after first
+        // bootstrap; respect that.
+        ...(existing.minRequestIntervalMs == null ? { minRequestIntervalMs: 6500 } : {}),
         updatedAt: new Date(),
       })
       .where(eq(suppliers.id, existing.id));
@@ -91,6 +95,13 @@ async function main(): Promise<void> {
         pollIntervalMinutes: 180,
         dispatchSlaMinDays: 1,
         dispatchSlaMaxDays: 3,
+        // Ralawise's documented rate limit is 10 requests / 60 seconds
+        // per authenticated account. 6000 ms between requests would be
+        // the bare minimum; 6500 ms leaves headroom for clock skew and
+        // server-side counting variance. Operator can lower this in
+        // the admin SPA if they negotiate a higher limit, or raise it
+        // if they're sharing the rate limit pool with another integration.
+        minRequestIntervalMs: 6500,
         showSupplierNameToCustomers: false,
         countryCode: 'GB',
         currencyCode: 'GBP',

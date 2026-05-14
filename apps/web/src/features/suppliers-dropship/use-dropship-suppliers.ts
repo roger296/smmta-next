@@ -12,6 +12,7 @@ export interface DropshipSupplierRow {
   pollIntervalMinutes: number;
   dispatchSlaMinDays: number;
   dispatchSlaMaxDays: number;
+  minRequestIntervalMs: number | null;
   lastError: string | null;
   consecutiveFailures: number;
   showSupplierNameToCustomers: boolean;
@@ -70,6 +71,7 @@ export interface DropshipUpdateInput {
   pollIntervalMinutes?: number;
   dispatchSlaMinDays?: number;
   dispatchSlaMaxDays?: number;
+  minRequestIntervalMs?: number | null;
   showSupplierNameToCustomers?: boolean;
 }
 

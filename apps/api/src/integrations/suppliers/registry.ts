@@ -22,6 +22,8 @@ export interface SupplierLikeRow {
   apiBaseUrl: string | null;
   apiKeyEnc: string | null;
   apiAuthScheme: string;
+  /** Optional per-supplier rate-limit throttle (ms between requests). */
+  minRequestIntervalMs?: number | null;
 }
 
 const cache = new Map<string, SupplierConnector>();
@@ -64,6 +66,10 @@ export function resolveConnector(supplier: SupplierLikeRow): SupplierConnector {
     apiKey,
     apiBaseUrl: supplier.apiBaseUrl,
     apiAuthScheme: supplier.apiAuthScheme,
+    minRequestIntervalMs:
+      typeof supplier.minRequestIntervalMs === 'number' && supplier.minRequestIntervalMs > 0
+        ? supplier.minRequestIntervalMs
+        : undefined,
   };
 
   let conn: SupplierConnector;
