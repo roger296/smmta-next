@@ -48,6 +48,10 @@ export const dropshipSupplierSchema = z.object({
   pollIntervalMinutes: z.coerce.number().int().min(5).max(60 * 24).optional(),
   dispatchSlaMinDays: z.coerce.number().int().min(0).max(365).optional(),
   dispatchSlaMaxDays: z.coerce.number().int().min(0).max(365).optional(),
+  /** Per-supplier rate-limit throttle (ms between requests). 0 = no
+   *  throttle. Cap at 60s — longer than that is almost certainly a
+   *  typo. nullable() so the admin SPA can clear it back to NULL. */
+  minRequestIntervalMs: z.coerce.number().int().min(0).max(60_000).nullable().optional(),
   showSupplierNameToCustomers: z.boolean().optional(),
 });
 

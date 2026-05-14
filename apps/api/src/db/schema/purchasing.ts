@@ -52,6 +52,12 @@ export const suppliers = pgTable('suppliers', {
   pollIntervalMinutes: integer('poll_interval_minutes').notNull().default(180),
   dispatchSlaMinDays: integer('dispatch_sla_min_days').notNull().default(2),
   dispatchSlaMaxDays: integer('dispatch_sla_max_days').notNull().default(5),
+  /** Minimum milliseconds the connector waits between consecutive
+   *  HTTP requests, so we stay under a supplier's published rate
+   *  limit. Set to 6500 for Ralawise (10 req / 60 s + safety margin),
+   *  0 (or null) for Uneek (one bulk call, no per-SKU loop). NULL =
+   *  no throttle. Tune in the admin SPA's Drop-ship tab. */
+  minRequestIntervalMs: integer('min_request_interval_ms'),
   /** Surfaces in the admin SPA's supplier list when the most recent poll
    *  errored. Cleared on the next successful poll. */
   lastError: text('last_error'),

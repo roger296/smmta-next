@@ -86,6 +86,12 @@ export interface SupplierConnectorContext {
   /** Network timeout for individual requests. The connector may
    *  override this internally for slow endpoints (e.g. order placement). */
   timeoutMs?: number;
+  /** Minimum milliseconds between consecutive HTTP requests issued
+   *  by this connector. Used to stay under supplier-side rate limits
+   *  (Ralawise: 10 req / 60 s ⇒ 6000 ms minimum; we ship 6500 ms by
+   *  default for a small safety margin). 0 / undefined disables the
+   *  throttle. Comes from `suppliers.min_request_interval_ms`. */
+  minRequestIntervalMs?: number;
 }
 
 export interface SupplierConnector {

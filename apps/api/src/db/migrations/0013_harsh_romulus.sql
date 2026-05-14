@@ -1,0 +1,1 @@
+ALTER TABLE "suppliers" ADD COLUMN "min_request_interval_ms" integer;

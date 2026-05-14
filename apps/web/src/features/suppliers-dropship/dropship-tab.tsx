@@ -40,6 +40,7 @@ export function DropshipTab({ supplierId }: Props) {
         pollIntervalMinutes: s.pollIntervalMinutes,
         dispatchSlaMinDays: s.dispatchSlaMinDays,
         dispatchSlaMaxDays: s.dispatchSlaMaxDays,
+        minRequestIntervalMs: s.minRequestIntervalMs,
         showSupplierNameToCustomers: s.showSupplierNameToCustomers,
       });
       setApiKeyInput('');
@@ -217,6 +218,26 @@ export function DropshipTab({ supplierId }: Props) {
                   aria-label="Max dispatch days"
                 />
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ds-req-interval">
+                Min request interval (ms){' '}
+                <span className="text-xs text-[var(--color-muted-foreground)]">
+                  · rate limit — 0 to disable
+                </span>
+              </Label>
+              <Input
+                id="ds-req-interval"
+                type="number"
+                min={0}
+                max={60000}
+                value={form.minRequestIntervalMs ?? 0}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setForm((f) => ({ ...f, minRequestIntervalMs: Number.isFinite(n) && n > 0 ? n : null }));
+                }}
+                placeholder="e.g. 6500 for Ralawise (10 req / 60s)"
+              />
             </div>
             <label className="flex items-center gap-2 text-sm md:col-span-2">
               <input

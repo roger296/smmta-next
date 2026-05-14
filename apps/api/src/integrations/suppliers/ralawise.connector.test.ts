@@ -463,6 +463,38 @@ describe('RalawiseConnector.placeOrder', () => {
 // getOrderStatus + cancelOrder — not supported
 // ============================================================
 
+describe('RalawiseConnector — rate-limit throttle', () => {
+  it('inserts a delay between consecutive HTTP calls when minRequestIntervalMs is set', async () => {
+    mockFetchSequence(
+      () => loginOk(),
+      () => jsonResponse({ productGroup: { id: 'X', products: [{ productCode: 'XAB', variants: [{ sku: 'A' }] }] } }),
+      () => jsonResponse({ productGroup: { id: 'X', products: [{ productCode: 'XAB', variants: [{ sku: 'B' }] }] } }),
+    );
+    // 50 ms is small enough to be CI-stable but big enough that
+    // back-to-back calls measurably stretch out (50 ms × 2 SKU gaps).
+    const c = new RalawiseConnector({ ...ctx, minRequestIntervalMs: 50 });
+    const t0 = Date.now();
+    await c.getStockAndPrice(['A', 'B']);
+    const elapsed = Date.now() - t0;
+    // Login + 2 inventory calls = 3 fetches → 2 throttle gaps × 50ms = ≥100ms.
+    expect(elapsed).toBeGreaterThanOrEqual(80); // allow a little slack
+  });
+
+  it('does not throttle when minRequestIntervalMs is undefined / 0', async () => {
+    mockFetchSequence(
+      () => loginOk(),
+      () => jsonResponse({ productGroup: { id: 'X', products: [{ productCode: 'XAB', variants: [{ sku: 'A' }] }] } }),
+      () => jsonResponse({ productGroup: { id: 'X', products: [{ productCode: 'XAB', variants: [{ sku: 'B' }] }] } }),
+    );
+    const c = new RalawiseConnector(ctx); // no minRequestIntervalMs
+    const t0 = Date.now();
+    await c.getStockAndPrice(['A', 'B']);
+    const elapsed = Date.now() - t0;
+    // No throttle → should be fast (<50ms is comfortable; we assert <200 for CI slack).
+    expect(elapsed).toBeLessThan(200);
+  });
+});
+
 describe('RalawiseConnector.getOrderStatus', () => {
   it('returns UNKNOWN without making any HTTP call (endpoint not documented)', async () => {
     const calls = mockFetchSequence(() => jsonResponse({}));
