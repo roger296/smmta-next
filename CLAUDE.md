@@ -54,6 +54,15 @@ Future ecosystem integrations are expected to follow the same shape: an outbound
 - Ralawise has notable quirks worth knowing about for anyone touching the connector layer: 20-minute JWT TTL (proactive refresh + 401-retry baked into the connector), 10 requests/60s rate limit, and `orderReference: "APITEST"` for non-fulfilment test orders (the connector does NOT auto-inject this; production correctness wins — tests pass APITEST explicitly).
 - To add a new supplier connector: extend `supplier_connector_kind` enum (and write a drizzle migration), add a `<vendor>.connector.ts` file implementing `SupplierConnector`, wire the new case in `registry.ts`'s switch, add an admin SPA option in `apps/web/src/features/suppliers-dropship/dropship-tab.tsx`.
 
+### Categorisation
+
+- Two-tier hierarchical taxonomy lives on the `categories` table — top-tier rows have `parent_id = NULL`, subcategories point at their parent. Hard cap at two tiers; if a sub-bucket gets unwieldy (e.g. Tops → T-shirts ends up with 30k SKUs) the answer is filters within the page, not more taxonomy depth.
+- **Taxonomy is data in code at `apps/api/src/modules/catalogue/taxonomy.ts`**. The seven top-tiers + their subcategories are listed there; `seed-categories.ts` upserts them into the DB on every run. There's also a hidden `uncategorised` bucket for products that fall through the mapping rules.
+- **Category assignment is rule-driven via `apps/api/src/modules/catalogue/category-mapping.ts`**. Each rule is `{ source?, productType?, categorisationContains?, nameContains?, ageGroupEquals?, assignTo }`. The backfill (`assign-categories.ts`) walks every product, applies rules top-to-bottom, first match wins. Anything that doesn't match lands in `uncategorised`. The script's end-of-run summary shows which categories grew + sample names from the unmatched bucket so the operator knows what rules to add next.
+- Rules priority: context (hi-vis, sport, school) > age band (kids) > garment type. The brief's example: a hi-vis polo lives in `workwear-and-safety/hi-vis-tops-and-vests`, not `tops/polo-shirts`.
+- **Mapping rules are committed code, not data**. The admin SPA's Categories page is read-only — it shows the tree + product counts so the operator can spot coverage gaps, but to actually change which products land where, edit `category-mapping.ts` and redeploy. Editing rules in the SPA is a deliberate V2 follow-up (it needs a "preview impact" mechanism we don't have yet).
+- Storefront category pages live at `/shop/c/<top>` and `/shop/c/<top>/<sub>`. Filters (gender / brand / colour / size / price band / stock state) are URL-encoded query params so deep-links work + SEO crawls cleanly. Filter facets are computed server-side from the full category result before pagination so the sidebar counts stay representative.
+
 ---
 
 ## What's in this repo
@@ -263,6 +272,24 @@ DATABASE_URL=... npx tsx apps/api/scripts/run-supplier-order-placer.ts
 # Picks up PENDING + retryable FAILED rows from supplier_orders, calls
 # the connector, applies exponential-backoff retry. In production it
 # runs continuously under smmta-supplier-order-placer.service (sleep 30s loop).
+```
+
+**(Re-)assign category IDs from the rule set:**
+
+```bash
+cd ~/smmta-next
+set -a; . ./apps/api/.env; set +a
+# First time only: seed the taxonomy rows.
+npm run seed:categories -w @smmta/api
+# Apply rules + write products.category_id. Idempotent.
+npm run assign-categories -w @smmta/api
+# Optional flags:
+#   --dry-run     preview without writing
+#   --limit=1000  process only the first N products (smoke test)
+# End-of-run summary shows per-category counts + sample uncategorised
+# product names so you can see what rules to add next. Rules live in
+# `apps/api/src/modules/catalogue/category-mapping.ts` — edit + redeploy
+# + re-run after a rule change.
 ```
 
 **Bulk-import the Ralawise catalogue (drop-shipping):**

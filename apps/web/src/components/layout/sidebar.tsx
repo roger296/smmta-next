@@ -12,6 +12,7 @@ import {
   Settings,
   Layers,
   Boxes,
+  FolderTree,
 } from 'lucide-react';
 
 interface NavItem {
@@ -27,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Invoices', to: '/invoices', icon: FileText },
   { label: 'Products', to: '/products', icon: Package },
   { label: 'Product groups', to: '/product-groups', icon: Boxes },
+  { label: 'Categories', to: '/categories', icon: FolderTree },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },

@@ -1,4 +1,5 @@
-import { pgTable, varchar, decimal, boolean, text, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, decimal, boolean, text, uuid, integer, uniqueIndex } from 'drizzle-orm/pg-core';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { pk, companyId, auditTimestamps, oldId } from './common.js';
 
 // ============================================================
@@ -38,13 +39,35 @@ export const warehouses = pgTable('warehouses', {
 // Categories
 // ============================================================
 
-export const categories = pgTable('categories', {
-  id: pk(),
-  companyId: companyId(),
-  name: varchar('name', { length: 200 }).notNull(),
-  oldId: oldId(),
-  ...auditTimestamps,
-});
+export const categories = pgTable(
+  'categories',
+  {
+    id: pk(),
+    companyId: companyId(),
+    name: varchar('name', { length: 200 }).notNull(),
+    /** URL slug — kebab-case lowercase. Unique per `(parent_id, slug)`
+     *  so `tops/t-shirts` and `kids-and-schoolwear/kids-tops` don't
+     *  collide despite sharing a leaf name pattern. */
+    slug: varchar('slug', { length: 100 }),
+    /** Self-FK for the two-tier hierarchy. Top-tier categories have
+     *  `parent_id = NULL`. Restrict on delete so an accidental delete
+     *  of a parent doesn't orphan children. */
+    parentId: uuid('parent_id').references((): AnyPgColumn => categories.id, { onDelete: 'restrict' }),
+    /** SEO / landing-page copy. */
+    description: text('description'),
+    /** Lower numbers sort earlier within their parent. Defaults to 100
+     *  so manual reorders (sort_order = 1..N) take precedence. */
+    sortOrder: integer('sort_order').notNull().default(100),
+    /** Hidden categories don't appear in the storefront nav. Used for
+     *  the `uncategorised` fallback bucket. */
+    isHidden: boolean('is_hidden').notNull().default(false),
+    oldId: oldId(),
+    ...auditTimestamps,
+  },
+  (t) => ({
+    parentSlugUnq: uniqueIndex('categories_parent_slug_unq').on(t.parentId, t.slug),
+  }),
+);
 
 // ============================================================
 // Manufacturers

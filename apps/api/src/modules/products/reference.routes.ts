@@ -47,6 +47,16 @@ export async function referenceRoutes(app: FastifyInstance) {
     return { success: true, data };
   });
 
+  // GET /categories/tree — hierarchical view with product counts.
+  // Used by the admin SPA's Categories page to show how the
+  // taxonomy is populated. The route comes BEFORE /:id so the
+  // literal segment `tree` isn't matched as an id.
+  app.get('/categories/tree', async (request) => {
+    const user = getAuthUser(request);
+    const data = await categoryService.tree(user.companyId);
+    return { success: true, data };
+  });
+
   app.get('/categories/:id', async (request, reply) => {
     const user = getAuthUser(request);
     const { id } = request.params as { id: string };

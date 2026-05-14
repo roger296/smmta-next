@@ -68,6 +68,13 @@ export const products = pgTable(
      *  to know which axes to render and resolves the matching product
      *  by exact-match against this object. */
     attributes: jsonb('attributes').$type<Record<string, string>>(),
+    /** Hierarchical category this product belongs to. Assigned by
+     *  `assign-categories.ts` via rules in `category-mapping.ts`.
+     *  Nullable so the backfill can run lazily; unassigned products
+     *  fall into the hidden `uncategorised` bucket via the same
+     *  script. `on delete set null` so deleting a category doesn't
+     *  cascade-delete products (which would be catastrophic). */
+    categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
     /** When the supplier's image licence expires. Imported alongside
      *  the image URL from Ralawise's CSV (column 53). A future
      *  scheduled task can warn / hide products whose images are about
