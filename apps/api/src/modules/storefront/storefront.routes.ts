@@ -16,6 +16,7 @@ import { CatalogueService } from './catalogue.service.js';
 import { CategoryService, type CategoryFilters, type SortKey } from './category.service.js';
 import type { StockState } from './availability.js';
 import { OrderCommitService } from './order-commit.service.js';
+import { SearchService } from './search/search.service.js';
 import {
   InsufficientStockError,
   ReservationService,
@@ -42,6 +43,17 @@ const slugParamSchema = z.object({
 
 const service = new CatalogueService();
 const categoryService = new CategoryService();
+const searchService = new SearchService({
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  dailyBudgetGbp: (() => {
+    const v = Number.parseFloat(process.env.LLM_SEARCH_BUDGET_GBP_PER_DAY ?? '5');
+    return Number.isFinite(v) && v >= 0 ? v : 5;
+  })(),
+});
+
+const searchQuerySchema = z.object({
+  q: z.string().min(1).max(240),
+});
 
 // Filter parsing for the category endpoint. The storefront sends:
 //   ?stock=IN_STOCK,AVAILABLE_FROM_SUPPLIER
@@ -224,6 +236,46 @@ export async function storefrontReadRoutes(app: FastifyInstance) {
         return reply.status(404).send({ success: false, error: 'Category not found' });
       }
       return reply.header('Cache-Control', CACHE_HEADER).send({ success: true, data: result });
+    },
+  );
+
+  // GET /storefront/search — conversational search.
+  //
+  // ?q=<encoded query>  →  { interpretation, products, totalCount, ... }
+  //
+  // Server-side LLM parsing (Claude Haiku) maps the natural-language
+  // query to a structured filter set + a category slug; the result
+  // is fed into the same `CategoryService.listCategoryProducts` that
+  // backs the /shop/c/... pages. If the LLM call fails / the API key
+  // isn't configured / the day's budget is blown, we fall through to
+  // a keyword search across product names. The customer always gets
+  // something — interpretation text plus whatever the system could
+  // find.
+  //
+  // No cache-control header — search results are personalised to the
+  // exact query string, so HTTP caching just inflates the URL space
+  // without buying us much. Per-query caching happens in
+  // SearchService's in-memory Map.
+  app.get(
+    '/storefront/search',
+    {
+      schema: {
+        tags: ['storefront'],
+        summary: 'Conversational search — parse a natural-language query and return matching products',
+      },
+    },
+    async (request, reply) => {
+      const ctx = getApiKeyContext(request);
+      const parsed = searchQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ success: false, error: 'Missing or invalid q parameter' });
+      }
+      const data = await searchService.search({
+        query: parsed.data.q,
+        companyId: ctx.companyId,
+        channelId: ctx.channelId,
+      });
+      return reply.send({ success: true, data });
     },
   );
 

@@ -18,7 +18,11 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  decimal,
+  integer,
+  jsonb,
   pgTable,
+  text,
   timestamp,
   uniqueIndex,
   uuid,
@@ -82,5 +86,66 @@ export const newsletterSubscribers = pgTable(
     newsletterSubscribersEmailUnq: uniqueIndex(
       'newsletter_subscribers_email_unq',
     ).on(t.email),
+  }),
+);
+
+// ============================================================
+// LLM-backed conversational search log
+// ============================================================
+//
+// One row per customer search query that hit the conversational
+// parser. Used for:
+//   - Daily-spend tracking (the cost-ceiling fall-back to keyword
+//     search if the day's spend exceeds the configured budget).
+//   - Admin SPA "search insights" page (top queries, zero-result
+//     queries, average confidence, average latency).
+//   - Future fine-tuning / prompt-tweaking (no PII; the customer's
+//     query text is the only customer-supplied data captured).
+//
+// Deliberately NO customer identifier (no email, IP, session id).
+// The log is for tuning the system, not analytics on individual
+// customers.
+
+export const llmSearchLog = pgTable(
+  'llm_search_log',
+  {
+    id: pk(),
+    companyId: companyId(),
+    /** The raw customer query string. Capped via the search endpoint's
+     *  Zod schema so the column doesn't need to be unlimited. */
+    query: text('query').notNull(),
+    /** SHA-256 of the lowercased + trimmed query. Lets us count
+     *  duplicate queries across the cache window without storing the
+     *  raw string a second time. */
+    queryHash: varchar('query_hash', { length: 64 }).notNull(),
+    /** Parsed output as returned by the LLM (or null if the parser
+     *  fell through to keyword search). Stored verbatim so we can
+     *  audit the model's interpretation later. */
+    parsedOutput: jsonb('parsed_output'),
+    /** `'high' | 'medium' | 'low'` from the parser, or null when the
+     *  parser wasn't called (cache hit / budget exceeded). */
+    confidence: varchar('confidence', { length: 10 }),
+    /** Number of products returned for this query. Used to find
+     *  zero-result queries that need rule / synonym additions. */
+    resultCount: integer('result_count').notNull().default(0),
+    /** Total wall-clock latency for the search, including the LLM
+     *  call + DB query + any cache lookup. Milliseconds. */
+    latencyMs: integer('latency_ms').notNull().default(0),
+    /** Whether the cache served this query. */
+    cacheHit: boolean('cache_hit').notNull().default(false),
+    /** Estimated cost in GBP for this query's LLM tokens. Zero on
+     *  cache hits + keyword-fallback paths. */
+    costGbp: decimal('cost_gbp', { precision: 8, scale: 6 }).notNull().default('0'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    // Time-bucketed reads dominate this table: "today's spend total",
+    // "queries this week", "top zero-result queries". Index on createdAt.
+    llmSearchLogCreatedIdx: uniqueIndex('llm_search_log_created_id_unq').on(
+      t.createdAt,
+      t.id,
+    ),
   }),
 );

@@ -264,6 +264,52 @@ export function listCategoryProducts(
   });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Conversational search
+// ─────────────────────────────────────────────────────────────────
+
+export interface SearchResultProduct {
+  id: string;
+  slug: string | null;
+  name: string;
+  colour: string | null;
+  colourHex: string | null;
+  priceGbp: string | null;
+  heroImageUrl: string | null;
+  stockState: StockState;
+}
+
+export interface ParsedSearchQuery {
+  interpretation: string;
+  categorySlug?: string;
+  keywords: string[];
+  filters: Record<string, unknown>;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface SearchResponse {
+  interpretation: string;
+  parsed: ParsedSearchQuery | null;
+  products: SearchResultProduct[];
+  totalCount: number;
+  confidence: 'high' | 'medium' | 'low' | null;
+  llmBypassed: boolean;
+  latencyMs: number;
+}
+
+/** GET /storefront/search?q=... — conversational search. */
+export function searchProducts(
+  query: string,
+  opts?: RequestOptions,
+): Promise<SearchResponse> {
+  const qs = new URLSearchParams({ q: query }).toString();
+  return smmtaFetch<SearchResponse>(`storefront/search?${qs}`, {
+    // Don't cache search responses — they're per-query.
+    revalidate: false,
+    ...opts,
+  });
+}
+
 /** GET /storefront/products/:slug — single product (works for grouped variants too). */
 export function getProductBySlug(
   slug: string,
