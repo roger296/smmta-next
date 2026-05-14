@@ -18,6 +18,7 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { productChannels, productGroups, products, stockItems } from '../../db/schema/index.js';
+import { chunkedQuery } from '../../shared/db/chunk.js';
 import { getVariantAvailabilityBatch, type StockState } from './availability.js';
 
 // ---------------------------------------------------------------------------
@@ -386,21 +387,26 @@ export class CatalogueService {
     productIds: string[],
   ): Promise<Map<string, number>> {
     if (productIds.length === 0) return new Map();
-    const rows = await this.db
-      .select({
-        productId: stockItems.productId,
-        n: sql<number>`count(*)::int`,
-      })
-      .from(stockItems)
-      .where(
-        and(
-          eq(stockItems.companyId, companyId),
-          inArray(stockItems.productId, productIds),
-          eq(stockItems.status, 'IN_STOCK'),
-          isNull(stockItems.deletedAt),
-        ),
-      )
-      .groupBy(stockItems.productId);
+    // Chunked: post-Ralawise-import the clothes-shop has 100k+
+    // product IDs which would blow past Postgres's 65535-param limit
+    // on a single IN (...). See shared/db/chunk.ts.
+    const rows = await chunkedQuery(productIds, (chunk) =>
+      this.db
+        .select({
+          productId: stockItems.productId,
+          n: sql<number>`count(*)::int`,
+        })
+        .from(stockItems)
+        .where(
+          and(
+            eq(stockItems.companyId, companyId),
+            inArray(stockItems.productId, chunk),
+            eq(stockItems.status, 'IN_STOCK'),
+            isNull(stockItems.deletedAt),
+          ),
+        )
+        .groupBy(stockItems.productId),
+    );
     const map = new Map<string, number>();
     for (const r of rows) map.set(r.productId, Number(r.n));
     return map;
@@ -437,22 +443,27 @@ export class CatalogueService {
     channelId: string | null,
   ): Promise<Map<string, ChannelDecision>> {
     if (!channelId || productIds.length === 0) return new Map();
-    const rows = await this.db
-      .select({
-        productId: productChannels.productId,
-        channelId: productChannels.channelId,
-        isOffered: productChannels.isOffered,
-        priceOverrideGbp: productChannels.priceOverrideGbp,
-        basePrice: products.minSellingPrice,
-      })
-      .from(productChannels)
-      .innerJoin(products, eq(productChannels.productId, products.id))
-      .where(
-        and(
-          inArray(productChannels.productId, productIds),
-          isNull(productChannels.deletedAt),
+    // Chunked: same parameter-limit concern as availableQtyMap. The
+    // ANY-channel scan means each product can return up to N rows
+    // (one per channel), so chunk the IDs not the row output.
+    const rows = await chunkedQuery(productIds, (chunk) =>
+      this.db
+        .select({
+          productId: productChannels.productId,
+          channelId: productChannels.channelId,
+          isOffered: productChannels.isOffered,
+          priceOverrideGbp: productChannels.priceOverrideGbp,
+          basePrice: products.minSellingPrice,
+        })
+        .from(productChannels)
+        .innerJoin(products, eq(productChannels.productId, products.id))
+        .where(
+          and(
+            inArray(productChannels.productId, chunk),
+            isNull(productChannels.deletedAt),
+          ),
         ),
-      );
+    );
     // Bucket rows by product so we can detect "has rows for other
     // channels but not this one" (case 3 in the docblock above).
     const byProduct = new Map<string, typeof rows>();

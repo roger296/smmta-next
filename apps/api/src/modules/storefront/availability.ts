@@ -31,6 +31,7 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { stockItems, supplierProducts } from '../../db/schema/index.js';
+import { chunkedQuery } from '../../shared/db/chunk.js';
 
 export type StockState = 'IN_STOCK' | 'AVAILABLE_FROM_SUPPLIER' | 'OUT_OF_STOCK';
 
@@ -61,39 +62,46 @@ export async function getVariantAvailabilityBatch(
   const db = getDb();
 
   // Warehouse free-stock: count of IN_STOCK rows per product.
-  const warehouseRows = await db
-    .select({
-      productId: stockItems.productId,
-      n: sql<number>`count(*)::int`,
-    })
-    .from(stockItems)
-    .where(
-      and(
-        eq(stockItems.companyId, companyId),
-        inArray(stockItems.productId, productIds),
-        eq(stockItems.status, 'IN_STOCK'),
-        isNull(stockItems.deletedAt),
-      ),
-    )
-    .groupBy(stockItems.productId);
+  // Chunked to stay under Postgres's 65535-param limit when the
+  // catalogue is large (post-Ralawise-import: 100k+ products).
+  const warehouseRows = await chunkedQuery(productIds, (chunk) =>
+    db
+      .select({
+        productId: stockItems.productId,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(stockItems)
+      .where(
+        and(
+          eq(stockItems.companyId, companyId),
+          inArray(stockItems.productId, chunk),
+          eq(stockItems.status, 'IN_STOCK'),
+          isNull(stockItems.deletedAt),
+        ),
+      )
+      .groupBy(stockItems.productId),
+  );
   const warehouseMap = new Map<string, number>();
   for (const r of warehouseRows) warehouseMap.set(r.productId, Number(r.n));
 
   // Supplier free-stock: sum(lastKnownStock) across active mappings.
-  const supplierRows = await db
-    .select({
-      productId: supplierProducts.productId,
-      total: sql<number>`COALESCE(SUM(${supplierProducts.lastKnownStock}), 0)::int`,
-    })
-    .from(supplierProducts)
-    .where(
-      and(
-        inArray(supplierProducts.productId, productIds),
-        eq(supplierProducts.isActive, true),
-        isNull(supplierProducts.deletedAt),
-      ),
-    )
-    .groupBy(supplierProducts.productId);
+  // Same chunking concern.
+  const supplierRows = await chunkedQuery(productIds, (chunk) =>
+    db
+      .select({
+        productId: supplierProducts.productId,
+        total: sql<number>`COALESCE(SUM(${supplierProducts.lastKnownStock}), 0)::int`,
+      })
+      .from(supplierProducts)
+      .where(
+        and(
+          inArray(supplierProducts.productId, chunk),
+          eq(supplierProducts.isActive, true),
+          isNull(supplierProducts.deletedAt),
+        ),
+      )
+      .groupBy(supplierProducts.productId),
+  );
   const supplierMap = new Map<string, number>();
   for (const r of supplierRows) supplierMap.set(r.productId, Number(r.total));
 
