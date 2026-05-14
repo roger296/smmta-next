@@ -357,56 +357,76 @@ export class RalawiseConnector implements SupplierConnector {
   async getStockAndPrice(supplierSkus: string[]): Promise<SupplierStockSnapshot[]> {
     if (supplierSkus.length === 0) return [];
 
-    // V1: per-SKU loop. Each call is a single HTTP request — Ralawise
-    // doesn't expose a batch endpoint and the supplier's rate limit
-    // (10 req / 60s) constrains us anyway. Optimisation candidate:
-    // pre-group by product-group prefix (first 5 chars) and call
-    // group-level for SKUs that share a group, falling back to
-    // variant-level for singletons. Worth doing if the poll cadence
-    // ever has to be tighter than 3 hours.
-    const out: SupplierStockSnapshot[] = [];
-    for (const sku of supplierSkus) {
-      out.push(await this.getStockForSku(sku));
+    // Group SKUs by their 5-char product-group prefix so each unique
+    // group is fetched exactly once, regardless of how many of its
+    // variants we have mapped. The `/inventory/<groupCode>` endpoint
+    // returns every variant in the group in one response — for a
+    // catalogue of ~96k SKUs across ~4.4k groups (~22 variants/group on
+    // average) this turns a 96k-request poll into a 4.4k-request poll.
+    //
+    // At Ralawise's documented rate limit (10 req / 60s, ~6.6s/req with
+    // our 10 % safety margin) that's the difference between a multi-day
+    // poll and an overnight one — without group-batching the 3-hour
+    // poll cadence can never complete a cycle, and the supplier_products
+    // rows never have stock data refreshed.
+    //
+    // SKUs shorter than 5 chars (rare; defensive) fall back to using
+    // the SKU itself as the group key — the Ralawise endpoint also
+    // accepts colour-level (9-char) and group-level (5-char) codes at
+    // the same path and resolves to whichever level matches.
+    const groupOf = (sku: string): string => (sku.length >= 5 ? sku.slice(0, 5) : sku);
+    const uniqueGroups = new Set<string>();
+    for (const sku of supplierSkus) uniqueGroups.add(groupOf(sku));
+
+    // Fetch each group once and build a flat SKU → variant lookup. A
+    // group that 404s (or returns a NotFound information message) just
+    // contributes no entries to the map; SKUs in that group end up with
+    // null fields in the final snapshot list.
+    const variantBySku = new Map<string, RalawiseVariant>();
+    for (const groupKey of uniqueGroups) {
+      const body = await this.fetchInventoryOrNull(groupKey);
+      if (!body) continue;
+      for (const v of flattenInventoryVariants(body)) {
+        if (v.sku) variantBySku.set(v.sku, v);
+      }
     }
-    return out;
+
+    // Emit one snapshot per requested SKU. A missing entry means the
+    // variant wasn't in the group response — either the whole group
+    // 404'd, or the variant was discontinued and dropped from the
+    // group's variant list. Either way, the polling worker treats the
+    // null-fields snapshot as `sku_not_found` and the storefront stops
+    // surfacing the variant as available.
+    return supplierSkus.map((sku): SupplierStockSnapshot => {
+      const v = variantBySku.get(sku);
+      if (!v) return { supplierSku: sku, stockQty: null, costGbp: null };
+      return {
+        supplierSku: sku,
+        stockQty: typeof v.availableStock?.quantity === 'number'
+          ? v.availableStock.quantity
+          : null,
+        // The inventory endpoint does NOT return prices. Cost comes from
+        // the operator-entered `supplier_products.cost_gbp` instead.
+        costGbp: null,
+      };
+    });
   }
 
-  private async getStockForSku(sku: string): Promise<SupplierStockSnapshot> {
-    const url = joinUrl(this.ctx.apiBaseUrl, `${ENDPOINTS.inventory}/${encodeURIComponent(sku)}`);
+  /** Fetch the inventory for an identifier (variant SKU, colour code,
+   *  or group code — Ralawise resolves to whichever level matches).
+   *  Returns null on 404 or on a 200-with-NotFound-information-message;
+   *  re-throws everything else. */
+  private async fetchInventoryOrNull(identifier: string): Promise<RalawiseInventoryResponse | null> {
+    const url = joinUrl(this.ctx.apiBaseUrl, `${ENDPOINTS.inventory}/${encodeURIComponent(identifier)}`);
     let body: RalawiseInventoryResponse;
     try {
       body = await this.requestJson<RalawiseInventoryResponse>('GET', url, undefined);
     } catch (err) {
-      // 404 = SKU not in Ralawise's catalogue. The polling worker uses
-      // null fields as the signal to log `sku_not_found` rather than
-      // marking the supplier as down.
-      if (err instanceof SupplierBadRequestError && err.status === 404) {
-        return { supplierSku: sku, stockQty: null, costGbp: null };
-      }
+      if (err instanceof SupplierBadRequestError && err.status === 404) return null;
       throw err;
     }
-    // 200 + NotFound information message — also "not in catalogue".
-    if (findNotFoundMessage(body)) {
-      return { supplierSku: sku, stockQty: null, costGbp: null };
-    }
-    const variants = flattenInventoryVariants(body);
-    // Prefer an exact SKU match; if the requested code is a colour-
-    // or group-level code, return the first variant we got back (the
-    // polling worker only asks for variant-level SKUs in practice).
-    const exact = variants.find((v) => v.sku === sku);
-    const chosen = exact ?? variants[0];
-    if (!chosen) {
-      return { supplierSku: sku, stockQty: null, costGbp: null };
-    }
-    return {
-      supplierSku: sku,
-      stockQty: typeof chosen.availableStock?.quantity === 'number'
-        ? chosen.availableStock.quantity
-        : null,
-      // The inventory endpoint does NOT return prices. Cost comes from
-      // the operator-entered `supplier_products.cost_gbp` instead.
-      costGbp: null,
-    };
+    if (findNotFoundMessage(body)) return null;
+    return body;
   }
 
   // ----------------------------------------------------------
