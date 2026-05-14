@@ -26,6 +26,7 @@ async function* streamFixture(): AsyncIterable<RalawiseRawRow> {
       skip_empty_lines: true,
       trim: false,
       relax_column_count: true,
+      relax_quotes: true,
     }),
   );
   for await (const row of stream) {
@@ -46,15 +47,15 @@ describe('runImport (dry-run, streaming)', () => {
       },
       { limit: null, markup: 2.0 },
     );
-    // Fixture has 20 rows that pass the CSV parser: 19 real data
+    // Fixture has 21 rows that pass the CSV parser: 20 real data
     // rows + 1 all-empty trailing row.
-    // - 18 are Live with valid SKU/style → counted
+    // - 19 are Live with valid SKU/style → counted
     // - 1 is Discontinued (TEST02GREY1S) → skipped
     // - 1 is the all-empty row → skipped as malformed
-    expect(summary.rowsRead).toBe(20);
+    expect(summary.rowsRead).toBe(21);
     expect(summary.rowsSkippedDiscontinued).toBe(1);
     expect(summary.rowsSkippedMalformed).toBe(1);
-    expect(summary.rowsConsidered).toBe(18);
+    expect(summary.rowsConsidered).toBe(19);
     // dryRun → no DB writes counted
     expect(summary.groupsCreated + summary.groupsUpdated).toBe(0);
     expect(summary.productsCreated + summary.productsUpdated).toBe(0);

@@ -148,10 +148,23 @@ describe('normaliseRow (against the fixture CSV)', () => {
     skip_empty_lines: true,
     trim: false,
     relax_column_count: true,
+    relax_quotes: true,
   }) as Array<Record<string, string>>;
 
   it('parses all 20-ish fixture rows (including the empty trailing row)', () => {
     expect(rows.length).toBeGreaterThanOrEqual(19);
+  });
+
+  it('survives unescaped inches-mark quotes mid-field (Ralawise quirk)', () => {
+    // Row TEST05 has `"Demo 13" laptop case"` — an unescaped double-quote
+    // after "13" inside the quoted Style Name field. RFC 4180 says this
+    // should be `""` to escape, but Ralawise emits a single `"`. The
+    // parser must `relax_quotes: true` to skim past it.
+    const row = rows.find((r) => r['Sku Code'] === 'TEST05BLAC1');
+    expect(row).toBeDefined();
+    // The parser may slurp differently from row to row; we just need
+    // the row to exist + the style code to be intact.
+    expect(row!['Style Code']).toBe('TEST05');
   });
 
   it('first row: TEST01 black S — full happy path', () => {
