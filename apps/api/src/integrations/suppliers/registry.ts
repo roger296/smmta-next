@@ -12,7 +12,11 @@
 import { decrypt } from '../../shared/crypto/encrypt.js';
 import { RalawiseConnector } from './ralawise.connector.js';
 import { UneekConnector } from './uneek.connector.js';
-import type { SupplierConnector, SupplierConnectorContext } from './types.js';
+import {
+  deriveMinRequestIntervalMs,
+  type SupplierConnector,
+  type SupplierConnectorContext,
+} from './types.js';
 
 export type ConnectorKind = 'NONE' | 'UNEEK' | 'RALAWISE' | 'STUB';
 
@@ -22,7 +26,11 @@ export interface SupplierLikeRow {
   apiBaseUrl: string | null;
   apiKeyEnc: string | null;
   apiAuthScheme: string;
-  /** Optional per-supplier rate-limit throttle (ms between requests). */
+  /** Per-supplier rate-limit fields. See `deriveMinRequestIntervalMs`. */
+  rateLimitRequests?: number | null;
+  rateLimitWindowSeconds?: number | null;
+  /** Explicit override (ms between requests). Wins over the derived
+   *  rate-limit pair when both are set. */
   minRequestIntervalMs?: number | null;
 }
 
@@ -66,10 +74,14 @@ export function resolveConnector(supplier: SupplierLikeRow): SupplierConnector {
     apiKey,
     apiBaseUrl: supplier.apiBaseUrl,
     apiAuthScheme: supplier.apiAuthScheme,
-    minRequestIntervalMs:
-      typeof supplier.minRequestIntervalMs === 'number' && supplier.minRequestIntervalMs > 0
-        ? supplier.minRequestIntervalMs
-        : undefined,
+    // Connectors only see one number. The registry handles the
+    // "rate limit pair vs explicit override" decision via the
+    // shared helper.
+    minRequestIntervalMs: deriveMinRequestIntervalMs({
+      minRequestIntervalMs: supplier.minRequestIntervalMs ?? null,
+      rateLimitRequests: supplier.rateLimitRequests ?? null,
+      rateLimitWindowSeconds: supplier.rateLimitWindowSeconds ?? null,
+    }),
   };
 
   let conn: SupplierConnector;
