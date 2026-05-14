@@ -13,6 +13,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { apiKeyAuth, getApiKeyContext } from '../../shared/middleware/api-key.js';
 import { CatalogueService } from './catalogue.service.js';
+import { CategoryService, type CategoryFilters, type SortKey } from './category.service.js';
+import type { StockState } from './availability.js';
 import { OrderCommitService } from './order-commit.service.js';
 import {
   InsufficientStockError,
@@ -39,6 +41,66 @@ const slugParamSchema = z.object({
 });
 
 const service = new CatalogueService();
+const categoryService = new CategoryService();
+
+// Filter parsing for the category endpoint. The storefront sends:
+//   ?stock=IN_STOCK,AVAILABLE_FROM_SUPPLIER
+//   ?colour=Navy,Black
+//   ?size=L,XL
+//   ?brand=Russell,Stedman
+//   ?price=10-40   (range as "min-max"; either side optional: "-40" / "10-")
+//   ?sort=newest|price-asc|price-desc
+//   ?page=2
+// Use a permissive schema so partial / typo'd inputs degrade
+// gracefully — a bad filter returns an empty result, not a 400.
+const categoryQuerySchema = z.object({
+  stock: z.string().optional(),
+  colour: z.string().optional(),
+  size: z.string().optional(),
+  brand: z.string().optional(),
+  price: z.string().optional(),
+  sort: z.enum(['newest', 'price-asc', 'price-desc']).optional(),
+  page: z.coerce.number().int().min(1).max(1000).optional(),
+});
+
+function parseCsv(v: string | undefined): string[] | undefined {
+  if (!v) return undefined;
+  const parts = v
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return parts.length > 0 ? parts : undefined;
+}
+
+function parsePriceBand(v: string | undefined): { priceMin?: number; priceMax?: number } {
+  if (!v) return {};
+  const m = /^(\d+(?:\.\d+)?)?-(\d+(?:\.\d+)?)?$/.exec(v.trim());
+  if (!m) return {};
+  const min = m[1] !== undefined ? Number(m[1]) : undefined;
+  const max = m[2] !== undefined ? Number(m[2]) : undefined;
+  return {
+    priceMin: min !== undefined && Number.isFinite(min) ? min : undefined,
+    priceMax: max !== undefined && Number.isFinite(max) ? max : undefined,
+  };
+}
+
+function parseStockStates(v: string | undefined): StockState[] | undefined {
+  if (!v) return undefined;
+  const wanted = parseCsv(v) ?? [];
+  const ok: StockState[] = [];
+  for (const s of wanted) {
+    if (s === 'IN_STOCK' || s === 'AVAILABLE_FROM_SUPPLIER' || s === 'OUT_OF_STOCK') {
+      ok.push(s);
+    }
+  }
+  return ok.length > 0 ? ok : undefined;
+}
+
+const categorySlugPathSchema = z.object({
+  // URL-encoded slug path: `top` or `top%2Fsub`. Limit prevents
+  // adversarial inputs from doing too much work.
+  path: z.string().min(1).max(200),
+});
 
 export async function storefrontReadRoutes(app: FastifyInstance) {
   // All routes require an api key with storefront:read scope.
@@ -101,6 +163,67 @@ export async function storefrontReadRoutes(app: FastifyInstance) {
       }
       const data = await service.getProductsByIds(ctx.companyId, parsed.data.ids, ctx.channelId);
       return reply.header('Cache-Control', CACHE_HEADER).send({ success: true, data });
+    },
+  );
+
+  // GET /storefront/categories — nav tree (top-tiers + their subcategories).
+  // No auth-channel scoping needed; categories themselves are
+  // catalogue-wide. Cached.
+  app.get(
+    '/storefront/categories',
+    {
+      schema: {
+        tags: ['storefront'],
+        summary: 'List the published category nav tree (top-tiers + subcategories)',
+      },
+    },
+    async (request, reply) => {
+      const ctx = getApiKeyContext(request);
+      const data = await categoryService.listNav(ctx.companyId);
+      return reply.header('Cache-Control', CACHE_HEADER).send({ success: true, data });
+    },
+  );
+
+  // GET /storefront/categories/:path/products — products within a
+  // category (top-tier or subcategory) with filters + facets + paging.
+  //
+  // `:path` is a single URL segment containing the slug path with
+  // `/` URL-encoded as `%2F`. Two-tier max:
+  //   /storefront/categories/tops/products
+  //   /storefront/categories/tops%2Fpolo-shirts/products
+  app.get(
+    '/storefront/categories/:path/products',
+    {
+      schema: {
+        tags: ['storefront'],
+        summary: 'Products + facets + paging for a category slug path',
+      },
+    },
+    async (request, reply) => {
+      const ctx = getApiKeyContext(request);
+      const { path } = categorySlugPathSchema.parse(request.params);
+      const query = categoryQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        return reply.status(400).send({ success: false, error: 'Invalid query parameters' });
+      }
+      const filters: CategoryFilters = {
+        stockState: parseStockStates(query.data.stock),
+        colour: parseCsv(query.data.colour),
+        size: parseCsv(query.data.size),
+        brand: parseCsv(query.data.brand),
+        ...parsePriceBand(query.data.price),
+      };
+      const sort: SortKey = query.data.sort ?? 'newest';
+      const result = await categoryService.listCategoryProducts(
+        ctx.companyId,
+        decodeURIComponent(path),
+        ctx.channelId,
+        { filters, sort, page: query.data.page ?? 1 },
+      );
+      if (!result) {
+        return reply.status(404).send({ success: false, error: 'Category not found' });
+      }
+      return reply.header('Cache-Control', CACHE_HEADER).send({ success: true, data: result });
     },
   );
 

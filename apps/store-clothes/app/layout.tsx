@@ -5,6 +5,8 @@ import { fontClassName } from '@/lib/fonts';
 import { getEnv } from '@/lib/env';
 import { QueryProvider } from '@/components/query-provider';
 import { CartHeaderLink } from '@/components/cart-header-link';
+import { ShopMegamenu, type NavCategoryTop } from '@/components/shop-megamenu';
+import { listCategories } from '@/lib/smmta';
 import { SiteFooter } from '@/components/site-footer';
 
 const STORE_NAME = 'Clothes Shop';
@@ -90,7 +92,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   );
 }
 
-function Header() {
+async function Header() {
+  // Fetch nav categories server-side. Cached aggressively (5 min)
+  // via `listCategories` so this round-trip doesn't cost on every
+  // page render — the storefront is largely cache-friendly.
+  let categories: NavCategoryTop[] = [];
+  try {
+    categories = await listCategories();
+  } catch {
+    categories = [];
+  }
   return (
     <header className="border-b border-[var(--brand-border)] bg-[var(--brand-paper)]">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-5">
@@ -119,12 +130,7 @@ function Header() {
         <nav aria-label="Primary">
           <ul className="flex items-center gap-7 text-sm font-medium">
             <li>
-              <a
-                href="/shop"
-                className="transition-colors hover:text-[var(--brand-accent)]"
-              >
-                Shop
-              </a>
+              <ShopMegamenu categories={categories} />
             </li>
             <li>
               <a

@@ -12,3 +12,4 @@ coverage/
 # local-only briefs. Kept on disk for reference; never committed.
 .tmp.*/
 .tmp-*
+*.docx

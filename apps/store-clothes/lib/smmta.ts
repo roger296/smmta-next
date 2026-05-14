@@ -175,6 +175,95 @@ export function getGroupBySlug(
   });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Category nav + category-products
+// ─────────────────────────────────────────────────────────────────
+
+export interface NavCategoryTop {
+  slug: string;
+  name: string;
+  description: string | null;
+  children: Array<{ slug: string; name: string }>;
+}
+
+export type StockState = 'IN_STOCK' | 'AVAILABLE_FROM_SUPPLIER' | 'OUT_OF_STOCK';
+
+export interface CategoryProduct {
+  id: string;
+  slug: string | null;
+  name: string;
+  colour: string | null;
+  colourHex: string | null;
+  priceGbp: string | null;
+  heroImageUrl: string | null;
+  brand: string | null;
+  stockState: StockState;
+  attributes: Record<string, string> | null;
+}
+
+export interface CategoryMeta {
+  slug: string;
+  name: string;
+  description: string | null;
+  path: string;
+  breadcrumbs: Array<{ slug: string; name: string; path: string }>;
+}
+
+export interface CategoryFacets {
+  brand: Record<string, number>;
+  colour: Record<string, number>;
+  size: Record<string, number>;
+  stockState: Record<StockState, number>;
+  priceRange: { min: string; max: string } | null;
+}
+
+export interface CategoryProductsResponse {
+  category: CategoryMeta;
+  products: CategoryProduct[];
+  totalCount: number;
+  facets: CategoryFacets;
+}
+
+/** GET /storefront/categories — top-tiers + visible subcategories. */
+export function listCategories(opts?: RequestOptions): Promise<NavCategoryTop[]> {
+  return smmtaFetch<NavCategoryTop[]>('storefront/categories', {
+    revalidate: 300,
+    tags: ['storefront:categories'],
+    ...opts,
+  });
+}
+
+/** GET /storefront/categories/:slugPath/products — products + facets
+ *  for a category slug path (either `top` or `top/sub`). The slug path
+ *  is URL-encoded with `/` → `%2F`. */
+export function listCategoryProducts(
+  slugPath: string,
+  query: {
+    stock?: string;
+    colour?: string;
+    size?: string;
+    brand?: string;
+    price?: string;
+    sort?: string;
+    page?: number;
+  } = {},
+  opts?: RequestOptions,
+): Promise<CategoryProductsResponse> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) {
+    if (v !== undefined && v !== '') qs.set(k, String(v));
+  }
+  const queryStr = qs.toString();
+  const url =
+    `storefront/categories/${encodeURIComponent(slugPath)}/products` +
+    (queryStr ? `?${queryStr}` : '');
+  return smmtaFetch<CategoryProductsResponse>(url, {
+    revalidate: 60,
+    tags: [`storefront:category:${slugPath}`],
+    ...opts,
+  });
+}
+
 /** GET /storefront/products/:slug — single product (works for grouped variants too). */
 export function getProductBySlug(
   slug: string,
