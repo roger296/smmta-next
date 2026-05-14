@@ -156,22 +156,25 @@ describe('flattenInventoryVariants', () => {
 
 describe('RalawiseConnector — token lifecycle', () => {
   it('logs in on first inventory call and reuses the token', async () => {
+    // Two SKUs from DIFFERENT product groups → two `/inventory/<group>`
+    // calls (one per unique 5-char prefix). Same-group SKUs are
+    // collapsed into a single request — see the dedicated test below.
     const calls = mockFetchSequence(
       () => loginOk('jwt-1'),
       () => jsonResponse({
         productGroup: { id: 'GD001', products: [{ productCode: 'GD001BLAC', variants: [{ sku: 'GD001BLACS', availableStock: { quantity: 7 } }] }] },
       }),
       () => jsonResponse({
-        productGroup: { id: 'GD001', products: [{ productCode: 'GD001REDD', variants: [{ sku: 'GD001REDDS', availableStock: { quantity: 3 } }] }] },
+        productGroup: { id: 'GD002', products: [{ productCode: 'GD002REDD', variants: [{ sku: 'GD002REDDS', availableStock: { quantity: 3 } }] }] },
       }),
     );
     const c = new RalawiseConnector(ctx);
-    await c.getStockAndPrice(['GD001BLACS', 'GD001REDDS']);
-    // 1 login + 2 inventory calls
+    await c.getStockAndPrice(['GD001BLACS', 'GD002REDDS']);
+    // 1 login + 2 inventory calls (one per group prefix)
     expect(calls).toHaveLength(3);
     expect(calls[0]!.url).toBe('https://api.ralawise.example/v1/login');
-    expect(calls[1]!.url).toBe('https://api.ralawise.example/v1/inventory/GD001BLACS');
-    expect(calls[2]!.url).toBe('https://api.ralawise.example/v1/inventory/GD001REDDS');
+    expect(calls[1]!.url).toBe('https://api.ralawise.example/v1/inventory/GD001');
+    expect(calls[2]!.url).toBe('https://api.ralawise.example/v1/inventory/GD002');
     // Inventory calls send the cached bearer token
     const auth1 = (calls[1]!.init.headers as Record<string, string>).Authorization;
     const auth2 = (calls[2]!.init.headers as Record<string, string>).Authorization;
@@ -352,6 +355,135 @@ describe('RalawiseConnector.getStockAndPrice', () => {
     const c = new RalawiseConnector(ctx);
     const r = await c.getStockAndPrice(['GD001BLACM']);
     expect(r[0]!.stockQty).toBe(50);
+  });
+
+  it('collapses SKUs sharing a group prefix into ONE inventory call', async () => {
+    // Three variants from the same product group (GD001) → the
+    // connector should call /inventory/GD001 exactly once and resolve
+    // all three SKUs from the single response. This is the whole point
+    // of group-batching: ~22-variants/group on the real Ralawise
+    // catalogue collapses what was a 96k-request poll into a 4.4k-
+    // request poll, completing inside the 3-hour cadence rather than
+    // running for days.
+    const calls = mockFetchSequence(
+      () => loginOk(),
+      () => jsonResponse({
+        productGroup: {
+          id: 'GD001',
+          products: [
+            {
+              productCode: 'GD001BLAC',
+              variants: [
+                { sku: 'GD001BLACS', availableStock: { quantity: 11 } },
+                { sku: 'GD001BLACM', availableStock: { quantity: 22 } },
+                { sku: 'GD001BLACL', availableStock: { quantity: 33 } },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    const c = new RalawiseConnector(ctx);
+    const r = await c.getStockAndPrice(['GD001BLACS', 'GD001BLACM', 'GD001BLACL']);
+    // 1 login + 1 inventory call total — NOT 1 login + 3 inventory calls.
+    expect(calls).toHaveLength(2);
+    expect(calls[1]!.url).toBe('https://api.ralawise.example/v1/inventory/GD001');
+    expect(r).toEqual([
+      { supplierSku: 'GD001BLACS', stockQty: 11, costGbp: null },
+      { supplierSku: 'GD001BLACM', stockQty: 22, costGbp: null },
+      { supplierSku: 'GD001BLACL', stockQty: 33, costGbp: null },
+    ]);
+  });
+
+  it('returns one snapshot per requested SKU even when a variant is missing from the group response', async () => {
+    // We asked for three SKUs in the same group; Ralawise's response
+    // only includes two (the third was discontinued and dropped from
+    // the variant list). The missing one gets a null-fields snapshot
+    // so the polling worker can flag it as sku_not_found.
+    mockFetchSequence(
+      () => loginOk(),
+      () => jsonResponse({
+        productGroup: {
+          id: 'GD001',
+          products: [{
+            productCode: 'GD001BLAC',
+            variants: [
+              { sku: 'GD001BLACS', availableStock: { quantity: 11 } },
+              { sku: 'GD001BLACM', availableStock: { quantity: 22 } },
+            ],
+          }],
+        },
+      }),
+    );
+    const c = new RalawiseConnector(ctx);
+    const r = await c.getStockAndPrice(['GD001BLACS', 'GD001BLACM', 'GD001BLACDISCONTINUED']);
+    expect(r).toEqual([
+      { supplierSku: 'GD001BLACS', stockQty: 11, costGbp: null },
+      { supplierSku: 'GD001BLACM', stockQty: 22, costGbp: null },
+      { supplierSku: 'GD001BLACDISCONTINUED', stockQty: null, costGbp: null },
+    ]);
+  });
+
+  it('preserves the order of supplierSkus in the response', async () => {
+    // The polling worker doesn't currently rely on response order
+    // (it indexes via skuToMapping), but the documented contract is
+    // "one snapshot per requested SKU" — being explicit about order
+    // makes the path of least surprise.
+    mockFetchSequence(
+      () => loginOk(),
+      () => jsonResponse({
+        productGroup: {
+          id: 'GD001',
+          products: [{
+            productCode: 'GD001BLAC',
+            variants: [
+              { sku: 'GD001BLACS', availableStock: { quantity: 1 } },
+              { sku: 'GD001BLACM', availableStock: { quantity: 2 } },
+              { sku: 'GD001BLACL', availableStock: { quantity: 3 } },
+            ],
+          }],
+        },
+      }),
+    );
+    const c = new RalawiseConnector(ctx);
+    const r = await c.getStockAndPrice(['GD001BLACL', 'GD001BLACS', 'GD001BLACM']);
+    expect(r.map((s) => s.supplierSku)).toEqual(['GD001BLACL', 'GD001BLACS', 'GD001BLACM']);
+    expect(r.map((s) => s.stockQty)).toEqual([3, 1, 2]);
+  });
+
+  it('returns null fields for every SKU in a group when the group endpoint 404s', async () => {
+    // A whole group missing from Ralawise's catalogue: every requested
+    // SKU in that group falls through to null fields, the worker logs
+    // sku_not_found for each.
+    mockFetchSequence(
+      () => loginOk(),
+      () => jsonResponse({ message: 'Not Found' }, 404),
+    );
+    const c = new RalawiseConnector(ctx);
+    const r = await c.getStockAndPrice(['ZZ999AAA', 'ZZ999BBB']);
+    expect(r).toEqual([
+      { supplierSku: 'ZZ999AAA', stockQty: null, costGbp: null },
+      { supplierSku: 'ZZ999BBB', stockQty: null, costGbp: null },
+    ]);
+  });
+
+  it('handles a variant with no availableStock field (returns stockQty:null, not 0)', async () => {
+    // Ralawise sometimes omits availableStock on variants pending
+    // their next stock feed — that's not the same as "0 in stock".
+    // The polling worker distinguishes null (unknown) from 0 (known
+    // empty), so propagating null is meaningful.
+    mockFetchSequence(
+      () => loginOk(),
+      () => jsonResponse({
+        productGroup: {
+          id: 'GD001',
+          products: [{ productCode: 'GD001BLAC', variants: [{ sku: 'GD001BLACS' }] }],
+        },
+      }),
+    );
+    const c = new RalawiseConnector(ctx);
+    const r = await c.getStockAndPrice(['GD001BLACS']);
+    expect(r[0]).toEqual({ supplierSku: 'GD001BLACS', stockQty: null, costGbp: null });
   });
 });
 
