@@ -86,12 +86,65 @@ export interface SupplierConnectorContext {
   /** Network timeout for individual requests. The connector may
    *  override this internally for slow endpoints (e.g. order placement). */
   timeoutMs?: number;
-  /** Minimum milliseconds between consecutive HTTP requests issued
-   *  by this connector. Used to stay under supplier-side rate limits
-   *  (Ralawise: 10 req / 60 s ⇒ 6000 ms minimum; we ship 6500 ms by
-   *  default for a small safety margin). 0 / undefined disables the
-   *  throttle. Comes from `suppliers.min_request_interval_ms`. */
+  /** Effective minimum milliseconds between consecutive HTTP requests
+   *  issued by this connector — final number after deriving from the
+   *  supplier row's `rate_limit_*` columns (or the `min_request_interval_ms`
+   *  override). The registry computes this via `deriveMinRequestIntervalMs`
+   *  so connectors only ever see one number. 0 / undefined = no throttle. */
   minRequestIntervalMs?: number;
+}
+
+/**
+ * Derive the effective inter-request delay from a supplier row's
+ * three rate-limit columns:
+ *
+ *   - When the operator has set an explicit override
+ *     (`minRequestIntervalMs`), it wins. Used for the rare case where
+ *     the supplier's published limit and the real-world limit differ.
+ *
+ *   - Otherwise, when both `rateLimitRequests` and
+ *     `rateLimitWindowSeconds` are set, derive
+ *       `intervalMs = ceil((windowSeconds * 1000 / requests) * SAFETY)`
+ *     where SAFETY = 1.1 (10 % headroom). For Ralawise's 10/60 s ⇒
+ *     6600 ms.
+ *
+ *   - Otherwise: no throttle (returns undefined).
+ *
+ * Always returns a positive integer or undefined — never zero, never
+ * NaN, never negative.
+ */
+export const RATE_LIMIT_SAFETY_FACTOR = 1.1;
+
+export function deriveMinRequestIntervalMs(input: {
+  minRequestIntervalMs?: number | null;
+  rateLimitRequests?: number | null;
+  rateLimitWindowSeconds?: number | null;
+}): number | undefined {
+  if (
+    typeof input.minRequestIntervalMs === 'number' &&
+    input.minRequestIntervalMs > 0
+  ) {
+    return Math.ceil(input.minRequestIntervalMs);
+  }
+  const reqs = input.rateLimitRequests;
+  const win = input.rateLimitWindowSeconds;
+  if (
+    typeof reqs === 'number' &&
+    typeof win === 'number' &&
+    reqs > 0 &&
+    win > 0
+  ) {
+    // Compute via integer math so `6000 * 1.1` doesn't become
+    // 6600.000000000001 (floating-point) and ceil up to 6601. SAFETY
+    // is encoded as 11/10 — adjust the SAFETY_NUMERATOR/DENOMINATOR
+    // if you ever want a different margin.
+    const SAFETY_NUMERATOR = 11;
+    const SAFETY_DENOMINATOR = 10;
+    const num = win * 1000 * SAFETY_NUMERATOR;
+    const den = reqs * SAFETY_DENOMINATOR;
+    return Math.ceil(num / den);
+  }
+  return undefined;
 }
 
 export interface SupplierConnector {

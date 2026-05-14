@@ -72,10 +72,13 @@ async function main(): Promise<void> {
         // refresh the connection-side fields. Note: this also doesn't reset
         // `consecutiveFailures` or `lastError` so a half-stuck supplier doesn't
         // get accidentally re-activated on a re-bootstrap.
-        // Also: only set min_request_interval_ms when it's NULL — the
-        // operator may have tuned it from the admin SPA after first
-        // bootstrap; respect that.
-        ...(existing.minRequestIntervalMs == null ? { minRequestIntervalMs: 6500 } : {}),
+        // Set the rate-limit pair only when BOTH columns are NULL —
+        // the operator may have tuned them from the admin SPA after
+        // first bootstrap; respect that. We never touch
+        // min_request_interval_ms (the explicit override) on re-runs.
+        ...(existing.rateLimitRequests == null && existing.rateLimitWindowSeconds == null
+          ? { rateLimitRequests: 10, rateLimitWindowSeconds: 60 }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(suppliers.id, existing.id));
@@ -95,13 +98,15 @@ async function main(): Promise<void> {
         pollIntervalMinutes: 180,
         dispatchSlaMinDays: 1,
         dispatchSlaMaxDays: 3,
-        // Ralawise's documented rate limit is 10 requests / 60 seconds
-        // per authenticated account. 6000 ms between requests would be
-        // the bare minimum; 6500 ms leaves headroom for clock skew and
-        // server-side counting variance. Operator can lower this in
-        // the admin SPA if they negotiate a higher limit, or raise it
-        // if they're sharing the rate limit pool with another integration.
-        minRequestIntervalMs: 6500,
+        // Ralawise's documented rate limit is 10 requests per 60-second
+        // window, per authenticated account, across all endpoints
+        // (auth + inventory + order). The connector derives the
+        // inter-request delay from this pair via
+        // `deriveMinRequestIntervalMs` (6600 ms with the 10 % safety
+        // margin). Operator can tune both numbers in the admin SPA
+        // if Ralawise grant a higher limit.
+        rateLimitRequests: 10,
+        rateLimitWindowSeconds: 60,
         showSupplierNameToCustomers: false,
         countryCode: 'GB',
         currencyCode: 'GBP',

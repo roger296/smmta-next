@@ -52,11 +52,18 @@ export const suppliers = pgTable('suppliers', {
   pollIntervalMinutes: integer('poll_interval_minutes').notNull().default(180),
   dispatchSlaMinDays: integer('dispatch_sla_min_days').notNull().default(2),
   dispatchSlaMaxDays: integer('dispatch_sla_max_days').notNull().default(5),
-  /** Minimum milliseconds the connector waits between consecutive
-   *  HTTP requests, so we stay under a supplier's published rate
-   *  limit. Set to 6500 for Ralawise (10 req / 60 s + safety margin),
-   *  0 (or null) for Uneek (one bulk call, no per-SKU loop). NULL =
-   *  no throttle. Tune in the admin SPA's Drop-ship tab. */
+  /** Published rate limit — what the supplier told us. The connector
+   *  computes its inter-request delay from `(rate_limit_window_seconds
+   *  * 1000 / rate_limit_requests) * SAFETY` so the operator never
+   *  has to do the math. Both columns must be set together; either
+   *  null means "no throttle from this pair". For Ralawise:
+   *  `rate_limit_requests=10, rate_limit_window_seconds=60`. */
+  rateLimitRequests: integer('rate_limit_requests'),
+  rateLimitWindowSeconds: integer('rate_limit_window_seconds'),
+  /** Escape hatch — explicit ms-between-requests value. Wins over the
+   *  derived rate-limit pair when both are set. Useful for cases
+   *  where the published limit and the real-world limit diverge.
+   *  NULL = derive from rate_limit_* (or no throttle if those are null too). */
   minRequestIntervalMs: integer('min_request_interval_ms'),
   /** Surfaces in the admin SPA's supplier list when the most recent poll
    *  errored. Cleared on the next successful poll. */

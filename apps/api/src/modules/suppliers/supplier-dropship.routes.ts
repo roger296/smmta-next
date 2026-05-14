@@ -111,6 +111,8 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
     if (parsed.data.pollIntervalMinutes !== undefined) updates.pollIntervalMinutes = parsed.data.pollIntervalMinutes;
     if (parsed.data.dispatchSlaMinDays !== undefined) updates.dispatchSlaMinDays = parsed.data.dispatchSlaMinDays;
     if (parsed.data.dispatchSlaMaxDays !== undefined) updates.dispatchSlaMaxDays = parsed.data.dispatchSlaMaxDays;
+    if (parsed.data.rateLimitRequests !== undefined) updates.rateLimitRequests = parsed.data.rateLimitRequests;
+    if (parsed.data.rateLimitWindowSeconds !== undefined) updates.rateLimitWindowSeconds = parsed.data.rateLimitWindowSeconds;
     if (parsed.data.minRequestIntervalMs !== undefined) updates.minRequestIntervalMs = parsed.data.minRequestIntervalMs;
     if (parsed.data.showSupplierNameToCustomers !== undefined) updates.showSupplierNameToCustomers = parsed.data.showSupplierNameToCustomers;
     if (parsed.data.apiKeyPlaintext) {

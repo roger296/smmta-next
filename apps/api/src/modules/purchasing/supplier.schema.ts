@@ -48,9 +48,15 @@ export const dropshipSupplierSchema = z.object({
   pollIntervalMinutes: z.coerce.number().int().min(5).max(60 * 24).optional(),
   dispatchSlaMinDays: z.coerce.number().int().min(0).max(365).optional(),
   dispatchSlaMaxDays: z.coerce.number().int().min(0).max(365).optional(),
-  /** Per-supplier rate-limit throttle (ms between requests). 0 = no
-   *  throttle. Cap at 60s — longer than that is almost certainly a
-   *  typo. nullable() so the admin SPA can clear it back to NULL. */
+  /** Published supplier rate limit — what the supplier told you.
+   *  The connector derives its inter-request delay from this pair
+   *  via deriveMinRequestIntervalMs. nullable() so the admin SPA
+   *  can clear back to NULL = "no throttle from this pair". */
+  rateLimitRequests: z.coerce.number().int().min(1).max(10_000).nullable().optional(),
+  rateLimitWindowSeconds: z.coerce.number().int().min(1).max(3600).nullable().optional(),
+  /** Explicit override (ms between requests). Wins over the
+   *  derived rate-limit pair when both are set. 0 = no throttle.
+   *  Cap at 60s — longer than that is almost certainly a typo. */
   minRequestIntervalMs: z.coerce.number().int().min(0).max(60_000).nullable().optional(),
   showSupplierNameToCustomers: z.boolean().optional(),
 });

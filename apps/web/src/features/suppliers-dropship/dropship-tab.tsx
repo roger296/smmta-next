@@ -40,6 +40,8 @@ export function DropshipTab({ supplierId }: Props) {
         pollIntervalMinutes: s.pollIntervalMinutes,
         dispatchSlaMinDays: s.dispatchSlaMinDays,
         dispatchSlaMaxDays: s.dispatchSlaMaxDays,
+        rateLimitRequests: s.rateLimitRequests,
+        rateLimitWindowSeconds: s.rateLimitWindowSeconds,
         minRequestIntervalMs: s.minRequestIntervalMs,
         showSupplierNameToCustomers: s.showSupplierNameToCustomers,
       });
@@ -219,25 +221,69 @@ export function DropshipTab({ supplierId }: Props) {
                 />
               </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="ds-req-interval">
-                Min request interval (ms){' '}
+            <div className="space-y-1 md:col-span-2">
+              <Label>
+                Rate limit{' '}
                 <span className="text-xs text-[var(--color-muted-foreground)]">
-                  · rate limit — 0 to disable
+                  · what the supplier told you, e.g. &quot;10 requests / 60 seconds&quot;
                 </span>
               </Label>
-              <Input
-                id="ds-req-interval"
-                type="number"
-                min={0}
-                max={60000}
-                value={form.minRequestIntervalMs ?? 0}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  setForm((f) => ({ ...f, minRequestIntervalMs: Number.isFinite(n) && n > 0 ? n : null }));
-                }}
-                placeholder="e.g. 6500 for Ralawise (10 req / 60s)"
-              />
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Input
+                  type="number"
+                  min={1}
+                  max={10000}
+                  value={form.rateLimitRequests ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value.trim();
+                    const n = v === '' ? null : Number(v);
+                    setForm((f) => ({
+                      ...f,
+                      rateLimitRequests: n !== null && Number.isFinite(n) && n > 0 ? n : null,
+                    }));
+                  }}
+                  className="w-24"
+                  aria-label="Max requests"
+                  placeholder="10"
+                />
+                <span>requests per</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={3600}
+                  value={form.rateLimitWindowSeconds ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value.trim();
+                    const n = v === '' ? null : Number(v);
+                    setForm((f) => ({
+                      ...f,
+                      rateLimitWindowSeconds: n !== null && Number.isFinite(n) && n > 0 ? n : null,
+                    }));
+                  }}
+                  className="w-24"
+                  aria-label="Per N seconds"
+                  placeholder="60"
+                />
+                <span>seconds</span>
+                <span className="text-xs text-[var(--color-muted-foreground)]">
+                  {(() => {
+                    const r = form.rateLimitRequests;
+                    const w = form.rateLimitWindowSeconds;
+                    if (typeof r === 'number' && typeof w === 'number' && r > 0 && w > 0) {
+                      // Integer math — mirrors `deriveMinRequestIntervalMs`
+                      // on the API to avoid FP drift on the preview.
+                      const ms = Math.ceil((w * 1000 * 11) / (r * 10));
+                      return `→ ${ms} ms between requests (with 10% safety)`;
+                    }
+                    return '→ no throttle';
+                  })()}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Leave both blank for no throttle. Used by connectors that
+                loop per-SKU (Ralawise); bulk-endpoint connectors (Uneek)
+                ignore this.
+              </p>
             </div>
             <label className="flex items-center gap-2 text-sm md:col-span-2">
               <input
