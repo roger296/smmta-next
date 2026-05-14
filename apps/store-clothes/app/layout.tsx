@@ -5,6 +5,8 @@ import { fontClassName } from '@/lib/fonts';
 import { getEnv } from '@/lib/env';
 import { QueryProvider } from '@/components/query-provider';
 import { CartHeaderLink } from '@/components/cart-header-link';
+import { Suspense } from 'react';
+import { SearchBar } from '@/components/search-bar';
 import { ShopMegamenu, type NavCategoryTop } from '@/components/shop-megamenu';
 import { listCategories } from '@/lib/smmta';
 import { SiteFooter } from '@/components/site-footer';
@@ -92,6 +94,28 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   );
 }
 
+/** Skeleton shown by <Suspense> while SearchBar hydrates — static-safe
+ *  so the layout can pre-render without bailing out on `useSearchParams`. */
+function SearchBarFallback() {
+  return (
+    <div
+      role="search"
+      className="flex w-full max-w-xl items-center border border-[var(--brand-border)] bg-[var(--brand-paper)]"
+    >
+      <input
+        type="search"
+        placeholder="What are you shopping for today?"
+        disabled
+        className="flex-1 bg-transparent px-4 py-2 text-sm outline-none placeholder:text-[var(--brand-muted)]"
+        aria-hidden="true"
+      />
+      <span className="border-l border-[var(--brand-border)] bg-[var(--brand-ink)] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[var(--brand-paper)]">
+        Search
+      </span>
+    </div>
+  );
+}
+
 async function Header() {
   // Fetch nav categories server-side. Cached aggressively (5 min)
   // via `listCategories` so this round-trip doesn't cost on every
@@ -145,6 +169,18 @@ async function Header() {
             </li>
           </ul>
         </nav>
+      </div>
+      {/* Secondary row: the conversational search bar. Full-width on
+          mobile, centred + capped on desktop. Wrapped in a Suspense
+          boundary because <SearchBar /> reads `useSearchParams`, which
+          Next.js requires inside a Suspense to avoid breaking the
+          static prerender of pages like /404 that include the layout. */}
+      <div className="border-t border-[var(--brand-border)] bg-[var(--brand-bone)]">
+        <div className="mx-auto flex max-w-6xl justify-center px-6 py-3">
+          <Suspense fallback={<SearchBarFallback />}>
+            <SearchBar />
+          </Suspense>
+        </div>
       </div>
     </header>
   );

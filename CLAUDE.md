@@ -63,6 +63,14 @@ Future ecosystem integrations are expected to follow the same shape: an outbound
 - **Mapping rules are committed code, not data**. The admin SPA's Categories page is read-only — it shows the tree + product counts so the operator can spot coverage gaps, but to actually change which products land where, edit `category-mapping.ts` and redeploy. Editing rules in the SPA is a deliberate V2 follow-up (it needs a "preview impact" mechanism we don't have yet).
 - Storefront category pages live at `/shop/c/<top>` and `/shop/c/<top>/<sub>`. Filters (gender / brand / colour / size / price band / stock state) are URL-encoded query params so deep-links work + SEO crawls cleanly. Filter facets are computed server-side from the full category result before pagination so the sidebar counts stay representative.
 
+### Conversational search
+
+- The Clothes Shop header carries a natural-language search bar that submits to `/shop/search?q=...`. The API's `/storefront/search` endpoint parses the customer query through Claude Haiku into a structured `ParsedQuery` (category slug + filters + keywords + confidence), then feeds the structured form into the same `CategoryService.listCategoryProducts` that backs `/shop/c/...`. If the LLM call fails, the day's budget is exceeded, or `ANTHROPIC_API_KEY` isn't set, the service falls through to a plain keyword search across product names — the customer always gets something.
+- **No PII goes to Anthropic.** The customer's query text is the only customer-supplied data sent. The `llm_search_log` table mirrors that constraint — no IP, email, or session id columns. Used for cost tracking, top-queries-in-the-last-7-days reporting, and a future fine-tuning dataset.
+- **Daily cost ceiling** via `LLM_SEARCH_BUDGET_GBP_PER_DAY` env (default £5). The service checks today's logged cost on every request; once the budget is hit, the LLM is skipped and we keyword-fall-through for the rest of the day.
+- **24h cache** keyed on `sha256(lowercase trimmed query)`. Same input string → same parsed output without re-paying for tokens. In-memory per process — single-instance deploys are fine; multi-instance would either switch to Redis or accept the cost of duplicate parses across instances.
+- The system prompt lives in `apps/api/src/modules/storefront/search/system-prompt.ts` and interpolates the taxonomy slugs at build time so adding / renaming a category in `taxonomy.ts` automatically propagates to the LLM's allowed-categories list. Model: `claude-haiku-4-5-20251001` by default, override via `ANTHROPIC_MODEL` env if Anthropic retires it.
+
 ---
 
 ## What's in this repo
