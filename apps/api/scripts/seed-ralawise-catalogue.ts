@@ -752,6 +752,12 @@ export async function* streamCsv(csvPath: string): AsyncIterable<RalawiseRawRow>
       skip_empty_lines: true,
       trim: false,
       relax_column_count: true,
+      // Ralawise's CSV isn't strictly RFC 4180: some rows have an
+      // unescaped `"` inside a quoted field (e.g. `"Essential 13"
+      // laptop case"` — the inches mark on `13"` should be doubled to
+      // `""` per RFC but isn't). `relax_quotes` lets the parser skim
+      // past these without throwing.
+      relax_quotes: true,
     }),
   );
   for await (const row of stream) {
