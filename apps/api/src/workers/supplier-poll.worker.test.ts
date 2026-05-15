@@ -15,7 +15,11 @@ import {
   supplierProducts,
   suppliers,
 } from '../db/schema/index.js';
-import { runSupplierPoll } from './supplier-poll.worker.js';
+import {
+  resetStockChunkSizeForTests,
+  runSupplierPoll,
+  setStockChunkSizeForTests,
+} from './supplier-poll.worker.js';
 import {
   registerStubConnectorForTests,
   resetRegistryCacheForTests,
@@ -39,8 +43,19 @@ class StubConnector implements SupplierConnector {
   public mode: 'ok' | 'auth-fail' | 'upstream-fail' = 'ok';
   public canned = new Map<string, { stock: number | null; cost: number | null }>();
   public calls: string[][] = [];
+  /** When set, the function decides per-chunk what to return. Used by
+   *  the per-chunk-error-tolerance tests to simulate a transient
+   *  upstream blip on chunk N out of N+1. The default `mode`-based
+   *  branching above still applies when this is unset. */
+  public chunkBehaviour: ((skus: string[], callIndex: number) => SupplierStockSnapshot[] | Error) | null = null;
   async getStockAndPrice(skus: string[]) {
+    const callIndex = this.calls.length;
     this.calls.push(skus);
+    if (this.chunkBehaviour) {
+      const out = this.chunkBehaviour(skus, callIndex);
+      if (out instanceof Error) throw out;
+      return out;
+    }
     if (this.mode === 'auth-fail') throw new SupplierAuthError('401');
     if (this.mode === 'upstream-fail') throw new SupplierUpstreamError('500');
     const out: SupplierStockSnapshot[] = [];
@@ -151,6 +166,7 @@ beforeEach(async () => {
   stub.mode = 'ok';
   stub.canned.clear();
   stub.calls.length = 0;
+  stub.chunkBehaviour = null;
   const db = getDb();
   await db
     .update(supplierProducts)
@@ -289,6 +305,125 @@ describe('runSupplierPoll — failure paths', () => {
     }))!;
     expect(supplier.lastError).toBeNull();
     expect(supplier.consecutiveFailures).toBe(0);
+  });
+});
+
+describe('runSupplierPoll — per-chunk error tolerance', () => {
+  // For this block we seed enough SKUs to span multiple chunks (chunk
+  // size dropped to 2 via the test setter), then assert that one bad
+  // chunk doesn't tank the whole poll. Production code keeps the real
+  // 100-SKU chunk; the worker reads `stockChunkSize` at runtime.
+
+  const EXTRA_SKUS = ['SKU-C', 'SKU-D', 'SKU-E'];
+
+  beforeAll(async () => {
+    const db = getDb();
+    // Add three more mappings on top of the SKU-A/B from the suite's
+    // beforeAll, sharing Product A as the product link (we only care
+    // about supplier_products state in these assertions).
+    for (const sku of EXTRA_SKUS) {
+      const existing = await db.query.supplierProducts.findFirst({
+        where: and(
+          eq(supplierProducts.supplierId, supplierId),
+          eq(supplierProducts.supplierSku, sku),
+        ),
+      });
+      if (!existing) {
+        await db.insert(supplierProducts).values({
+          companyId: COMPANY,
+          productId: productAId,
+          supplierId,
+          supplierSku: sku,
+          costGbp: '4.00',
+        });
+      }
+    }
+  });
+
+  afterAll(async () => {
+    resetStockChunkSizeForTests();
+    const db = getDb();
+    await db
+      .delete(supplierProducts)
+      .where(
+        and(
+          eq(supplierProducts.supplierId, supplierId),
+          inArray(supplierProducts.supplierSku, EXTRA_SKUS),
+        ),
+      );
+  });
+
+  beforeEach(() => {
+    setStockChunkSizeForTests(2);
+  });
+
+  it('persists successful chunks even when a later chunk fails', async () => {
+    // 5 SKUs, chunk size 2 → 3 chunks: [A,B] [C,D] [E].
+    // Chunk 0 succeeds, chunk 1 throws 5xx, chunk 2 succeeds.
+    stub.chunkBehaviour = (skus, callIndex) => {
+      if (callIndex === 1) return new SupplierUpstreamError('500');
+      return skus.map((sku) => ({ supplierSku: sku, stockQty: 7, costGbp: 4.5 }));
+    };
+
+    const outcomes = await runSupplierPoll({ ignoreCadence: true });
+    const o = outcomes.find((x) => x.supplierId === supplierId)!;
+    // Partial success: outcome carries the breadcrumb error but
+    // counts the SKUs that DID get updated. Chunk 0 = 2 SKUs, chunk
+    // 2 = 1 SKU → 3 successful updates out of 5 total.
+    expect(o.productsUpdated).toBe(3);
+    expect(o.errorMessage).toMatch(/1\/3 chunks failed/);
+    expect(o.errorMessage).toMatch(/500/);
+
+    const db = getDb();
+    const rows = await db.query.supplierProducts.findMany({
+      where: and(eq(supplierProducts.supplierId, supplierId), isNull(supplierProducts.deletedAt)),
+    });
+    const bySku = new Map(rows.map((r) => [r.supplierSku, r] as const));
+
+    // SKU-A and SKU-B came back in chunk 0 → updated
+    expect(bySku.get('SKU-A')!.lastKnownStock).toBe(7);
+    expect(bySku.get('SKU-B')!.lastKnownStock).toBe(7);
+    // SKU-C and SKU-D were in the failed chunk → snapshots untouched
+    // (still null from beforeEach)
+    expect(bySku.get('SKU-C')!.lastKnownStock).toBeNull();
+    expect(bySku.get('SKU-C')!.lastPolledAt).toBeNull();
+    expect(bySku.get('SKU-D')!.lastKnownStock).toBeNull();
+    // SKU-E came back in chunk 2 → updated
+    expect(bySku.get('SKU-E')!.lastKnownStock).toBe(7);
+
+    // Partial success resets the failure counter — next cycle retries.
+    const supplier = (await db.query.suppliers.findFirst({ where: eq(suppliers.id, supplierId) }))!;
+    expect(supplier.consecutiveFailures).toBe(0);
+    expect(supplier.lastError).toMatch(/1\/3 chunks failed/);
+    expect(supplier.isDropshipActive).toBe(true);
+  });
+
+  it('fails the whole supplier only when EVERY chunk fails', async () => {
+    // 5 SKUs, chunk size 2 → 3 chunks, all throw.
+    stub.chunkBehaviour = () => new SupplierUpstreamError('500');
+
+    const outcomes = await runSupplierPoll({ ignoreCadence: true });
+    const o = outcomes.find((x) => x.supplierId === supplierId)!;
+    expect(o.productsUpdated).toBe(0);
+    expect(o.errorMessage).toMatch(/500/);
+
+    const db = getDb();
+    const supplier = (await db.query.suppliers.findFirst({ where: eq(suppliers.id, supplierId) }))!;
+    expect(supplier.consecutiveFailures).toBeGreaterThanOrEqual(1);
+    expect(supplier.lastError).toMatch(/500/);
+  });
+
+  it('fails fast on a SupplierAuthError without trying subsequent chunks', async () => {
+    // Auth error on chunk 0 → don't even try chunks 1+ (credentials
+    // won't recover mid-run, no point burning rate-limit budget).
+    let calls = 0;
+    stub.chunkBehaviour = () => {
+      calls++;
+      return new SupplierAuthError('401 invalid token');
+    };
+
+    await runSupplierPoll({ ignoreCadence: true });
+    expect(calls).toBe(1); // bailed after the first chunk
   });
 });
 
