@@ -11,14 +11,29 @@
  * means a slow run never overlaps with the next one. If the lock is
  * already held, the worker silently skips that supplier.
  *
- * Failure handling:
- *   - Auth / 4xx → log + clear stock cache for known SKUs the supplier
- *                  didn't return; bump `consecutiveFailures`. After 5
- *                  consecutive whole-supplier failures, set
- *                  `isDropshipActive = false`.
- *   - 5xx / network → log + leave existing snapshots intact (keeping
- *                     stale-but-known data is better than blanking the
- *                     whole supplier on a brief outage).
+ * Failure handling (per-chunk, not per-run):
+ *   - SupplierAuthError → fail the whole run immediately; bump
+ *                  `consecutiveFailures`. After 5 consecutive failures
+ *                  set `isDropshipActive = false`. (Credentials don't
+ *                  recover mid-run, so continuing would just thrash
+ *                  the API.)
+ *   - 5xx / 429 / network / bad-request on a single chunk → skip that
+ *                  chunk, keep going. Successful chunks have already
+ *                  been persisted, so a transient blip in 1 of 4,000
+ *                  Ralawise requests no longer trashes the whole 8-hour
+ *                  poll cycle.
+ *   - Partial-success run → record the last chunk error on
+ *                  `suppliers.lastError` as a breadcrumb but RESET
+ *                  consecutiveFailures (partial success counts as
+ *                  recovery; next cycle retries the failed chunks).
+ *   - All chunks failed → treat as whole-supplier failure (preserves
+ *                  the disable-after-5 safety net).
+ *
+ * Stale-snapshot policy: a SKU whose chunk failed this cycle is left
+ * with its existing snapshot untouched — better stale-but-known data
+ * than blanking the row on a brief outage. Only SKUs whose chunk
+ * SUCCEEDED but were absent from the supplier's response get marked
+ * `sku_not_found`.
  *
  * Entry point: `runSupplierPoll(opts?)` — called from the CLI script
  * `apps/api/scripts/run-supplier-poll.ts`, which is invoked by the
@@ -32,14 +47,25 @@ import {
   suppliers,
 } from '../db/schema/index.js';
 import { resolveConnector } from '../integrations/suppliers/registry.js';
-import {
-  SupplierAuthError,
-  SupplierBadRequestError,
-} from '../integrations/suppliers/errors.js';
+import { SupplierAuthError } from '../integrations/suppliers/errors.js';
 import type { SupplierConnector, SupplierStockSnapshot } from '../integrations/suppliers/types.js';
 
-const STOCK_CHUNK_SIZE = 100;
+const DEFAULT_STOCK_CHUNK_SIZE = 100;
 const FAILURE_DISABLE_THRESHOLD = 5;
+
+// Mutable so the integration tests can use a smaller chunk size with
+// fewer seeded products to exercise the multi-chunk failure paths.
+// Production code never calls the setter; the module-level default
+// stands.
+let stockChunkSize = DEFAULT_STOCK_CHUNK_SIZE;
+/** @internal — tests only. */
+export function setStockChunkSizeForTests(n: number): void {
+  stockChunkSize = n > 0 ? n : DEFAULT_STOCK_CHUNK_SIZE;
+}
+/** @internal — tests only. */
+export function resetStockChunkSizeForTests(): void {
+  stockChunkSize = DEFAULT_STOCK_CHUNK_SIZE;
+}
 
 export interface RunSupplierPollOptions {
   /** Only poll the supplier with this id (skipping cadence checks).
@@ -197,43 +223,110 @@ async function pollOneSupplier(
     const skuToMapping = new Map<string, typeof supplierProducts.$inferSelect>();
     for (const m of mappings) skuToMapping.set(m.supplierSku, m);
     const skus = [...skuToMapping.keys()];
+    const chunkSize = stockChunkSize;
+    const totalChunks = Math.ceil(skus.length / chunkSize);
 
-    let snapshots: SupplierStockSnapshot[];
-    try {
-      snapshots = [];
-      for (let i = 0; i < skus.length; i += STOCK_CHUNK_SIZE) {
-        const chunk = skus.slice(i, i + STOCK_CHUNK_SIZE);
-        const result = await connector.getStockAndPrice(chunk);
-        snapshots.push(...result);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'connector error';
-      const isHardError = err instanceof SupplierAuthError || err instanceof SupplierBadRequestError;
-      await markSupplierFailure(supplier, msg);
-      await db
-        .update(supplierPollLog)
-        .set({ finishedAt: new Date(), productsChecked, productsUpdated: 0, errorMessage: msg })
-        .where(eq(supplierPollLog.id, logId));
-      // 5xx / network: leave product snapshots intact. Auth / 4xx:
-      // we log, but don't blank the cache either — operators may want
-      // to re-enable manually rather than have stale "out of stock"
-      // surfacing in the storefront.
-      return { supplierId, supplierSlug: slug, productsChecked, productsUpdated: 0, errorMessage: msg };
-      void isHardError;
-    }
-
+    // Per-chunk error tolerance.
+    //
+    // The supplier-poll worker used to hold every snapshot in memory
+    // and apply DB updates only after the entire SKU list had been
+    // fetched. A single 429 / 5xx / network timeout anywhere in that
+    // run lost EVERY snapshot already collected, even when most of the
+    // catalogue had come back fine. For Ralawise — ~96k SKUs polled
+    // across ~4.4k group-level HTTP calls per cycle — that meant one
+    // transient hiccup in 4,400 chances killed the whole 8-hour poll
+    // and the storefront kept showing stale OOS state.
+    //
+    // The new shape:
+    //   - chunk loop is the outer structure; each chunk has its own
+    //     try/catch
+    //   - successful chunks persist immediately (the next chunk's
+    //     failure can't undo them)
+    //   - transient errors (5xx / 429 / network / bad-request on a
+    //     single chunk) increment a counter and continue; the next
+    //     chunk gets its shot
+    //   - SupplierAuthError still fails fast — credentials don't
+    //     recover within a run and continuing would just thrash the API
+    //   - all-chunks-failed → mark whole-supplier failure (keeps the
+    //     consecutiveFailures → disable behaviour for genuinely-broken
+    //     suppliers)
+    //   - some-but-not-all chunks failed → store the last error on the
+    //     supplier row as a breadcrumb but reset consecutiveFailures
+    //     (partial success counts as recovery — next cycle retries
+    //     the failed chunks)
     let productsUpdated = 0;
+    let chunksOk = 0;
+    let chunksFailed = 0;
+    let lastChunkError: string | null = null;
     const seen = new Set<string>();
-    for (const s of snapshots) {
-      const m = skuToMapping.get(s.supplierSku);
-      if (!m) continue; // unknown SKU returned — connector emits these
-      seen.add(s.supplierSku);
-      // The connector emits null-fields snapshots for SKUs the supplier
-      // didn't recognise (per `SupplierConnector` docstring) — treat
-      // those as "sku_not_found" so the admin SPA can surface the
-      // mismatch and stale snapshots aren't preserved on rows that
-      // genuinely vanished from the supplier's catalogue.
-      if (s.stockQty === null && s.costGbp === null) {
+
+    for (let i = 0; i < skus.length; i += chunkSize) {
+      const chunk = skus.slice(i, i + chunkSize);
+      let result: SupplierStockSnapshot[];
+      try {
+        result = await connector.getStockAndPrice(chunk);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'chunk error';
+        // Auth errors are fatal for the whole run — the token's
+        // credentials aren't going to start working halfway through.
+        if (err instanceof SupplierAuthError) {
+          await markSupplierFailure(supplier, msg);
+          await db
+            .update(supplierPollLog)
+            .set({ finishedAt: new Date(), productsChecked, productsUpdated, errorMessage: msg })
+            .where(eq(supplierPollLog.id, logId));
+          return { supplierId, supplierSlug: slug, productsChecked, productsUpdated, errorMessage: msg };
+        }
+        // 5xx / 429 / network / per-chunk bad-request: skip and keep
+        // going. Bad-request is treated as transient at the chunk
+        // level because Ralawise occasionally 404s a whole group code
+        // mid-poll — better to skip the chunk than to abandon the
+        // remaining ~96k SKUs we still need.
+        chunksFailed++;
+        lastChunkError = msg;
+        continue;
+      }
+      // Persist this chunk's snapshots before moving on — a later
+      // chunk's failure can't lose this work.
+      for (const s of result) {
+        const m = skuToMapping.get(s.supplierSku);
+        if (!m) continue;
+        seen.add(s.supplierSku);
+        if (s.stockQty === null && s.costGbp === null) {
+          await db
+            .update(supplierProducts)
+            .set({
+              lastKnownStock: null,
+              lastPollError: 'sku_not_found',
+              lastPolledAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(supplierProducts.id, m.id));
+          continue;
+        }
+        await db
+          .update(supplierProducts)
+          .set({
+            lastKnownStock: s.stockQty,
+            lastKnownPrice: s.costGbp !== null ? s.costGbp.toFixed(2) : null,
+            lastPolledAt: new Date(),
+            lastPollError: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(supplierProducts.id, m.id));
+        productsUpdated++;
+      }
+      // SKUs we asked the connector about that don't appear in its
+      // response — supplier discontinued the variant. Mark sku_not_found
+      // now (while we know which chunk they belonged to), not at the
+      // end of the loop, otherwise a later chunk's failure would force
+      // us to skip the post-loop pass and these mappings would be left
+      // with stale snapshots.
+      for (const sku of chunk) {
+        if (seen.has(sku)) continue;
+        const m = skuToMapping.get(sku);
+        if (!m) continue;
+        seen.add(sku);
         await db
           .update(supplierProducts)
           .set({
@@ -243,45 +336,38 @@ async function pollOneSupplier(
             updatedAt: new Date(),
           })
           .where(eq(supplierProducts.id, m.id));
-        continue;
       }
-      await db
-        .update(supplierProducts)
-        .set({
-          lastKnownStock: s.stockQty,
-          lastKnownPrice: s.costGbp !== null ? s.costGbp.toFixed(2) : null,
-          lastPolledAt: new Date(),
-          lastPollError: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(supplierProducts.id, m.id));
-      productsUpdated++;
-    }
-    // SKUs we asked about but didn't get back at all (connector that
-    // doesn't synthesise null entries) → also mark as sku_not_found.
-    for (const m of mappings) {
-      if (seen.has(m.supplierSku)) continue;
-      await db
-        .update(supplierProducts)
-        .set({
-          lastKnownStock: null,
-          lastPollError: 'sku_not_found',
-          lastPolledAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(supplierProducts.id, m.id));
+      chunksOk++;
     }
 
+    // Final outcome.
+    if (chunksOk === 0 && chunksFailed > 0) {
+      // Nothing recovered this run — count it as a whole-supplier
+      // failure so the disable-after-5-consecutive-failures rule still
+      // catches genuinely-broken suppliers.
+      const msg = lastChunkError ?? 'all chunks failed';
+      await markSupplierFailure(supplier, msg);
+      await db
+        .update(supplierPollLog)
+        .set({ finishedAt: new Date(), productsChecked, productsUpdated, errorMessage: msg })
+        .where(eq(supplierPollLog.id, logId));
+      return { supplierId, supplierSlug: slug, productsChecked, productsUpdated, errorMessage: msg };
+    }
+
+    // Partial or full success.
+    const partialErrMsg = chunksFailed > 0
+      ? `${chunksFailed}/${totalChunks} chunks failed (last: ${(lastChunkError ?? 'unknown').slice(0, 200)})`
+      : null;
     await db
       .update(suppliers)
-      .set({ lastError: null, consecutiveFailures: 0, updatedAt: new Date() })
+      .set({ lastError: partialErrMsg, consecutiveFailures: 0, updatedAt: new Date() })
       .where(eq(suppliers.id, supplierId));
     await db
       .update(supplierPollLog)
-      .set({ finishedAt: new Date(), productsChecked, productsUpdated })
+      .set({ finishedAt: new Date(), productsChecked, productsUpdated, errorMessage: partialErrMsg })
       .where(eq(supplierPollLog.id, logId));
 
-    return { supplierId, supplierSlug: slug, productsChecked, productsUpdated, errorMessage: null };
+    return { supplierId, supplierSlug: slug, productsChecked, productsUpdated, errorMessage: partialErrMsg };
   } finally {
     if (acquired) {
       try {
