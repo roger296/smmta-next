@@ -39,6 +39,8 @@ import { Route as AuthedStockReportRouteImport } from './routes/_authed/stock/re
 import { Route as AuthedStockReorderRouteImport } from './routes/_authed/stock/reorder'
 import { Route as AuthedStockBySiteRouteImport } from './routes/_authed/stock/by-site'
 import { Route as AuthedStockAdjustRouteImport } from './routes/_authed/stock/adjust'
+import { Route as AuthedPwaStockTakeRouteImport } from './routes/_authed/pwa/stock-take'
+import { Route as AuthedPwaGoodsInRouteImport } from './routes/_authed/pwa/goods-in'
 import { Route as AuthedPurchaseOrdersNewRouteImport } from './routes/_authed/purchase-orders/new'
 import { Route as AuthedPurchaseOrdersIdRouteImport } from './routes/_authed/purchase-orders/$id'
 import { Route as AuthedProductsNewRouteImport } from './routes/_authed/products/new'
@@ -208,6 +210,16 @@ const AuthedStockAdjustRoute = AuthedStockAdjustRouteImport.update({
   path: '/stock/adjust',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedPwaStockTakeRoute = AuthedPwaStockTakeRouteImport.update({
+  id: '/pwa/stock-take',
+  path: '/pwa/stock-take',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedPwaGoodsInRoute = AuthedPwaGoodsInRouteImport.update({
+  id: '/pwa/goods-in',
+  path: '/pwa/goods-in',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 const AuthedPurchaseOrdersNewRoute = AuthedPurchaseOrdersNewRouteImport.update({
   id: '/purchase-orders/new',
   path: '/purchase-orders/new',
@@ -301,6 +313,8 @@ export interface FileRoutesByFullPath {
   '/products/new': typeof AuthedProductsNewRoute
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
+  '/pwa/goods-in': typeof AuthedPwaGoodsInRoute
+  '/pwa/stock-take': typeof AuthedPwaStockTakeRoute
   '/stock/adjust': typeof AuthedStockAdjustRoute
   '/stock/by-site': typeof AuthedStockBySiteRoute
   '/stock/reorder': typeof AuthedStockReorderRoute
@@ -346,6 +360,8 @@ export interface FileRoutesByTo {
   '/products/new': typeof AuthedProductsNewRoute
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
+  '/pwa/goods-in': typeof AuthedPwaGoodsInRoute
+  '/pwa/stock-take': typeof AuthedPwaStockTakeRoute
   '/stock/adjust': typeof AuthedStockAdjustRoute
   '/stock/by-site': typeof AuthedStockBySiteRoute
   '/stock/reorder': typeof AuthedStockReorderRoute
@@ -393,6 +409,8 @@ export interface FileRoutesById {
   '/_authed/products/new': typeof AuthedProductsNewRoute
   '/_authed/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/_authed/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
+  '/_authed/pwa/goods-in': typeof AuthedPwaGoodsInRoute
+  '/_authed/pwa/stock-take': typeof AuthedPwaStockTakeRoute
   '/_authed/stock/adjust': typeof AuthedStockAdjustRoute
   '/_authed/stock/by-site': typeof AuthedStockBySiteRoute
   '/_authed/stock/reorder': typeof AuthedStockReorderRoute
@@ -440,6 +458,8 @@ export interface FileRouteTypes {
     | '/products/new'
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
+    | '/pwa/goods-in'
+    | '/pwa/stock-take'
     | '/stock/adjust'
     | '/stock/by-site'
     | '/stock/reorder'
@@ -485,6 +505,8 @@ export interface FileRouteTypes {
     | '/products/new'
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
+    | '/pwa/goods-in'
+    | '/pwa/stock-take'
     | '/stock/adjust'
     | '/stock/by-site'
     | '/stock/reorder'
@@ -531,6 +553,8 @@ export interface FileRouteTypes {
     | '/_authed/products/new'
     | '/_authed/purchase-orders/$id'
     | '/_authed/purchase-orders/new'
+    | '/_authed/pwa/goods-in'
+    | '/_authed/pwa/stock-take'
     | '/_authed/stock/adjust'
     | '/_authed/stock/by-site'
     | '/_authed/stock/reorder'
@@ -774,6 +798,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedStockAdjustRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/pwa/stock-take': {
+      id: '/_authed/pwa/stock-take'
+      path: '/pwa/stock-take'
+      fullPath: '/pwa/stock-take'
+      preLoaderRoute: typeof AuthedPwaStockTakeRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/pwa/goods-in': {
+      id: '/_authed/pwa/goods-in'
+      path: '/pwa/goods-in'
+      fullPath: '/pwa/goods-in'
+      preLoaderRoute: typeof AuthedPwaGoodsInRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
     '/_authed/purchase-orders/new': {
       id: '/_authed/purchase-orders/new'
       path: '/purchase-orders/new'
@@ -894,6 +932,8 @@ interface AuthedRouteRouteChildren {
   AuthedProductsNewRoute: typeof AuthedProductsNewRoute
   AuthedPurchaseOrdersIdRoute: typeof AuthedPurchaseOrdersIdRoute
   AuthedPurchaseOrdersNewRoute: typeof AuthedPurchaseOrdersNewRoute
+  AuthedPwaGoodsInRoute: typeof AuthedPwaGoodsInRoute
+  AuthedPwaStockTakeRoute: typeof AuthedPwaStockTakeRoute
   AuthedStockAdjustRoute: typeof AuthedStockAdjustRoute
   AuthedStockBySiteRoute: typeof AuthedStockBySiteRoute
   AuthedStockReorderRoute: typeof AuthedStockReorderRoute
@@ -938,6 +978,8 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedProductsNewRoute: AuthedProductsNewRoute,
   AuthedPurchaseOrdersIdRoute: AuthedPurchaseOrdersIdRoute,
   AuthedPurchaseOrdersNewRoute: AuthedPurchaseOrdersNewRoute,
+  AuthedPwaGoodsInRoute: AuthedPwaGoodsInRoute,
+  AuthedPwaStockTakeRoute: AuthedPwaStockTakeRoute,
   AuthedStockAdjustRoute: AuthedStockAdjustRoute,
   AuthedStockBySiteRoute: AuthedStockBySiteRoute,
   AuthedStockReorderRoute: AuthedStockReorderRoute,

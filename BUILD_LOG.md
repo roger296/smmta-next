@@ -327,3 +327,23 @@ decisions live in `DECISIONS.md`.
   failures, replay doesn't re-send) + `barcode.test.ts` (resolves a scanned
   code, ean fallback, null when no match). api 50 files / 458 tests; web 19
   files / 111 tests; typecheck + build green.
+
+## P13 — PWA goods-in & stock-take screens (2026-06-18)
+
+- **Goods-in screen** (`routes/_authed/pwa/goods-in.tsx`): scan/enter a product
+  code (resolved via `resolveBarcodeToProduct`), set received qty in
+  purchase units with a live purchase→stock figure, submit → P8 `/goods-in`,
+  offline-tolerant.
+- **Stock-take screen** (`routes/_authed/pwa/stock-take.tsx`): pick a scope,
+  open a take (P9), enter counts per line (fungibles bucketed to a quantum)
+  with a running variance vs book, save counts then approve → true-up.
+- **Offline-aware submit** (`lib/offline-submit.ts`): `submitOrQueue` POSTs when
+  online and queues on offline/failure; `syncQueue` replays on reconnect. Each
+  action carries a client idempotency id, so a replay applies exactly once
+  (server-side dedupe). Front-end UoM helpers (`lib/uom.ts`:
+  `purchaseToStock`, `bucketCount`). Hooks in `features/pwa/use-pwa-jobs.ts`;
+  sidebar items added.
+- Tests: `offline-submit.test.ts` (online sends; offline/failure queues; a
+  reconnect flush applies each queued action exactly once) + the UoM helpers.
+  The screens wire to the already-tested P8/P9 services. web 21 files / 117
+  tests; typecheck + build green (api unchanged at 50 files / 458 tests).

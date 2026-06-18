@@ -19,6 +19,8 @@ import {
   Gauge,
   ShoppingBag,
   Square as SquareIcon,
+  PackagePlus,
+  ClipboardCheck,
 } from 'lucide-react';
 
 interface NavItem {
@@ -39,6 +41,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Stock by site', to: '/stock/by-site', icon: PackageSearch },
   { label: 'Reorder levels', to: '/stock/reorder', icon: Gauge },
   { label: 'Reorder suggestions', to: '/reorder', icon: ShoppingBag },
+  { label: 'Goods in', to: '/pwa/goods-in', icon: PackagePlus },
+  { label: 'Stock-take', to: '/pwa/stock-take', icon: ClipboardCheck },
   { label: 'Square mapping', to: '/square', icon: SquareIcon },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
