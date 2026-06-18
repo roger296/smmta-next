@@ -99,6 +99,24 @@ export const fulfilmentSourceEnum = pgEnum('fulfilment_source', [
   'WAREHOUSE', 'SUPPLIER',
 ]);
 
+// ── Auto-Stock: multi-site stock (spec §A5) ──────────────────────────
+
+/** Unit-of-measure system for a site. Drives display + count quanta
+ *  (Dallas runs IMPERIAL / lb·oz; UK sites METRIC / g). */
+export const uomSystemEnum = pgEnum('uom_system', ['METRIC', 'IMPERIAL']);
+
+/**
+ * Stock-movement ledger entry type. On-hand is the running sum of these
+ * signed deltas, never a bare counter (spec §A5). GRN = goods received,
+ * SALE = Square decrement, CONSUMPTION/WASTAGE = head-baker form,
+ * TRANSFER_IN/OUT = inter-site moves (paired), STOCKTAKE_TRUE_UP = count
+ * variance, OPENING = initial balance.
+ */
+export const stockMovementTypeEnum = pgEnum('stock_movement_type', [
+  'GRN', 'ADJUSTMENT', 'SALE', 'CONSUMPTION', 'WASTAGE',
+  'TRANSFER_IN', 'TRANSFER_OUT', 'STOCKTAKE_TRUE_UP', 'OPENING',
+]);
+
 // ============================================================
 // Shared column helpers
 // ============================================================

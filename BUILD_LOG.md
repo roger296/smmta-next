@@ -55,3 +55,39 @@ decisions live in `DECISIONS.md`.
   with the flag off, while a sibling integration route still requires auth) and
   `src/shared/security/no-secrets.test.ts` (high-signal secret-pattern scan of
   the API source tree).
+
+## P2 — Sites & multi-location foundation (2026-06-18)
+
+- **Schema** (`src/db/schema/sites.ts`, migration `0017_wide_pride.sql`):
+  - `sites` — slug (unique per company), name, `canonical_name` (BumbleBee join
+    string), `currency_code`, `uom_system` (`METRIC|IMPERIAL`), timezone,
+    is_active. Currency + UoM on the row from day one so a USD/imperial Dallas
+    (P20) is one admin action.
+  - `stock_levels` — per `(company, product, site)` (unique): `on_hand`,
+    `allocated`, `reorder_point`, `reorder_up_to`, `min_days_cover`.
+  - `stock_movements` — append-only ledger: signed `qty_delta`, `movement_type`
+    enum (GRN/ADJUSTMENT/SALE/CONSUMPTION/WASTAGE/TRANSFER_IN/OUT/
+    STOCKTAKE_TRUE_UP/OPENING), `unit_cost`, `occurred_at`, and a unique
+    `(source_system, source_key, content_hash)` for idempotency (mirrors the
+    gl_posting_log convention).
+- **StockLevelService** (`src/modules/stock/stock-level.service.ts`):
+  `applyMovement` writes the ledger row and increments the on-hand cache in one
+  transaction, idempotent on the movement key (duplicate ⇒ no-op, on-hand
+  untouched); `recomputeOnHand` re-derives on-hand = Σ(qty_delta) from the
+  ledger; `getOnHand` reads the cache. on-hand is the running sum of the
+  ledger, never a bare counter (spec §A5).
+- **SiteService + routes** (`src/modules/sites/…`): `GET/POST /sites`,
+  `GET/PATCH /sites/:id`, JWT-gated, slug-unique (409), kebab-validated (400).
+  Registered in `app.ts`.
+- **Seed**: `scripts/seed-sites.ts` (+ `seed:sites` npm script) idempotently
+  upserts the five UK sites (birmingham, liverpool, london-east, london-south,
+  manchester).
+- **Admin SPA**: a Sites page (`routes/_authed/sites/index.tsx`, list + create/
+  edit dialog), a header **site switcher** (`SiteSwitcher` + `SiteProvider`
+  context persisting the selection to localStorage, used by stock screens), a
+  Sidebar "Sites" nav item, and the sidebar brand relabelled to "Auto-Stock".
+- Tests: `stock-level.service.test.ts` (movement updates on-hand; cache ==
+  Σ(qty_delta) after a randomised sequence; idempotent re-apply is a no-op;
+  per-site isolation) and `site.routes.test.ts` (create/list/get/update, 409
+  duplicate slug, 400 bad slug, 401 unauth). 38 files / 407 tests green;
+  typecheck + build green across api + web.

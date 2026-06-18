@@ -17,6 +17,7 @@ import { integrationRoutes } from './modules/orders/integration.routes.js';
 import { apiKeyAdminRoutes } from './modules/admin/api-keys.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { channelRoutes } from './modules/channels/channel.routes.js';
+import { siteRoutes } from './modules/sites/site.routes.js';
 import { dropshipSupplierRoutes } from './modules/suppliers/supplier-dropship.routes.js';
 import { supplierOrdersRoutes } from './modules/suppliers/supplier-orders.routes.js';
 import {
@@ -90,6 +91,9 @@ export async function buildApp() {
 
   // Channels: per-product channel availability + per-channel pricing.
   await app.register(channelRoutes, { prefix: '/api/v1' });
+
+  // Auto-Stock: multi-site management (spec §A5).
+  await app.register(siteRoutes, { prefix: '/api/v1' });
 
   // Drop-ship suppliers: list/edit, test connection, poll-now, per-product mapping.
   await app.register(dropshipSupplierRoutes, { prefix: '/api/v1' });

@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { LogOut, Menu } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Sidebar } from './sidebar';
+import { SiteSwitcher } from './site-switcher';
 
 export function Header() {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ export function Header() {
         </Sheet>
       </div>
       <div className="flex items-center gap-4">
+        <SiteSwitcher />
         {user && (
           <span className="text-sm text-[var(--color-muted-foreground)]">{user.email}</span>
         )}

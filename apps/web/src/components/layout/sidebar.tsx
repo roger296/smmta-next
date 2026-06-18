@@ -13,6 +13,7 @@ import {
   Layers,
   Boxes,
   FolderTree,
+  MapPin,
 } from 'lucide-react';
 
 interface NavItem {
@@ -29,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Products', to: '/products', icon: Package },
   { label: 'Product groups', to: '/product-groups', icon: Boxes },
   { label: 'Categories', to: '/categories', icon: FolderTree },
+  { label: 'Sites', to: '/sites', icon: MapPin },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },
@@ -53,7 +55,7 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
       )}
     >
       <div className="flex h-14 items-center border-b border-[var(--color-border)] px-4">
-        <span className="text-base font-semibold">SMMTA-Next</span>
+        <span className="text-base font-semibold">Auto-Stock</span>
       </div>
       <nav className="flex flex-col gap-1 p-2">
         {NAV_ITEMS.map((item) => {
