@@ -195,3 +195,30 @@ decisions live in `DECISIONS.md`.
   the supplier default. (Two-brand priority resolution already covered by P3's
   `item-model.test`.) api 43 files / 429 tests; web 17 files / 105 tests;
   typecheck + build green.
+
+## P7 — Automatic reordering engine (2026-06-18) — the key deliverable
+
+- **`reorder_proposals`** table (migration `0021`) + `ReorderService`
+  (`modules/reorder/`): `evaluate(productId, siteId)` raises a replenishment
+  when on-hand ≤ reorder point — orders up to par (reorder_up_to), converts to
+  the supplier's purchase unit and rounds UP to the pack size, resolves the
+  preferred supplier (`preferredSupplierProduct`) and routes by channel +
+  `effectiveAutoPlace`. Idempotent: one open (PROPOSED/APPROVED) proposal per
+  (product, site). `approve` / `place` / `updateQty` / `list` round it out.
+- **Triggers**: a best-effort post-commit hook in `StockLevelService.
+  applyMovement` fires `evaluate` on every SALE/CONSUMPTION decrement, and the
+  **daily sweep** (`reorder.sweep.ts` + `scripts/run-reorder-sweep.ts`, npm
+  `reorder:sweep`) catches low items no decrement touched.
+- **Placement routing**: auto-place + API_CONNECTOR → PLACED (+ ref);
+  auto-place + EMAIL_PO → EMAILED with a rendered PO (`email-po.ts`; never sent
+  during the build); not auto-place → PROPOSED. `min_days_cover` stored but not
+  yet in the qty math (needs the P22 demand rate) — DECISIONS D6.
+- **Routes** (`reorder.routes.ts`): `GET /reorder/proposals`,
+  `POST /reorder/proposals/:id/approve|place`, `PATCH /reorder/proposals/:id`,
+  `POST /reorder/sweep`. **SPA**: a "Reorder suggestions" page (status filter,
+  Run-sweep, approve/place per row) + sidebar item.
+- Tests: `reorder.service.test.ts` — a sale crossing the point creates exactly
+  one replenishment (idempotent on a second decrement); par + pack-size
+  rounding (7→8 bags); auto-place vs propose routing (EMAILED / PLACED /
+  PROPOSED); the sweep catches an untouched low item; the email PO renders.
+  api 44 files / 436 tests; web typecheck + build green.

@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteRouteImport } from './routes/_authed/route'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedXeroAccountsRouteImport } from './routes/_authed/xero-accounts'
+import { Route as AuthedReorderRouteImport } from './routes/_authed/reorder'
 import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppliers/index'
 import { Route as AuthedSupplierOrdersIndexRouteImport } from './routes/_authed/supplier-orders/index'
 import { Route as AuthedSupplierInvoicesIndexRouteImport } from './routes/_authed/supplier-invoices/index'
@@ -68,6 +69,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
 const AuthedXeroAccountsRoute = AuthedXeroAccountsRouteImport.update({
   id: '/xero-accounts',
   path: '/xero-accounts',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedReorderRoute = AuthedReorderRouteImport.update({
+  id: '/reorder',
+  path: '/reorder',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedSuppliersIndexRoute = AuthedSuppliersIndexRouteImport.update({
@@ -265,6 +271,7 @@ const AuthedCustomersIdRoute = AuthedCustomersIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/reorder': typeof AuthedReorderRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
   '/customers/new': typeof AuthedCustomersNewRoute
@@ -306,6 +313,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/reorder': typeof AuthedReorderRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
   '/': typeof AuthedIndexRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
@@ -350,6 +358,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authed/reorder': typeof AuthedReorderRoute
   '/_authed/xero-accounts': typeof AuthedXeroAccountsRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/customers/$id': typeof AuthedCustomersIdRoute
@@ -395,6 +404,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/reorder'
     | '/xero-accounts'
     | '/customers/$id'
     | '/customers/new'
@@ -436,6 +446,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/reorder'
     | '/xero-accounts'
     | '/'
     | '/customers/$id'
@@ -479,6 +490,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authed'
     | '/login'
+    | '/_authed/reorder'
     | '/_authed/xero-accounts'
     | '/_authed/'
     | '/_authed/customers/$id'
@@ -553,6 +565,13 @@ declare module '@tanstack/react-router' {
       path: '/xero-accounts'
       fullPath: '/xero-accounts'
       preLoaderRoute: typeof AuthedXeroAccountsRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/reorder': {
+      id: '/_authed/reorder'
+      path: '/reorder'
+      fullPath: '/reorder'
+      preLoaderRoute: typeof AuthedReorderRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/suppliers/': {
@@ -818,6 +837,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthedRouteRouteChildren {
+  AuthedReorderRoute: typeof AuthedReorderRoute
   AuthedXeroAccountsRoute: typeof AuthedXeroAccountsRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedCustomersIdRoute: typeof AuthedCustomersIdRoute
@@ -860,6 +880,7 @@ interface AuthedRouteRouteChildren {
 }
 
 const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
+  AuthedReorderRoute: AuthedReorderRoute,
   AuthedXeroAccountsRoute: AuthedXeroAccountsRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedCustomersIdRoute: AuthedCustomersIdRoute,

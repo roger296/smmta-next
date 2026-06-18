@@ -122,6 +122,13 @@ export const supplierOrderChannelEnum = pgEnum('supplier_order_channel', [
   'EMAIL_PO', 'API_CONNECTOR',
 ]);
 
+/** Reorder-proposal lifecycle (spec §A7). PROPOSED awaits operator approval;
+ *  APPROVED is cleared to place; PLACED/EMAILED are terminal success states
+ *  (API auto-place vs emailed PO); REJECTED/CANCELLED are terminal. */
+export const reorderProposalStatusEnum = pgEnum('reorder_proposal_status', [
+  'PROPOSED', 'APPROVED', 'PLACED', 'EMAILED', 'REJECTED', 'CANCELLED',
+]);
+
 /**
  * Stock-movement ledger entry type. On-hand is the running sum of these
  * signed deltas, never a bare counter (spec §A5). GRN = goods received,

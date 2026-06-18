@@ -12,3 +12,4 @@ export * from './channels.js';
 export * from './notifications.js';
 export * from './sites.js';
 export * from './xero.js';
+export * from './reorder.js';

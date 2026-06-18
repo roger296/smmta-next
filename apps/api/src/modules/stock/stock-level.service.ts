@@ -61,7 +61,22 @@ export class StockLevelService {
    * cache atomically. Idempotent on (source_system, source_key, content_hash).
    */
   async applyMovement(input: MovementInput): Promise<ApplyResult> {
-    return this.db.transaction((tx) => this.applyInTx(tx, input));
+    const result = await this.db.transaction((tx) => this.applyInTx(tx, input));
+    // Spec §A7: check the reorder point on every decrement (sale / consumption),
+    // AFTER the movement commits so the engine sees the new on-hand. Best-effort
+    // — a reorder hiccup never fails the stock movement.
+    if (result.applied && (input.movementType === 'SALE' || input.movementType === 'CONSUMPTION')) {
+      try {
+        const { ReorderService } = await import('../reorder/reorder.service.js');
+        await new ReorderService().evaluate(input.productId, input.siteId, {
+          triggeredBy: 'decrement',
+          companyId: input.companyId,
+        });
+      } catch {
+        // swallow — reorder evaluation must not break stock movement application
+      }
+    }
+    return result;
   }
 
   /** The core apply, parameterised by a transaction so a transfer can run both

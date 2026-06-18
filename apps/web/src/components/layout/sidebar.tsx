@@ -17,6 +17,7 @@ import {
   PackageSearch,
   Banknote,
   Gauge,
+  ShoppingBag,
 } from 'lucide-react';
 
 interface NavItem {
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Sites', to: '/sites', icon: MapPin },
   { label: 'Stock by site', to: '/stock/by-site', icon: PackageSearch },
   { label: 'Reorder levels', to: '/stock/reorder', icon: Gauge },
+  { label: 'Reorder suggestions', to: '/reorder', icon: ShoppingBag },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },
