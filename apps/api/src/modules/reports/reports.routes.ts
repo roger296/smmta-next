@@ -11,6 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../../shared/middleware/auth.js';
 import { ConsumptionReportService } from './consumption-report.service.js';
+import { BatchService } from '../stock/batch.service.js';
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 const periodSchema = z.object({
@@ -23,9 +24,21 @@ const foodCostSchema = periodSchema.extend({
 });
 
 const service = new ConsumptionReportService();
+const batches = new BatchService();
+
+const expiryQuerySchema = z.object({
+  asOf: dateSchema,
+  withinDays: z.coerce.number().int().min(1).max(365).default(7),
+  siteId: z.string().uuid().optional(),
+});
 
 export async function reportRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
+
+  app.get('/reports/expiry', async (request) => {
+    const q = expiryQuerySchema.parse(request.query);
+    return { success: true, data: await batches.expiryReport(q) };
+  });
 
   app.get('/reports/consumption-variance', async (request) => {
     const q = periodSchema.parse(request.query);

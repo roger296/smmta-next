@@ -18,6 +18,7 @@ import {
   useConsumptionVariance,
   useWastageReport,
   useFoodCost,
+  useExpiryReport,
 } from '@/features/reports/use-reports';
 
 export const Route = createFileRoute('/_authed/reports')({
@@ -42,6 +43,7 @@ function ReportsPage() {
   const variance = useConsumptionVariance(period);
   const wastage = useWastageReport(period);
   const foodCost = useFoodCost(period);
+  const expiry = useExpiryReport(to, { siteId: siteId === 'ALL' ? undefined : siteId });
 
   return (
     <div className="space-y-6">
@@ -85,6 +87,7 @@ function ReportsPage() {
           <TabsTrigger value="variance">Portion variance</TabsTrigger>
           <TabsTrigger value="wastage">Wastage</TabsTrigger>
           <TabsTrigger value="food-cost">Food cost</TabsTrigger>
+          <TabsTrigger value="expiry">Expiry</TabsTrigger>
         </TabsList>
 
         <TabsContent value="variance">
@@ -204,6 +207,51 @@ function ReportsPage() {
                     <tr>
                       <td colSpan={5} className="px-4 py-6 text-center text-[var(--color-muted-foreground)]">
                         No consumption in this period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="expiry">
+          <Card>
+            <CardContent className="p-0">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted-foreground)]">
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Product</th>
+                    <th className="px-4 py-3 font-medium">Batch</th>
+                    <th className="px-4 py-3 font-medium">Use by</th>
+                    <th className="px-4 py-3 font-medium">Remaining</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(expiry.data?.expired ?? []).map((b) => (
+                    <tr key={b.batchId} className="border-b border-[var(--color-border)] last:border-0">
+                      <td className="px-4 py-3"><Badge variant="destructive">Expired</Badge></td>
+                      <td className="px-4 py-3">{b.productName}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{b.batchCode}</td>
+                      <td className="px-4 py-3">{b.useBy ?? '—'}</td>
+                      <td className="px-4 py-3 tabular-nums">{b.qtyRemaining} {b.stockUom}</td>
+                    </tr>
+                  ))}
+                  {(expiry.data?.expiringSoon ?? []).map((b) => (
+                    <tr key={b.batchId} className="border-b border-[var(--color-border)] last:border-0">
+                      <td className="px-4 py-3"><Badge variant="secondary">Soon</Badge></td>
+                      <td className="px-4 py-3">{b.productName}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{b.batchCode}</td>
+                      <td className="px-4 py-3">{b.useBy ?? '—'}</td>
+                      <td className="px-4 py-3 tabular-nums">{b.qtyRemaining} {b.stockUom}</td>
+                    </tr>
+                  ))}
+                  {expiry.data && expiry.data.expired.length === 0 && expiry.data.expiringSoon.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-[var(--color-muted-foreground)]">
+                        No batches expired or expiring by {to}.
                       </td>
                     </tr>
                   )}

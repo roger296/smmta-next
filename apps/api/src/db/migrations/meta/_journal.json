@@ -218,6 +218,13 @@
       "when": 1781808916658,
       "tag": "0030_common_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1781810363294,
+      "tag": "0031_wandering_pride",
+      "breakpoints": true
     }
   ]
 }

@@ -23,6 +23,7 @@ import { canAccessSite, type JwtPayload } from '../../shared/middleware/auth.js'
 import { StockLevelService } from '../stock/stock-level.service.js';
 import { ExpectedConsumptionService, type CoverGroup } from '../recipes/expected-consumption.service.js';
 import { getSiteCurrency } from '../sites/site-currency.js';
+import { BatchService } from '../stock/batch.service.js';
 
 export type SessionConsumption = typeof sessionConsumption.$inferSelect;
 export type SessionConsumptionLine = typeof sessionConsumptionLines.$inferSelect;
@@ -53,6 +54,7 @@ export class SessionConsumptionService {
   private db = getDb();
   private levels = new StockLevelService();
   private expected = new ExpectedConsumptionService();
+  private batches = new BatchService();
 
   /**
    * Submit (or amend) the consumption record for a session.
@@ -209,6 +211,19 @@ export class SessionConsumptionService {
           contentHash: `v${version}`,
           unitCost,
           currencyCode,
+          companyId,
+        });
+      }
+
+      // Batch-tracked items: take the *additional* usage off the lots FEFO
+      // (earliest use-by first). Forward-only — an amend-down isn't restored to
+      // the lot (the ledger stays exact; batch qty is best-effort, P21).
+      const additionalUsed = round3(newActual + newWastage - (oldActual + oldWastage));
+      if (additionalUsed > 0 && (await this.batches.isBatchTracked(line.productId, companyId))) {
+        await this.batches.decrementFEFO({
+          productId: line.productId,
+          siteId: input.siteId,
+          qty: additionalUsed,
           companyId,
         });
       }

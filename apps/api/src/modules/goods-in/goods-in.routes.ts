@@ -26,6 +26,8 @@ const receiveSchema = z.object({
         productId: z.string().uuid(),
         qtyPurchase: z.coerce.number().positive(),
         unitCost: z.coerce.number().min(0).optional(),
+        batchCode: z.string().max(100).optional(),
+        useBy: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
       }),
     )
     .min(1)

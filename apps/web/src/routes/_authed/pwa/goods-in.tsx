@@ -20,6 +20,8 @@ interface Line {
   product: Product;
   qtyPurchase: number;
   unitCost: number;
+  batchCode: string;
+  useBy: string;
 }
 
 function GoodsInScreen() {
@@ -36,7 +38,7 @@ function GoodsInScreen() {
       toast({ variant: 'destructive', title: `No product for "${code}"` });
       return;
     }
-    setLines((ls) => [...ls, { product, qtyPurchase: 1, unitCost: Number(product.expectedNextCost) || 0 }]);
+    setLines((ls) => [...ls, { product, qtyPurchase: 1, unitCost: Number(product.expectedNextCost) || 0, batchCode: '', useBy: '' }]);
     setCode('');
   };
 
@@ -51,6 +53,7 @@ function GoodsInScreen() {
         productId: l.product.id,
         qtyPurchase: l.qtyPurchase,
         unitCost: l.unitCost,
+        ...(l.product.requireBatchNumber ? { batchCode: l.batchCode, useBy: l.useBy || null } : {}),
       })),
     });
     toast({
@@ -119,6 +122,22 @@ function GoodsInScreen() {
               <p className="text-sm text-[var(--color-muted-foreground)]">
                 = {purchaseToStock(l.qtyPurchase, factor)} {l.product.stockUom} into stock
               </p>
+              {l.product.requireBatchNumber && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Batch code</Label>
+                    <Input
+                      value={l.batchCode}
+                      onChange={(e) => update(i, { batchCode: e.target.value })}
+                      placeholder="e.g. M-2026-06"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Use by</Label>
+                    <Input type="date" value={l.useBy} onChange={(e) => update(i, { useBy: e.target.value })} />
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         );

@@ -73,6 +73,34 @@ export function useWastageReport(p: Period) {
   });
 }
 
+export interface ExpiryBatch {
+  batchId: string;
+  batchCode: string;
+  productId: string;
+  productName: string;
+  siteId: string;
+  useBy: string | null;
+  qtyRemaining: number;
+  stockUom: string;
+}
+
+export interface ExpiryReport {
+  expired: ExpiryBatch[];
+  expiringSoon: ExpiryBatch[];
+}
+
+/** Batches expired / expiring within `withinDays` of `asOf` (P21). */
+export function useExpiryReport(asOf: string, opts?: { siteId?: string; withinDays?: number }) {
+  return useQuery<ExpiryReport>({
+    queryKey: ['reports', 'expiry', asOf, opts ?? {}],
+    queryFn: () =>
+      apiFetch<ExpiryReport>('/reports/expiry', {
+        searchParams: { asOf, siteId: opts?.siteId, withinDays: opts?.withinDays ?? 7 },
+      }),
+    enabled: !!asOf,
+  });
+}
+
 export function useFoodCost(p: Period & { revenue?: number }) {
   return useQuery<FoodCostRow[]>({
     queryKey: ['reports', 'food-cost', p],

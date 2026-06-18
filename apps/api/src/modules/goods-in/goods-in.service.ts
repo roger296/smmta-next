@@ -20,6 +20,7 @@ import { glIdempotencyKey } from '../../shared/utils/idempotency.js';
 import { StockLevelService } from '../stock/stock-level.service.js';
 import { getStockGLService } from '../../integrations/gl-provider.js';
 import { getSiteCurrency } from '../sites/site-currency.js';
+import { BatchService } from '../stock/batch.service.js';
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 const round4 = (n: number): number => Math.round(n * 10000) / 10000;
@@ -30,6 +31,10 @@ export interface GoodsInLineInput {
   qtyPurchase: number;
   /** Cost per purchase unit. */
   unitCost?: number;
+  /** Batch/lot code — required when the product is batch-tracked (P21). */
+  batchCode?: string;
+  /** Use-by (YYYY-MM-DD) for a perishable batch. */
+  useBy?: string | null;
 }
 
 export interface GoodsInInput {
@@ -56,6 +61,7 @@ export interface GoodsInResult {
 export class GoodsInService {
   private db = getDb();
   private levels = new StockLevelService();
+  private batches = new BatchService();
 
   async receive(input: GoodsInInput): Promise<GoodsInResult> {
     const companyId = input.companyId ?? getSingletonCompanyId();
@@ -111,6 +117,9 @@ export class GoodsInService {
         lineValue,
         expectedQtyPurchase,
         lineVariance,
+        requireBatchNumber: !!product?.requireBatchNumber,
+        batchCode: line.batchCode ?? null,
+        useBy: line.useBy ?? null,
       });
     }
     totalStockValue = round2(totalStockValue);
@@ -158,6 +167,19 @@ export class GoodsInService {
         currencyCode,
         companyId,
       });
+      // Batch-tracked items: record the lot (FEFO-decremented on consumption).
+      if (p.requireBatchNumber && p.batchCode) {
+        await this.batches.receive({
+          productId: p.productId,
+          siteId: input.siteId,
+          batchCode: p.batchCode,
+          qty: p.qtyStock,
+          useBy: p.useBy,
+          unitCost: p.unitCostPerStock,
+          currencyCode,
+          companyId,
+        });
+      }
     }
 
     // Post the GRN to Xero (idempotent on the receipt key), in the site's currency.

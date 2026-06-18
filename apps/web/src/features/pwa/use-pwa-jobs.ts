@@ -17,6 +17,8 @@ export interface GoodsInLineDraft {
   productId: string;
   qtyPurchase: number;
   unitCost?: number;
+  batchCode?: string;
+  useBy?: string | null;
 }
 
 /** Goods-in submit — offline-tolerant (queues + replays with one idempotency key). */

@@ -273,6 +273,24 @@ Currency *conversion* is deliberately not done — each site's figures stay in i
 own currency; the GL handles any consolidation. Reports already segregate by
 site, so no GBP/USD mixing in a row.
 
+## D15 — Batch/use-by: a lot ledger beside on-hand; FEFO is forward-only (2026-06-18, spec §A3, §9)
+- **Batches are an optional lot detail layer, not the on-hand source.** Only
+  products with `require_batch_number` carry `stock_batches` rows; the
+  `stock_movements` ledger stays the single source of truth for total on-hand. A
+  batch is created on goods-in (when the line carries a `batchCode`) and tracks
+  `qty_remaining` + `use_by` per lot. This keeps non-batch items completely
+  unaffected (no batch rows, no FEFO).
+- **FEFO decrement is forward-only on consumption.** Consumption takes the
+  *additional* usage (Δ of actual + wastage since last applied) off the lots
+  earliest-`use_by`-first (NULLs last). An amend-*down* does **not** restore qty
+  to the lot — the `stock_movements` ledger stays exact (its deltas are precise),
+  but `qty_remaining` is best-effort on amend-down. Documented; a lot-level
+  reversal is a future refinement. Forward consumption + goods-in are exact.
+- **Expiry surfaced via a reports endpoint.** `GET /reports/expiry` (and an
+  Expiry tab on the Reports page) lists expired lots (use_by < asOf, qty left)
+  and soon-to-expire lots (within N days), worst-first — the food-safety view.
+  `asOf` is a parameter (not wall-clock) so it's deterministic + testable.
+
 ## D13 — Guarded MCP action tools: scope + confirm, wrapping existing services (2026-06-18, spec §A9)
 - **Action tools are a separate registry, gated by `mcp:write`.** The five write
   tools (`adjust_stock`, `set_reorder_level`, `start_stock_take`,

@@ -506,3 +506,22 @@ decisions live in `DECISIONS.md`.
   valuation reports Dallas in USD; valuation segregates a GBP and a USD site by
   currency. api 57 files / 486 tests; web 20 files / 117 tests; typecheck +
   build green.
+
+## P21 — Batch & use-by tracking (2026-06-18)
+
+- **Schema** (`stock_batches`, migration `0031`): optional per (product, site) —
+  only `require_batch_number` products carry lots — with `batch_code`,
+  `received_at`, `use_by`, `qty_remaining`, `unit_cost`. The `stock_movements`
+  ledger stays the on-hand source of truth (DECISIONS D15).
+- **BatchService**: `receive` (goods-in creates/tops-up a lot); `decrementFEFO`
+  (consume earliest `use_by` first, NULLs last); `expired` / `expiringSoon` /
+  `expiryReport` (enriched, worst-first). Goods-in records a batch when the line
+  carries a code; consumption FEFO-decrements the additional usage for
+  batch-tracked products (forward-only). Non-batch items are untouched.
+- **API/Web**: `GET /reports/expiry` + an Expiry tab on the Reports page; the PWA
+  goods-in form shows batch-code / use-by fields when the product is
+  batch-tracked.
+- Tests: FEFO consumes the earliest use-by first (EARLY then LATE); an expired
+  batch is flagged + soon-to-expire listed; goods-in assigns a batch (2 L → 2000
+  ml lot) and creates none for a non-batch product. api 58 files / 490 tests;
+  web 20 files / 117 tests; typecheck + build green.
