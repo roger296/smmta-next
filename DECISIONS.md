@@ -252,3 +252,25 @@ streaming + Cowork sessions) is additive — the registry doesn't change.
 - **MCP read tools wired.** `consumption_variance` and `wastage_report` (P14
   stubs returning `{available:false}`) now call the report service with a
   site + from/to window.
+
+## D13 — Guarded MCP action tools: scope + confirm, wrapping existing services (2026-06-18, spec §A9)
+- **Action tools are a separate registry, gated by `mcp:write`.** The five write
+  tools (`adjust_stock`, `set_reorder_level`, `start_stock_take`,
+  `approve_reorder`, `create_purchase_order`) live in `action-tools.ts`, distinct
+  from the read `MCP_TOOLS`. The dispatch requires `mcp:write` to call any of
+  them; a read-only (`mcp:read`) key is rejected per-tool (not at auth, so the
+  same key can do both). `mcpAuth` now accepts either mcp scope.
+- **Confirm-or-preview.** Each action tool exposes `preview` (no mutation, echoes
+  what it would do + e.g. current on-hand) and `execute`. The dispatch calls
+  `execute` only when `args.confirm === true`; otherwise it returns the preview.
+  So nothing mutates without an explicit confirm — and Claude/Cowork can show the
+  user the preview first.
+- **They wrap existing services, so mutations land in the existing ledgers.**
+  `adjust_stock` → `StockLevelService.adjust` (ADJUSTMENT movement, idempotent on
+  `idempotencyKey`); `set_reorder_level` → `setReorderParams`; `start_stock_take`
+  → `StockTakeService.open`; `approve_reorder` / `create_purchase_order` →
+  `ReorderService.approve` / `place`. No new write path or audit table — every
+  call is also recorded in `mcp_audit_log` by the dispatch. `create_purchase_order`
+  is "place the approved proposal" (reorder_proposals carry the rendered PO),
+  consistent with D6 (reorder uses `reorder_proposals`, not the drop-ship
+  `supplier_orders`).

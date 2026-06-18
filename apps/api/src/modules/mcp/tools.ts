@@ -28,7 +28,7 @@ export interface McpTool {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Resolve a `site` argument (a site id, slug, or canonical name) to a site id. */
-async function resolveSiteId(site: unknown, companyId: string): Promise<string | undefined> {
+export async function resolveSiteId(site: unknown, companyId: string): Promise<string | undefined> {
   if (typeof site !== 'string' || !site) return undefined;
   if (UUID_RE.test(site)) return site;
   const row = await getDb().query.sites.findFirst({

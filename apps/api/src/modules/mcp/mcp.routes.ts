@@ -18,6 +18,7 @@ import { getDb } from '../../config/database.js';
 import { apiKeys, mcpAuditLog } from '../../db/schema/index.js';
 import { parseRawKey, verifySecret } from '../../shared/auth/api-key.js';
 import { MCP_TOOLS, getMcpTool } from './tools.js';
+import { MCP_ACTION_TOOLS, getMcpActionTool } from './action-tools.js';
 
 function baseUrl(request: FastifyRequest): string {
   const proto = (request.headers['x-forwarded-proto'] as string) ?? request.protocol;
@@ -42,8 +43,10 @@ async function mcpAuth(request: FastifyRequest, reply: FastifyReply): Promise<bo
   });
   if (!row || row.revokedAt) return unauth('Unknown or revoked API key');
   if (!(await verifySecret(parsed.secret, row.keyHash))) return unauth('Invalid API key');
-  if (!row.scopes.includes('mcp:read')) {
-    reply.status(403).send({ success: false, error: 'Missing required scope: mcp:read' });
+  // Any MCP scope gets past auth; per-tool the dispatch requires mcp:read for
+  // read tools and mcp:write for action (write) tools.
+  if (!row.scopes.includes('mcp:read') && !row.scopes.includes('mcp:write')) {
+    reply.status(403).send({ success: false, error: 'Missing required scope: mcp:read or mcp:write' });
     return false;
   }
   request.apiKey = {
@@ -67,7 +70,7 @@ export async function mcpRoutes(app: FastifyInstance) {
   // RFC 9728 protected-resource metadata (public).
   app.get('/.well-known/oauth-protected-resource', async (request) => ({
     resource: `${baseUrl(request)}/mcp`,
-    scopes_supported: ['mcp:read'],
+    scopes_supported: ['mcp:read', 'mcp:write'],
     bearer_methods_supported: ['header'],
   }));
 
@@ -87,7 +90,7 @@ export async function mcpRoutes(app: FastifyInstance) {
         });
       case 'tools/list':
         return rpc({
-          tools: MCP_TOOLS.map((t) => ({
+          tools: [...MCP_TOOLS, ...MCP_ACTION_TOOLS].map((t) => ({
             name: t.name,
             description: t.description,
             inputSchema: t.inputSchema,
@@ -95,14 +98,31 @@ export async function mcpRoutes(app: FastifyInstance) {
         });
       case 'tools/call': {
         const name = body.params?.name ?? '';
-        const tool = getMcpTool(name);
-        if (!tool) return rpcErr(-32602, `Unknown tool: ${name}`);
+        const args = body.params?.arguments ?? {};
+        const readTool = getMcpTool(name);
+        const actionTool = getMcpActionTool(name);
+        if (!readTool && !actionTool) return rpcErr(-32602, `Unknown tool: ${name}`);
         const ctx = { companyId: request.apiKey!.companyId };
         let ok = true;
         let errorMessage: string | null = null;
         let result: unknown;
         try {
-          result = await tool.handler(body.params?.arguments ?? {}, ctx);
+          if (actionTool) {
+            // Write tools require the mcp:write scope; a read-only key is rejected.
+            if (!request.apiKey!.scopes.includes('mcp:write')) {
+              throw new Error('Missing required scope: mcp:write');
+            }
+            // Confirm guard: no confirm ⇒ a no-mutation preview.
+            result = args.confirm === true
+              ? { executed: true, result: await actionTool.execute(args, ctx) }
+              : { preview: true, ...(await actionTool.preview(args, ctx) as object) };
+          } else {
+            // Read tools require mcp:read.
+            if (!request.apiKey!.scopes.includes('mcp:read')) {
+              throw new Error('Missing required scope: mcp:read');
+            }
+            result = await readTool!.handler(args, ctx);
+          }
         } catch (err) {
           ok = false;
           errorMessage = (err as Error).message;

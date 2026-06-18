@@ -468,3 +468,21 @@ decisions live in `DECISIONS.md`.
   25%); wastage hot-spots with reasons; the period filter excludes out-of-window
   sessions. api 55 files / 478 tests; web 20 files / 117 tests; typecheck +
   build green.
+
+## P19 — Guarded MCP action tools (2026-06-18) — END OF PHASE 2
+
+- **Five write tools** (`action-tools.ts`, gated by the `mcp:write` scope):
+  `adjust_stock`, `set_reorder_level`, `start_stock_take`, `approve_reorder`,
+  `create_purchase_order` — each wraps an existing service so the mutation lands
+  in the same ledger (`stock_movements`, `stock_levels`, `stock_takes`,
+  `reorder_proposals`) and is audited in `mcp_audit_log` (DECISIONS D13).
+- **Two guards**: the dispatch requires `mcp:write` for action tools (a read-only
+  key is rejected); and nothing mutates unless `confirm: true` — otherwise the
+  tool returns a no-mutation preview. `tools/list` now advertises read + action
+  tools; discovery `scopes_supported` includes `mcp:write`.
+- Tests (`mcp-actions.test.ts`, over the live `/mcp` endpoint): `adjust_stock`
+  with the write scope + confirm performs exactly one audited movement
+  (on-hand 1000 → 900); without confirm returns a preview and changes nothing; a
+  read-only key is rejected with an `mcp:write` error; a replay with the same
+  `idempotencyKey` is a no-op (still one movement). api 56 files / 482 tests; web
+  20 files / 117 tests; typecheck + build green. **Phase 2 (P15–P19) complete.**
