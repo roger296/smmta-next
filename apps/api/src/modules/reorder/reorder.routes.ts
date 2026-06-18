@@ -14,6 +14,8 @@ import { z } from 'zod';
 import { requireAuth } from '../../shared/middleware/auth.js';
 import { ReorderService } from './reorder.service.js';
 import { runReorderSweep } from './reorder.sweep.js';
+import { DemandEstimatorService } from './demand-estimator.service.js';
+import { StockLevelService } from '../stock/stock-level.service.js';
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 const listQuerySchema = z.object({
@@ -23,9 +25,44 @@ const listQuerySchema = z.object({
 const updateSchema = z.object({ qtyPurchase: z.coerce.number().positive() });
 
 const service = new ReorderService();
+const demand = new DemandEstimatorService();
+const levels = new StockLevelService();
+
+const todayStr = (): string => new Date().toISOString().slice(0, 10);
+
+const demandQuerySchema = z.object({
+  siteId: z.string().uuid(),
+  leadTimeDays: z.coerce.number().int().min(0).max(365).optional(),
+  windowDays: z.coerce.number().int().min(1).max(365).optional(),
+  asOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+const acceptSchema = z.object({
+  productId: z.string().uuid(),
+  siteId: z.string().uuid(),
+  reorderPoint: z.coerce.number().min(0),
+  reorderUpTo: z.coerce.number().min(0),
+});
 
 export async function reorderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
+
+  // Demand-based suggestions (advisory — accept updates the level explicitly).
+  app.get('/reorder/suggestions/demand', async (request) => {
+    const q = demandQuerySchema.parse(request.query);
+    const data = await demand.suggestAll({ ...q, asOf: q.asOf ?? todayStr() });
+    return { success: true, data };
+  });
+
+  // Accept a suggestion → set the reorder levels via the normal path.
+  app.post('/reorder/suggestions/accept', async (request, reply) => {
+    const parsed = acceptSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ success: false, error: 'Invalid request body' });
+    }
+    await levels.setReorderParams(parsed.data);
+    return { success: true, data: { ok: true } };
+  });
 
   app.get('/reorder/proposals', async (request) => {
     const q = listQuerySchema.parse(request.query);

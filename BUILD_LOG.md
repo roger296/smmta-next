@@ -525,3 +525,23 @@ decisions live in `DECISIONS.md`.
   batch is flagged + soon-to-expire listed; goods-in assigns a batch (2 L → 2000
   ml lot) and creates none for a non-batch product. api 58 files / 490 tests;
   web 20 files / 117 tests; typecheck + build green.
+
+## P22 — Demand-based reorder quantities (2026-06-18)
+
+- **DemandEstimatorService**: `dailyUsage` (Σ SALE+CONSUMPTION decrements ÷
+  window), `suggest` (point = usage × lead time; up-to = usage × (lead +
+  min_days_cover)), `suggestAll` (per site, history-only), `demandUpTo` (for the
+  engine). Advisory — the operator accepts via the normal set-reorder-params
+  path; manual levels are never auto-overwritten (DECISIONS D16).
+- **Per-site opt-in**: a `sites.demand_reorder` flag (default off, migration
+  `0032`) gates `ReorderService.evaluate` — on ⇒ size the order to the
+  demand-based up-to (fixed-par fallback if no history); off ⇒ fixed par
+  unchanged. Finally uses `min_days_cover` (stored since P6, unused until now).
+- **API/Web**: `GET /reorder/suggestions/demand` + `POST
+  /reorder/suggestions/accept`; a Demand-suggestions panel with per-row Accept on
+  the reorder levels page.
+- Tests: the estimator computes 100/day from a 2800-over-28-days fixture;
+  suggested levels match hand values (point 300, par 1000); the engine keeps the
+  fixed par (1800) with the flag off and sizes from demand (800) with it on;
+  accepting updates the level via setReorderParams. api 59 files / 494 tests; web
+  20 files / 117 tests; typecheck + build green.

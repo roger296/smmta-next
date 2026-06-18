@@ -13,6 +13,7 @@ import {
   useSaveReorderLevels,
   type ReorderEntry,
 } from '@/features/stock/use-stock-levels';
+import { useDemandSuggestions, useAcceptDemandSuggestion } from '@/features/reorder/use-demand';
 
 export const Route = createFileRoute('/_authed/stock/reorder')({
   component: ReorderLevelsPage,
@@ -24,8 +25,28 @@ function ReorderLevelsPage() {
   const { selectedSite, selectedSiteId, sites, isLoading: sitesLoading } = useSiteContext();
   const { data: levels, isLoading } = useStockLevels(selectedSiteId);
   const save = useSaveReorderLevels();
+  const suggestions = useDemandSuggestions(selectedSiteId ?? undefined);
+  const accept = useAcceptDemandSuggestion();
   const { toast } = useToast();
   const [edits, setEdits] = React.useState<Record<string, Edit>>({});
+
+  const productName = (productId: string) =>
+    levels?.find((r) => r.productId === productId)?.productName ?? productId.slice(0, 8);
+
+  const acceptSuggestion = async (s: { productId: string; suggestedReorderPoint: number; suggestedReorderUpTo: number }) => {
+    if (!selectedSiteId) return;
+    try {
+      await accept.mutateAsync({
+        productId: s.productId,
+        siteId: selectedSiteId,
+        reorderPoint: s.suggestedReorderPoint,
+        reorderUpTo: s.suggestedReorderUpTo,
+      });
+      toast({ title: `Applied demand levels for ${productName(s.productId)}` });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Could not apply', description: String(err) });
+    }
+  };
 
   const initial = (productId: string): Edit => {
     const row = levels?.find((r) => r.productId === productId);
@@ -78,6 +99,42 @@ function ReorderLevelsPage() {
           selected site. Auto-reorder triggers when on-hand falls to the reorder point.
         </p>
       </div>
+
+      {suggestions.data && suggestions.data.length > 0 && (
+        <Card>
+          <CardContent className="p-0">
+            <div className="border-b border-[var(--color-border)] px-4 py-3 text-sm font-medium">
+              Demand suggestions — from recent usage (advisory; accept to apply)
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted-foreground)]">
+                  <th className="px-4 py-2 font-medium">Product</th>
+                  <th className="px-4 py-2 font-medium">Daily usage</th>
+                  <th className="px-4 py-2 font-medium">Suggested point</th>
+                  <th className="px-4 py-2 font-medium">Suggested par</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {suggestions.data.map((s) => (
+                  <tr key={s.productId} className="border-b border-[var(--color-border)] last:border-0">
+                    <td className="px-4 py-2">{productName(s.productId)}</td>
+                    <td className="px-4 py-2 tabular-nums">{s.dailyUsage}</td>
+                    <td className="px-4 py-2 tabular-nums">{s.suggestedReorderPoint}</td>
+                    <td className="px-4 py-2 tabular-nums">{s.suggestedReorderUpTo}</td>
+                    <td className="px-4 py-2 text-right">
+                      <Button size="sm" variant="outline" onClick={() => void acceptSuggestion(s)} disabled={accept.isPending}>
+                        Accept
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading && (
         <Card>

@@ -225,6 +225,13 @@
       "when": 1781810363294,
       "tag": "0031_wandering_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1781810831295,
+      "tag": "0032_violet_mindworm",
+      "breakpoints": true
     }
   ]
 }

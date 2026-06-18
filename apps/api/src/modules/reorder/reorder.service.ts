@@ -22,6 +22,7 @@ import { roundUpToPackMultiple } from '../stock/uom.js';
 import { effectiveAutoPlace, preferredSupplierProduct } from '../stock/supplier-products.js';
 import { renderEmailPO } from './email-po.js';
 import { getSiteCurrency } from '../sites/site-currency.js';
+import { DemandEstimatorService } from './demand-estimator.service.js';
 
 const OPEN_STATUSES = ['PROPOSED', 'APPROVED'] as const;
 
@@ -70,7 +71,23 @@ export class ReorderService {
     if (open) return { created: false, proposalId: open.id, reason: 'already-open' };
 
     // Order up to par (reorder_up_to), falling back to the reorder point.
-    const par = level.reorderUpTo != null ? Number(level.reorderUpTo) : point;
+    let par = level.reorderUpTo != null ? Number(level.reorderUpTo) : point;
+    // Demand-based sizing (P22): only when the site opts in. The order targets a
+    // demand estimate (rate-of-use × cover) instead of the fixed par; with no
+    // history (estimate 0) we keep the fixed par so we never order nothing.
+    const site = await this.db.query.sites.findFirst({
+      where: and(eq(sites.id, siteId), eq(sites.companyId, companyId)),
+    });
+    if (site?.demandReorder) {
+      const demandUpTo = await new DemandEstimatorService().demandUpTo({
+        productId,
+        siteId,
+        minDaysCover: level.minDaysCover ?? undefined,
+        asOf: new Date().toISOString().slice(0, 10),
+        companyId,
+      });
+      if (demandUpTo > 0) par = demandUpTo;
+    }
     const qtyStockRaw = par - onHand;
     if (qtyStockRaw <= 0) return { created: false, reason: 'nothing-to-order' };
 

@@ -1,0 +1,1 @@
+ALTER TABLE "sites" ADD COLUMN "demand_reorder" boolean DEFAULT false NOT NULL;

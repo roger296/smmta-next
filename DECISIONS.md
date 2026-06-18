@@ -291,6 +291,23 @@ site, so no GBP/USD mixing in a row.
   and soon-to-expire lots (within N days), worst-first — the food-safety view.
   `asOf` is a parameter (not wall-clock) so it's deterministic + testable.
 
+## D16 — Demand reorder: advisory suggestions + an opt-in per-site engine switch (2026-06-18, spec §9)
+- **Estimate from the ledger, suggest, never auto-overwrite.** `DemandEstimator`
+  reads demand (SALE + CONSUMPTION decrements) over a trailing window per
+  (product, site): `dailyUsage = Σ|decrements| / windowDays`. Suggested
+  `reorder_point = dailyUsage × leadTime`, `reorder_up_to = dailyUsage ×
+  (leadTime + minDaysCover)`. These are **advisory** — surfaced on the reorder
+  levels page; the operator's Accept calls the normal `setReorderParams` path. A
+  manual level is never silently overwritten.
+- **The engine only uses the estimate when the site opts in.** A per-site
+  `sites.demand_reorder` flag (default off, migration `0032`) gates it: with it
+  on, `ReorderService.evaluate` sizes the order to the demand-based up-to
+  (falling back to the fixed par if there's no history, so it never orders
+  nothing); with it off, the fixed par is unchanged. This finally puts
+  `min_days_cover` (stored since P6 but unused — D6) to work.
+- **`asOf` is a parameter** (defaults to today in the routes) so the estimator
+  is deterministic + testable; the engine passes today's date.
+
 ## D13 — Guarded MCP action tools: scope + confirm, wrapping existing services (2026-06-18, spec §A9)
 - **Action tools are a separate registry, gated by `mcp:write`.** The five write
   tools (`adjust_stock`, `set_reorder_level`, `start_stock_take`,

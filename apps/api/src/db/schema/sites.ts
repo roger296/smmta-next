@@ -43,6 +43,10 @@ export const sites = pgTable(
     uomSystem: uomSystemEnum('uom_system').notNull().default('METRIC'),
     timezone: varchar('timezone', { length: 64 }).notNull().default('Europe/London'),
     isActive: boolean('is_active').notNull().default(true),
+    /** Per-site demand-based reorder (spec §9, P22). When on, the reorder engine
+     *  sizes the order from a demand estimate (rate-of-use × cover) instead of
+     *  the fixed par. Default off — fixed par stays the baseline. */
+    demandReorder: boolean('demand_reorder').notNull().default(false),
     ...auditTimestamps,
   },
   (t) => ({
