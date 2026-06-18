@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { createFileRoute } from '@tanstack/react-router';
-import { ChefHat, ClipboardList } from 'lucide-react';
+import { ChefHat, ClipboardList, Calculator } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,10 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
 import { formatDate, formatMoney } from '@/lib/format';
 import { useSites } from '@/features/sites/use-sites';
 import {
   useConsumptionList,
+  useConsumptionSweep,
   useSessionsAwaiting,
 } from '@/features/consumption/use-consumption';
 
@@ -39,15 +42,35 @@ function ConsumptionDashboard() {
 
   const awaiting = useSessionsAwaiting(siteId || undefined, date);
   const records = useConsumptionList(siteId ? { siteId } : undefined);
+  const sweep = useConsumptionSweep();
+  const { toast } = useToast();
+
+  const runSweep = async () => {
+    try {
+      const r = await sweep.mutateAsync({ date });
+      toast({
+        title: `Sweep ${date}`,
+        description: `COGS ${formatMoney(r.totalCogs)} + wastage ${formatMoney(r.totalWastage)} across ${r.sites} site(s) posted to Xero (dry-run unless XERO_DRY_RUN is off).`,
+      });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Sweep failed', description: String(err) });
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">End-of-session consumption</h1>
-        <p className="text-sm text-[var(--color-muted-foreground)]">
-          Sessions still awaiting a head-baker consumption record, and recently submitted records
-          with their true materials cost.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">End-of-session consumption</h1>
+          <p className="text-sm text-[var(--color-muted-foreground)]">
+            Sessions still awaiting a head-baker consumption record, and recently submitted records
+            with their true materials cost.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => void runSweep()} disabled={sweep.isPending}>
+          <Calculator className="h-4 w-4" />
+          {sweep.isPending ? 'Posting…' : 'Run COGS/wastage sweep'}
+        </Button>
       </div>
 
       <div className="flex flex-wrap gap-4">

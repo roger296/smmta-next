@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 
 export type ExperienceType = 'CLASSIC' | 'SWEETER' | 'ULTIMATE';
@@ -66,5 +66,23 @@ export function useSessionsAwaiting(siteId: string | undefined, date: string | u
     queryKey: ['consumption', 'awaiting', siteId, date],
     queryFn: () => apiFetch<AwaitingSession[]>('/session-consumption/awaiting', { searchParams: { siteId, date } }),
     enabled: !!siteId && !!date,
+  });
+}
+
+export interface SweepResult {
+  date: string;
+  sites: number;
+  cogsPosted: number;
+  wastagePosted: number;
+  totalCogs: number;
+  totalWastage: number;
+}
+
+/** Run the daily COGS / wastage Xero sweep for a date (dry-run by default). */
+export function useConsumptionSweep() {
+  const qc = useQueryClient();
+  return useMutation<SweepResult, Error, { date: string }>({
+    mutationFn: (input) => apiFetch<SweepResult>('/session-consumption/sweep', { method: 'POST', body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['consumption'] }),
   });
 }

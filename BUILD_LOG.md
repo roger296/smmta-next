@@ -424,3 +424,27 @@ decisions live in `DECISIONS.md`.
   amend posts only the delta (one record, version bumps); offline replay no-op;
   cross-site submit rejected; filterAwaiting. api 53 files / 472 tests; web 20
   files / 117 tests; typecheck + build green.
+
+## P17 — Per-session materials cost → BumbleBee, COGS/wastage → Xero (2026-06-18)
+
+- **Materials cost → BumbleBee** (`MaterialsCostSyncService`): `submit` fires a
+  best-effort post-commit push of the session's materials cost (Σ actual × unit
+  cost). Guarded + dry-run by default (`MATERIALS_COST_SYNC` off / no BumbleBee
+  URL → logs the payload, sends nothing). Idempotent on BumbleBee's convention —
+  `bumblebee_sync_log` unique on `(source_system='autostock', session_id,
+  content_hash)` where the hash is over the value (`materials_cost|version`), so
+  a re-push is a no-op and an amended cost re-pushes (migration `0029`,
+  DECISIONS D11).
+- **Daily COGS / wastage → Xero** (`ConsumptionSweepService.runDaily`):
+  aggregates `Σ(actual × unit_cost)` = COGS and `Σ(wastage × unit_cost)` =
+  wastage per site for a day and posts one balanced journal each via
+  `XeroGLService.postConsumptionCOGS` / `postWastage` — periodic (locked
+  decision 8), idempotent on the per-(site,day) GL key, dry-run by default.
+- **API**: `POST /session-consumption/sweep` (daily COGS/wastage) +
+  `POST /session-consumption/:id/sync-cost` (re-push). **Web**: a "Run
+  COGS/wastage sweep" action on the consumption dashboard (materials cost was
+  already surfaced there).
+- Tests: materials cost = Σ(actual × unit cost); the BumbleBee push is
+  dry-run-safe + idempotent (one log row on re-push); the daily sweep posts one
+  balanced COGS + wastage journal per site/day and is a no-op on re-run. api 54
+  files / 474 tests; web 20 files / 117 tests; typecheck + build green.

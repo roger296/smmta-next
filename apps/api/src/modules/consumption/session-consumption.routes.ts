@@ -15,6 +15,8 @@ import { z } from 'zod';
 import { requireAuth, getAuthUser, canAccessSite } from '../../shared/middleware/auth.js';
 import { SessionConsumptionService } from './session-consumption.service.js';
 import { BumbleBeeSessionClient } from './bumblebee-sessions.js';
+import { ConsumptionSweepService } from './consumption-sweep.service.js';
+import { MaterialsCostSyncService } from './materials-cost-sync.service.js';
 import { getDb } from '../../config/database.js';
 import { sites } from '../../db/schema/index.js';
 import { and, eq } from 'drizzle-orm';
@@ -60,9 +62,30 @@ const awaitingQuerySchema = z.object({
 
 const service = new SessionConsumptionService();
 const sessions = new BumbleBeeSessionClient();
+const sweep = new ConsumptionSweepService();
+const costSync = new MaterialsCostSyncService();
 
 export async function sessionConsumptionRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
+
+  // Daily COGS / wastage Xero sweep for a date (periodic — locked decision 8).
+  app.post('/session-consumption/sweep', async (request, reply) => {
+    const parsed = z.object({ date: dateSchema }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ success: false, error: 'Invalid request body' });
+    }
+    const data = await sweep.runDaily(parsed.data);
+    return { success: true, data };
+  });
+
+  // Re-push a session's materials cost to BumbleBee (guarded, dry-run default).
+  app.post('/session-consumption/:id/sync-cost', async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const record = await service.get(id);
+    if (!record) return reply.status(404).send({ success: false, error: 'Record not found' });
+    const data = await costSync.syncSession(record.record.sessionId);
+    return { success: true, data };
+  });
 
   app.get('/session-consumption', async (request) => {
     const q = listQuerySchema.parse(request.query);

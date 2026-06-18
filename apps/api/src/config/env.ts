@@ -88,6 +88,10 @@ const envSchema = z.object({
   CATALOGUE_SYNC: boolFromEnv,
   BUMBLEBEE_API_BASE_URL: z.string().default(''),
   BUMBLEBEE_API_KEY: z.string().default(''),
+  // Outbound per-session materials-cost push to BumbleBee (spec §A8, P17). OFF
+  // by default — the BumbleBee write endpoint is a follow-up; until then a sync
+  // logs the intended payload (dry-run) and sends nothing.
+  MATERIALS_COST_SYNC: boolFromEnv,
 });
 
 export type Env = z.infer<typeof envSchema>;

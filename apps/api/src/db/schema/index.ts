@@ -20,3 +20,4 @@ export * from './device-pins.js';
 export * from './mcp-audit.js';
 export * from './recipes.js';
 export * from './session-consumption.js';
+export * from './bumblebee-sync.js';

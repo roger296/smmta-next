@@ -214,6 +214,15 @@ export class SessionConsumptionService {
       .returning();
     record = final ?? record;
 
+    // Best-effort: push the materials cost to BumbleBee (guarded, dry-run by
+    // default). A sync hiccup must never fail the submit (spec §A8, P17).
+    try {
+      const { MaterialsCostSyncService } = await import('./materials-cost-sync.service.js');
+      await new MaterialsCostSyncService().syncSession(input.sessionId, companyId);
+    } catch {
+      // swallow — materials-cost sync is not on the submit's critical path
+    }
+
     const lines = await this.linesFor(record.id);
     return { record, lines };
   }

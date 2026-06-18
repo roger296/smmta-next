@@ -203,3 +203,29 @@ streaming + Cowork sessions) is additive — the registry doesn't change.
   go-live step); the pure `filterAwaiting(siteId, sessions)` diffs them against
   existing records and is what the test, the dashboard, and the P14 MCP tool
   (`sessions_awaiting_consumption`, now wired) all use.
+
+## D11 — Consumption cost flow: BumbleBee push near-real-time, Xero COGS daily (2026-06-18, spec §A8)
+- **Materials cost → BumbleBee is pushed near-real-time (best-effort); Xero COGS
+  is a daily sweep.** Locked decision 8 makes the *accounts* posting periodic
+  (one COGS + one wastage journal per site/day), but BumbleBee profit reporting
+  wants the per-session cost promptly, so `submit` fires the BumbleBee push
+  post-commit (best-effort — a sync hiccup never fails the submit, like the
+  reorder hook). The two cadences are deliberately different.
+- **BumbleBee push idempotency mirrors BumbleBee's own convention.** A
+  `bumblebee_sync_log` row is unique on `(source_system='autostock',
+  source_key=session_id, content_hash)`, where the hash is over the *value*
+  (`materials_cost|version`) not the metadata: re-pushing the same cost is a
+  no-op; an amended cost (new version → new hash) pushes again. Guarded by
+  `MATERIALS_COST_SYNC` (default off) + a BumbleBee base URL; otherwise a dry-run
+  logs the payload and sends nothing (the write endpoint is a follow-up).
+- **Daily Xero sweep reuses the dry-run-safe GL posts.**
+  `ConsumptionSweepService.runDaily(date)` aggregates `Σ(actual × unit_cost)` =
+  COGS and `Σ(wastage × unit_cost)` = wastage per site for the day and calls
+  `XeroGLService.postConsumptionCOGS` / `postWastage` (balanced + idempotent on
+  the per-(site,day) GL key `CCOGS-{site}:{date}` / `WASTE-{site}:{date}`,
+  dry-run by default). A re-run is a no-op.
+- **Known limitation — amend after the sweep.** The daily GL key is once-per-day,
+  so a consumption *amended after* that day's sweep posted won't re-post a
+  correction (the key is already SUCCESS). Intended cadence is end-of-day after
+  amendments settle; a correction journal is a future refinement. The BumbleBee
+  push has no such limit — it re-pushes on every amend (new hash).
