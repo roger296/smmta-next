@@ -15,6 +15,7 @@ import { Route as AuthedRouteRouteImport } from './routes/_authed/route'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedXeroAccountsRouteImport } from './routes/_authed/xero-accounts'
 import { Route as AuthedSquareRouteImport } from './routes/_authed/square'
+import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedReorderRouteImport } from './routes/_authed/reorder'
 import { Route as AuthedRecipesRouteImport } from './routes/_authed/recipes'
 import { Route as AuthedConsumptionRouteImport } from './routes/_authed/consumption'
@@ -86,6 +87,11 @@ const AuthedXeroAccountsRoute = AuthedXeroAccountsRouteImport.update({
 const AuthedSquareRoute = AuthedSquareRouteImport.update({
   id: '/square',
   path: '/square',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedReportsRoute = AuthedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedReorderRoute = AuthedReorderRouteImport.update({
@@ -317,6 +323,7 @@ export interface FileRoutesByFullPath {
   '/consumption': typeof AuthedConsumptionRoute
   '/recipes': typeof AuthedRecipesRoute
   '/reorder': typeof AuthedReorderRoute
+  '/reports': typeof AuthedReportsRoute
   '/square': typeof AuthedSquareRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/consumption': typeof AuthedConsumptionRoute
   '/recipes': typeof AuthedRecipesRoute
   '/reorder': typeof AuthedReorderRoute
+  '/reports': typeof AuthedReportsRoute
   '/square': typeof AuthedSquareRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
   '/': typeof AuthedIndexRoute
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/_authed/consumption': typeof AuthedConsumptionRoute
   '/_authed/recipes': typeof AuthedRecipesRoute
   '/_authed/reorder': typeof AuthedReorderRoute
+  '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/square': typeof AuthedSquareRoute
   '/_authed/xero-accounts': typeof AuthedXeroAccountsRoute
   '/_authed/': typeof AuthedIndexRoute
@@ -471,6 +480,7 @@ export interface FileRouteTypes {
     | '/consumption'
     | '/recipes'
     | '/reorder'
+    | '/reports'
     | '/square'
     | '/xero-accounts'
     | '/customers/$id'
@@ -520,6 +530,7 @@ export interface FileRouteTypes {
     | '/consumption'
     | '/recipes'
     | '/reorder'
+    | '/reports'
     | '/square'
     | '/xero-accounts'
     | '/'
@@ -571,6 +582,7 @@ export interface FileRouteTypes {
     | '/_authed/consumption'
     | '/_authed/recipes'
     | '/_authed/reorder'
+    | '/_authed/reports'
     | '/_authed/square'
     | '/_authed/xero-accounts'
     | '/_authed/'
@@ -664,6 +676,13 @@ declare module '@tanstack/react-router' {
       path: '/square'
       fullPath: '/square'
       preLoaderRoute: typeof AuthedSquareRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/reports': {
+      id: '/_authed/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthedReportsRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/reorder': {
@@ -974,6 +993,7 @@ interface AuthedRouteRouteChildren {
   AuthedConsumptionRoute: typeof AuthedConsumptionRoute
   AuthedRecipesRoute: typeof AuthedRecipesRoute
   AuthedReorderRoute: typeof AuthedReorderRoute
+  AuthedReportsRoute: typeof AuthedReportsRoute
   AuthedSquareRoute: typeof AuthedSquareRoute
   AuthedXeroAccountsRoute: typeof AuthedXeroAccountsRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
@@ -1023,6 +1043,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedConsumptionRoute: AuthedConsumptionRoute,
   AuthedRecipesRoute: AuthedRecipesRoute,
   AuthedReorderRoute: AuthedReorderRoute,
+  AuthedReportsRoute: AuthedReportsRoute,
   AuthedSquareRoute: AuthedSquareRoute,
   AuthedXeroAccountsRoute: AuthedXeroAccountsRoute,
   AuthedIndexRoute: AuthedIndexRoute,

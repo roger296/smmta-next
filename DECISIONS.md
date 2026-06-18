@@ -229,3 +229,26 @@ streaming + Cowork sessions) is additive — the registry doesn't change.
   correction (the key is already SUCCESS). Intended cadence is end-of-day after
   amendments settle; a correction journal is a future refinement. The BumbleBee
   push has no such limit — it re-pushes on every amend (new hash).
+
+## D12 — Reports: food-cost % needs revenue (operator-supplied for now) (2026-06-18, spec §4/§A6)
+- **The three views come from three tables.** Expected + actual + wastage are
+  aggregated from `session_consumption_lines` (expected = recipe × covers,
+  snapshotted at submit); counted/shrinkage from approved `stock_takes`
+  (shrinkage = `Σ stock_take_lines.variance` = counted − book) within the
+  period; food cost from the `session_consumption` header (`materials_cost` +
+  the new `covers` column, migration `0030`). All worst-first, plain-English.
+- **Food-cost % is `actual materials cost ÷ revenue`, and revenue isn't in
+  Auto-Stock.** Revenue lives in BumbleBee, so `foodCost(revenue?)` takes the
+  period revenue as an optional parameter and computes the % only when it's
+  supplied *and* a single site is requested (the figure is that site's). Without
+  it the report still gives the self-contained metrics — covers, materials cost,
+  **cost per cover** (`materials_cost ÷ covers`), expected vs actual, wastage
+  cost — which need no external input. A BumbleBee revenue join can populate the
+  % automatically later; the operator can supply it now.
+- **`covers` added to the consumption header.** Per-cover food-cost needs covers,
+  which the consumption record didn't store; `submit` now writes
+  `covers = Σ cover_groups.covers`. Aggregating covers from the header (not the
+  lines) avoids multiplying by the line count.
+- **MCP read tools wired.** `consumption_variance` and `wastage_report` (P14
+  stubs returning `{available:false}`) now call the report service with a
+  site + from/to window.

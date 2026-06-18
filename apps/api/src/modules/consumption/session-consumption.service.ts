@@ -90,6 +90,7 @@ export class SessionConsumptionService {
       : [];
     const expectedByProduct = new Map(expectedLines.map((l) => [l.productId, l]));
 
+    const totalCovers = (input.coverGroups ?? []).reduce((s, g) => s + (g.covers || 0), 0);
     const version = (existing?.version ?? 0) + 1;
     let record: SessionConsumption;
     if (existing) {
@@ -99,6 +100,7 @@ export class SessionConsumptionService {
           bakerName: input.bakerName,
           bakerRef: input.bakerRef ?? existing.bakerRef,
           sessionDate: input.sessionDate,
+          covers: totalCovers || existing.covers,
           version,
           clientKey: input.clientKey ?? existing.clientKey,
           notes: input.notes ?? existing.notes,
@@ -118,6 +120,7 @@ export class SessionConsumptionService {
           sessionDate: input.sessionDate,
           bakerName: input.bakerName,
           bakerRef: input.bakerRef ?? null,
+          covers: totalCovers,
           version,
           clientKey: input.clientKey ?? null,
           notes: input.notes ?? null,

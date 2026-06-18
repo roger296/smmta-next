@@ -12,6 +12,7 @@ import { StockQueryService } from '../stock/stock-query.service.js';
 import { ReorderService } from '../reorder/reorder.service.js';
 import { SessionConsumptionService } from '../consumption/session-consumption.service.js';
 import { BumbleBeeSessionClient } from '../consumption/bumblebee-sessions.js';
+import { ConsumptionReportService } from '../reports/consumption-report.service.js';
 
 export interface McpToolContext {
   companyId: string;
@@ -90,15 +91,27 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: 'consumption_variance',
-    description: 'Expected vs actual vs counted consumption variance for a site + period.',
-    inputSchema: obj({ site: str('Site'), period: str('Period, e.g. 2026-06') }),
-    handler: async () => ({ available: false, note: 'Available once the head-baker consumption + reporting land (P16-P18).' }),
+    description: 'Expected vs actual vs counted consumption variance (portion drift + shrinkage) for a site + period, worst-first.',
+    inputSchema: obj({ site: str('Site id, slug or name'), from: str('From YYYY-MM-DD'), to: str('To YYYY-MM-DD') }),
+    handler: async (args, ctx) =>
+      new ConsumptionReportService().consumptionVariance({
+        from: String(args.from ?? ''),
+        to: String(args.to ?? args.from ?? ''),
+        siteId: await resolveSiteId(args.site, ctx.companyId),
+        companyId: ctx.companyId,
+      }),
   },
   {
     name: 'wastage_report',
-    description: 'Wastage by product for a site + period.',
-    inputSchema: obj({ site: str('Site'), period: str('Period') }),
-    handler: async () => ({ available: false, note: 'Available once wastage capture + reporting land (P16-P18).' }),
+    description: 'Wastage hot-spots by product for a site + period, worst-first by cost.',
+    inputSchema: obj({ site: str('Site id, slug or name'), from: str('From YYYY-MM-DD'), to: str('To YYYY-MM-DD') }),
+    handler: async (args, ctx) =>
+      new ConsumptionReportService().wastage({
+        from: String(args.from ?? ''),
+        to: String(args.to ?? args.from ?? ''),
+        siteId: await resolveSiteId(args.site, ctx.companyId),
+        companyId: ctx.companyId,
+      }),
   },
   {
     name: 'sessions_awaiting_consumption',

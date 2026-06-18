@@ -1,0 +1,1 @@
+ALTER TABLE "session_consumption" ADD COLUMN "covers" integer DEFAULT 0 NOT NULL;

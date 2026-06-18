@@ -448,3 +448,23 @@ decisions live in `DECISIONS.md`.
   dry-run-safe + idempotent (one log row on re-push); the daily sweep posts one
   balanced COGS + wastage journal per site/day and is a no-op on re-run. api 54
   files / 474 tests; web 20 files / 117 tests; typecheck + build green.
+
+## P18 — Expected/actual/counted variance & wastage reporting (2026-06-18)
+
+- **ConsumptionReportService** triangulates the three views per product/site/
+  period: expected (recipe × covers) + actual + wastage from the consumption
+  lines, counted/shrinkage (= Σ stock-take variance = counted − book) from
+  approved stock-takes. Derives portion drift (variance %), wastage hot-spots,
+  shrinkage, and food cost. A `covers` column added to the consumption header
+  (migration `0030`) powers cost-per-cover; food-cost % uses an operator-supplied
+  period revenue (BumbleBee-sourced later) — DECISIONS D12.
+- **API** (`/api/v1/reports/*`, JWT): `consumption-variance`, `wastage`,
+  `food-cost`, all worst-first. The P14 MCP stubs `consumption_variance` /
+  `wastage_report` are now wired to the service.
+- **Web**: a Reports page (`/reports`) — date range + site filter, three tabs
+  (portion variance, wastage, food cost), plain-English; sidebar nav added.
+- Tests: the variance report reconciles expected/actual and includes shrinkage
+  (counted − book); food-cost % matches a hand-computed value (37.50 ÷ 150 =
+  25%); wastage hot-spots with reasons; the period filter excludes out-of-window
+  sessions. api 55 files / 478 tests; web 20 files / 117 tests; typecheck +
+  build green.
