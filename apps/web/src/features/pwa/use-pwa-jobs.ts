@@ -89,6 +89,41 @@ export function useApproveStockTake() {
   });
 }
 
+export interface ConsumptionLineDraft {
+  productId: string;
+  actualQty: number;
+  wastageQty?: number;
+  wastageReason?: string | null;
+}
+
+export interface ConsumptionSubmitDraft {
+  sessionId: string;
+  siteId: string;
+  sessionDate: string;
+  bakerName: string;
+  coverGroups?: Array<{ experience: 'CLASSIC' | 'SWEETER' | 'ULTIMATE'; covers: number }>;
+  lines: ConsumptionLineDraft[];
+  notes?: string | null;
+}
+
+/** Head-baker consumption submit — offline-tolerant. The per-session `clientKey`
+ *  makes a replay a no-op (server amends in place, never duplicates). */
+export function useSubmitConsumption() {
+  return useMutation<{ status: 'sent' | 'queued' }, Error, ConsumptionSubmitDraft>({
+    mutationFn: (input) => {
+      const action: QueuedAction = {
+        idempotencyKey: `consumption:${input.sessionId}:${crypto.randomUUID()}`,
+        endpoint: '/session-consumption',
+        method: 'POST',
+        body: { ...input, clientKey: '' },
+        enqueuedAt: 0,
+      };
+      (action.body as { clientKey: string }).clientKey = action.idempotencyKey;
+      return submitOrQueue(pwaQueue, action, sendAction);
+    },
+  });
+}
+
 /** Replay any queued offline actions (call when connectivity returns). */
 export function flushPwaQueue() {
   return syncQueue(pwaQueue, sendAction);

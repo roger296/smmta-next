@@ -172,3 +172,34 @@ streaming + Cowork sessions) is additive — the registry doesn't change.
   index guards site-specific versions but not global ones (site_id NULL).
   `RecipeService` allocates `version = max(existing for that experience+scope)+1`,
   so global versions stay monotonic without relying on the index.
+
+## D10 — Head-baker consumption: amend posts the corrective delta only (2026-06-18, spec §A6)
+- **One record per session, amend-in-place.** `session_consumption` is unique on
+  `(company, session_id)`; re-submitting the same session updates the one record
+  and bumps `version`. Both actual usage and wastage decrement site stock
+  (CONSUMPTION + WASTAGE movements), so total decrement = actual + wastage.
+- **Amend posts only the change since last applied.** Each line stores its
+  last-applied `actual_qty` / `wastage_qty`. On submit the movement delta =
+  `old − new` (consume more when new > old; *return* stock when new < old),
+  posted with `content_hash = v{version}` so the ledger sum always equals the
+  current confirmed quantities and a replayed version is a no-op. This avoids a
+  reverse-then-repost pair while keeping the ledger append-only and auditable.
+- **Two idempotency layers.** A genuine amend carries a *new* `client_key` and
+  bumps the version; an **offline replay** of the exact submission carries the
+  *same* `client_key` and is a no-op (no version bump, no movements) — matching
+  the goods-in / stock-take offline pattern. The PWA mints one `client_key` per
+  submit action (replayed verbatim from the queue).
+- **Site scope via the PIN token.** A head-baker PIN issues a JWT carrying its
+  `siteId`; `canAccessSite` lets admins / unscoped users act on any site but a
+  site-bound token only on its own. The submit route + service both enforce it
+  (`forbidden_site_scope`). No existing auth is weakened — it's an added check.
+- **Variance = actual − expected**, expected recomputed server-side from the
+  recipe (recipe × covers) at submit, so the stored figure is authoritative
+  regardless of what the form pre-filled. `materials_cost = Σ(actual × unit
+  cost)` is computed now (P17 consumes it).
+- **Sessions-awaiting source.** "Sessions awaiting a consumption record" needs
+  the day's sessions, which live in BumbleBee. A guarded `BumbleBeeSessionClient`
+  polls them (returns [] when no base URL is configured — the live endpoint is a
+  go-live step); the pure `filterAwaiting(siteId, sessions)` diffs them against
+  existing records and is what the test, the dashboard, and the P14 MCP tool
+  (`sessions_awaiting_consumption`, now wired) all use.

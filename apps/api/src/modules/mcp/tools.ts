@@ -10,6 +10,8 @@ import { products, sites } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { StockQueryService } from '../stock/stock-query.service.js';
 import { ReorderService } from '../reorder/reorder.service.js';
+import { SessionConsumptionService } from '../consumption/session-consumption.service.js';
+import { BumbleBeeSessionClient } from '../consumption/bumblebee-sessions.js';
 
 export interface McpToolContext {
   companyId: string;
@@ -100,9 +102,26 @@ export const MCP_TOOLS: McpTool[] = [
   },
   {
     name: 'sessions_awaiting_consumption',
-    description: 'Sessions at a site still missing a head-baker consumption record.',
-    inputSchema: obj({ site: str('Site') }),
-    handler: async () => ({ available: false, note: 'Available once the head-baker form lands (P16).' }),
+    description: "Sessions at a site (for a date) still missing a head-baker consumption record.",
+    inputSchema: obj({ site: str('Site id, slug or name'), date: str('Day, YYYY-MM-DD') }),
+    handler: async (args, ctx) => {
+      const siteId = await resolveSiteId(args.site, ctx.companyId);
+      if (!siteId) return { awaiting: [], note: 'Unknown or unspecified site.' };
+      const site = await getDb().query.sites.findFirst({
+        where: and(eq(sites.id, siteId), eq(sites.companyId, ctx.companyId)),
+      });
+      const date = typeof args.date === 'string' ? args.date : undefined;
+      let day: Awaited<ReturnType<BumbleBeeSessionClient['listSessionsForDay']>> = [];
+      if (site && date) {
+        day = await new BumbleBeeSessionClient().listSessionsForDay({
+          siteCanonicalName: site.canonicalName,
+          date,
+          companyId: ctx.companyId,
+        });
+      }
+      const awaiting = await new SessionConsumptionService().filterAwaiting(siteId, day, ctx.companyId);
+      return { awaiting, polled: day.length };
+    },
   },
   {
     name: 'purchase_order_status',

@@ -394,3 +394,33 @@ decisions live in `DECISIONS.md`.
   a mixed-experience session aggregates and resolves covers from lines;
   date-effective version selection; per-site override beats global. api 52
   files / 467 tests; web 20 files / 117 tests; typecheck + build green.
+
+## P16 — Head-baker end-of-session consumption form (2026-06-18)
+
+- **Schema** (`session_consumption`, `session_consumption_lines`, migration
+  `0028`): one record per BumbleBee session (unique on session id) with the
+  baker (chosen at submit), `version`, `client_key`, `materials_cost`; lines
+  carry expected / actual / wastage(+reason) / unit_cost / variance.
+- **SessionConsumptionService.submit**: writes/amends the record, decrements
+  site stock by the actual (CONSUMPTION) and wastage (WASTAGE) — total = actual
+  + wastage — records variance (actual − expected, expected recomputed from the
+  recipe), and computes materials cost. **Amend posts only the corrective delta**
+  (old − new) keyed `v{version}`, so the ledger always equals the current
+  quantities; an **offline replay** with the same `client_key` is a no-op
+  (DECISIONS D10).
+- **Site scope**: a head-baker PIN token carries its `siteId`; `canAccessSite`
+  (new helper) lets the submit route + service reject a cross-site submit
+  (`forbidden_site_scope`) without weakening existing auth.
+- **Sessions awaiting**: a guarded `BumbleBeeSessionClient` polls the day's
+  sessions (returns [] unconfigured); `filterAwaiting` diffs them against
+  records — used by the dashboard and the now-wired P14 MCP tool
+  `sessions_awaiting_consumption`.
+- **API** (`/api/v1/session-consumption`, JWT): list, awaiting, by-session, get,
+  submit. **Web**: a PWA end-of-session form (`/pwa/consumption`) — load expected
+  by experience × covers, confirm/edit actual + wastage + reason, identity at
+  submit, offline-tolerant; an admin dashboard (`/consumption`) for awaiting +
+  recent records; two sidebar nav items.
+- Tests: actual + wastage decrement separately (with reason); variance + cost;
+  amend posts only the delta (one record, version bumps); offline replay no-op;
+  cross-site submit rejected; filterAwaiting. api 53 files / 472 tests; web 20
+  files / 117 tests; typecheck + build green.

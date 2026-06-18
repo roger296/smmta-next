@@ -22,6 +22,8 @@ import {
   PackagePlus,
   ClipboardCheck,
   BookOpen,
+  ChefHat,
+  ClipboardList,
 } from 'lucide-react';
 
 interface NavItem {
@@ -44,7 +46,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Reorder suggestions', to: '/reorder', icon: ShoppingBag },
   { label: 'Goods in', to: '/pwa/goods-in', icon: PackagePlus },
   { label: 'Stock-take', to: '/pwa/stock-take', icon: ClipboardCheck },
+  { label: 'End-of-session', to: '/pwa/consumption', icon: ChefHat },
   { label: 'Recipes', to: '/recipes', icon: BookOpen },
+  { label: 'Consumption', to: '/consumption', icon: ClipboardList },
   { label: 'Square mapping', to: '/square', icon: SquareIcon },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },

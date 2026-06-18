@@ -7,6 +7,18 @@ export interface JwtPayload {
   companyId: string;
   email: string;
   roles: string[];
+  /** Set on PIN-login tokens (spec §A11): the site the shared iPad is bound to.
+   *  Scopes the head-baker form to its own site. Absent on full user logins. */
+  siteId?: string | null;
+  label?: string;
+}
+
+/** True if the user may act on `siteId`: admins (no siteId scope) may act on any
+ *  site; a site-scoped token (e.g. a head-baker PIN) only on its own site. */
+export function canAccessSite(user: JwtPayload, siteId: string): boolean {
+  if (user.roles?.includes('admin')) return true;
+  if (user.siteId == null) return true; // unscoped (full user) — site-agnostic
+  return user.siteId === siteId;
 }
 
 /**
