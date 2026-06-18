@@ -134,6 +134,16 @@ export const reorderProposalStatusEnum = pgEnum('reorder_proposal_status', [
  *  than ordered (flagged). */
 export const goodsInVarianceEnum = pgEnum('goods_in_variance', ['NONE', 'UNDER', 'OVER']);
 
+/** Stock-take scope (spec §A6). FULL counts everything at a site; the others
+ *  scope to a category / zone / single item / cycle-count subset. */
+export const stockTakeScopeEnum = pgEnum('stock_take_scope', [
+  'FULL', 'CATEGORY', 'ZONE', 'ITEM', 'CYCLE',
+]);
+
+/** Stock-take lifecycle. OPEN while counting; APPROVED writes the true-up
+ *  movements + posts the adjustment; CANCELLED is terminal. */
+export const stockTakeStatusEnum = pgEnum('stock_take_status', ['OPEN', 'APPROVED', 'CANCELLED']);
+
 /**
  * Stock-movement ledger entry type. On-hand is the running sum of these
  * signed deltas, never a bare counter (spec §A5). GRN = goods received,

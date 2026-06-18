@@ -14,3 +14,4 @@ export * from './sites.js';
 export * from './xero.js';
 export * from './reorder.js';
 export * from './goods-in.js';
+export * from './stock-take.js';

@@ -244,3 +244,22 @@ decisions live in `DECISIONS.md`.
   over-receipt flags OVER; the GRN posts exactly once to Xero (dry-run) and a
   re-confirm is a no-op (single gl_posting_log row, single on-hand application).
   api 45 files / 440 tests; build green.
+
+## P9 — Stock-takes (service + API) (2026-06-18)
+
+- **`stock_takes` + `stock_take_lines`** (migration `0023`) + `StockTakeService`
+  (`modules/stock-take/`): `open(siteId, scope, scopeRef?)` snapshots book stock
+  for the scope (FULL/CYCLE/ZONE = the site; CATEGORY = products in a category;
+  ITEM = one product) into lines; `recordCount(s)` writes counted qty + variance
+  (offline-tolerant via a client `countIdempotencyKey` — a replay of the same
+  key doesn't overwrite); `approve` writes a **STOCKTAKE_TRUE_UP** movement per
+  varianced line and posts **one** stock adjustment to Xero, then marks the take
+  APPROVED. Re-approving an APPROVED take re-applies nothing.
+- **Routes** (`stock-take.routes.ts`): `POST /stock-takes` (open),
+  `GET /stock-takes`, `GET /stock-takes/:id`, `POST /stock-takes/:id/counts`,
+  `POST /stock-takes/:id/approve`. The iPad stock-take *screen* is P13.
+- Tests: `stock-take.service.test.ts` — opening snapshots book stock; counts
+  compute the right variance; approval trues up on-hand and posts exactly one
+  adjustment (idempotent on re-approve); a re-submitted count batch is
+  offline-idempotent; an ITEM-scope take only touches its product. api 46 files
+  / 444 tests; build green.
