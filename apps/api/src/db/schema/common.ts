@@ -129,6 +129,11 @@ export const reorderProposalStatusEnum = pgEnum('reorder_proposal_status', [
   'PROPOSED', 'APPROVED', 'PLACED', 'EMAILED', 'REJECTED', 'CANCELLED',
 ]);
 
+/** Goods-in receipt variance vs the expected (ordered) quantity (spec §A7).
+ *  NONE = matched / no expectation; UNDER = short (PO stays open); OVER = more
+ *  than ordered (flagged). */
+export const goodsInVarianceEnum = pgEnum('goods_in_variance', ['NONE', 'UNDER', 'OVER']);
+
 /**
  * Stock-movement ledger entry type. On-hand is the running sum of these
  * signed deltas, never a bare counter (spec §A5). GRN = goods received,

@@ -21,6 +21,7 @@ import { siteRoutes } from './modules/sites/site.routes.js';
 import { stockRoutes } from './modules/stock/stock.routes.js';
 import { xeroAccountMapRoutes } from './modules/xero/xero-account-map.routes.js';
 import { reorderRoutes } from './modules/reorder/reorder.routes.js';
+import { goodsInRoutes } from './modules/goods-in/goods-in.routes.js';
 import { dropshipSupplierRoutes } from './modules/suppliers/supplier-dropship.routes.js';
 import { supplierOrdersRoutes } from './modules/suppliers/supplier-orders.routes.js';
 import {
@@ -106,6 +107,9 @@ export async function buildApp() {
 
   // Auto-Stock: automatic reordering — proposals, approve/place, sweep (spec §A7).
   await app.register(reorderRoutes, { prefix: '/api/v1' });
+
+  // Auto-Stock: goods-in / receiving against the per-site ledger (spec §A7).
+  await app.register(goodsInRoutes, { prefix: '/api/v1' });
 
   // Drop-ship suppliers: list/edit, test connection, poll-now, per-product mapping.
   await app.register(dropshipSupplierRoutes, { prefix: '/api/v1' });

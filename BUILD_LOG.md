@@ -222,3 +222,25 @@ decisions live in `DECISIONS.md`.
   rounding (7→8 bags); auto-place vs propose routing (EMAILED / PLACED /
   PROPOSED); the sweep catches an untouched low item; the email PO renders.
   api 44 files / 436 tests; web typecheck + build green.
+
+## P8 — Receiving / goods-in (service + API) (2026-06-18)
+
+- **`goods_in_receipts` + `goods_in_receipt_lines`** (migration `0022`) +
+  `GoodsInService.receive` (`modules/goods-in/`): accepts received quantities in
+  the supplier's **purchase unit**, converts to stock units via
+  `purchase_to_stock_factor`, writes a **GRN movement at the receiving site**,
+  optionally matches a reorder proposal (partial → UNDER, over → OVER, with the
+  expected qty + remaining on the line), and posts a **GRN to Xero** via the GL
+  provider (`postGoodsReceivedNote`). Idempotent on `idempotencyKey` — a
+  re-confirm returns the existing receipt and re-applies nothing. Optional
+  `photo_refs` captured (SKU + site + timestamp) for the AI groundwork (§A10).
+- Built around the Auto-Stock site/ledger model (the legacy warehouse +
+  serialized `/purchase-orders/:id/book-in` stays for serial/batch goods —
+  consistent with DECISIONS D4/D5).
+- **Routes** (`goods-in.routes.ts`): `POST /goods-in` (201/200 idempotent),
+  `GET /goods-in`, `GET /goods-in/:id`. The iPad goods-in *screen* is P13.
+- Tests: `goods-in.service.test.ts` — full receipt converts purchase→stock and
+  raises on-hand; partial receipt flags UNDER with the correct remaining;
+  over-receipt flags OVER; the GRN posts exactly once to Xero (dry-run) and a
+  re-confirm is a no-op (single gl_posting_log row, single on-hand application).
+  api 45 files / 440 tests; build green.
