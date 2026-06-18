@@ -43,3 +43,23 @@ SendGrid are dormant simply by **not being built/deployed** (P24 install only
 provisions api + web + the PWA + the MCP). `z.coerce.boolean()` is deliberately
 avoided for the flags (it maps the string "false" to `true`); a custom
 `boolFromEnv` treats only "true"/"1" as on.
+
+## D4 — Ledger stock ops live under `/stock-levels/*`, serialized path retained (2026-06-18, spec §A5)
+P4 says "re-point `POST /stock-items/adjust` and `/stock-items/transfer` to
+write `stock_movements` and update `stock_levels` per site … preserve serial/
+batch behaviour for genuinely serialised discrete goods via the retained
+`stock_items` rows." The existing `/stock-items/*` endpoints are **warehouse +
+serialized-unit-row** based (they create/adjust individual `stock_items`, post
+to the GL, and back the storefront's reservation/serial flows). Rewriting them
+onto the per-site ledger would break the serialized model and its tests.
+
+So the new per-site ledger operations live under **`/stock-levels/*`**
+(`adjust`, `transfer`, plus `GET /stock-levels`, `/stock-levels/valuation`,
+`/stock-levels/low`), and the legacy `/stock-items/adjust|transfer` stay
+**unchanged** for serial/batch-tracked discrete goods. This satisfies the
+intent ("operations on the auditable ledger" + "preserve serial/batch via the
+retained `stock_items`") while keeping the serialized storefront path intact.
+Transfers are paired `TRANSFER_OUT` / `TRANSFER_IN` movements applied in one
+transaction (quantity conserved). Valuation is weighted-average cost (WAC) per
+(product, site) from costed inflow movements, aggregated per site and per
+(site, item_kind).

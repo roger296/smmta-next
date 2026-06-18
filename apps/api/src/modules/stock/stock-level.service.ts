@@ -9,10 +9,14 @@
  * a re-run daily sweep is a no-op. `recomputeOnHand` re-derives the cache from
  * the ledger (used by tests and a repair path).
  */
+import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { stockLevels, stockMovements } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
+
+// The transaction handle drizzle hands to `db.transaction(async (tx) => …)`.
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
 
 export type StockMovementType =
   | 'GRN'
@@ -57,10 +61,16 @@ export class StockLevelService {
    * cache atomically. Idempotent on (source_system, source_key, content_hash).
    */
   async applyMovement(input: MovementInput): Promise<ApplyResult> {
+    return this.db.transaction((tx) => this.applyInTx(tx, input));
+  }
+
+  /** The core apply, parameterised by a transaction so a transfer can run both
+   *  legs in one transaction. */
+  private async applyInTx(tx: Tx, input: MovementInput): Promise<ApplyResult> {
     const companyId = input.companyId ?? getSingletonCompanyId();
     const qtyDelta = String(input.qtyDelta);
 
-    return this.db.transaction(async (tx) => {
+    {
       // 1. Ledger row — no-op insert if this exact movement already landed.
       const inserted = await tx
         .insert(stockMovements)
@@ -118,6 +128,77 @@ export class StockLevelService {
         .returning({ onHand: stockLevels.onHand });
 
       return { applied: true, movementId: inserted[0]!.id, onHand: upserted[0]!.onHand };
+    }
+  }
+
+  /**
+   * Manual stock adjustment — an ADJUSTMENT movement (signed). Idempotent on
+   * `idempotencyKey` if given, otherwise each call is a distinct adjustment.
+   */
+  async adjust(params: {
+    productId: string;
+    siteId: string;
+    qtyDelta: number | string;
+    unitCost?: number | string | null;
+    idempotencyKey?: string;
+    companyId?: string;
+  }): Promise<ApplyResult> {
+    return this.applyMovement({
+      productId: params.productId,
+      siteId: params.siteId,
+      qtyDelta: params.qtyDelta,
+      movementType: 'ADJUSTMENT',
+      sourceSystem: 'manual',
+      sourceKey: params.idempotencyKey ?? randomUUID(),
+      contentHash: 'adjust',
+      unitCost: params.unitCost,
+      companyId: params.companyId,
+    });
+  }
+
+  /**
+   * Inter-site transfer — paired TRANSFER_OUT / TRANSFER_IN movements applied in
+   * ONE transaction so total quantity is conserved. Idempotent on `sourceKey`
+   * (the two legs share the key, distinguished by content_hash out/in).
+   */
+  async transfer(params: {
+    productId: string;
+    fromSiteId: string;
+    toSiteId: string;
+    qty: number;
+    unitCost?: number | string | null;
+    sourceKey?: string;
+    companyId?: string;
+  }): Promise<{ out: ApplyResult; in: ApplyResult }> {
+    if (params.qty <= 0) throw new RangeError('transfer qty must be positive');
+    if (params.fromSiteId === params.toSiteId) {
+      throw new RangeError('transfer source and destination sites must differ');
+    }
+    const sourceKey = params.sourceKey ?? randomUUID();
+    return this.db.transaction(async (tx) => {
+      const out = await this.applyInTx(tx, {
+        productId: params.productId,
+        siteId: params.fromSiteId,
+        qtyDelta: -params.qty,
+        movementType: 'TRANSFER_OUT',
+        sourceSystem: 'transfer',
+        sourceKey,
+        contentHash: 'out',
+        unitCost: params.unitCost,
+        companyId: params.companyId,
+      });
+      const incoming = await this.applyInTx(tx, {
+        productId: params.productId,
+        siteId: params.toSiteId,
+        qtyDelta: params.qty,
+        movementType: 'TRANSFER_IN',
+        sourceSystem: 'transfer',
+        sourceKey,
+        contentHash: 'in',
+        unitCost: params.unitCost,
+        companyId: params.companyId,
+      });
+      return { out, in: incoming };
     });
   }
 

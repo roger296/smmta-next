@@ -121,3 +121,27 @@ decisions live in `DECISIONS.md`.
   discrete fractional rejection) and `item-model.test.ts` (item-kind/UoM
   persistence, barcode auto-pop from ean, two-brand fungible resolution).
   api 40 files / 417 tests, web 17 files / 105 tests; typecheck + build green.
+
+## P4 — Stock operations on the ledger (2026-06-18)
+
+- **StockLevelService** gained `adjust` (signed ADJUSTMENT movement, idempotent
+  on an optional key) and `transfer` (paired TRANSFER_OUT/TRANSFER_IN in ONE
+  transaction → quantity conserved). `applyMovement` refactored to delegate to
+  a private `applyInTx(tx, …)` so the transfer's two legs share a transaction.
+- **StockQueryService** (`stock-query.service.ts`): `listLevels`
+  (site/item-kind/low filters, joined with product + site), `lowStock`
+  (on-hand ≤ reorder point) and `valuation` — weighted-average cost per
+  (product, site) from costed inflow movements, aggregated per site and per
+  (site, item_kind).
+- **Routes** (`stock.routes.ts`, registered in app.ts): `GET /stock-levels`,
+  `/stock-levels/valuation`, `/stock-levels/low`; `POST /stock-levels/adjust`,
+  `/stock-levels/transfer`. Legacy `/stock-items/*` (warehouse + serialized)
+  left intact for serial/batch goods — DECISIONS D4.
+- **Admin SPA**: a "Stock by site" page (`routes/_authed/stock/by-site.tsx`)
+  driven by the header site switcher — total value, line count, low-stock
+  count, and a per-line table with low-stock highlighting. Feature hooks in
+  `features/stock/use-stock-levels.ts`; Sidebar nav item added.
+- Tests: `stock-ops.test.ts` (adjust writes a movement + trues up on-hand;
+  transfer conserves total across two sites; same-site transfer rejected;
+  valuation matches a hand-computed WAC fixture; low-stock returns exactly the
+  at/below-reorder items). End of the foundations spine.

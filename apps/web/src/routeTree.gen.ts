@@ -32,6 +32,7 @@ import { Route as AuthedSupplierInvoicesIdRouteImport } from './routes/_authed/s
 import { Route as AuthedStockTransferRouteImport } from './routes/_authed/stock/transfer'
 import { Route as AuthedStockSerialRouteImport } from './routes/_authed/stock/serial'
 import { Route as AuthedStockReportRouteImport } from './routes/_authed/stock/report'
+import { Route as AuthedStockBySiteRouteImport } from './routes/_authed/stock/by-site'
 import { Route as AuthedStockAdjustRouteImport } from './routes/_authed/stock/adjust'
 import { Route as AuthedPurchaseOrdersNewRouteImport } from './routes/_authed/purchase-orders/new'
 import { Route as AuthedPurchaseOrdersIdRouteImport } from './routes/_authed/purchase-orders/$id'
@@ -167,6 +168,11 @@ const AuthedStockReportRoute = AuthedStockReportRouteImport.update({
   path: '/stock/report',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedStockBySiteRoute = AuthedStockBySiteRouteImport.update({
+  id: '/stock/by-site',
+  path: '/stock/by-site',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 const AuthedStockAdjustRoute = AuthedStockAdjustRouteImport.update({
   id: '/stock/adjust',
   path: '/stock/adjust',
@@ -262,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
   '/stock/adjust': typeof AuthedStockAdjustRoute
+  '/stock/by-site': typeof AuthedStockBySiteRoute
   '/stock/report': typeof AuthedStockReportRoute
   '/stock/serial': typeof AuthedStockSerialRoute
   '/stock/transfer': typeof AuthedStockTransferRoute
@@ -301,6 +308,7 @@ export interface FileRoutesByTo {
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
   '/stock/adjust': typeof AuthedStockAdjustRoute
+  '/stock/by-site': typeof AuthedStockBySiteRoute
   '/stock/report': typeof AuthedStockReportRoute
   '/stock/serial': typeof AuthedStockSerialRoute
   '/stock/transfer': typeof AuthedStockTransferRoute
@@ -342,6 +350,7 @@ export interface FileRoutesById {
   '/_authed/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/_authed/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
   '/_authed/stock/adjust': typeof AuthedStockAdjustRoute
+  '/_authed/stock/by-site': typeof AuthedStockBySiteRoute
   '/_authed/stock/report': typeof AuthedStockReportRoute
   '/_authed/stock/serial': typeof AuthedStockSerialRoute
   '/_authed/stock/transfer': typeof AuthedStockTransferRoute
@@ -383,6 +392,7 @@ export interface FileRouteTypes {
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
     | '/stock/adjust'
+    | '/stock/by-site'
     | '/stock/report'
     | '/stock/serial'
     | '/stock/transfer'
@@ -422,6 +432,7 @@ export interface FileRouteTypes {
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
     | '/stock/adjust'
+    | '/stock/by-site'
     | '/stock/report'
     | '/stock/serial'
     | '/stock/transfer'
@@ -462,6 +473,7 @@ export interface FileRouteTypes {
     | '/_authed/purchase-orders/$id'
     | '/_authed/purchase-orders/new'
     | '/_authed/stock/adjust'
+    | '/_authed/stock/by-site'
     | '/_authed/stock/report'
     | '/_authed/stock/serial'
     | '/_authed/stock/transfer'
@@ -652,6 +664,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedStockReportRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/stock/by-site': {
+      id: '/_authed/stock/by-site'
+      path: '/stock/by-site'
+      fullPath: '/stock/by-site'
+      preLoaderRoute: typeof AuthedStockBySiteRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
     '/_authed/stock/adjust': {
       id: '/_authed/stock/adjust'
       path: '/stock/adjust'
@@ -777,6 +796,7 @@ interface AuthedRouteRouteChildren {
   AuthedPurchaseOrdersIdRoute: typeof AuthedPurchaseOrdersIdRoute
   AuthedPurchaseOrdersNewRoute: typeof AuthedPurchaseOrdersNewRoute
   AuthedStockAdjustRoute: typeof AuthedStockAdjustRoute
+  AuthedStockBySiteRoute: typeof AuthedStockBySiteRoute
   AuthedStockReportRoute: typeof AuthedStockReportRoute
   AuthedStockSerialRoute: typeof AuthedStockSerialRoute
   AuthedStockTransferRoute: typeof AuthedStockTransferRoute
@@ -816,6 +836,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedPurchaseOrdersIdRoute: AuthedPurchaseOrdersIdRoute,
   AuthedPurchaseOrdersNewRoute: AuthedPurchaseOrdersNewRoute,
   AuthedStockAdjustRoute: AuthedStockAdjustRoute,
+  AuthedStockBySiteRoute: AuthedStockBySiteRoute,
   AuthedStockReportRoute: AuthedStockReportRoute,
   AuthedStockSerialRoute: AuthedStockSerialRoute,
   AuthedStockTransferRoute: AuthedStockTransferRoute,
