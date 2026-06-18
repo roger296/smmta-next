@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteRouteImport } from './routes/_authed/route'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedXeroAccountsRouteImport } from './routes/_authed/xero-accounts'
 import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppliers/index'
 import { Route as AuthedSupplierOrdersIndexRouteImport } from './routes/_authed/supplier-orders/index'
 import { Route as AuthedSupplierInvoicesIndexRouteImport } from './routes/_authed/supplier-invoices/index'
@@ -61,6 +62,11 @@ const AuthedRouteRoute = AuthedRouteRouteImport.update({
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedXeroAccountsRoute = AuthedXeroAccountsRouteImport.update({
+  id: '/xero-accounts',
+  path: '/xero-accounts',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedSuppliersIndexRoute = AuthedSuppliersIndexRouteImport.update({
@@ -253,6 +259,7 @@ const AuthedCustomersIdRoute = AuthedCustomersIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/xero-accounts': typeof AuthedXeroAccountsRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
   '/customers/new': typeof AuthedCustomersNewRoute
   '/integrations/bulk': typeof AuthedIntegrationsBulkRoute
@@ -292,6 +299,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/xero-accounts': typeof AuthedXeroAccountsRoute
   '/': typeof AuthedIndexRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
   '/customers/new': typeof AuthedCustomersNewRoute
@@ -334,6 +342,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authed/xero-accounts': typeof AuthedXeroAccountsRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/customers/$id': typeof AuthedCustomersIdRoute
   '/_authed/customers/new': typeof AuthedCustomersNewRoute
@@ -377,6 +386,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/xero-accounts'
     | '/customers/$id'
     | '/customers/new'
     | '/integrations/bulk'
@@ -416,6 +426,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/xero-accounts'
     | '/'
     | '/customers/$id'
     | '/customers/new'
@@ -457,6 +468,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authed'
     | '/login'
+    | '/_authed/xero-accounts'
     | '/_authed/'
     | '/_authed/customers/$id'
     | '/_authed/customers/new'
@@ -522,6 +534,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthedIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/xero-accounts': {
+      id: '/_authed/xero-accounts'
+      path: '/xero-accounts'
+      fullPath: '/xero-accounts'
+      preLoaderRoute: typeof AuthedXeroAccountsRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/suppliers/': {
@@ -780,6 +799,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthedRouteRouteChildren {
+  AuthedXeroAccountsRoute: typeof AuthedXeroAccountsRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedCustomersIdRoute: typeof AuthedCustomersIdRoute
   AuthedCustomersNewRoute: typeof AuthedCustomersNewRoute
@@ -820,6 +840,7 @@ interface AuthedRouteRouteChildren {
 }
 
 const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
+  AuthedXeroAccountsRoute: AuthedXeroAccountsRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedCustomersIdRoute: AuthedCustomersIdRoute,
   AuthedCustomersNewRoute: AuthedCustomersNewRoute,

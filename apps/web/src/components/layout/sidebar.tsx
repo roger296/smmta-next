@@ -15,6 +15,7 @@ import {
   FolderTree,
   MapPin,
   PackageSearch,
+  Banknote,
 } from 'lucide-react';
 
 interface NavItem {
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },
   { label: 'Supplier Invoices', to: '/supplier-invoices', icon: FileText },
   { label: 'Integrations', to: '/integrations', icon: Layers },
+  { label: 'Xero accounts', to: '/xero-accounts', icon: Banknote },
   { label: 'Settings', to: '/settings', icon: Settings },
 ];
 

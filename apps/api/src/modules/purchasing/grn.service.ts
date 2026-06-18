@@ -5,7 +5,7 @@ import {
   goodsReceivedNotes, grnLines, purchaseOrderLines, stockItems, products,
 } from '../../db/schema/index.js';
 import * as schema from '../../db/schema/index.js';
-import { LucaGLService } from '../../integrations/luca/luca-gl.service.js';
+import { getStockGLService } from '../../integrations/gl-provider.js';
 import { PurchaseOrderService } from './purchase-order.service.js';
 import type { CreateGRNInput } from './purchase-order.schema.js';
 import { roundMoney } from '../../shared/utils/currency.js';
@@ -28,7 +28,8 @@ import { HttpNotifyMeSender } from '../storefront/notify-me.sender.js';
  */
 export class GRNService {
   private db = getDb();
-  private lucaGL = new LucaGLService();
+  // GL provider switch (Xero by default; Luca selectable) — spec §A8.
+  private gl = getStockGLService();
   private poService = new PurchaseOrderService();
   private notifyMe = new NotifyMeService();
   /** Override in tests to swap out the HTTP sender. */
@@ -210,7 +211,7 @@ export class GRNService {
         where: eq(schema.products.id, input.lines[0].productId),
       }))?.productType === 'SERVICE';
 
-      await this.lucaGL.postGoodsReceivedNote(txDb as any, {
+      await this.gl.postGoodsReceivedNote(txDb as any, {
         companyId,
         grnId: grn.id,
         grnNumber,

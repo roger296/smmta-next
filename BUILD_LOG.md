@@ -145,3 +145,31 @@ decisions live in `DECISIONS.md`.
   transfer conserves total across two sites; same-site transfer rejected;
   valuation matches a hand-computed WAC fixture; low-stock returns exactly the
   at/below-reorder items). End of the foundations spine.
+
+## P5 — Re-point the GL subsystem to Xero (2026-06-18) — Phase 1 begins
+
+- **`integrations/xero/`** mirroring `integrations/luca/`:
+  - `xero-client.ts` — `XeroClient` with OAuth2 token state AES-encrypted in
+    `xero_connections` (app creds from env), rotating-refresh handling, and
+    `postManualJournal`. `fromConnection()` returns null when unconfigured.
+  - `xero-account-map.ts` — logical roles → Xero account code + tax type,
+    defaults seeded from LUCA_ACCOUNTS, with per-company DB overrides
+    (`resolveXeroAccount`, `ensureXeroAccountMapSeeded`).
+  - `xero-gl.service.ts` — `XeroGLService` with the Luca stock surface
+    (`postGoodsReceivedNote`, `postStockAdjustment`) + new `postConsumptionCOGS`
+    / `postWastage`. Each writes a PENDING `gl_posting_log` row then SUCCESS/
+    FAILED. Balanced journals (signed lines net to zero), idempotent on the
+    deterministic key, **dry-run by default** (records `request_payload`, sends
+    nothing), and **fail-safe** (no credential ⇒ logged `DRYRUN-UNCONFIGURED`).
+- **Migration `0019`**: `xero_connections` + `xero_account_map`.
+- **Config**: `GL_PROVIDER` (luca|xero, default xero), `XERO_CLIENT_ID/SECRET/
+  TENANT_ID`, `XERO_DRY_RUN` (default true), `XERO_API_BASE_URL`.
+- **GL provider factory** (`integrations/gl-provider.ts`): `getStockGLService()`
+  → wired into `grn.service` + `stock-item.service` (the GRN + stock-adjustment
+  call sites). AR/AP storefront flows stay on Luca — DECISIONS D5.
+- **Admin**: `GET/PUT /api/v1/xero/account-map` + a "Xero accounts" SPA page
+  (editable role → code/tax table) + sidebar item.
+- Tests: `xero-gl.service.test.ts` — dry-run logs a balanced journal and sends
+  nothing; re-post with the same key is a no-op; the account map resolves every
+  role; an unconfigured live-mode post degrades to a logged dry-run without
+  throwing. api 42 files / 426 tests; web typecheck + build green.

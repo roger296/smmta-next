@@ -63,3 +63,25 @@ Transfers are paired `TRANSFER_OUT` / `TRANSFER_IN` movements applied in one
 transaction (quantity conserved). Valuation is weighted-average cost (WAC) per
 (product, site) from costed inflow movements, aggregated per site and per
 (site, item_kind).
+
+## D5 — Xero GL re-point: shared gl_posting_log, GL_PROVIDER switch only on stock paths (2026-06-18, spec §A8)
+- **Shared `gl_posting_log`.** Xero postings reuse the existing Luca-named
+  table; `luca_transaction_type` carries the journal type (`MANUAL_JOURNAL`)
+  and `luca_transaction_id` the Xero ManualJournalID (or a `DRYRUN` marker).
+  Renaming the columns would churn the whole GL subsystem for no gain.
+- **GL_PROVIDER switch (default `xero`) wired only at the stock call sites** —
+  `grn.service` (postGoodsReceivedNote) and `stock-item.service`
+  (postStockAdjustment) now use `getStockGLService()`. The storefront AR/AP
+  flows (`invoice.service`, `supplier-invoice.service`) stay on `LucaGLService`
+  directly: they're the dormant storefront path and Big Bakes doesn't invoice
+  customers through this app (sales are Square/BumbleBee). XeroGLService
+  implements the stock surface (GRN, stock adjustment) plus the new
+  `postConsumptionCOGS` / `postWastage` for P17.
+- **Dry-run by default + fail-safe.** `XERO_DRY_RUN` defaults **true**: the
+  service records the balanced journal in `request_payload`, marks the row
+  SUCCESS with a `DRYRUN` marker, and sends nothing. With dry-run off but no
+  stored connection / app creds, it degrades to a logged `DRYRUN-UNCONFIGURED`
+  rather than throwing. Idempotent on the deterministic key (a SUCCESS row is a
+  no-op). Token state lives AES-encrypted in `xero_connections`; app creds in
+  env. The account/tax map (`xero_account_map`) is admin-editable, seeded from
+  the LUCA_ACCOUNTS defaults.

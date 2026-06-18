@@ -134,6 +134,13 @@
       "when": 1781801151180,
       "tag": "0018_polite_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781802739526,
+      "tag": "0019_tranquil_tinkerer",
+      "breakpoints": true
     }
   ]
 }

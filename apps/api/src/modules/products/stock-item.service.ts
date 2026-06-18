@@ -3,7 +3,7 @@ import { getDb, getPool } from '../../config/database.js';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { stockItems, products } from '../../db/schema/index.js';
 import * as schema from '../../db/schema/index.js';
-import { LucaGLService } from '../../integrations/luca/luca-gl.service.js';
+import { getStockGLService } from '../../integrations/gl-provider.js';
 import type { StockAdjustmentInput, StockTransferInput, StockItemQueryInput, StockReportQueryInput } from './stock-item.schema.js';
 import { paginationOffset, paginationMeta } from '../../shared/utils/pagination.js';
 import { roundMoney } from '../../shared/utils/currency.js';
@@ -20,7 +20,8 @@ import { roundMoney } from '../../shared/utils/currency.js';
  */
 export class StockItemService {
   private db = getDb();
-  private lucaGL = new LucaGLService();
+  // GL provider switch (Xero by default; Luca selectable) — spec §A8.
+  private lucaGL = getStockGLService();
 
   // ----------------------------------------------------------------
   // List stock items with filtering

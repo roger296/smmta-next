@@ -11,3 +11,4 @@ export * from './storefront.js';
 export * from './channels.js';
 export * from './notifications.js';
 export * from './sites.js';
+export * from './xero.js';

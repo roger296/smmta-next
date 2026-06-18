@@ -11,6 +11,12 @@ const boolFromEnv = z
   .optional()
   .transform((v) => v?.toLowerCase() === 'true' || v === '1');
 
+/** Like boolFromEnv but defaults to ON; only an explicit "false"/"0" turns it off. */
+const boolFromEnvDefaultTrue = z
+  .string()
+  .optional()
+  .transform((v) => !(v?.toLowerCase() === 'false' || v === '0'));
+
 const envSchema = z.object({
   // Server
   // Default API port. The storefront (Prompt 7) takes :3000, so the API
@@ -35,6 +41,20 @@ const envSchema = z.object({
   // Luca GL API
   LUCA_API_BASE_URL: z.string().default('http://localhost:4000'),
   LUCA_API_TIMEOUT_MS: z.coerce.number().default(10000),
+
+  // ── GL provider (spec §A2/§A8) ─────────────────────────────────────
+  // Big Bakes posts to Xero; the Luca path stays intact + selectable.
+  GL_PROVIDER: z.enum(['luca', 'xero']).default('xero'),
+  // Xero app credentials (app-level; per-org token state lives in the DB,
+  // AES-encrypted). Empty ⇒ unconfigured ⇒ the GL service stays in dry-run.
+  XERO_CLIENT_ID: z.string().default(''),
+  XERO_CLIENT_SECRET: z.string().default(''),
+  XERO_TENANT_ID: z.string().default(''),
+  XERO_API_BASE_URL: z.string().default('https://api.xero.com/api.xro/2.0'),
+  // Global dry-run guard — DEFAULT TRUE. In dry-run the GL service records the
+  // intended journal in gl_posting_log.request_payload and sends nothing.
+  // Only ever disabled against a Xero Demo Company during the build.
+  XERO_DRY_RUN: boolFromEnvDefaultTrue,
 
   // Redis (for BullMQ)
   REDIS_URL: z.string().default('redis://localhost:6379'),
@@ -85,4 +105,9 @@ export function getEnv(): Env {
     _env = envSchema.parse(process.env);
   }
   return _env;
+}
+
+/** Test-only: clear the memoised env so the next getEnv() re-reads process.env. */
+export function resetEnvForTests(): void {
+  _env = undefined;
 }
