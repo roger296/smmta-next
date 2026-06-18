@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
+import { getFeatures } from '../../config/env.js';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
 import { MarketplaceService } from '../../integrations/marketplace/marketplace.service.js';
 import { ShopifyConnector } from '../../integrations/marketplace/shopify.connector.js';
@@ -18,18 +19,22 @@ export async function integrationRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
 
   // ═══════════════════════════════════════════════════════════════
-  // MARKETPLACE IMPORT
+  // MARKETPLACE IMPORT  (dormant in the Big Bakes fork — spec §A2)
+  // Gated behind FEATURE_MARKETPLACE (default off). When off the route
+  // is never registered, so it 404s; the rest of this plugin (CSV
+  // import, bulk ops, year-end) stays live.
   // ═══════════════════════════════════════════════════════════════
 
-  const importConfigSchema = z.object({
-    channel: z.enum(['SHOPIFY', 'EBAY', 'ETSY']),
-    shopDomain: z.string().optional(),
-    accessToken: z.string(),
-    sellerId: z.string().optional(),
-    sinceId: z.string().optional(),
-  });
+  if (getFeatures().marketplace) {
+    const importConfigSchema = z.object({
+      channel: z.enum(['SHOPIFY', 'EBAY', 'ETSY']),
+      shopDomain: z.string().optional(),
+      accessToken: z.string(),
+      sellerId: z.string().optional(),
+      sinceId: z.string().optional(),
+    });
 
-  app.post('/import/marketplace', async (request, reply) => {
+    app.post('/import/marketplace', async (request, reply) => {
     const user = getAuthUser(request);
     const config = importConfigSchema.parse(request.body);
 
@@ -66,7 +71,8 @@ export async function integrationRoutes(app: FastifyInstance) {
 
     const result = await marketplaceService.importOrders(user.companyId, user.userId, orders);
     return { success: true, data: result };
-  });
+    });
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // CSV IMPORT

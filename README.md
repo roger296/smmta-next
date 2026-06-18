@@ -1,8 +1,10 @@
-# smmta-next
+# Auto-Stock (Big Bakes)
 
-Open-source stock control, order management, and product management platform with a customer-facing web store module. Single-tenant per deployment — clone the repo, run your own instance on your own VPS.
+**Auto-Stock** is the Big Bakes stock-control system-of-record: multi-site stock on an auditable movement ledger, units of measure, recipes/BOM, automatic reordering, an iPad-first goods-in / stock-take PWA, a head-baker session-consumption form, daily COGS/wastage posting to **Xero**, and an MCP server exposing the model to Claude / Cowork. It is a Big-Bakes-owned **fork of [`smmta-next`](https://github.com/roger296/smmta-next)** (eTail Support's self-hosted TypeScript/PostgreSQL stock platform), kept separate from eTail Support's own deployments and configured for Big Bakes.
 
-The reference deployment is **Filament Store** (`filament.shop.cleverdeals.net`), selling 3D printer filament. The storefront module is intended to be re-skinned and re-deployed for other brands the same business runs.
+Single-tenant per deployment (one Big Bakes instance, one database). Built against the spec *Big Bakes Stock Control Proposal Specification v2* (sections A1–A12); see `DECISIONS.md` for divergences and `BUILD_LOG.md` for the build narrative.
+
+The inherited customer-facing **storefront, marketplace connectors, Mollie payments and conversational (LLM) search are carried in the tree but kept dormant** — Auto-Stock is internal stock control only (sales flow through Square POS). See the "What's dormant" note in `CLAUDE.md`.
 
 ## Quick install (Ubuntu 22.04+ / Debian 12+)
 
@@ -37,9 +39,14 @@ docker compose up -d postgres        # bring up Postgres
 npm install                          # workspaces install
 npm run db:migrate -w @smmta/api     # apply schema
 npm run dev -w @smmta/api            # API on :8080
-npm run dev -w @smmta/store          # storefront on :3000
 npm run dev -w @smmta/web            # admin SPA on :5173
+# (apps/store / apps/store-clothes are dormant in this fork — not run or deployed)
 ```
+
+> **Note on workspace scopes.** The npm workspaces keep their original
+> `@smmta/*` names — renaming them is invasive and buys nothing (the deployed
+> app's name is "Auto-Stock", set in `package.json` and the UI). So you still
+> run `npm run … -w @smmta/api`.
 
 See `CLAUDE.md` at the repo root for the full architecture, conventions, and contributor notes.
 

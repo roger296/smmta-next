@@ -11,6 +11,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { getFeatures } from '../../config/env.js';
 import { apiKeyAuth, getApiKeyContext } from '../../shared/middleware/api-key.js';
 import { CatalogueService } from './catalogue.service.js';
 import { CategoryService, type CategoryFilters, type SortKey } from './category.service.js';
@@ -44,7 +45,11 @@ const slugParamSchema = z.object({
 const service = new CatalogueService();
 const categoryService = new CategoryService();
 const searchService = new SearchService({
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  // Dormant in the Big Bakes fork (spec §A2): unless FEATURE_CONVERSATIONAL_SEARCH
+  // is on we pass no key, so the search route falls back to plain keyword
+  // matching and never calls the LLM — regardless of whether an
+  // ANTHROPIC_API_KEY happens to be present in the environment.
+  anthropicApiKey: getFeatures().conversationalSearch ? process.env.ANTHROPIC_API_KEY : undefined,
   dailyBudgetGbp: (() => {
     const v = Number.parseFloat(process.env.LLM_SEARCH_BUDGET_GBP_PER_DAY ?? '5');
     return Number.isFinite(v) && v >= 0 ? v : 5;

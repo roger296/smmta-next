@@ -4,6 +4,22 @@ Persistent context for Claude Code working in this repo. Loaded automatically ev
 
 ---
 
+## Auto-Stock (Big Bakes fork) — READ FIRST
+
+This checkout is **Auto-Stock**, the Big Bakes stock-control system-of-record — a Big-Bakes-owned fork of `smmta-next`, built against *Big Bakes Stock Control Proposal Specification v2* (A1–A12). Work happens on the **`autostock`** branch; commits are scoped `autostock: P<n> <summary>`. The build narrative is in `BUILD_LOG.md`; non-obvious decisions (and the "default — confirm with owners" items) in `DECISIONS.md`. **The spec is law — document any divergence in `DECISIONS.md`.**
+
+**What Auto-Stock adds on top of the fork:** multi-site stock (`sites`, per-`(product, site)` `stock_levels` as the running sum of an auditable `stock_movements` ledger), units of measure + an `item_kind` model (discrete vs fungible, sold vs stocked), recipes/BOM per experience type, the head-baker session-consumption form, automatic reordering on the existing supplier module, Square-sale decrements, an iPad-first goods-in / stock-take **PWA**, daily **Xero** posting (GRN / adjustments / COGS / wastage), and an **MCP server** for Claude / Cowork. Sites: Birmingham, Liverpool, London East, London South, Manchester (+ a US **Dallas** site, USD/imperial).
+
+**Reuse map (spec §A2):** extend `products` (don't fork the catalogue); mirror `integrations/luca/` + `gl_posting_log` for the Xero GL client (keep the `LucaGLService` method surface, switch via a `GL_PROVIDER` flag); reuse the `SupplierConnector` interface + `supplier_orders` idempotency + the supplier-poll/order-placer worker+timer pattern for auto-reorder; reuse `api_keys` (scrypt, `scopes text[]`) + JWT (`requireAuth`) auth and the AES-256-GCM `shared/crypto/encrypt.ts` helper (key from `ENCRYPTION_KEY`) for any stored credentials. Single-tenant by `COMPANY_ID` stays.
+
+**What's dormant (carried in the tree, not deleted — spec §A2):** the Next.js storefronts (`apps/store`, `apps/store-clothes`), the marketplace connectors (`apps/api/src/integrations/marketplace/*` + `POST /import/marketplace` + the SPA marketplace page), Mollie payments, SendGrid, and the conversational Claude-Haiku storefront search (`apps/api/src/modules/storefront/search/*`). Dormancy is enforced by **not building/deploying** the storefronts and by two default-off flags in `apps/api/src/config/env.ts` — `FEATURE_MARKETPLACE` (gates `POST /import/marketplace`) and `FEATURE_CONVERSATIONAL_SEARCH` (gates the LLM key; off ⇒ `/storefront/search` is keyword-only). Don't wire dormant code into the Auto-Stock paths.
+
+**Local test DB:** an isolated Postgres container `auto-stock-db` on `127.0.0.1:5435`; `apps/api/.env` (gitignored) points `DATABASE_URL` at it. Run the API suite with `DATABASE_URL=postgresql://smmta:smmta@localhost:5435/smmta_next npm run test -w @smmta/api`.
+
+The rest of this file is the inherited `smmta-next` context — still accurate for the reused subsystems. Where it describes the storefront/marketplace/Filament tenant, treat that as **dormant** for Auto-Stock.
+
+---
+
 ## Project mission
 
 **smmta-next is an open-source stock control, order management, and product management platform with a customer-facing web store module, designed to plug into a wider ecosystem of small-business operations tools.**
