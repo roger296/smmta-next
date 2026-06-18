@@ -1,0 +1,12 @@
+# Daily auto-reorder sweep at 06:00
+
+[Unit]
+Description=Run smmta-reorder-sweep on a schedule
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+Unit=smmta-reorder-sweep.service
+
+[Install]
+WantedBy=timers.target

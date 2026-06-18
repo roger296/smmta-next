@@ -1,0 +1,12 @@
+# Daily COGS/wastage Xero sweep at 02:00
+
+[Unit]
+Description=Run smmta-consumption-sweep on a schedule
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=smmta-consumption-sweep.service
+
+[Install]
+WantedBy=timers.target

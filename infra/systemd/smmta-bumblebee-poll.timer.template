@@ -1,0 +1,12 @@
+# BumbleBee session poll every 30 minutes
+
+[Unit]
+Description=Run smmta-bumblebee-poll on a schedule
+
+[Timer]
+OnCalendar=*-*-* *:00/30:00
+Persistent=true
+Unit=smmta-bumblebee-poll.service
+
+[Install]
+WantedBy=timers.target

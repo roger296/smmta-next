@@ -1,0 +1,31 @@
+# Systemd unit (Type=oneshot) for a single reorder-sweep run (Auto-Stock, P24).
+# Fired by smmta-reorder-sweep.timer.
+#
+# Tokens replaced by infra/install-autostock.sh:
+#   __SMMTA_USER__, __SMMTA_HOME__, __SMMTA_NODE_BIN__
+
+[Unit]
+Description=Auto-Stock daily reorder sweep
+Documentation=https://github.com/roger296/smmta-next
+After=network-online.target docker.service smmta-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__SMMTA_USER__
+Group=__SMMTA_USER__
+WorkingDirectory=__SMMTA_HOME__/smmta-next
+EnvironmentFile=__SMMTA_HOME__/smmta-next/apps/api/.env
+Environment=PATH=__SMMTA_HOME__/.nvm/versions/node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=production
+
+ExecStart=__SMMTA_NODE_BIN__ __SMMTA_HOME__/smmta-next/node_modules/.bin/tsx apps/api/scripts/run-reorder-sweep.ts
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smmta-reorder-sweep
+
+# No [Install] section — fired by the .timer, not enabled directly.

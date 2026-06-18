@@ -564,3 +564,54 @@ decisions live in `DECISIONS.md`.
   reference, null for an unknown ref) without error; goods-in books in + records
   the valid photo while ignoring a malformed one. api 60 files / 498 tests; web
   21 files / 117 tests; typecheck + build green. **Phase 3 (P20–P23) complete.**
+
+## P24 — Deployment & UI-driven setup (2026-06-18)
+
+- **Fork installer** `infra/install-autostock.sh` (DECISIONS D18): provisions
+  Docker + nginx + certbot + Node 22 + Postgres-in-Docker and deploys ONLY
+  `apps/api` (REST + MCP) + `apps/web` (admin SPA + iPad PWA) — never
+  `apps/store`. Writes a dormant `apps/api/.env` (Xero dry-run, FEATURE_* off,
+  sync flags off). `--dry-run` prints a greppable PLAN and changes nothing.
+- **systemd timers** (oneshot service + timer, mirroring supplier-poll) for the
+  four periodic jobs: `smmta-reorder-sweep` (06:00), `smmta-consumption-sweep`
+  (02:00, COGS/wastage→Xero), `smmta-square-poll` (every 15 min),
+  `smmta-bumblebee-poll` (every 30 min). Each runs an `apps/api/scripts/run-*.ts`
+  CLI; the square/bumblebee pollers are guarded go-live pullers.
+- **UI-driven setup** confirmed: sites (P2), recipes (P15), reorder/par + demand
+  suggestions (P6/P22), suppliers + channel (P6), Xero account/tax map (P5),
+  Square-item map (P10) — all admin pages; only secrets/hostnames in env.
+- Tests (`deploy.test.ts`): the install plan deploys api+web+PWA+MCP and omits
+  the storefront; the four timer + service units are valid; the app boots with
+  the dormant flags off + Xero dry-run; a smoke test hits `/health` and the
+  `/mcp` discovery endpoint. api 61 files / 502 tests; web 21 files / 117 tests;
+  typecheck + build green.
+
+---
+
+## Operator runbook (go-live)
+
+All operational setup is in the **admin SPA** — only secrets/hostnames live in
+`apps/api/.env`.
+
+- **Add a site** → *Sites* → New. Set currency + UoM system + timezone (e.g.
+  Dallas = USD / IMPERIAL / America/Chicago). No code change or migration.
+- **Set reorder / par levels** → *Reorder levels*: per product, set reorder
+  point, par (reorder-up-to), min days cover. Or click **Accept** on a
+  *Demand suggestion* to apply demand-based levels. Turn on a site's
+  demand-based engine by setting `sites.demand_reorder` (per-site flag).
+- **Add recipes** → *Recipes*: per experience (CLASSIC/SWEETER/ULTIMATE), set
+  ingredient quantity per cover; date-effective versions; a per-site override
+  (e.g. Dallas) beats the global.
+- **Connect a supplier** → *Suppliers*: set the ordering channel (EMAIL_PO /
+  API_CONNECTOR), order email, auto-place; map supplier products + pack sizes.
+- **Map Square items** → *Square mapping*: map each Square catalog item/variation
+  to a product (or auto-match by barcode). Unmapped sale lines are parked, not
+  lost.
+- **Map the Xero chart of accounts** → *Xero accounts*: override the default
+  account code + tax type per logical role (STOCK, CONSUMPTION_COGS,
+  WASTAGE_WRITE_OFF, GRNI_ACCRUAL, …) to match your Xero.
+- **Go-live: flip Xero from read-only** → set `XERO_DRY_RUN=false` in
+  `apps/api/.env`, connect Xero (store the OAuth tokens), and confirm against the
+  **Demo Company** first. Until then every journal is recorded but not sent.
+- **Head-baker iPads** → create a PIN per site (*device PINs*); the baker taps in
+  and submits the end-of-session consumption form (`/pwa/consumption`).

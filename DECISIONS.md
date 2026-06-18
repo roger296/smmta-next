@@ -325,6 +325,26 @@ site, so no GBP/USD mixing in a row.
   and turning on a model later doesn't change the tool surface. An admin Gallery
   page browses the set.
 
+## D18 — A fork-specific installer, not a gutted storefront one (2026-06-18, spec §A11)
+P24 asks to "fork-adapt infra/install.sh" to deploy only api + web + PWA + MCP.
+Rather than surgically strip the storefront out of the 427-line `install.sh`
+(which would churn it and fight the "keep the storefront dormant, not gone"
+principle, D3), Auto-Stock ships a **separate `infra/install-autostock.sh`**:
+- builds `@smmta/shared-types` + `@smmta/api` + `@smmta/web` only — **never**
+  `@smmta/store`; the MCP server ships inside `apps/api` (mounted at `/mcp`);
+- writes a dormant `apps/api/.env` (Xero `XERO_DRY_RUN=true`, `FEATURE_*` off,
+  `CATALOGUE_SYNC`/`MATERIALS_COST_SYNC` off) — only secrets + hostnames in env;
+- installs `smmta-api.service` + the four timers
+  (`smmta-reorder-sweep`, `smmta-consumption-sweep`, `smmta-square-poll`,
+  `smmta-bumblebee-poll`), mirroring the supplier-poll oneshot+timer pattern;
+- supports `--dry-run` / `SMMTA_DRY_RUN=1` which prints a greppable PLAN
+  (and the explicit "NOT deploying apps/store") and changes nothing — what the
+  test exercises (a full run needs root/apt).
+The original `install.sh` is left intact for the dormant storefront. The four
+periodic jobs each get a CLI under `apps/api/scripts/run-*.ts`; `run-square-poll`
+and `run-bumblebee-session-poll` are guarded go-live pullers (no-op without
+credentials, like every other external integration in the build).
+
 ## D13 — Guarded MCP action tools: scope + confirm, wrapping existing services (2026-06-18, spec §A9)
 - **Action tools are a separate registry, gated by `mcp:write`.** The five write
   tools (`adjust_stock`, `set_reorder_level`, `start_stock_take`,
