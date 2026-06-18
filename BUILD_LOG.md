@@ -615,3 +615,80 @@ All operational setup is in the **admin SPA** — only secrets/hostnames live in
   **Demo Company** first. Until then every journal is recorded but not sent.
 - **Head-baker iPads** → create a PIN per site (*device PINs*); the baker taps in
   and submits the end-of-session consumption form (`/pwa/consumption`).
+
+## P25 — End-to-end integration test & build report (2026-06-18)
+
+- **`e2e.test.ts`** drives the whole spine across a UK (GBP/metric) + Dallas
+  (USD/imperial) site: seed products + recipe → goods-in (on-hand rises, GRN
+  posts dry-run) → Square sale (on-hand falls, reorder fires) → stock-take
+  true-up (SADJ dry-run) → head-baker consumption (ingredients decrement,
+  materials cost £37.50, variance −50) → daily COGS/wastage sweep (dry-run) +
+  BumbleBee materials-cost push (dry-run logged) → MCP read tools + one guarded
+  write tool (`adjust_stock` + confirm). Asserts the invariants:
+  - **ledger sum = on-hand** for every (product, site) (`recomputeOnHand` ==
+    cache; flour 9000, cookie 3→5, butter 32 oz);
+  - **every GL journal balances** (lines net to 0) **and is dry-run** (every
+    `gl_posting_log` row carries a `DRYRUN` marker — nothing sent to a real org);
+  - **idempotent replays are no-ops** (goods-in same key, consumption same
+    `clientKey`, daily sweep same day);
+  - the two sites value in their **own currencies** (GBP / USD).
+  No real golden dataset ships — this builds a representative fixture and asserts
+  the invariants; **a real sampled golden file is still wanted**.
+
+---
+
+# Build report (Auto-Stock v1)
+
+**What was built**, per phase (all green; `npm run build` + `npm run test` pass
+across workspaces):
+
+- **Phase 1 — stock spine (P1–P14):** fork rebrand + dormancy (storefronts,
+  Mollie, SendGrid off); sites & per-(product,site) ledger (on-hand = Σ
+  movements); item model + UoM (stock/purchase/factor, metric + imperial); ledger
+  ops (adjust / transfer / WAC valuation); GL re-pointed to Xero (dry-run);
+  suppliers + reorder params; the auto-reorder engine (`reorder_proposals`);
+  goods-in; stock-takes; Square → automatic decrement; shared catalogue with
+  BumbleBee; the iPad PWA shell + goods-in / stock-take screens; the read-only
+  MCP server.
+- **Phase 2 — bakery economics (P15–P19):** recipes / BOM (versioned, per-site
+  override); the head-baker end-of-session consumption form (decrement + wastage
+  + variance); per-session materials cost → BumbleBee + daily COGS/wastage →
+  Xero; expected/actual/counted variance + wastage + food-cost reports; guarded
+  MCP action tools.
+- **Phase 3 — scale & polish (P20–P25):** Dallas (USD/imperial, no migration);
+  batch & use-by (FEFO); demand-based reorder (opt-in per site); AI groundwork
+  (image set + stub tools); deployment + UI-driven setup + runbook; this e2e.
+
+**Locked-decision defaults used:** 5 UK sites + Dallas; item kinds
+MERCH/RETAIL/INGREDIENT/PACKAGING; experiences CLASSIC/SWEETER/ULTIMATE;
+per-(product,site) running-sum ledger; BumbleBee `core.products.id` as shared
+identity; Square decrement idempotent on `(channel,source_pk,line_ref)`;
+head-baker chosen at submit; recipes UI-maintained global + per-site override;
+**Xero COGS as a periodic daily sweep, `XERO_DRY_RUN=true`, Demo Company only**;
+suppliers `EMAIL_PO` default; iPad shared-device PWA with PIN. All non-obvious
+divergences are in `DECISIONS.md` (D1–D18).
+
+**Degraded to dry-run / fixture (go-live wiring, not gaps):**
+- **Xero** posts are recorded + balanced but **not sent** (`XERO_DRY_RUN=true`);
+  flip to `false` against the **Demo Company** first.
+- **BumbleBee** outbound (catalogue + materials-cost) is dry-run until the
+  BumbleBee write endpoints exist (`CATALOGUE_SYNC` / `MATERIALS_COST_SYNC` off).
+- **Square** + **BumbleBee session** pollers are guarded — they no-op without
+  `SQUARE_ACCESS_TOKEN` / `BUMBLEBEE_API_BASE_URL` (the decrement + awaiting
+  logic itself is fully built + tested).
+- **AI item recognition** is groundwork only — the image set accumulates; the
+  stub MCP tools return "not enabled in v1".
+- The e2e uses a **built fixture**, not a sampled golden dataset (still wanted).
+
+**Human go-live checklist:**
+1. Run `infra/install-autostock.sh` (api + web + PWA + MCP; storefront stays
+   dormant); confirm the four systemd timers are active.
+2. Do the UI-driven setup (the runbook above): sites, recipes, reorder/par
+   levels, suppliers + channel, Xero account/tax map, Square-item map.
+3. Create head-baker PINs per site; issue an MCP api-key (`mcp:read`, and
+   `mcp:write` only if Claude/Cowork should take guarded actions).
+4. Connect Xero (store OAuth tokens) and **verify against the Demo Company**,
+   then flip `XERO_DRY_RUN=false`.
+5. Wire the live Square Orders pull + the BumbleBee session/write endpoints;
+   turn on `CATALOGUE_SYNC` / `MATERIALS_COST_SYNC` when ready.
+6. Capture a real sampled golden dataset and re-run the e2e against it.
