@@ -1,6 +1,6 @@
 import { pgTable, varchar, decimal, boolean, integer, text, uuid, jsonb, doublePrecision, index, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { pk, companyId, auditTimestamps, oldId, productTypeEnum, stockItemStatusEnum } from './common.js';
+import { pk, companyId, auditTimestamps, oldId, productTypeEnum, stockItemStatusEnum, itemKindEnum } from './common.js';
 import { categories, manufacturers, warehouses } from './reference.js';
 import { stockReservations } from './storefront.js';
 
@@ -81,6 +81,30 @@ export const products = pgTable(
      *  to stop loading. Nullable: legacy products + non-image-licensed
      *  suppliers leave this NULL. */
     imageLicenceExpiresAt: timestamp('image_licence_expires_at', { withTimezone: true }),
+    // ── Auto-Stock: item model + units of measure (spec §A3) ──────────
+    /** MERCH / RETAIL (sold + stocked) vs INGREDIENT / PACKAGING (stocked,
+     *  not sold). Existing fork products default to RETAIL. */
+    itemKind: itemKindEnum('item_kind').notNull().default('RETAIL'),
+    isSold: boolean('is_sold').notNull().default(true),
+    isStocked: boolean('is_stocked').notNull().default(true),
+    /** GTIN/EAN-13 barcode for scan-to-find + Square mapping. Distinct from
+     *  the legacy `ean`, but auto-populated from it on write when present. */
+    barcode: varchar('barcode', { length: 64 }),
+    /** Shared product identity with BumbleBee (its `core.products.id`). The
+     *  stock system is system-of-record; BumbleBee consumes a slim subset. */
+    bumblebeeProductId: uuid('bumblebee_product_id'),
+    /** Reference image for the future AI item-recognition work (spec §A10). */
+    referenceImageUrl: varchar('reference_image_url', { length: 500 }),
+    imageCaptureStore: varchar('image_capture_store', { length: 200 }),
+    // Units of measure -------------------------------------------------
+    /** Tracking unit (e.g. `g`, `each`). Recipes + reorder operate in this. */
+    stockUom: varchar('stock_uom', { length: 20 }).notNull().default('each'),
+    /** Buying unit (e.g. `bag`). NULL ⇒ buy in the same unit as stock. */
+    purchaseUom: varchar('purchase_uom', { length: 20 }),
+    /** How many purchase units make up an order line item (e.g. a case of 6). */
+    purchasePackSize: decimal('purchase_pack_size', { precision: 18, scale: 3 }).notNull().default('1'),
+    /** stock_uom per 1 purchase_uom (e.g. 1 bag = 1000 g ⇒ 1000). */
+    purchaseToStockFactor: decimal('purchase_to_stock_factor', { precision: 18, scale: 4 }).notNull().default('1'),
     // ------------------------------------------------------------------
     oldId: oldId(),
     ...auditTimestamps,
@@ -88,6 +112,8 @@ export const products = pgTable(
   (t) => ({
     productsCompanySlugUnq: uniqueIndex('products_company_id_slug_unq').on(t.companyId, t.slug),
     productsGroupIdIdx: index('products_group_id_idx').on(t.groupId),
+    productsBumblebeeIdIdx: index('products_bumblebee_id_idx').on(t.bumblebeeProductId),
+    productsBarcodeIdx: index('products_barcode_idx').on(t.barcode),
   }),
 );
 

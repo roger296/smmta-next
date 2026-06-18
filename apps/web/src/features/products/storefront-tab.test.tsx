@@ -86,6 +86,17 @@ const baseProduct: Product = {
   seoKeywords: null,
   isPublished: false,
   sortOrderInGroup: 0,
+  itemKind: 'RETAIL',
+  isSold: true,
+  isStocked: true,
+  barcode: null,
+  bumblebeeProductId: null,
+  referenceImageUrl: null,
+  imageCaptureStore: null,
+  stockUom: 'each',
+  purchaseUom: null,
+  purchasePackSize: '1',
+  purchaseToStockFactor: '1',
 };
 
 function setupHandlers() {

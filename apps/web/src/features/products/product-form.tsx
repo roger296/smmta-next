@@ -35,6 +35,22 @@ export const productFormSchema = z.object({
   hsCode: z.string().max(20).optional().or(z.literal('')),
   supplierId: z.string().uuid().optional().or(z.literal('')),
   defaultWarehouseId: z.string().uuid().optional().or(z.literal('')),
+  // Auto-Stock item model + units of measure (spec §A3).
+  itemKind: z.enum(['MERCH', 'RETAIL', 'INGREDIENT', 'PACKAGING']).default('RETAIL'),
+  isSold: z.boolean().default(true),
+  isStocked: z.boolean().default(true),
+  barcode: z.string().max(64).optional().or(z.literal('')),
+  referenceImageUrl: z.string().url().max(500).optional().or(z.literal('')),
+  stockUom: z.string().max(20).optional().or(z.literal('')),
+  purchaseUom: z.string().max(20).optional().or(z.literal('')),
+  purchasePackSize: z.preprocess(
+    (v) => (v === '' || v === undefined ? undefined : v),
+    z.coerce.number().positive().optional(),
+  ),
+  purchaseToStockFactor: z.preprocess(
+    (v) => (v === '' || v === undefined ? undefined : v),
+    z.coerce.number().positive().optional(),
+  ),
 });
 
 export type ProductFormValues = z.input<typeof productFormSchema>;
@@ -68,6 +84,12 @@ export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onC
       ...defaultValues,
     },
   });
+
+  // Discrete (whole units, e.g. `each`) vs fungible (bulk, e.g. grams).
+  // Fungible products show the purchase→stock conversion fields.
+  const DISCRETE_UOMS = ['each', 'ea', 'unit', 'units', 'item', 'items', 'pcs', 'piece'];
+  const stockUomVal = watch('stockUom');
+  const isFungible = !!stockUomVal && !DISCRETE_UOMS.includes(stockUomVal.toLowerCase());
 
   return (
     <form
@@ -196,6 +218,98 @@ export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onC
           </SelectContent>
         </Select>
       </Field>
+
+      {/* Auto-Stock: item model + units of measure (spec §A3) */}
+      <div className="space-y-4 rounded-md border border-[var(--color-border)] p-4">
+        <h3 className="text-sm font-medium">Stock &amp; units</h3>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field id="p-itemKind" label="Item kind" error={errors.itemKind?.message}>
+            <Select
+              value={watch('itemKind')}
+              onValueChange={(v) =>
+                setValue('itemKind', v as ProductFormValues['itemKind'], { shouldValidate: true })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="RETAIL">Retail (sold + stocked)</SelectItem>
+                <SelectItem value="MERCH">Merch (sold + stocked)</SelectItem>
+                <SelectItem value="INGREDIENT">Ingredient (stocked, not sold)</SelectItem>
+                <SelectItem value="PACKAGING">Packaging (stocked, not sold)</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field id="p-barcode" label="Barcode (GTIN)" error={errors.barcode?.message}>
+            <Input {...register('barcode')} placeholder="defaults from EAN" />
+          </Field>
+          <Field id="p-tracking" label="Tracking">
+            <Select
+              value={isFungible ? 'FUNGIBLE' : 'DISCRETE'}
+              onValueChange={(v) =>
+                setValue('stockUom', v === 'FUNGIBLE' ? 'g' : 'each', { shouldValidate: true })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="DISCRETE">Discrete (whole units)</SelectItem>
+                <SelectItem value="FUNGIBLE">Fungible (bulk)</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        {isFungible && (
+          <div className="grid gap-4 md:grid-cols-4">
+            <Field id="p-stockUom" label="Stock unit" error={errors.stockUom?.message}>
+              <Input {...register('stockUom')} placeholder="g" />
+            </Field>
+            <Field id="p-purchaseUom" label="Purchase unit" error={errors.purchaseUom?.message}>
+              <Input {...register('purchaseUom')} placeholder="bag" />
+            </Field>
+            <Field id="p-packSize" label="Pack size" error={errors.purchasePackSize?.message}>
+              <Input type="number" step="any" {...register('purchasePackSize')} placeholder="1" />
+            </Field>
+            <Field
+              id="p-factor"
+              label="Stock units / purchase unit"
+              error={errors.purchaseToStockFactor?.message}
+            >
+              <Input
+                type="number"
+                step="any"
+                {...register('purchaseToStockFactor')}
+                placeholder="1000"
+              />
+            </Field>
+          </div>
+        )}
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={watch('isSold')}
+              onCheckedChange={(c) => setValue('isSold', c === true)}
+            />
+            Sold (appears in BumbleBee revenue)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={watch('isStocked')}
+              onCheckedChange={(c) => setValue('isStocked', c === true)}
+            />
+            Stocked (tracked on the stock ledger)
+          </label>
+        </div>
+        <Field
+          id="p-referenceImageUrl"
+          label="Reference image URL"
+          error={errors.referenceImageUrl?.message}
+        >
+          <Input {...register('referenceImageUrl')} placeholder="https://…" />
+        </Field>
+      </div>
 
       <div className="flex flex-col gap-2">
         <label className="flex items-center gap-2 text-sm">

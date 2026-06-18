@@ -37,6 +37,26 @@ export const storefrontProductFieldsSchema = z.object({
   sortOrderInGroup: z.coerce.number().int().min(0).optional(),
 });
 
+// ----------------------------------------------------------------
+// Auto-Stock item model + units of measure (spec §A3). All optional;
+// DB defaults apply (item_kind RETAIL, is_sold/is_stocked true,
+// stock_uom 'each', pack size / factor 1).
+// ----------------------------------------------------------------
+
+export const autoStockProductFieldsSchema = z.object({
+  itemKind: z.enum(['MERCH', 'RETAIL', 'INGREDIENT', 'PACKAGING']).optional(),
+  isSold: z.boolean().optional(),
+  isStocked: z.boolean().optional(),
+  barcode: z.string().max(64).nullable().optional(),
+  bumblebeeProductId: z.string().uuid().nullable().optional(),
+  referenceImageUrl: z.string().url().max(500).nullable().optional(),
+  imageCaptureStore: z.string().max(200).nullable().optional(),
+  stockUom: z.string().min(1).max(20).optional(),
+  purchaseUom: z.string().max(20).nullable().optional(),
+  purchasePackSize: z.coerce.number().positive().optional(),
+  purchaseToStockFactor: z.coerce.number().positive().optional(),
+});
+
 export const createProductSchema = z.object({
   name: z.string().min(1).max(500),
   stockCode: z.string().max(100).optional(),
@@ -59,7 +79,7 @@ export const createProductSchema = z.object({
   supplierId: z.string().uuid().optional(),
   defaultWarehouseId: z.string().uuid().optional(),
   marketplaceIdentifiers: marketplaceIdentifiersSchema,
-}).merge(storefrontProductFieldsSchema);
+}).merge(storefrontProductFieldsSchema).merge(autoStockProductFieldsSchema);
 
 // ----------------------------------------------------------------
 // Product Groups — Zod schemas for storefront content management.

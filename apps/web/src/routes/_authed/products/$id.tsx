@@ -105,6 +105,17 @@ function ProductDetailPage() {
                   hsCode: data.hsCode ?? '',
                   supplierId: data.supplierId ?? '',
                   defaultWarehouseId: data.defaultWarehouseId ?? '',
+                  itemKind: data.itemKind,
+                  isSold: data.isSold,
+                  isStocked: data.isStocked,
+                  barcode: data.barcode ?? '',
+                  referenceImageUrl: data.referenceImageUrl ?? '',
+                  stockUom: data.stockUom ?? '',
+                  purchaseUom: data.purchaseUom ?? '',
+                  purchasePackSize: data.purchasePackSize ? Number(data.purchasePackSize) : undefined,
+                  purchaseToStockFactor: data.purchaseToStockFactor
+                    ? Number(data.purchaseToStockFactor)
+                    : undefined,
                 }}
                 submitLabel="Save changes"
                 onSubmit={async (v) => {

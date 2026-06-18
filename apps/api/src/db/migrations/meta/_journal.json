@@ -127,6 +127,13 @@
       "when": 1781800375024,
       "tag": "0017_wide_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781801151180,
+      "tag": "0018_polite_sugar_man",
+      "breakpoints": true
     }
   ]
 }

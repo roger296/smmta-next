@@ -101,6 +101,16 @@ export const fulfilmentSourceEnum = pgEnum('fulfilment_source', [
 
 // ── Auto-Stock: multi-site stock (spec §A5) ──────────────────────────
 
+/**
+ * Item kind (spec §A3). MERCH + RETAIL are sold AND stocked; INGREDIENT +
+ * PACKAGING are stocked but not sold (consumed by recipes / the head-baker
+ * form). The `is_sold` / `is_stocked` flags carry the fine detail; this enum
+ * is the headline classification.
+ */
+export const itemKindEnum = pgEnum('item_kind', [
+  'MERCH', 'RETAIL', 'INGREDIENT', 'PACKAGING',
+]);
+
 /** Unit-of-measure system for a site. Drives display + count quanta
  *  (Dallas runs IMPERIAL / lb·oz; UK sites METRIC / g). */
 export const uomSystemEnum = pgEnum('uom_system', ['METRIC', 'IMPERIAL']);

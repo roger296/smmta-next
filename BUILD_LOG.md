@@ -91,3 +91,33 @@ decisions live in `DECISIONS.md`.
   per-site isolation) and `site.routes.test.ts` (create/list/get/update, 409
   duplicate slug, 400 bad slug, 401 unauth). 38 files / 407 tests green;
   typecheck + build green across api + web.
+
+## P3 — Item model & units of measure (2026-06-18)
+
+- **products** extended (migration `0018_polite_sugar_man.sql`): `item_kind`
+  enum (MERCH/RETAIL/INGREDIENT/PACKAGING, default RETAIL), `is_sold`,
+  `is_stocked`, `barcode` (GTIN), `bumblebee_product_id` (indexed — shared
+  identity), `reference_image_url` + `image_capture_store` (AI groundwork,
+  §A10), and UoM: `stock_uom` (default `each`), `purchase_uom`,
+  `purchase_pack_size`, `purchase_to_stock_factor`. Indexed barcode +
+  bumblebee id.
+- **UoM helper** (`src/modules/stock/uom.ts`): purchase↔stock conversion,
+  pack-multiple rounding, ~100 g quantum bucketing (nearest + ceil), and
+  discrete-vs-fungible validation (`assertValidStockQty` rejects fractional
+  quantities for `each`).
+- **Supplier resolution** (`src/modules/stock/supplier-products.ts`):
+  `preferredSupplierProduct` picks the active mapping with lowest priority
+  (then cheapest) — many brands → one fungible line. Distinct from the
+  drop-ship `pickSupplierForProduct` (no `isDropshipActive` requirement, since
+  food/merch suppliers order via emailed PO).
+- **ProductService + schema**: `createProductSchema`/`updateProductSchema`
+  accept the new fields; on create `barcode` defaults from `ean` when absent.
+- **Admin SPA**: product form gains a "Stock & units" section — item kind,
+  sold/stocked flags, barcode, reference image URL, and a discrete-vs-fungible
+  toggle that reveals the stock/purchase UoM + pack-size + conversion-factor
+  fields for bulk items. `Product` api-type + the edit route's defaults map
+  the new fields.
+- Tests: `uom.test.ts` (conversions round-trip, pack/quantum rounding,
+  discrete fractional rejection) and `item-model.test.ts` (item-kind/UoM
+  persistence, barcode auto-pop from ean, two-brand fungible resolution).
+  api 40 files / 417 tests, web 17 files / 105 tests; typecheck + build green.

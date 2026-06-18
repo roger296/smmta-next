@@ -202,6 +202,23 @@ export class ProductService {
         seoKeywords: input.seoKeywords ?? null,
         ...(input.isPublished !== undefined ? { isPublished: input.isPublished } : {}),
         ...(input.sortOrderInGroup !== undefined ? { sortOrderInGroup: input.sortOrderInGroup } : {}),
+        // Auto-Stock item model + UoM (spec §A3). barcode defaults from ean
+        // when not given so scan-to-find works for existing EAN'd products.
+        ...(input.itemKind !== undefined ? { itemKind: input.itemKind } : {}),
+        ...(input.isSold !== undefined ? { isSold: input.isSold } : {}),
+        ...(input.isStocked !== undefined ? { isStocked: input.isStocked } : {}),
+        barcode: input.barcode ?? input.ean ?? null,
+        bumblebeeProductId: input.bumblebeeProductId ?? null,
+        referenceImageUrl: input.referenceImageUrl ?? null,
+        imageCaptureStore: input.imageCaptureStore ?? null,
+        ...(input.stockUom !== undefined ? { stockUom: input.stockUom } : {}),
+        purchaseUom: input.purchaseUom ?? null,
+        ...(input.purchasePackSize !== undefined
+          ? { purchasePackSize: input.purchasePackSize.toString() }
+          : {}),
+        ...(input.purchaseToStockFactor !== undefined
+          ? { purchaseToStockFactor: input.purchaseToStockFactor.toString() }
+          : {}),
       })
       .returning();
 
@@ -282,6 +299,19 @@ export class ProductService {
     if (input.seoKeywords !== undefined) updateData.seoKeywords = input.seoKeywords;
     if (input.isPublished !== undefined) updateData.isPublished = input.isPublished;
     if (input.sortOrderInGroup !== undefined) updateData.sortOrderInGroup = input.sortOrderInGroup;
+    // Auto-Stock item model + UoM
+    if (input.itemKind !== undefined) updateData.itemKind = input.itemKind;
+    if (input.isSold !== undefined) updateData.isSold = input.isSold;
+    if (input.isStocked !== undefined) updateData.isStocked = input.isStocked;
+    if (input.barcode !== undefined) updateData.barcode = input.barcode;
+    if (input.bumblebeeProductId !== undefined) updateData.bumblebeeProductId = input.bumblebeeProductId;
+    if (input.referenceImageUrl !== undefined) updateData.referenceImageUrl = input.referenceImageUrl;
+    if (input.imageCaptureStore !== undefined) updateData.imageCaptureStore = input.imageCaptureStore;
+    if (input.stockUom !== undefined) updateData.stockUom = input.stockUom;
+    if (input.purchaseUom !== undefined) updateData.purchaseUom = input.purchaseUom;
+    if (input.purchasePackSize !== undefined) updateData.purchasePackSize = input.purchasePackSize.toString();
+    if (input.purchaseToStockFactor !== undefined)
+      updateData.purchaseToStockFactor = input.purchaseToStockFactor.toString();
 
     const [updated] = await this.db
       .update(products)

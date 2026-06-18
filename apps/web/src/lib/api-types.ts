@@ -210,6 +210,18 @@ export interface Product {
   seoKeywords: string[] | null;
   isPublished: boolean;
   sortOrderInGroup: number;
+  // Auto-Stock: item model + units of measure (spec §A3).
+  itemKind: 'MERCH' | 'RETAIL' | 'INGREDIENT' | 'PACKAGING';
+  isSold: boolean;
+  isStocked: boolean;
+  barcode: string | null;
+  bumblebeeProductId: string | null;
+  referenceImageUrl: string | null;
+  imageCaptureStore: string | null;
+  stockUom: string;
+  purchaseUom: string | null;
+  purchasePackSize: string;
+  purchaseToStockFactor: string;
 }
 
 export interface ProductGroup {
