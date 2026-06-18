@@ -13,6 +13,7 @@ import { ReorderService } from '../reorder/reorder.service.js';
 import { SessionConsumptionService } from '../consumption/session-consumption.service.js';
 import { BumbleBeeSessionClient } from '../consumption/bumblebee-sessions.js';
 import { ConsumptionReportService } from '../reports/consumption-report.service.js';
+import { ImageCaptureService } from '../images/image-capture.service.js';
 
 export interface McpToolContext {
   companyId: string;
@@ -145,6 +146,26 @@ export const MCP_TOOLS: McpTool[] = [
         status: typeof args.status === 'string' ? args.status : undefined,
         companyId: ctx.companyId,
       }),
+  },
+  {
+    name: 'identify_item_from_image',
+    description: 'Identify a stock item from a captured image. AI item recognition is not enabled in v1 — returns the stored reference capture for the image, for the future model.',
+    inputSchema: obj({ image_ref: str('Image reference / URL of a captured photo') }),
+    handler: async (args, ctx) => {
+      const imageRef = typeof args.image_ref === 'string' ? args.image_ref : '';
+      const reference = imageRef ? await new ImageCaptureService().getByRef(imageRef, ctx.companyId) : undefined;
+      return { available: false, note: 'AI item recognition is not enabled in v1.', imageRef, reference: reference ?? null };
+    },
+  },
+  {
+    name: 'count_shelf_from_image',
+    description: 'Count shelf stock from a photo (video stock-take). Not enabled in v1 — returns the stored reference capture for the image, for the future model.',
+    inputSchema: obj({ image_ref: str('Image reference / URL of a shelf photo') }),
+    handler: async (args, ctx) => {
+      const imageRef = typeof args.image_ref === 'string' ? args.image_ref : '';
+      const reference = imageRef ? await new ImageCaptureService().getByRef(imageRef, ctx.companyId) : undefined;
+      return { available: false, note: 'Count-from-image is not enabled in v1.', imageRef, reference: reference ?? null };
+    },
   },
   {
     name: 'product_lookup',

@@ -232,6 +232,13 @@
       "when": 1781810831295,
       "tag": "0032_violet_mindworm",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781811263156,
+      "tag": "0033_redundant_bucky",
+      "breakpoints": true
     }
   ]
 }

@@ -308,6 +308,23 @@ site, so no GBP/USD mixing in a row.
 - **`asOf` is a parameter** (defaults to today in the routes) so the estimator
   is deterministic + testable; the engine passes today's date.
 
+## D17 — AI groundwork: a labelled image set + stub tools, no vision model (2026-06-18, spec §A10)
+- **One `image_captures` table accumulates the labelled set** keyed by SKU
+  (product) + site + timestamp + source (REFERENCE / GOODS_IN / STOCK_TAKE /
+  CONSUMPTION / SHELF, migration `0033`). `product_id` / `site_id` are nullable
+  (an un-attributed shelf photo has neither). This is data groundwork only — no
+  model runs; a real recogniser is a later, additive step over this set.
+- **Capture recording is best-effort and never blocks.** `recordPhotoRefs`
+  iterates a goods-in / stock-take photo array, resolves `sku → product`, and
+  swallows per-photo errors; goods-in calls it inside a try/catch so a capture
+  failure can't break the book-in (tested).
+- **Stub MCP tools exist so the surface is ready.** `identify_item_from_image`
+  and `count_shelf_from_image` (read scope) return `{ available: false, note:
+  "not enabled in v1" }` plus the stored capture for the given `image_ref` —
+  so Claude/Cowork can call them today and get a graceful, documented answer,
+  and turning on a model later doesn't change the tool surface. An admin Gallery
+  page browses the set.
+
 ## D13 — Guarded MCP action tools: scope + confirm, wrapping existing services (2026-06-18, spec §A9)
 - **Action tools are a separate registry, gated by `mcp:write`.** The five write
   tools (`adjust_stock`, `set_reorder_level`, `start_stock_take`,

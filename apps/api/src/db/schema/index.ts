@@ -22,3 +22,4 @@ export * from './recipes.js';
 export * from './session-consumption.js';
 export * from './bumblebee-sync.js';
 export * from './stock-batches.js';
+export * from './image-captures.js';

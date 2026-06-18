@@ -18,6 +18,7 @@ import { Route as AuthedSquareRouteImport } from './routes/_authed/square'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedReorderRouteImport } from './routes/_authed/reorder'
 import { Route as AuthedRecipesRouteImport } from './routes/_authed/recipes'
+import { Route as AuthedGalleryRouteImport } from './routes/_authed/gallery'
 import { Route as AuthedConsumptionRouteImport } from './routes/_authed/consumption'
 import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppliers/index'
 import { Route as AuthedSupplierOrdersIndexRouteImport } from './routes/_authed/supplier-orders/index'
@@ -102,6 +103,11 @@ const AuthedReorderRoute = AuthedReorderRouteImport.update({
 const AuthedRecipesRoute = AuthedRecipesRouteImport.update({
   id: '/recipes',
   path: '/recipes',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedGalleryRoute = AuthedGalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedConsumptionRoute = AuthedConsumptionRouteImport.update({
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
   '/consumption': typeof AuthedConsumptionRoute
+  '/gallery': typeof AuthedGalleryRoute
   '/recipes': typeof AuthedRecipesRoute
   '/reorder': typeof AuthedReorderRoute
   '/reports': typeof AuthedReportsRoute
@@ -371,6 +378,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
   '/consumption': typeof AuthedConsumptionRoute
+  '/gallery': typeof AuthedGalleryRoute
   '/recipes': typeof AuthedRecipesRoute
   '/reorder': typeof AuthedReorderRoute
   '/reports': typeof AuthedReportsRoute
@@ -424,6 +432,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
   '/_authed/consumption': typeof AuthedConsumptionRoute
+  '/_authed/gallery': typeof AuthedGalleryRoute
   '/_authed/recipes': typeof AuthedRecipesRoute
   '/_authed/reorder': typeof AuthedReorderRoute
   '/_authed/reports': typeof AuthedReportsRoute
@@ -478,6 +487,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/pin-login'
     | '/consumption'
+    | '/gallery'
     | '/recipes'
     | '/reorder'
     | '/reports'
@@ -528,6 +538,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/pin-login'
     | '/consumption'
+    | '/gallery'
     | '/recipes'
     | '/reorder'
     | '/reports'
@@ -580,6 +591,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/pin-login'
     | '/_authed/consumption'
+    | '/_authed/gallery'
     | '/_authed/recipes'
     | '/_authed/reorder'
     | '/_authed/reports'
@@ -697,6 +709,13 @@ declare module '@tanstack/react-router' {
       path: '/recipes'
       fullPath: '/recipes'
       preLoaderRoute: typeof AuthedRecipesRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/gallery': {
+      id: '/_authed/gallery'
+      path: '/gallery'
+      fullPath: '/gallery'
+      preLoaderRoute: typeof AuthedGalleryRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/consumption': {
@@ -991,6 +1010,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthedRouteRouteChildren {
   AuthedConsumptionRoute: typeof AuthedConsumptionRoute
+  AuthedGalleryRoute: typeof AuthedGalleryRoute
   AuthedRecipesRoute: typeof AuthedRecipesRoute
   AuthedReorderRoute: typeof AuthedReorderRoute
   AuthedReportsRoute: typeof AuthedReportsRoute
@@ -1041,6 +1061,7 @@ interface AuthedRouteRouteChildren {
 
 const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedConsumptionRoute: AuthedConsumptionRoute,
+  AuthedGalleryRoute: AuthedGalleryRoute,
   AuthedRecipesRoute: AuthedRecipesRoute,
   AuthedReorderRoute: AuthedReorderRoute,
   AuthedReportsRoute: AuthedReportsRoute,

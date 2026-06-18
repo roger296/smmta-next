@@ -21,6 +21,7 @@ import { StockLevelService } from '../stock/stock-level.service.js';
 import { getStockGLService } from '../../integrations/gl-provider.js';
 import { getSiteCurrency } from '../sites/site-currency.js';
 import { BatchService } from '../stock/batch.service.js';
+import { ImageCaptureService } from '../images/image-capture.service.js';
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 const round4 = (n: number): number => Math.round(n * 10000) / 10000;
@@ -194,6 +195,22 @@ export class GoodsInService {
       isService: false,
       currencyCode,
     });
+
+    // Capture any photos for the AI groundwork set (spec §A10) — best-effort,
+    // never blocks the book-in.
+    if (input.photoRefs) {
+      try {
+        await new ImageCaptureService().recordPhotoRefs({
+          photoRefs: input.photoRefs,
+          siteId: input.siteId,
+          source: 'GOODS_IN',
+          sourceRef: receipt!.id,
+          companyId,
+        });
+      } catch {
+        // swallow — image capture must not break goods-in
+      }
+    }
 
     const lines = await this.db
       .select()

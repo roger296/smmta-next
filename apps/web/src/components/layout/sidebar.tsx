@@ -25,6 +25,7 @@ import {
   ChefHat,
   ClipboardList,
   BarChart3,
+  Images,
 } from 'lucide-react';
 
 interface NavItem {
@@ -51,6 +52,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Recipes', to: '/recipes', icon: BookOpen },
   { label: 'Consumption', to: '/consumption', icon: ClipboardList },
   { label: 'Reports', to: '/reports', icon: BarChart3 },
+  { label: 'Gallery', to: '/gallery', icon: Images },
   { label: 'Square mapping', to: '/square', icon: SquareIcon },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },

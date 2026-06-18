@@ -545,3 +545,22 @@ decisions live in `DECISIONS.md`.
   fixed par (1800) with the flag off and sizes from demand (800) with it on;
   accepting updates the level via setReorderParams. api 59 files / 494 tests; web
   20 files / 117 tests; typecheck + build green.
+
+## P23 — AI groundwork (designed-for, not built) (2026-06-18) — END OF PHASE 3
+
+- **Image set** (`image_captures`, migration `0033`): a labelled set keyed by
+  SKU + site + timestamp + source (REFERENCE / GOODS_IN / STOCK_TAKE /
+  CONSUMPTION / SHELF). `ImageCaptureService`: `record`, `recordPhotoRefs`
+  (best-effort, resolves sku→product, swallows per-photo errors), `listForSku`,
+  `gallery`, `getByRef`. Goods-in records its photos inside a try/catch so a
+  capture can't break the book-in (DECISIONS D17).
+- **Stub MCP tools**: `identify_item_from_image` / `count_shelf_from_image`
+  return `{ available: false, note: "not enabled in v1" }` + the stored capture
+  for the `image_ref` — the surface exists for a later model with no change.
+- **API/Web**: `GET/POST /api/v1/image-captures`; an admin Gallery page
+  (`/gallery`, filter by site/source) browsing the set; sidebar nav added.
+- Tests: captures retrievable by SKU/site/timestamp; `recordPhotoRefs` resolves
+  a sku; the stub tools return the not-enabled response (with the stored
+  reference, null for an unknown ref) without error; goods-in books in + records
+  the valid photo while ignoring a malformed one. api 60 files / 498 tests; web
+  21 files / 117 tests; typecheck + build green. **Phase 3 (P20–P23) complete.**

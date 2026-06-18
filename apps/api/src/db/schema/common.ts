@@ -153,6 +153,14 @@ export const stockTakeScopeEnum = pgEnum('stock_take_scope', [
  *  movements + posts the adjustment; CANCELLED is terminal. */
 export const stockTakeStatusEnum = pgEnum('stock_take_status', ['OPEN', 'APPROVED', 'CANCELLED']);
 
+/** Where a captured image came from (spec §A10, P23). REFERENCE = a product
+ *  reference photo; the others are captured in the goods-in / stock-take /
+ *  consumption flows; SHELF = an un-attributed shelf photo for future
+ *  count-from-image. Accumulates a labelled set for later AI item recognition. */
+export const imageCaptureSourceEnum = pgEnum('image_capture_source', [
+  'REFERENCE', 'GOODS_IN', 'STOCK_TAKE', 'CONSUMPTION', 'SHELF',
+]);
+
 /**
  * Stock-movement ledger entry type. On-hand is the running sum of these
  * signed deltas, never a bare counter (spec §A5). GRN = goods received,

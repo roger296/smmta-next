@@ -28,6 +28,7 @@ import { catalogueSyncRoutes } from './modules/catalogue-sync/catalogue-sync.rou
 import { recipeRoutes } from './modules/recipes/recipe.routes.js';
 import { sessionConsumptionRoutes } from './modules/consumption/session-consumption.routes.js';
 import { reportRoutes } from './modules/reports/reports.routes.js';
+import { imageCaptureRoutes } from './modules/images/image-capture.routes.js';
 import { pinAuthRoutes } from './modules/auth/pin.routes.js';
 import { mcpRoutes } from './modules/mcp/mcp.routes.js';
 import { dropshipSupplierRoutes } from './modules/suppliers/supplier-dropship.routes.js';
@@ -136,6 +137,9 @@ export async function buildApp() {
 
   // Auto-Stock: expected/actual/counted variance + wastage + food-cost reports (spec §A6).
   await app.register(reportRoutes, { prefix: '/api/v1' });
+
+  // Auto-Stock: image captures for the AI groundwork set (spec §A10).
+  await app.register(imageCaptureRoutes, { prefix: '/api/v1' });
 
   // Auto-Stock: shared-device PIN login for the iPad PWA (spec §A11).
   await app.register(pinAuthRoutes, { prefix: '/api/v1' });
