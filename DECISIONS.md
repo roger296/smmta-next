@@ -144,3 +144,31 @@ services the REST routes use; `consumption_variance` / `wastage_report` /
 `sessions_awaiting_consumption` return `{ available: false }` until their data
 lands (P16-P18). Swapping in the real SDK transport at go-live (for SSE
 streaming + Cowork sessions) is additive — the registry doesn't change.
+
+## D9 — Recipes: experience resolved via a product flag; versioned + per-site (2026-06-18, spec §A6)
+- **Experience is resolved from the Tonic experience product on a session's
+  order lines.** BumbleBee has no experience column, so P15 adds a nullable
+  `products.experience_type` (CLASSIC/SWEETER/ULTIMATE). A Tonic experience
+  product carries the flag; `ExpectedConsumptionService.resolveCoverGroups`
+  maps a session's lines → `{ experience, covers }` (covers = the line
+  quantity), summing per experience. This keeps the shared catalogue as the
+  single source of the mapping and lets P16's head-baker form derive covers
+  with no new join. A session can mix experiences, so `expectedForSession`
+  aggregates the per-experience expected lines per ingredient.
+- **Recipes are versioned + date-effective with a per-site override.** A
+  `recipes` header (experience, nullable `site_id`, `version`, `effective_from`,
+  `effective_to`) + `recipe_lines` (ingredient `product_id`, `qty_per_cover`,
+  `stock_uom`, `unit_cost`). Selection for (experience, site, date): take rows
+  effective on the date where `site_id = site OR site_id IS NULL`; a per-site
+  row (override) beats the global (`site_id IS NULL`); within the winning scope
+  the newest `effective_from` then highest `version` wins. Expected = Σ
+  (qty_per_cover × covers) per ingredient.
+- **Line cost seeded from BumbleBee cost_price.** BumbleBee's `cost_price` lands
+  in `products.expected_next_cost` (the catalogue-sync import, P11), so a recipe
+  line with no explicit `unit_cost` seeds it (and its `stock_uom`) from the
+  product. An explicit cost wins; the seed is a convenience, not a lock.
+- **Global-recipe version allocation is service-side.** Postgres treats NULLs as
+  distinct in a unique index, so the `(company, experience, site_id, version)`
+  index guards site-specific versions but not global ones (site_id NULL).
+  `RecipeService` allocates `version = max(existing for that experience+scope)+1`,
+  so global versions stay monotonic without relying on the index.

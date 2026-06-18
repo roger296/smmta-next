@@ -16,6 +16,7 @@ import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedXeroAccountsRouteImport } from './routes/_authed/xero-accounts'
 import { Route as AuthedSquareRouteImport } from './routes/_authed/square'
 import { Route as AuthedReorderRouteImport } from './routes/_authed/reorder'
+import { Route as AuthedRecipesRouteImport } from './routes/_authed/recipes'
 import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppliers/index'
 import { Route as AuthedSupplierOrdersIndexRouteImport } from './routes/_authed/supplier-orders/index'
 import { Route as AuthedSupplierInvoicesIndexRouteImport } from './routes/_authed/supplier-invoices/index'
@@ -88,6 +89,11 @@ const AuthedSquareRoute = AuthedSquareRouteImport.update({
 const AuthedReorderRoute = AuthedReorderRouteImport.update({
   id: '/reorder',
   path: '/reorder',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedRecipesRoute = AuthedRecipesRouteImport.update({
+  id: '/recipes',
+  path: '/recipes',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedSuppliersIndexRoute = AuthedSuppliersIndexRouteImport.update({
@@ -296,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
+  '/recipes': typeof AuthedRecipesRoute
   '/reorder': typeof AuthedReorderRoute
   '/square': typeof AuthedSquareRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
@@ -342,6 +349,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
+  '/recipes': typeof AuthedRecipesRoute
   '/reorder': typeof AuthedReorderRoute
   '/square': typeof AuthedSquareRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
@@ -391,6 +399,7 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
+  '/_authed/recipes': typeof AuthedRecipesRoute
   '/_authed/reorder': typeof AuthedReorderRoute
   '/_authed/square': typeof AuthedSquareRoute
   '/_authed/xero-accounts': typeof AuthedXeroAccountsRoute
@@ -441,6 +450,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/pin-login'
+    | '/recipes'
     | '/reorder'
     | '/square'
     | '/xero-accounts'
@@ -487,6 +497,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/pin-login'
+    | '/recipes'
     | '/reorder'
     | '/square'
     | '/xero-accounts'
@@ -535,6 +546,7 @@ export interface FileRouteTypes {
     | '/_authed'
     | '/login'
     | '/pin-login'
+    | '/_authed/recipes'
     | '/_authed/reorder'
     | '/_authed/square'
     | '/_authed/xero-accounts'
@@ -635,6 +647,13 @@ declare module '@tanstack/react-router' {
       path: '/reorder'
       fullPath: '/reorder'
       preLoaderRoute: typeof AuthedReorderRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/recipes': {
+      id: '/_authed/recipes'
+      path: '/recipes'
+      fullPath: '/recipes'
+      preLoaderRoute: typeof AuthedRecipesRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/suppliers/': {
@@ -914,6 +933,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthedRouteRouteChildren {
+  AuthedRecipesRoute: typeof AuthedRecipesRoute
   AuthedReorderRoute: typeof AuthedReorderRoute
   AuthedSquareRoute: typeof AuthedSquareRoute
   AuthedXeroAccountsRoute: typeof AuthedXeroAccountsRoute
@@ -960,6 +980,7 @@ interface AuthedRouteRouteChildren {
 }
 
 const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
+  AuthedRecipesRoute: AuthedRecipesRoute,
   AuthedReorderRoute: AuthedReorderRoute,
   AuthedSquareRoute: AuthedSquareRoute,
   AuthedXeroAccountsRoute: AuthedXeroAccountsRoute,

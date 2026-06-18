@@ -115,6 +115,15 @@ export const itemKindEnum = pgEnum('item_kind', [
  *  (Dallas runs IMPERIAL / lb·oz; UK sites METRIC / g). */
 export const uomSystemEnum = pgEnum('uom_system', ['METRIC', 'IMPERIAL']);
 
+/** Experience type a recipe is defined for (spec §A6). The three Big Bakes
+ *  experiences; extensible by adding a value (+ migration). A session's
+ *  experience is resolved from the Tonic experience product on its order
+ *  lines (`products.experience_type`), since BumbleBee has no experience
+ *  column. */
+export const experienceTypeEnum = pgEnum('experience_type', [
+  'CLASSIC', 'SWEETER', 'ULTIMATE',
+]);
+
 /** How a supplier order is placed (spec §A7). EMAIL_PO renders + emails a PO
  *  (the default for Big Bakes food/merch suppliers); API_CONNECTOR uses the
  *  drop-ship connector for auto-placement. */

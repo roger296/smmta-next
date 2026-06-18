@@ -366,3 +366,31 @@ decisions live in `DECISIONS.md`.
   call → 401 with the resource-metadata hint; tools/list + initialize; a tool
   returns the same data as its service and writes one audit row. api 51 files /
   462 tests; typecheck + build green. **Phase 1 (P1–P14) complete.**
+
+## P15 — Recipes / BOM (2026-06-18) — Phase 2 begins
+
+- **Schema** (`recipes`, `recipe_lines`, migration `0027`): a versioned,
+  date-effective recipe per experience (CLASSIC/SWEETER/ULTIMATE) with an
+  optional per-site override (nullable `site_id`); lines carry an
+  INGREDIENT/PACKAGING `product_id`, `qty_per_cover`, `stock_uom` and a
+  `unit_cost`. Plus a nullable `products.experience_type` flag on the Tonic
+  experience product — the hook used to resolve a session's experience + covers
+  from its order lines (DECISIONS D9).
+- **RecipeService**: creates a new version (allocates the next version for the
+  experience+scope), seeding each line's `unit_cost` + `stock_uom` from the
+  product (BumbleBee `cost_price` lands in `expected_next_cost`) unless given;
+  list / get.
+- **ExpectedConsumptionService**: `getEffectiveRecipe` (per-site override beats
+  global; newest effective version on the date wins); `expectedForExperience`
+  (Σ qty_per_cover × covers per ingredient, with expected cost);
+  `expectedForSession` (aggregates a mixed-experience session);
+  `resolveCoverGroups` (maps order lines → {experience, covers} via
+  `products.experience_type`).
+- **API** (`/api/v1/recipes`, JWT): list, get, create-version, `GET /effective`,
+  `POST /expected`. **Admin SPA**: a Recipes page (`/recipes`) — versioned
+  editor with experience, scope (Global or a per-site override), effective
+  dates, and an ingredient/qty-per-cover line builder; sidebar nav added.
+- Tests: cost seed maps from the product; expected = Σ(qty_per_cover × covers);
+  a mixed-experience session aggregates and resolves covers from lines;
+  date-effective version selection; per-site override beats global. api 52
+  files / 467 tests; web 20 files / 117 tests; typecheck + build green.

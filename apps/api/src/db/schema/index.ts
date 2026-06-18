@@ -18,3 +18,4 @@ export * from './stock-take.js';
 export * from './square.js';
 export * from './device-pins.js';
 export * from './mcp-audit.js';
+export * from './recipes.js';

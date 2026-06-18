@@ -25,6 +25,7 @@ import { goodsInRoutes } from './modules/goods-in/goods-in.routes.js';
 import { stockTakeRoutes } from './modules/stock-take/stock-take.routes.js';
 import { squareRoutes } from './modules/square/square.routes.js';
 import { catalogueSyncRoutes } from './modules/catalogue-sync/catalogue-sync.routes.js';
+import { recipeRoutes } from './modules/recipes/recipe.routes.js';
 import { pinAuthRoutes } from './modules/auth/pin.routes.js';
 import { mcpRoutes } from './modules/mcp/mcp.routes.js';
 import { dropshipSupplierRoutes } from './modules/suppliers/supplier-dropship.routes.js';
@@ -124,6 +125,9 @@ export async function buildApp() {
 
   // Auto-Stock: shared product catalogue with BumbleBee (spec §A4).
   await app.register(catalogueSyncRoutes, { prefix: '/api/v1' });
+
+  // Auto-Stock: recipes / BOM — expected consumption = recipe × covers (spec §A6).
+  await app.register(recipeRoutes, { prefix: '/api/v1' });
 
   // Auto-Stock: shared-device PIN login for the iPad PWA (spec §A11).
   await app.register(pinAuthRoutes, { prefix: '/api/v1' });
