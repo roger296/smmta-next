@@ -25,8 +25,10 @@ export interface StockLevelRow {
 }
 
 export interface ValuationResult {
-  bySite: Array<{ siteId: string; value: number }>;
+  /** Per-site value in that site's own currency (a USD site values in USD). */
+  bySite: Array<{ siteId: string; currencyCode: string; value: number }>;
   byItemKind: Array<{ siteId: string; itemKind: string; value: number }>;
+  /** Naive cross-site sum — only meaningful when all sites share a currency. */
   total: number;
 }
 
@@ -82,6 +84,7 @@ export class StockQueryService {
       : sql``;
     const res = await this.db.execute(sql`
       SELECT sl.site_id AS "siteId",
+             s.currency_code AS "currencyCode",
              p.item_kind AS "itemKind",
              (sl.on_hand * COALESCE(
                 SUM(CASE WHEN m.qty_delta > 0 AND m.unit_cost IS NOT NULL
@@ -91,26 +94,29 @@ export class StockQueryService {
                 0))::float8 AS "value"
       FROM stock_levels sl
       JOIN products p ON p.id = sl.product_id
+      JOIN sites s ON s.id = sl.site_id
       LEFT JOIN stock_movements m ON m.product_id = sl.product_id AND m.site_id = sl.site_id
       WHERE sl.company_id = ${companyId} ${siteFilter}
-      GROUP BY sl.site_id, p.item_kind, sl.product_id, sl.on_hand
+      GROUP BY sl.site_id, s.currency_code, p.item_kind, sl.product_id, sl.on_hand
     `);
-    const rows = (res.rows ?? []) as Array<{ siteId: string; itemKind: string; value: number }>;
+    const rows = (res.rows ?? []) as Array<{ siteId: string; currencyCode: string; itemKind: string; value: number }>;
 
-    const bySiteMap = new Map<string, number>();
+    const bySiteMap = new Map<string, { currencyCode: string; value: number }>();
     const byKindMap = new Map<string, { siteId: string; itemKind: string; value: number }>();
     let total = 0;
     for (const r of rows) {
       const value = Number(r.value) || 0;
       total += value;
-      bySiteMap.set(r.siteId, (bySiteMap.get(r.siteId) ?? 0) + value);
+      const site = bySiteMap.get(r.siteId);
+      if (site) site.value += value;
+      else bySiteMap.set(r.siteId, { currencyCode: r.currencyCode ?? 'GBP', value });
       const key = `${r.siteId}::${r.itemKind}`;
       const existing = byKindMap.get(key);
       if (existing) existing.value += value;
       else byKindMap.set(key, { siteId: r.siteId, itemKind: r.itemKind, value });
     }
     return {
-      bySite: [...bySiteMap.entries()].map(([siteId, value]) => ({ siteId, value })),
+      bySite: [...bySiteMap.entries()].map(([siteId, v]) => ({ siteId, currencyCode: v.currencyCode, value: v.value })),
       byItemKind: [...byKindMap.values()],
       total,
     };

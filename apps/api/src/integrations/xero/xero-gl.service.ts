@@ -49,6 +49,7 @@ export class XeroGLService {
       stockValue: number;
       deliveryCharge: number;
       isService: boolean;
+      currencyCode?: string;
     },
   ): Promise<string> {
     const total = round2(params.stockValue + params.deliveryCharge);
@@ -78,6 +79,7 @@ export class XeroGLService {
       narration: `GRN ${params.grnNumber} — book-in for PO ${params.poNumber}`,
       date: params.bookedInDate,
       amount: total,
+      currencyCode: params.currencyCode,
       lines,
     });
   }
@@ -92,6 +94,7 @@ export class XeroGLService {
       stockValue: number;
       type: 'ADD' | 'REMOVE';
       productName: string;
+      currencyCode?: string;
     },
   ): Promise<string> {
     if (params.stockValue <= 0) return '';
@@ -120,6 +123,7 @@ export class XeroGLService {
       narration: `Stock adjustment — ${params.type} ${params.productName}`,
       date: params.adjustmentDate,
       amount: value,
+      currencyCode: params.currencyCode,
       lines,
     });
   }
@@ -127,7 +131,7 @@ export class XeroGLService {
   // ── C. Consumption COGS — Dr COGS / Cr Stock (head-baker / daily sweep) ─
   async postConsumptionCOGS(
     db: GLDb,
-    params: { companyId: string; sourceKey: string; date: Date; amount: number; label: string },
+    params: { companyId: string; sourceKey: string; date: Date; amount: number; label: string; currencyCode?: string },
   ): Promise<string> {
     if (params.amount <= 0) return '';
     const value = round2(params.amount);
@@ -141,6 +145,7 @@ export class XeroGLService {
       narration: `Consumption COGS — ${params.label}`,
       date: params.date,
       amount: value,
+      currencyCode: params.currencyCode,
       lines: [
         { accountCode: cogs.code, lineAmount: value, taxType: cogs.taxType },
         { accountCode: stock.code, lineAmount: -value, taxType: stock.taxType },
@@ -151,7 +156,7 @@ export class XeroGLService {
   // ── D. Wastage — Dr wastage write-off / Cr Stock ───────────────────
   async postWastage(
     db: GLDb,
-    params: { companyId: string; sourceKey: string; date: Date; amount: number; label: string },
+    params: { companyId: string; sourceKey: string; date: Date; amount: number; label: string; currencyCode?: string },
   ): Promise<string> {
     if (params.amount <= 0) return '';
     const value = round2(params.amount);
@@ -165,6 +170,7 @@ export class XeroGLService {
       narration: `Wastage — ${params.label}`,
       date: params.date,
       amount: value,
+      currencyCode: params.currencyCode,
       lines: [
         { accountCode: waste.code, lineAmount: value, taxType: waste.taxType },
         { accountCode: stock.code, lineAmount: -value, taxType: stock.taxType },
@@ -183,6 +189,7 @@ export class XeroGLService {
       narration: string;
       date: Date;
       amount: number;
+      currencyCode?: string;
       lines: XeroJournalLine[];
     },
   ): Promise<string> {
@@ -204,6 +211,7 @@ export class XeroGLService {
       narration: opts.narration,
       date: opts.date.toISOString().slice(0, 10),
       status: 'DRAFT',
+      currencyCode: opts.currencyCode ?? 'GBP',
       journalLines: opts.lines,
     };
 

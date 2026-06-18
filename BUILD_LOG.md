@@ -486,3 +486,23 @@ decisions live in `DECISIONS.md`.
   read-only key is rejected with an `mcp:write` error; a replay with the same
   `idempotencyKey` is a no-op (still one movement). api 56 files / 482 tests; web
   20 files / 117 tests; typecheck + build green. **Phase 2 (P15–P19) complete.**
+
+## P20 — Dallas / US site (2026-06-18) — Phase 3 begins
+
+- **Adding Dallas (USD / IMPERIAL / America-Chicago) needs no migration and no
+  schema change** — `sites` carried currency/uom/timezone from P2, the admin
+  Sites page already edits them, and imperial UoM round-trips via the existing
+  `purchase_to_stock_factor` (1 lb = 16 oz). The gaps were GBP *defaults* on the
+  money paths, fixed via one `getSiteCurrency(siteId)` helper (DECISIONS D14):
+  - stock movements (GRN / consumption / wastage) write the site's currency;
+  - GL journals carry a `currencyCode` (added to `XeroManualJournal` + the GL
+    param shapes) — a Dallas GRN / COGS / wastage posts USD;
+  - valuation reports per-site value in the site's currency
+    (`bySite[].currencyCode`);
+  - reorder proposals fall back to the site currency (supplier currency still
+    wins).
+- Tests: creating Dallas needs no migration; lb ↔ oz round-trips via the factor;
+  a Dallas GRN moves 2 lb → 32 oz, the movement + Xero journal are USD, and
+  valuation reports Dallas in USD; valuation segregates a GBP and a USD site by
+  currency. api 57 files / 486 tests; web 20 files / 117 tests; typecheck +
+  build green.

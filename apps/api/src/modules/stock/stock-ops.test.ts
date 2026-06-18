@@ -113,7 +113,7 @@ describe('valuation (WAC)', () => {
 
     const val = await query.valuation({ siteId: siteAId, companyId: COMPANY });
     expect(val.total).toBeCloseTo(11, 5);
-    expect(val.bySite).toEqual([{ siteId: siteAId, value: expect.closeTo(11, 5) }]);
+    expect(val.bySite).toEqual([{ siteId: siteAId, currencyCode: 'GBP', value: expect.closeTo(11, 5) }]);
     const ingredient = val.byItemKind.find((r) => r.itemKind === 'INGREDIENT');
     const retail = val.byItemKind.find((r) => r.itemKind === 'RETAIL');
     expect(ingredient!.value).toBeCloseTo(6, 5);

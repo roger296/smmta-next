@@ -13,6 +13,7 @@ import { getDb } from '../../config/database.js';
 import { sessionConsumption, sessionConsumptionLines } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { XeroGLService } from '../../integrations/xero/xero-gl.service.js';
+import { getSiteCurrency } from '../sites/site-currency.js';
 
 export interface SweepResult {
   date: string;
@@ -61,6 +62,7 @@ export class ConsumptionSweepService {
       const cogs = round2(Number(row.cogs));
       const wastage = round2(Number(row.wastage));
       const label = `${params.date} — site ${row.siteId.slice(0, 8)}`;
+      const currencyCode = await getSiteCurrency(row.siteId, companyId);
       if (cogs > 0) {
         await this.gl.postConsumptionCOGS(getDb(), {
           companyId,
@@ -68,6 +70,7 @@ export class ConsumptionSweepService {
           date,
           amount: cogs,
           label,
+          currencyCode,
         });
         cogsPosted += 1;
         totalCogs += cogs;
@@ -79,6 +82,7 @@ export class ConsumptionSweepService {
           date,
           amount: wastage,
           label,
+          currencyCode,
         });
         wastagePosted += 1;
         totalWastage += wastage;

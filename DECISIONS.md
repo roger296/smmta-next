@@ -253,6 +253,26 @@ streaming + Cowork sessions) is additive — the registry doesn't change.
   stubs returning `{available:false}`) now call the report service with a
   site + from/to window.
 
+## D14 — Multi-currency: every stock money path carries the site's currency (2026-06-18, spec §7)
+Adding Dallas (USD / IMPERIAL / America-Chicago) needed **no migration and no
+schema change** — `sites` carried `currency_code` / `uom_system` / `timezone`
+from P2, and the imperial UoM round-trips through the existing
+`purchase_to_stock_factor` (1 lb = 16 oz ⇒ factor 16). The gaps were GBP
+*defaults* on the money paths, now fixed via one helper `getSiteCurrency(siteId)`:
+- **Stock movements** (GRN, CONSUMPTION, WASTAGE) write the site's currency, not
+  a hardcoded GBP.
+- **GL journals** carry a `currencyCode` (added to `XeroManualJournal` + the GL
+  param shapes); a Dallas GRN / COGS / wastage journal records USD. Account
+  codes are currency-agnostic, so only the journal header currency changes.
+- **Valuation** reports per-site value in that site's own currency
+  (`bySite[].currencyCode`); the cross-site `total` is a naive sum, only
+  meaningful single-currency (documented).
+- **Reorder proposals** fall back to the site's currency (a supplier's own
+  currency still wins).
+Currency *conversion* is deliberately not done — each site's figures stay in its
+own currency; the GL handles any consolidation. Reports already segregate by
+site, so no GBP/USD mixing in a row.
+
 ## D13 — Guarded MCP action tools: scope + confirm, wrapping existing services (2026-06-18, spec §A9)
 - **Action tools are a separate registry, gated by `mcp:write`.** The five write
   tools (`adjust_stock`, `set_reorder_level`, `start_stock_take`,

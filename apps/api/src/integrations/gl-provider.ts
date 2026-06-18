@@ -18,6 +18,8 @@ export interface GRNGLParams {
   stockValue: number;
   deliveryCharge: number;
   isService: boolean;
+  /** The receiving site's currency (spec §7). Defaults GBP. */
+  currencyCode?: string;
 }
 
 export interface StockAdjustmentGLParams {
@@ -27,6 +29,8 @@ export interface StockAdjustmentGLParams {
   stockValue: number;
   type: 'ADD' | 'REMOVE';
   productName: string;
+  /** The site's currency. Defaults GBP. */
+  currencyCode?: string;
 }
 
 export interface StockGLService {

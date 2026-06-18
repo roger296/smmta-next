@@ -19,6 +19,7 @@ import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { glIdempotencyKey } from '../../shared/utils/idempotency.js';
 import { StockLevelService } from '../stock/stock-level.service.js';
 import { getStockGLService } from '../../integrations/gl-provider.js';
+import { getSiteCurrency } from '../sites/site-currency.js';
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 const round4 = (n: number): number => Math.round(n * 10000) / 10000;
@@ -58,6 +59,7 @@ export class GoodsInService {
 
   async receive(input: GoodsInInput): Promise<GoodsInResult> {
     const companyId = input.companyId ?? getSingletonCompanyId();
+    const currencyCode = await getSiteCurrency(input.siteId, companyId);
 
     // Idempotency — a receipt with this key already booked in.
     const existing = await this.db.query.goodsInReceipts.findFirst({
@@ -153,11 +155,12 @@ export class GoodsInService {
         sourceKey: `${receipt!.id}:${p.productId}`,
         contentHash: 'grn',
         unitCost: p.unitCostPerStock,
+        currencyCode,
         companyId,
       });
     }
 
-    // Post the GRN to Xero (idempotent on the receipt key).
+    // Post the GRN to Xero (idempotent on the receipt key), in the site's currency.
     await getStockGLService().postGoodsReceivedNote(this.db, {
       companyId,
       grnId: input.idempotencyKey,
@@ -167,6 +170,7 @@ export class GoodsInService {
       stockValue: totalStockValue,
       deliveryCharge,
       isService: false,
+      currencyCode,
     });
 
     const lines = await this.db

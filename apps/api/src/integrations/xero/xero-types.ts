@@ -20,6 +20,8 @@ export interface XeroManualJournal {
   date: string;
   reference?: string;
   status: 'DRAFT' | 'POSTED';
+  /** ISO currency of the journal (spec §7). Defaults GBP; a USD site posts USD. */
+  currencyCode?: string;
   journalLines: XeroJournalLine[];
 }
 

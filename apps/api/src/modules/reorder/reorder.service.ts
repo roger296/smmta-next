@@ -21,6 +21,7 @@ import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { roundUpToPackMultiple } from '../stock/uom.js';
 import { effectiveAutoPlace, preferredSupplierProduct } from '../stock/supplier-products.js';
 import { renderEmailPO } from './email-po.js';
+import { getSiteCurrency } from '../sites/site-currency.js';
 
 const OPEN_STATUSES = ['PROPOSED', 'APPROVED'] as const;
 
@@ -115,6 +116,9 @@ export class ReorderService {
       }
     }
 
+    // A supplier's currency wins (a US supplier invoices in USD); else fall back
+    // to the *site's* currency, not a hardcoded GBP (spec §7).
+    const currencyCode = supplier?.currencyCode ?? (await getSiteCurrency(siteId, companyId));
     const [row] = await this.db
       .insert(reorderProposals)
       .values({
@@ -126,7 +130,7 @@ export class ReorderService {
         suggestedQtyPurchase: String(qtyPurchase),
         purchaseUom: sp?.supplierPurchaseUom ?? product?.purchaseUom ?? null,
         unitCost: String(unitCost),
-        currencyCode: supplier?.currencyCode ?? 'GBP',
+        currencyCode,
         status,
         channel: supplier ? channel : null,
         triggeredBy: opts.triggeredBy ?? 'sweep',

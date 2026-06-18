@@ -22,6 +22,7 @@ import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { canAccessSite, type JwtPayload } from '../../shared/middleware/auth.js';
 import { StockLevelService } from '../stock/stock-level.service.js';
 import { ExpectedConsumptionService, type CoverGroup } from '../recipes/expected-consumption.service.js';
+import { getSiteCurrency } from '../sites/site-currency.js';
 
 export type SessionConsumption = typeof sessionConsumption.$inferSelect;
 export type SessionConsumptionLine = typeof sessionConsumptionLines.$inferSelect;
@@ -91,6 +92,7 @@ export class SessionConsumptionService {
     const expectedByProduct = new Map(expectedLines.map((l) => [l.productId, l]));
 
     const totalCovers = (input.coverGroups ?? []).reduce((s, g) => s + (g.covers || 0), 0);
+    const currencyCode = await getSiteCurrency(input.siteId, companyId);
     const version = (existing?.version ?? 0) + 1;
     let record: SessionConsumption;
     if (existing) {
@@ -191,6 +193,7 @@ export class SessionConsumptionService {
           sourceKey: `consumption:${input.sessionId}:${line.productId}`,
           contentHash: `v${version}`,
           unitCost,
+          currencyCode,
           companyId,
         });
       }
@@ -205,6 +208,7 @@ export class SessionConsumptionService {
           sourceKey: `wastage:${input.sessionId}:${line.productId}`,
           contentHash: `v${version}`,
           unitCost,
+          currencyCode,
           companyId,
         });
       }
