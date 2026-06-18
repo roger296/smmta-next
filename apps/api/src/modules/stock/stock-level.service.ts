@@ -234,6 +234,43 @@ export class StockLevelService {
     });
   }
 
+  /**
+   * Set per-(product, site) reorder parameters (spec §A7), creating the
+   * stock_levels row at on_hand 0 if it doesn't exist yet. Only the provided
+   * fields are changed.
+   */
+  async setReorderParams(params: {
+    productId: string;
+    siteId: string;
+    reorderPoint?: number | null;
+    reorderUpTo?: number | null;
+    minDaysCover?: number | null;
+    companyId?: string;
+  }): Promise<void> {
+    const companyId = params.companyId ?? getSingletonCompanyId();
+    const num = (v: number | null | undefined): string | null | undefined =>
+      v === undefined ? undefined : v === null ? null : String(v);
+    const set: Record<string, unknown> = { updatedAt: new Date() };
+    if (params.reorderPoint !== undefined) set.reorderPoint = num(params.reorderPoint);
+    if (params.reorderUpTo !== undefined) set.reorderUpTo = num(params.reorderUpTo);
+    if (params.minDaysCover !== undefined) set.minDaysCover = params.minDaysCover;
+    await this.db
+      .insert(stockLevels)
+      .values({
+        companyId,
+        productId: params.productId,
+        siteId: params.siteId,
+        onHand: '0',
+        reorderPoint: num(params.reorderPoint) ?? null,
+        reorderUpTo: num(params.reorderUpTo) ?? null,
+        minDaysCover: params.minDaysCover ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [stockLevels.companyId, stockLevels.productId, stockLevels.siteId],
+        set,
+      });
+  }
+
   /** Current cached on-hand for a (product, site); '0' if no row yet. */
   async getOnHand(productId: string, siteId: string, companyId?: string): Promise<string> {
     const cid = companyId ?? getSingletonCompanyId();

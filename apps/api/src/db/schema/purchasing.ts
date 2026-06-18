@@ -8,7 +8,7 @@ import {
   vatTreatmentEnum, poDeliveryStatusEnum, poInvoiceStatusEnum,
   grnStatusEnum, supplierInvoiceStatusEnum, creditNoteStatusEnum,
   supplierAddressTypeEnum,
-  supplierOrderStatusEnum, supplierConnectorKindEnum,
+  supplierOrderStatusEnum, supplierConnectorKindEnum, supplierOrderChannelEnum,
 } from './common.js';
 import { products } from './products.js';
 import { warehouses } from './reference.js';
@@ -77,6 +77,14 @@ export const suppliers = pgTable('suppliers', {
   showSupplierNameToCustomers: boolean('show_supplier_name_to_customers')
     .notNull()
     .default(false),
+  // ── Auto-Stock ordering channel (spec §A7) ─────────────────────────
+  /** EMAIL_PO (default) renders + emails a PO; API_CONNECTOR auto-places via
+   *  the drop-ship connector. */
+  orderChannel: supplierOrderChannelEnum('order_channel').notNull().default('EMAIL_PO'),
+  /** Where emailed POs are sent (EMAIL_PO suppliers). Falls back to `email`. */
+  orderEmail: varchar('order_email', { length: 200 }),
+  /** Supplier-level default: auto-place reorders vs propose for approval. */
+  autoPlace: boolean('auto_place').notNull().default(false),
   oldId: oldId(),
   ...auditTimestamps,
 }, (t) => ({
@@ -111,6 +119,15 @@ export const supplierProducts = pgTable('supplier_products', {
   isActive: boolean('is_active').notNull().default(true),
   /** Lower number wins when multiple suppliers carry the same SKU. */
   priority: integer('priority').notNull().default(100),
+  // ── Auto-Stock (spec §A7) ──────────────────────────────────────────
+  /** Per-item auto-place override. NULL = inherit the supplier's default;
+   *  true/false overrides it for this specific mapping. */
+  autoPlaceOverride: boolean('auto_place_override'),
+  /** The supplier's buying unit + pack for this SKU (a brand may sell the
+   *  fungible material in its own pack size, e.g. 2 kg bags). NULL ⇒ fall back
+   *  to the product's purchase UoM. */
+  supplierPurchaseUom: varchar('supplier_purchase_uom', { length: 20 }),
+  supplierPackSize: decimal('supplier_pack_size', { precision: 18, scale: 3 }),
   ...auditTimestamps,
 }, (t) => ({
   supplierProductsProductSupplierUnq: uniqueIndex('supplier_products_product_supplier_unq')

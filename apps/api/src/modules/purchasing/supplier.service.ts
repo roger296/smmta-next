@@ -79,6 +79,9 @@ export class SupplierService {
         countryCode: input.countryCode,
         leadTimeDays: input.leadTimeDays,
         defaultExpenseAccountCode: input.defaultExpenseAccountCode,
+        ...(input.orderChannel !== undefined ? { orderChannel: input.orderChannel } : {}),
+        orderEmail: input.orderEmail ?? null,
+        ...(input.autoPlace !== undefined ? { autoPlace: input.autoPlace } : {}),
       })
       .returning();
     return supplier;

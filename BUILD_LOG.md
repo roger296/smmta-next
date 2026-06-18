@@ -173,3 +173,25 @@ decisions live in `DECISIONS.md`.
   nothing; re-post with the same key is a no-op; the account map resolves every
   role; an unconfigured live-mode post degrades to a logged dry-run without
   throwing. api 42 files / 426 tests; web typecheck + build green.
+
+## P6 — Suppliers, supplier-product mapping & reorder parameters (2026-06-18)
+
+- **suppliers** extended (migration `0020`): `order_channel` enum
+  (`EMAIL_PO`|`API_CONNECTOR`, default EMAIL_PO), `order_email`, `auto_place`
+  (supplier-level default). **supplier_products**: `auto_place_override`
+  (null ⇒ inherit), `supplier_purchase_uom`, `supplier_pack_size` (a brand may
+  sell the fungible material in its own pack).
+- `effectiveAutoPlace(sp, supplier)` — per-item override beats the supplier
+  default. Supplier create/update + the supplier-product mapping upsert accept
+  the new fields.
+- `StockLevelService.setReorderParams` — upsert per-(product, site) reorder
+  point / up-to (par) / min-days-cover, creating the level row if absent.
+  Route `PUT /api/v1/stock-levels/reorder` (bulk, ≤500 entries).
+- **Admin SPA**: a "Reorder levels" page (per selected site, bulk-editable
+  point/par/min-days) + the supplier form gains an "Ordering" section
+  (order channel, order email, auto-place). Sidebar items added.
+- Tests: `reorder-params.test.ts` — reorder params persist per site
+  (site-independent; partial updates), and `effectiveAutoPlace` override beats
+  the supplier default. (Two-brand priority resolution already covered by P3's
+  `item-model.test`.) api 43 files / 429 tests; web 17 files / 105 tests;
+  typecheck + build green.

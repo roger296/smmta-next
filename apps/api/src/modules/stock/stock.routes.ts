@@ -45,6 +45,21 @@ const transferSchema = z.object({
   idempotencyKey: z.string().max(200).optional(),
 });
 
+const reorderSchema = z.object({
+  entries: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        siteId: z.string().uuid(),
+        reorderPoint: z.coerce.number().min(0).nullable().optional(),
+        reorderUpTo: z.coerce.number().min(0).nullable().optional(),
+        minDaysCover: z.coerce.number().int().min(0).nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+
 export async function stockRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
 
@@ -64,6 +79,19 @@ export async function stockRoutes(app: FastifyInstance) {
     const q = valuationQuerySchema.parse(request.query);
     const data = await queryService.lowStock(q);
     return { success: true, data };
+  });
+
+  app.put('/stock-levels/reorder', async (request, reply) => {
+    const parsed = reorderSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .status(400)
+        .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
+    }
+    for (const e of parsed.data.entries) {
+      await levelService.setReorderParams(e);
+    }
+    return { success: true, data: { updated: parsed.data.entries.length } };
   });
 
   app.post('/stock-levels/adjust', async (request, reply) => {

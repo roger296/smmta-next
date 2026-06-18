@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 
 export interface StockLevelRow {
@@ -35,5 +35,26 @@ export function useStockValuation(siteId: string | null | undefined) {
     queryKey: ['stock-valuation', siteId],
     queryFn: () => apiFetch<Valuation>('/stock-levels/valuation', { searchParams: { siteId } }),
     enabled: !!siteId,
+  });
+}
+
+export interface ReorderEntry {
+  productId: string;
+  siteId: string;
+  reorderPoint?: number | null;
+  reorderUpTo?: number | null;
+  minDaysCover?: number | null;
+}
+
+/** Bulk-set per-(product, site) reorder parameters. */
+export function useSaveReorderLevels() {
+  const qc = useQueryClient();
+  return useMutation<{ updated: number }, Error, ReorderEntry[]>({
+    mutationFn: (entries) =>
+      apiFetch<{ updated: number }>('/stock-levels/reorder', {
+        method: 'PUT',
+        body: { entries },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-levels'] }),
   });
 }

@@ -115,6 +115,13 @@ export const itemKindEnum = pgEnum('item_kind', [
  *  (Dallas runs IMPERIAL / lb·oz; UK sites METRIC / g). */
 export const uomSystemEnum = pgEnum('uom_system', ['METRIC', 'IMPERIAL']);
 
+/** How a supplier order is placed (spec §A7). EMAIL_PO renders + emails a PO
+ *  (the default for Big Bakes food/merch suppliers); API_CONNECTOR uses the
+ *  drop-ship connector for auto-placement. */
+export const supplierOrderChannelEnum = pgEnum('supplier_order_channel', [
+  'EMAIL_PO', 'API_CONNECTOR',
+]);
+
 /**
  * Stock-movement ledger entry type. On-hand is the running sum of these
  * signed deltas, never a bare counter (spec §A5). GRN = goods received,

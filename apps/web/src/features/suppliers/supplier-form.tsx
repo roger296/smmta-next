@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Field } from '@/components/forms/form-field';
 import { MoneyInput } from '@/components/forms/money-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { VAT_TREATMENTS, CURRENCIES } from '../_shared/vat-treatments';
 
 export const supplierFormSchema = z.object({
@@ -30,6 +31,10 @@ export const supplierFormSchema = z.object({
   vatRegistrationNumber: z.string().max(50).optional().or(z.literal('')),
   countryCode: z.string().max(3).optional().or(z.literal('')),
   leadTimeDays: z.coerce.number().int().min(0).optional(),
+  // Auto-Stock ordering channel (spec §A7).
+  orderChannel: z.enum(['EMAIL_PO', 'API_CONNECTOR']).default('EMAIL_PO'),
+  orderEmail: z.string().email('Invalid email').max(200).optional().or(z.literal('')),
+  autoPlace: z.boolean().default(false),
 });
 
 export type SupplierFormValues = z.input<typeof supplierFormSchema>;
@@ -156,6 +161,41 @@ export function SupplierForm({ defaultValues, onSubmit, submitLabel = 'Save', on
         <Field id="s-countryCode" label="Country code" error={errors.countryCode?.message}>
           <Input maxLength={3} {...register('countryCode')} placeholder="GB" />
         </Field>
+      </div>
+
+      {/* Auto-Stock ordering channel (spec §A7) */}
+      <div className="space-y-4 rounded-md border border-[var(--color-border)] p-4">
+        <h3 className="text-sm font-medium">Ordering</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field id="s-orderChannel" label="Order channel" error={errors.orderChannel?.message}>
+            <Select
+              value={watch('orderChannel')}
+              onValueChange={(v) =>
+                setValue('orderChannel', v as SupplierFormValues['orderChannel'], {
+                  shouldValidate: true,
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="EMAIL_PO">Emailed PO</SelectItem>
+                <SelectItem value="API_CONNECTOR">API connector</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field id="s-orderEmail" label="Order email" error={errors.orderEmail?.message}>
+            <Input type="email" {...register('orderEmail')} placeholder="orders@supplier.example" />
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={watch('autoPlace')}
+            onCheckedChange={(c) => setValue('autoPlace', c === true)}
+          />
+          Auto-place reorders (otherwise propose for approval)
+        </label>
       </div>
 
       <div className="flex justify-end gap-2 pt-4">

@@ -111,6 +111,9 @@ function SupplierDetailPage() {
                   vatRegistrationNumber: supplier.vatRegistrationNumber ?? '',
                   countryCode: supplier.countryCode ?? '',
                   leadTimeDays: supplier.leadTimeDays ?? undefined,
+                  orderChannel: supplier.orderChannel,
+                  orderEmail: supplier.orderEmail ?? '',
+                  autoPlace: supplier.autoPlace,
                 }}
                 submitLabel="Save changes"
                 onSubmit={async (values) => {

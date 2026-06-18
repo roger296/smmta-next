@@ -18,6 +18,17 @@ import { getSingletonCompanyId } from '../../shared/auth/company.js';
 
 export type SupplierProduct = typeof supplierProducts.$inferSelect;
 
+/**
+ * Effective auto-place for a supplier-product (spec §A7): the per-item
+ * override wins when set; otherwise the supplier's default applies.
+ */
+export function effectiveAutoPlace(
+  sp: { autoPlaceOverride: boolean | null },
+  supplier: { autoPlace: boolean },
+): boolean {
+  return sp.autoPlaceOverride ?? supplier.autoPlace;
+}
+
 export async function preferredSupplierProduct(
   productId: string,
   companyId = getSingletonCompanyId(),

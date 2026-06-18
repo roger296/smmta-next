@@ -218,6 +218,11 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
             costGbp: m.costGbp,
             priority: m.priority,
             isActive: m.isActive,
+            ...(m.autoPlaceOverride !== undefined ? { autoPlaceOverride: m.autoPlaceOverride } : {}),
+            ...(m.supplierPurchaseUom !== undefined ? { supplierPurchaseUom: m.supplierPurchaseUom } : {}),
+            ...(m.supplierPackSize !== undefined
+              ? { supplierPackSize: m.supplierPackSize === null ? null : m.supplierPackSize.toString() }
+              : {}),
             updatedAt: new Date(),
           })
           .where(eq(supplierProducts.id, e.id));
@@ -230,6 +235,12 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
           costGbp: m.costGbp,
           priority: m.priority,
           isActive: m.isActive,
+          autoPlaceOverride: m.autoPlaceOverride ?? null,
+          supplierPurchaseUom: m.supplierPurchaseUom ?? null,
+          supplierPackSize:
+            m.supplierPackSize !== undefined && m.supplierPackSize !== null
+              ? m.supplierPackSize.toString()
+              : null,
         });
       }
     }

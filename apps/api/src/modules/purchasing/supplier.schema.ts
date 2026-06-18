@@ -23,6 +23,10 @@ export const createSupplierSchema = z.object({
   countryCode: z.string().max(3).optional(),
   leadTimeDays: z.coerce.number().int().min(0).optional(),
   defaultExpenseAccountCode: z.string().max(10).optional(),
+  // ── Auto-Stock ordering channel (spec §A7) ──
+  orderChannel: z.enum(['EMAIL_PO', 'API_CONNECTOR']).optional(),
+  orderEmail: z.string().email().max(200).nullable().optional(),
+  autoPlace: z.boolean().optional(),
 });
 
 export const updateSupplierSchema = createSupplierSchema.partial();
@@ -76,6 +80,11 @@ export const upsertSupplierMappingsSchema = z.object({
         costGbp: z.string().regex(/^\d+(\.\d{1,2})?$/, 'costGbp must be a decimal string'),
         priority: z.coerce.number().int().min(0).max(10_000).default(100),
         isActive: z.boolean().default(true),
+        // Per-item auto-place override (null ⇒ inherit supplier default) + the
+        // supplier's own buying unit/pack for this SKU (spec §A7).
+        autoPlaceOverride: z.boolean().nullable().optional(),
+        supplierPurchaseUom: z.string().max(20).nullable().optional(),
+        supplierPackSize: z.coerce.number().positive().nullable().optional(),
       }),
     )
     .max(50),

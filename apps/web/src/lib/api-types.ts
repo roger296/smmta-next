@@ -126,6 +126,10 @@ export interface Supplier {
   countryCode: string | null;
   leadTimeDays: number | null;
   defaultExpenseAccountCode: string | null;
+  // Auto-Stock ordering channel (spec §A7).
+  orderChannel: 'EMAIL_PO' | 'API_CONNECTOR';
+  orderEmail: string | null;
+  autoPlace: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
