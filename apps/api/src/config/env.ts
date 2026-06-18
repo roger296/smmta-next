@@ -80,6 +80,14 @@ const envSchema = z.object({
   //                                   plain keyword matching (no LLM call).
   FEATURE_MARKETPLACE: boolFromEnv,
   FEATURE_CONVERSATIONAL_SEARCH: boolFromEnv,
+
+  // ── BumbleBee shared catalogue (spec §A4) ──────────────────────────
+  // Auto-Stock is system-of-record; BumbleBee consumes a slim subset. The
+  // outbound push is OFF by default — the BumbleBee write endpoint is a
+  // documented follow-up; until then a sync logs the intended payload only.
+  CATALOGUE_SYNC: boolFromEnv,
+  BUMBLEBEE_API_BASE_URL: z.string().default(''),
+  BUMBLEBEE_API_KEY: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

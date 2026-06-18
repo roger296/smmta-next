@@ -285,3 +285,23 @@ decisions live in `DECISIONS.md`.
   a sale crossing the reorder point raises a replenishment (via the hook);
   auto-match by barcode. api 47 files / 448 tests; web 105 tests; typecheck +
   build green.
+
+## P11 — Shared product catalogue with BumbleBee (2026-06-18)
+
+- `CatalogueSyncService` (`modules/catalogue-sync/`): `importProducts(rows)`
+  idempotently upserts BumbleBee products into Auto-Stock products carrying
+  `bumblebee_product_id` (match by bumblebee id → stock_code → name), mapping
+  BumbleBee `product_type` → Auto-Stock `item_kind` (`bumblebeeTypeToItemKind`,
+  unknown ⇒ RETAIL). `buildSlimSubset` returns the identity/name/category/sale-
+  price projection BumbleBee consumes; `pushSlimSubset` is **dry-run by default**
+  (`CATALOGUE_SYNC` off ⇒ logs the payload, sends nothing — the BumbleBee write
+  endpoint is a documented follow-up). `reconcile(bumblebeeIds)` flags the gaps:
+  Auto-Stock products without a BumbleBee id, and BumbleBee ids not yet stocked.
+- Config: `CATALOGUE_SYNC` (default off), `BUMBLEBEE_API_BASE_URL/KEY`.
+- **Routes** (`catalogue-sync.routes.ts`): `POST /catalogue/import`,
+  `POST /catalogue/sync`, `POST /catalogue/reconcile`.
+- Tests: `catalogue-sync.service.test.ts` — type→item_kind mapping; import is
+  idempotent (re-run updates, never duplicates); the slim push is dry-run by
+  default and builds exactly the slim payload; reconcile flags the right gaps.
+  (BumbleBee product ids are UUIDs — fixtures use valid UUIDs.) api 48 files /
+  452 tests; build green.

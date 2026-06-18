@@ -24,6 +24,7 @@ import { reorderRoutes } from './modules/reorder/reorder.routes.js';
 import { goodsInRoutes } from './modules/goods-in/goods-in.routes.js';
 import { stockTakeRoutes } from './modules/stock-take/stock-take.routes.js';
 import { squareRoutes } from './modules/square/square.routes.js';
+import { catalogueSyncRoutes } from './modules/catalogue-sync/catalogue-sync.routes.js';
 import { dropshipSupplierRoutes } from './modules/suppliers/supplier-dropship.routes.js';
 import { supplierOrdersRoutes } from './modules/suppliers/supplier-orders.routes.js';
 import {
@@ -118,6 +119,9 @@ export async function buildApp() {
 
   // Auto-Stock: Square sales → automatic stock decrement (spec §A8).
   await app.register(squareRoutes, { prefix: '/api/v1' });
+
+  // Auto-Stock: shared product catalogue with BumbleBee (spec §A4).
+  await app.register(catalogueSyncRoutes, { prefix: '/api/v1' });
 
   // Drop-ship suppliers: list/edit, test connection, poll-now, per-product mapping.
   await app.register(dropshipSupplierRoutes, { prefix: '/api/v1' });
