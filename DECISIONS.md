@@ -128,3 +128,19 @@ transaction (quantity conserved). Valuation is weighted-average cost (WAC) per
 - Shared-device PIN login: a `device_pins` table (scrypt-hashed PIN, scoped to a
   site + roles) + a public `POST /auth/pin-login` issuing a 12h scoped JWT; the
   head-baker role is added in P16.
+
+## D8 — MCP wire protocol implemented directly, not via the SDK transport (2026-06-18, spec §A9)
+The MCP server at `POST /mcp` implements the MCP JSON-RPC methods (initialize /
+tools/list / tools/call) **directly over HTTP** rather than mounting the SDK's
+session-managed `StreamableHTTPServerTransport`. Reasons: it's fully testable
+with plain `app.inject` (no MCP client needed), adds no dependency, and stays
+green; the tool registry (`modules/mcp/tools.ts`) is the same surface P19's
+guarded write tools extend. Auth reuses the `api_keys` verification (new
+`mcp:read` scope; `mcp:write` reserved for P19) and, on 401, returns the
+RFC 9728 `WWW-Authenticate: Bearer resource_metadata="…"` hint pointing at
+`GET /.well-known/oauth-protected-resource` (BumbleBee's pattern). Every tool
+call is audited to `mcp_audit_log` (best-effort). The read tools wrap the same
+services the REST routes use; `consumption_variance` / `wastage_report` /
+`sessions_awaiting_consumption` return `{ available: false }` until their data
+lands (P16-P18). Swapping in the real SDK transport at go-live (for SSE
+streaming + Cowork sessions) is additive — the registry doesn't change.

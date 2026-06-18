@@ -347,3 +347,22 @@ decisions live in `DECISIONS.md`.
   reconnect flush applies each queued action exactly once) + the UoM helpers.
   The screens wire to the already-tested P8/P9 services. web 21 files / 117
   tests; typecheck + build green (api unchanged at 50 files / 458 tests).
+
+## P14 — Read-only MCP server for Claude / Cowork (2026-06-18) — END OF PHASE 1
+
+- **MCP server** mounted at root: `POST /mcp` (MCP JSON-RPC — initialize /
+  tools/list / tools/call, implemented directly over HTTP, DECISIONS D8) +
+  `GET /.well-known/oauth-protected-resource` (RFC 9728 discovery).
+- **Auth**: a new `mcp:read` api-key scope (added to `apiKeyScopeSchema`;
+  `mcp:write` reserved for P19); `/mcp` is bearer-authed and, on 401, returns
+  the RFC 9728 `WWW-Authenticate: Bearer resource_metadata="…"` hint. Every
+  tool call audited to `mcp_audit_log` (migration `0026`, best-effort).
+- **Read tools** (`modules/mcp/tools.ts`) wrap the same services the REST routes
+  use: `stock_on_hand`, `low_stock`, `reorder_suggestions`, `stock_valuation`,
+  `purchase_order_status`, `product_lookup`; `consumption_variance` /
+  `wastage_report` / `sessions_awaiting_consumption` return `{ available:false }`
+  until their data lands (P16-P18). `site` args resolve by id / slug / name.
+- Tests: `mcp.routes.test.ts` — discovery metadata; an unauthenticated /mcp
+  call → 401 with the resource-metadata hint; tools/list + initialize; a tool
+  returns the same data as its service and writes one audit row. api 51 files /
+  462 tests; typecheck + build green. **Phase 1 (P1–P14) complete.**

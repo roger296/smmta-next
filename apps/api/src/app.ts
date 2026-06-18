@@ -26,6 +26,7 @@ import { stockTakeRoutes } from './modules/stock-take/stock-take.routes.js';
 import { squareRoutes } from './modules/square/square.routes.js';
 import { catalogueSyncRoutes } from './modules/catalogue-sync/catalogue-sync.routes.js';
 import { pinAuthRoutes } from './modules/auth/pin.routes.js';
+import { mcpRoutes } from './modules/mcp/mcp.routes.js';
 import { dropshipSupplierRoutes } from './modules/suppliers/supplier-dropship.routes.js';
 import { supplierOrdersRoutes } from './modules/suppliers/supplier-orders.routes.js';
 import {
@@ -126,6 +127,10 @@ export async function buildApp() {
 
   // Auto-Stock: shared-device PIN login for the iPad PWA (spec §A11).
   await app.register(pinAuthRoutes, { prefix: '/api/v1' });
+
+  // Auto-Stock: MCP server for Claude / Cowork — mounted at root (/mcp +
+  // /.well-known/oauth-protected-resource), spec §A9.
+  await app.register(mcpRoutes);
 
   // Drop-ship suppliers: list/edit, test connection, poll-now, per-product mapping.
   await app.register(dropshipSupplierRoutes, { prefix: '/api/v1' });

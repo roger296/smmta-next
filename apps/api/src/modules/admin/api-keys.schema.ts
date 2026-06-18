@@ -8,6 +8,9 @@ import { z } from 'zod';
 export const apiKeyScopeSchema = z.enum([
   'storefront:read',
   'storefront:write',
+  // Auto-Stock MCP server (spec §A9): read tools (P14) + guarded write tools (P19).
+  'mcp:read',
+  'mcp:write',
 ]);
 
 export const createApiKeySchema = z.object({
