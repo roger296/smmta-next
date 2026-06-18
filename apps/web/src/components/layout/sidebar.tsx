@@ -18,6 +18,7 @@ import {
   Banknote,
   Gauge,
   ShoppingBag,
+  Square as SquareIcon,
 } from 'lucide-react';
 
 interface NavItem {
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Stock by site', to: '/stock/by-site', icon: PackageSearch },
   { label: 'Reorder levels', to: '/stock/reorder', icon: Gauge },
   { label: 'Reorder suggestions', to: '/reorder', icon: ShoppingBag },
+  { label: 'Square mapping', to: '/square', icon: SquareIcon },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },

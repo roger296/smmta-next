@@ -263,3 +263,25 @@ decisions live in `DECISIONS.md`.
   adjustment (idempotent on re-approve); a re-submitted count batch is
   offline-idempotent; an ITEM-scope take only touches its product. api 46 files
   / 444 tests; build green.
+
+## P10 — Square sales → automatic stock decrement (2026-06-18)
+
+- **`square_item_map` + `square_unmapped_lines`** (migration `0024`) +
+  `SquareDecrementService` (`modules/square/`): `ingestLine` resolves a sale
+  line to a product (pre-resolved BumbleBee `productId`, or the Square item via
+  the map) and a site (direct `siteId`, or a BumbleBee canonical site name),
+  then writes a **SALE movement idempotent on `(channel_slug, source_pk,
+  source_line_ref)`** — a replay is a no-op. The reorder engine fires
+  automatically off the decrement (the `applyMovement` hook from P7). An
+  unmapped item/site is **quarantined** in `square_unmapped_lines` (surfaced,
+  never dropped). `autoMatchByBarcode` auto-suggests map entries by barcode/ean.
+- **Routes** (`square.routes.ts`): `POST /square/decrement`,
+  `GET/PUT /square/item-map`, `POST /square/auto-match`, `GET /square/unmapped`.
+  The BumbleBee Square-order poll (P24 timer) posts to `/decrement`.
+- **SPA**: a "Square mapping" page (quarantined lines with a map-to-product
+  action + the current map) + sidebar item.
+- Tests: `square-decrement.service.test.ts` — a sale decrements the mapped SKU
+  at the mapped site and a replay is a no-op; an unmapped item is quarantined;
+  a sale crossing the reorder point raises a replenishment (via the hook);
+  auto-match by barcode. api 47 files / 448 tests; web 105 tests; typecheck +
+  build green.

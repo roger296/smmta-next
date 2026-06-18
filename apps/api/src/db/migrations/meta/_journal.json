@@ -169,6 +169,13 @@
       "when": 1781804581302,
       "tag": "0023_burly_shooting_star",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781804859842,
+      "tag": "0024_icy_exiles",
+      "breakpoints": true
     }
   ]
 }
