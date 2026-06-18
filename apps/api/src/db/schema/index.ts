@@ -16,3 +16,4 @@ export * from './reorder.js';
 export * from './goods-in.js';
 export * from './stock-take.js';
 export * from './square.js';
+export * from './device-pins.js';

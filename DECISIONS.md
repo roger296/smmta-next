@@ -108,3 +108,23 @@ transaction (quantity conserved). Valuation is weighted-average cost (WAC) per
   rate-of-use, which the demand estimator provides in **P22**; until then the
   quantity is driven by par + pack-size rounding. Documented so the divergence
   from "respecting min_days_cover" is explicit.
+
+## D7 — PWA built into apps/web, dependency-free; asset test lives in api (2026-06-18, spec §A1/§A11)
+- The iPad PWA is a **route-tree area inside `apps/web`** (not a slim sibling) —
+  it matches the existing Vite/React tooling, reuses the auth + api-client +
+  components, and keeps one deployable SPA. Installability is a hand-written
+  `public/manifest.webmanifest` + `public/sw.js` (cache-first shell, never
+  caches `/api/`) registered in `main.tsx` (prod only). **No new PWA/scanner
+  dependency** was added: barcode scanning uses the native `BarcodeDetector`
+  with an **injectable** scan/lookup so it's testable; the offline queue is a
+  small localStorage-backed (pluggable) store keyed by the client idempotency
+  id, so the server-side idempotency (goods-in / stock-take) makes a replay
+  safe.
+- The manifest/SW **validity test lives in the api package** (`pwa-assets.test.ts`)
+  rather than apps/web: the web build's `tsc -b` type-checks test files but the
+  web app project has no Node types, so a `node:fs` read of the public assets
+  only compiles under api's Node-typed config. It reads the sibling
+  `apps/web/public` via `import.meta.url` (cwd-independent).
+- Shared-device PIN login: a `device_pins` table (scrypt-hashed PIN, scoped to a
+  site + roles) + a public `POST /auth/pin-login` issuing a 12h scoped JWT; the
+  head-baker role is added in P16.

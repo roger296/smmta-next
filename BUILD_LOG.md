@@ -305,3 +305,25 @@ decisions live in `DECISIONS.md`.
   default and builds exactly the slim payload; reconcile flags the right gaps.
   (BumbleBee product ids are UUIDs — fixtures use valid UUIDs.) api 48 files /
   452 tests; build green.
+
+## P12 — iPad PWA shell (2026-06-18)
+
+- **PWA in apps/web** (DECISIONS D7): hand-written `public/manifest.webmanifest`
+  + `public/sw.js` (cache-first shell, never caches `/api/`), registered in
+  `main.tsx` (prod only); `index.html` rebranded + meta/manifest links.
+- **Shared-device PIN login**: `device_pins` table (migration `0025`,
+  scrypt-hashed PIN scoped to a site + roles) + public `POST /auth/pin-login`
+  issuing a 12h scoped JWT, and an admin `POST /device-pins`. A touch-first
+  PIN-pad route (`routes/pin-login.tsx`).
+- **Offline queue** (`lib/offline-queue.ts`): localStorage-backed (pluggable)
+  store keyed by the client idempotency id — enqueuing the same key never
+  duplicates; `flush` removes only accepted actions and keeps failures.
+- **Barcode** (`lib/barcode.ts`): native `BarcodeDetector` support check +
+  `resolveBarcodeToProduct` with an injectable lookup (testable).
+- No new PWA/scanner dependency added.
+- Tests: api `pin.routes.test.ts` (valid PIN → scoped token, wrong PIN 401,
+  create requires auth) + `pwa-assets.test.ts` (manifest valid, SW bypasses
+  `/api/`); web `offline-queue.test.ts` (no-duplicate enqueue, flush keeps
+  failures, replay doesn't re-send) + `barcode.test.ts` (resolves a scanned
+  code, ean fallback, null when no match). api 50 files / 458 tests; web 19
+  files / 111 tests; typecheck + build green.

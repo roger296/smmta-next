@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PinLoginRouteImport } from './routes/pin-login'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteRouteImport } from './routes/_authed/route'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
@@ -53,6 +54,11 @@ import { Route as AuthedIntegrationsBulkRouteImport } from './routes/_authed/int
 import { Route as AuthedCustomersNewRouteImport } from './routes/_authed/customers/new'
 import { Route as AuthedCustomersIdRouteImport } from './routes/_authed/customers/$id'
 
+const PinLoginRoute = PinLoginRouteImport.update({
+  id: '/pin-login',
+  path: '/pin-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -277,6 +283,7 @@ const AuthedCustomersIdRoute = AuthedCustomersIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/pin-login': typeof PinLoginRoute
   '/reorder': typeof AuthedReorderRoute
   '/square': typeof AuthedSquareRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
@@ -320,6 +327,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/pin-login': typeof PinLoginRoute
   '/reorder': typeof AuthedReorderRoute
   '/square': typeof AuthedSquareRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
@@ -366,6 +374,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteRouteWithChildren
   '/login': typeof LoginRoute
+  '/pin-login': typeof PinLoginRoute
   '/_authed/reorder': typeof AuthedReorderRoute
   '/_authed/square': typeof AuthedSquareRoute
   '/_authed/xero-accounts': typeof AuthedXeroAccountsRoute
@@ -413,6 +422,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/pin-login'
     | '/reorder'
     | '/square'
     | '/xero-accounts'
@@ -456,6 +466,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/pin-login'
     | '/reorder'
     | '/square'
     | '/xero-accounts'
@@ -501,6 +512,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authed'
     | '/login'
+    | '/pin-login'
     | '/_authed/reorder'
     | '/_authed/square'
     | '/_authed/xero-accounts'
@@ -547,10 +559,18 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthedRouteRoute: typeof AuthedRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
+  PinLoginRoute: typeof PinLoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/pin-login': {
+      id: '/pin-login'
+      path: '/pin-login'
+      fullPath: '/pin-login'
+      preLoaderRoute: typeof PinLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -950,6 +970,7 @@ const AuthedRouteRouteWithChildren = AuthedRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthedRouteRoute: AuthedRouteRouteWithChildren,
   LoginRoute: LoginRoute,
+  PinLoginRoute: PinLoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
