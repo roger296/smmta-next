@@ -122,9 +122,7 @@ function ConsumptionDashboard() {
                   <tr key={s.sessionId} className="border-b border-[var(--color-border)] last:border-0">
                     <td className="px-4 py-3 font-mono text-xs">{s.sessionId}</td>
                     <td className="px-4 py-3">{formatDate(s.sessionDate)}</td>
-                    <td className="px-4 py-3">
-                      {s.coverGroups.map((g) => `${g.experience} ×${g.covers}`).join(', ') || '—'}
-                    </td>
+                    <td className="px-4 py-3 tabular-nums">{s.covers || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -148,6 +146,7 @@ function ConsumptionDashboard() {
                 <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted-foreground)]">
                   <th className="px-4 py-3 font-medium">Session</th>
                   <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium">Cake</th>
                   <th className="px-4 py-3 font-medium">Baker</th>
                   <th className="px-4 py-3 font-medium">Materials cost</th>
                   <th className="px-4 py-3 font-medium">Rev.</th>
@@ -158,6 +157,7 @@ function ConsumptionDashboard() {
                   <tr key={r.id} className="border-b border-[var(--color-border)] last:border-0">
                     <td className="px-4 py-3 font-mono text-xs">{r.sessionId}</td>
                     <td className="px-4 py-3">{formatDate(r.sessionDate)}</td>
+                    <td className="px-4 py-3">{r.bake ?? '—'}</td>
                     <td className="px-4 py-3">{r.bakerName}</td>
                     <td className="px-4 py-3 tabular-nums">{formatMoney(Number(r.materialsCost))}</td>
                     <td className="px-4 py-3">

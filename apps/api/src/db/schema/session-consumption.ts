@@ -39,8 +39,10 @@ export const sessionConsumption = pgTable(
     /** Baker identity chosen at submit (from the site roster / Deputy). */
     bakerName: varchar('baker_name', { length: 200 }).notNull(),
     bakerRef: varchar('baker_ref', { length: 200 }),
-    /** Total covers across the session's experiences — for per-cover food-cost
-     *  metrics (P18). Σ of the submitted cover-groups. */
+    /** The cake baked this session (free-form menu item) — what the recipe
+     *  expected was computed against. */
+    bake: varchar('bake', { length: 200 }),
+    /** Covers (guest count) this session — for per-cover food-cost metrics. */
     covers: integer('covers').notNull().default(0),
     /** Bumped on each amend; drives the per-version movement idempotency key. */
     version: integer('version').notNull().default(0),

@@ -692,3 +692,25 @@ divergences are in `DECISIONS.md` (D1–D18).
 5. Wire the live Square Orders pull + the BumbleBee session/write endpoints;
    turn on `CATALOGUE_SYNC` / `MATERIALS_COST_SYNC` when ready.
 6. Capture a real sampled golden dataset and re-run the e2e against it.
+
+---
+
+## Post-build: recipes re-keyed by cake (2026-06-19)
+
+Owner correction: recipes were wrongly keyed by an `experience_type` enum
+(CLASSIC/SWEETER/ULTIMATE). Those are **experience packages** (pricing bundles of
+experience + merch + beverage), not recipes — two guests on different packages
+bake the same cake. Re-keyed recipes by the **cake** (`recipes.bake`, free-form;
+one cake per session; covers = guests), replaced `products.experience_type` with
+`products.is_experience_booking`, added `session_consumption.bake`, wired the
+admin + PWA forms to a cake field, and seeded the four launch cakes (Burger
+Cake, Victoria Sponge, Coffee & Walnut Delight, Battenburg) with standard
+British-recipe ingredients via `scripts/seed-bakes.ts`. Two-pass migration
+(`0034` add / `0035` drop) keeps it non-interactive (DECISIONS D19). api 62 files
+/ 510 tests; web 21 / 117; typecheck + build green.
+
+**Local demo runs on its own DB.** The dev app uses a separate `smmta_dev`
+database (seeded with sites + a login + the cakes) so demo data never pollutes
+the `smmta_next` **test** DB. Start the api for the demo with
+`DATABASE_URL=…/smmta_dev npm run dev -w @smmta/api`; tests keep using
+`…/smmta_next`.

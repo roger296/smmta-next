@@ -1,14 +1,15 @@
 /**
  * Recipes / BOM API (P15, spec §A6).
  *
- *   GET  /api/v1/recipes                 — list (filter by experience / site)
- *   GET  /api/v1/recipes/effective       — the recipe effective for (experience, site, date)
+ *   GET  /api/v1/recipes                 — list (filter by cake / site)
+ *   GET  /api/v1/recipes/bakes           — the distinct cakes (the menu)
+ *   GET  /api/v1/recipes/effective       — the recipe effective for (cake, site, date)
  *   GET  /api/v1/recipes/:id             — recipe + lines
  *   POST /api/v1/recipes                 — create a new version with lines
  *   POST /api/v1/recipes/expected        — expected consumption for a session
  *
- * JWT-gated. The admin Recipes page (versioned editor, per-site override,
- * effective dates) drives these.
+ * JWT-gated. A recipe is keyed by the **cake** (`bake`, free-form), not an
+ * experience package tier. The admin Recipes page drives these.
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -16,11 +17,11 @@ import { requireAuth } from '../../shared/middleware/auth.js';
 import { RecipeService } from './recipe.service.js';
 import { ExpectedConsumptionService } from './expected-consumption.service.js';
 
-const experienceSchema = z.enum(['CLASSIC', 'SWEETER', 'ULTIMATE']);
+const bakeSchema = z.string().min(1).max(200);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
 const createSchema = z.object({
-  experience: experienceSchema,
+  bake: bakeSchema,
   siteId: z.string().uuid().nullable().optional(),
   effectiveFrom: dateSchema,
   effectiveTo: dateSchema.nullable().optional(),
@@ -40,23 +41,21 @@ const createSchema = z.object({
 });
 
 const listQuerySchema = z.object({
-  experience: experienceSchema.optional(),
+  bake: bakeSchema.optional(),
   siteId: z.string().uuid().optional(),
 });
 
 const effectiveQuerySchema = z.object({
-  experience: experienceSchema,
+  bake: bakeSchema,
   siteId: z.string().uuid(),
   onDate: dateSchema,
 });
 
 const expectedSchema = z.object({
+  bake: bakeSchema,
   siteId: z.string().uuid(),
   onDate: dateSchema,
-  coverGroups: z
-    .array(z.object({ experience: experienceSchema, covers: z.coerce.number().min(0) }))
-    .min(1)
-    .max(20),
+  covers: z.coerce.number().min(0),
 });
 
 const idParamSchema = z.object({ id: z.string().uuid() });
@@ -71,6 +70,10 @@ export async function recipeRoutes(app: FastifyInstance) {
     const q = listQuerySchema.parse(request.query);
     const data = await recipes.list(q);
     return { success: true, data };
+  });
+
+  app.get('/recipes/bakes', async () => {
+    return { success: true, data: await recipes.listBakes() };
   });
 
   app.get('/recipes/effective', async (request, reply) => {

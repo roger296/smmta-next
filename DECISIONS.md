@@ -345,6 +345,33 @@ periodic jobs each get a CLI under `apps/api/scripts/run-*.ts`; `run-square-poll
 and `run-bumblebee-session-poll` are guarded go-live pullers (no-op without
 credentials, like every other external integration in the build).
 
+## D19 — Recipes are keyed by the CAKE, not the experience package (2026-06-19)
+Model correction (post-build, from the owner). P15 wrongly keyed recipes by an
+`experience_type` enum (CLASSIC/SWEETER/ULTIMATE). Those are **experience
+packages** — bundles of experience + merch + beverage sold at different prices
+(a Square/BumbleBee pricing concern) — **not** recipes. Two guests on different
+packages bake the same cake.
+- **`recipes.bake` is a free-form cake name** (e.g. "Victoria Sponge"), not an
+  enum: the cake menu grows without a migration; the recipe IS the cake's
+  definition. `expectedForSession({ bake, covers })` = recipe(cake) × covers.
+- **One cake per session.** A session bakes a single cake; the package tier only
+  affects covers (guest count) + price, never ingredients. `coverGroups` (the
+  old per-experience list) collapsed to a single `bake` + `covers`.
+- **`products.is_experience_booking` (bool)** replaces `products.experience_type`
+  — it just flags the bookable experience-package products so a session's covers
+  can be summed from its order lines (`resolveCovers`); the cake is chosen on the
+  head-baker form. `session_consumption.bake` records which cake a session made.
+- **Migration in two non-interactive passes** (`0034` add, `0035` drop): the
+  enum→varchar / enum→bool column renames would otherwise need an interactive
+  drizzle prompt. Pass 1 adds the new columns (keeping the old → additions only,
+  no prompt); pass 2 drops the old columns + the enum (removals only, no prompt).
+  Safe because `recipes` was empty and `products.experience_type` all-NULL.
+- The experience-package pricing/merch/beverage bundle itself is out of scope
+  here (it lives in the sale, via Square/BumbleBee) — this change only stops the
+  stock system mislabelling cakes as experiences. `scripts/seed-bakes.ts` seeds
+  the four launch cakes (Burger Cake, Victoria Sponge, Coffee & Walnut Delight,
+  Battenburg) with standard British-recipe ingredient lists.
+
 ## D13 — Guarded MCP action tools: scope + confirm, wrapping existing services (2026-06-18, spec §A9)
 - **Action tools are a separate registry, gated by `mcp:write`.** The five write
   tools (`adjust_stock`, `set_reorder_level`, `start_stock_take`,

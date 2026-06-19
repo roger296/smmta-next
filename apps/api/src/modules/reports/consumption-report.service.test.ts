@@ -57,7 +57,8 @@ async function submit(sessionId: string, date: string, actual: number, wastage =
     siteId,
     sessionDate: date,
     bakerName: 'Rep',
-    coverGroups: [{ experience: 'CLASSIC', covers: 8 }],
+    bake: 'Victoria Sponge',
+    covers: 8,
     lines: [{ productId: flourId, actualQty: actual, wastageQty: wastage, wastageReason: wastage ? 'spill' : null }],
     companyId: COMPANY,
   });
@@ -82,7 +83,7 @@ beforeAll(async () => {
     .returning();
   siteId = site!.id;
   await recipeSvc.create({
-    experience: 'CLASSIC',
+    bake: 'Victoria Sponge',
     effectiveFrom: '2026-01-01',
     lines: [{ productId: flourId, qtyPerCover: 100 }],
     companyId: COMPANY,

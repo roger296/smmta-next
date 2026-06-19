@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 
-export type ExperienceType = 'CLASSIC' | 'SWEETER' | 'ULTIMATE';
-
 export interface ExpectedLine {
   productId: string;
   qtyPerCover: number;
@@ -30,6 +28,8 @@ export interface ConsumptionRecord {
   sessionId: string;
   sessionDate: string;
   bakerName: string;
+  bake: string | null;
+  covers: number;
   version: number;
   materialsCost: string;
   submittedAt: string | null;
@@ -38,15 +38,15 @@ export interface ConsumptionRecord {
 export interface AwaitingSession {
   sessionId: string;
   sessionDate: string;
-  coverGroups: Array<{ experience: ExperienceType; covers: number }>;
+  covers: number;
 }
 
-/** Compute expected consumption for a session's cover-groups (recipe × covers). */
+/** Compute expected consumption for a session = recipe(cake) × covers. */
 export function useExpectedConsumption() {
   return useMutation<
     ExpectedLine[],
     Error,
-    { siteId: string; onDate: string; coverGroups: Array<{ experience: ExperienceType; covers: number }> }
+    { siteId: string; onDate: string; bake: string; covers: number }
   >({
     mutationFn: (input) => apiFetch<ExpectedLine[]>('/recipes/expected', { method: 'POST', body: input }),
   });

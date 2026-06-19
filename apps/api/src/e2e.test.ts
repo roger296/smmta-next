@@ -96,7 +96,7 @@ beforeAll(async () => {
   flourId = (await db.insert(products).values({ companyId: COMPANY, name: 'E2E Flour', slug: 'e2e-flour', itemKind: 'INGREDIENT', stockUom: 'g', purchaseUom: 'kg', purchaseToStockFactor: '1000', expectedNextCost: '0.05' }).returning())[0]!.id;
   cookieId = (await db.insert(products).values({ companyId: COMPANY, name: 'E2E Cookie', slug: 'e2e-cookie', itemKind: 'RETAIL', stockUom: 'each', isSold: true, expectedNextCost: '2.00' }).returning())[0]!.id;
   butterId = (await db.insert(products).values({ companyId: COMPANY, name: 'E2E Butter', slug: 'e2e-butter', itemKind: 'INGREDIENT', stockUom: 'oz', purchaseUom: 'lb', purchaseToStockFactor: '16', expectedNextCost: '0.10' }).returning())[0]!.id;
-  await new RecipeService().create({ experience: 'CLASSIC', effectiveFrom: '2026-01-01', lines: [{ productId: flourId, qtyPerCover: 100 }], companyId: COMPANY });
+  await new RecipeService().create({ bake: 'Victoria Sponge', effectiveFrom: '2026-01-01', lines: [{ productId: flourId, qtyPerCover: 100 }], companyId: COMPANY });
 
   const goodsIn = new GoodsInService();
 
@@ -120,7 +120,8 @@ beforeAll(async () => {
   // 4. Head-baker consumption: CLASSIC × 8 covers; flour actual 750 + wastage 50.
   await new SessionConsumptionService().submit({
     sessionId: SESSION, siteId: ukId, sessionDate: DATE, bakerName: 'E2E Baker',
-    coverGroups: [{ experience: 'CLASSIC', covers: 8 }],
+    bake: 'Victoria Sponge',
+    covers: 8,
     lines: [{ productId: flourId, actualQty: 750, wastageQty: 50, wastageReason: 'spill' }],
     clientKey: 'e2e-c1', companyId: COMPANY,
   });
@@ -229,7 +230,8 @@ describe('idempotency — replays are no-ops', () => {
     // Consumption replay (same clientKey) → version unchanged.
     const re = await new SessionConsumptionService().submit({
       sessionId: SESSION, siteId: ukId, sessionDate: DATE, bakerName: 'E2E Baker',
-      coverGroups: [{ experience: 'CLASSIC', covers: 8 }],
+      bake: 'Victoria Sponge',
+    covers: 8,
       lines: [{ productId: flourId, actualQty: 750, wastageQty: 50, wastageReason: 'spill' }],
       clientKey: 'e2e-c1', companyId: COMPANY,
     });

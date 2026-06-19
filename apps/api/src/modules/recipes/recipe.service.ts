@@ -1,11 +1,12 @@
 /**
  * RecipeService (P15, spec §A6).
  *
- * Maintains versioned, date-effective recipes (per experience, with an optional
- * per-site override) and their ingredient lines. Creating a recipe allocates the
- * next version for its (experience, site) and seeds each line's `unitCost` from
- * the product's BumbleBee cost (`expected_next_cost`) and its `stockUom`, unless
- * the caller supplies them. The admin Recipes page drives these.
+ * Maintains versioned, date-effective recipes per **cake** (`bake`, a free-form
+ * menu item — NOT an experience package tier), with an optional per-site
+ * override and ingredient lines. Creating a recipe allocates the next version
+ * for its (bake, site) and seeds each line's `unitCost` from the product's
+ * BumbleBee cost (`expected_next_cost`) and its `stockUom`, unless the caller
+ * supplies them. The admin Recipes page drives these.
  */
 import { and, asc, desc, eq, isNull, max } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
@@ -14,7 +15,6 @@ import { getSingletonCompanyId } from '../../shared/auth/company.js';
 
 export type Recipe = typeof recipes.$inferSelect;
 export type RecipeLine = typeof recipeLines.$inferSelect;
-export type ExperienceType = 'CLASSIC' | 'SWEETER' | 'ULTIMATE';
 
 export interface RecipeLineInput {
   productId: string;
@@ -26,7 +26,8 @@ export interface RecipeLineInput {
 }
 
 export interface CreateRecipeInput {
-  experience: ExperienceType;
+  /** The cake this recipe makes (e.g. "Victoria Sponge"). */
+  bake: string;
   /** NULL ⇒ global recipe; a site id ⇒ per-site override. */
   siteId?: string | null;
   effectiveFrom: string; // YYYY-MM-DD
@@ -40,10 +41,10 @@ export interface CreateRecipeInput {
 export class RecipeService {
   private db = getDb();
 
-  /** Next version for an (experience, site) group; 1 if none exist yet.
+  /** Next version for a (bake, site) group; 1 if none exist yet.
    *  `siteId === null` scopes to the global recipes (siteId IS NULL). */
   private async nextVersion(
-    experience: ExperienceType,
+    bake: string,
     siteId: string | null,
     companyId: string,
   ): Promise<number> {
@@ -53,7 +54,7 @@ export class RecipeService {
       .where(
         and(
           eq(recipes.companyId, companyId),
-          eq(recipes.experience, experience),
+          eq(recipes.bake, bake),
           siteId === null ? isNull(recipes.siteId) : eq(recipes.siteId, siteId),
         ),
       );
@@ -79,13 +80,13 @@ export class RecipeService {
   async create(input: CreateRecipeInput): Promise<{ recipe: Recipe; lines: RecipeLine[] }> {
     const companyId = input.companyId ?? getSingletonCompanyId();
     const siteId = input.siteId ?? null;
-    const version = await this.nextVersion(input.experience, siteId, companyId);
+    const version = await this.nextVersion(input.bake, siteId, companyId);
 
     const [recipe] = await this.db
       .insert(recipes)
       .values({
         companyId,
-        experience: input.experience,
+        bake: input.bake,
         siteId,
         version,
         effectiveFrom: input.effectiveFrom,
@@ -129,17 +130,27 @@ export class RecipeService {
     return { recipe, lines };
   }
 
-  /** All recipes (newest first), optionally filtered by experience / site. */
+  /** All recipes (newest first), optionally filtered by cake / site. */
   async list(
-    filter: { experience?: ExperienceType; siteId?: string | null; companyId?: string } = {},
+    filter: { bake?: string; siteId?: string | null; companyId?: string } = {},
   ): Promise<Recipe[]> {
     const companyId = filter.companyId ?? getSingletonCompanyId();
     const where = [eq(recipes.companyId, companyId)];
-    if (filter.experience) where.push(eq(recipes.experience, filter.experience));
+    if (filter.bake) where.push(eq(recipes.bake, filter.bake));
     if (filter.siteId) where.push(eq(recipes.siteId, filter.siteId));
     return this.db.query.recipes.findMany({
       where: and(...where),
       orderBy: [desc(recipes.effectiveFrom), desc(recipes.version)],
     });
+  }
+
+  /** The distinct cakes that have a recipe (the menu) — for pickers. */
+  async listBakes(companyId = getSingletonCompanyId()): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ bake: recipes.bake })
+      .from(recipes)
+      .where(eq(recipes.companyId, companyId))
+      .orderBy(asc(recipes.bake));
+    return rows.map((r) => r.bake);
   }
 }

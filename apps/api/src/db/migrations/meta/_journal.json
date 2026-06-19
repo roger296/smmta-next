@@ -239,6 +239,20 @@
       "when": 1781811263156,
       "tag": "0033_redundant_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781866659461,
+      "tag": "0034_cake_remodel_add",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1781866713389,
+      "tag": "0035_cake_remodel_drop",
+      "breakpoints": true
     }
   ]
 }

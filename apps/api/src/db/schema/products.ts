@@ -1,6 +1,6 @@
 import { pgTable, varchar, decimal, boolean, integer, text, uuid, jsonb, doublePrecision, index, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { pk, companyId, auditTimestamps, oldId, productTypeEnum, stockItemStatusEnum, itemKindEnum, experienceTypeEnum } from './common.js';
+import { pk, companyId, auditTimestamps, oldId, productTypeEnum, stockItemStatusEnum, itemKindEnum } from './common.js';
 import { categories, manufacturers, warehouses } from './reference.js';
 import { stockReservations } from './storefront.js';
 
@@ -96,11 +96,10 @@ export const products = pgTable(
     /** Reference image for the future AI item-recognition work (spec §A10). */
     referenceImageUrl: varchar('reference_image_url', { length: 500 }),
     imageCaptureStore: varchar('image_capture_store', { length: 200 }),
-    /** For a Tonic *experience* product (a booked CLASSIC/SWEETER/ULTIMATE),
-     *  which experience it represents. NULL for everything else. This is the
-     *  hook the head-baker form (P16) uses to resolve a session's experience +
-     *  covers from its order lines — BumbleBee has no experience column. */
-    experienceType: experienceTypeEnum('experience_type'),
+    /** True for a bookable *experience package* (a Classic/Sweeter/Ultimate
+     *  ticket) — a pricing bundle, not a cake. Used to sum a session's covers
+     *  (guest count) from its order lines; the cake baked is chosen separately. */
+    isExperienceBooking: boolean('is_experience_booking').notNull().default(false),
     // Units of measure -------------------------------------------------
     /** Tracking unit (e.g. `g`, `each`). Recipes + reorder operate in this. */
     stockUom: varchar('stock_uom', { length: 20 }).notNull().default('each'),

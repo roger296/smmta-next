@@ -5,24 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
 import { useProductsList } from '@/features/products/use-products';
-import { useExpectedConsumption, type ExperienceType } from '@/features/consumption/use-consumption';
+import { useBakes } from '@/features/recipes/use-recipes';
+import { useExpectedConsumption } from '@/features/consumption/use-consumption';
 import { useSubmitConsumption } from '@/features/pwa/use-pwa-jobs';
 
 export const Route = createFileRoute('/_authed/pwa/consumption')({
   component: ConsumptionScreen,
 });
-
-const EXPERIENCES: ExperienceType[] = ['CLASSIC', 'SWEETER', 'ULTIMATE'];
 
 interface FormLine {
   productId: string;
@@ -40,6 +32,7 @@ function today(): string {
 function ConsumptionScreen() {
   const { selectedSite, selectedSiteId } = useSiteContext();
   const { data: productPage } = useProductsList({ pageSize: 500 });
+  const { data: bakes } = useBakes();
   const expected = useExpectedConsumption();
   const submit = useSubmitConsumption();
   const { toast } = useToast();
@@ -51,17 +44,18 @@ function ConsumptionScreen() {
 
   const [sessionId, setSessionId] = React.useState('');
   const [sessionDate, setSessionDate] = React.useState(today());
-  const [experience, setExperience] = React.useState<ExperienceType>('CLASSIC');
+  const [bake, setBake] = React.useState('');
   const [covers, setCovers] = React.useState('');
   const [bakerName, setBakerName] = React.useState('');
   const [lines, setLines] = React.useState<FormLine[]>([]);
 
   const loadExpected = async () => {
-    if (!selectedSiteId || !Number(covers)) return;
+    if (!selectedSiteId || !bake.trim() || !Number(covers)) return;
     const rows = await expected.mutateAsync({
       siteId: selectedSiteId,
       onDate: sessionDate,
-      coverGroups: [{ experience, covers: Number(covers) }],
+      bake: bake.trim(),
+      covers: Number(covers),
     });
     setLines(
       rows.map((r) => ({
@@ -73,7 +67,7 @@ function ConsumptionScreen() {
         wastageReason: '',
       })),
     );
-    if (rows.length === 0) toast({ title: 'No recipe found for that experience / date' });
+    if (rows.length === 0) toast({ title: 'No recipe found for that cake / date' });
   };
 
   const setLine = (i: number, patch: Partial<FormLine>) =>
@@ -89,7 +83,8 @@ function ConsumptionScreen() {
       siteId: selectedSiteId,
       sessionDate,
       bakerName: bakerName.trim(),
-      coverGroups: [{ experience, covers: Number(covers) || 0 }],
+      bake: bake.trim(),
+      covers: Number(covers) || 0,
       lines: lines.map((l) => ({
         productId: l.productId,
         actualQty: l.actualQty,
@@ -128,26 +123,29 @@ function ConsumptionScreen() {
               <Input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Experience</Label>
-              <Select value={experience} onValueChange={(v) => setExperience(v as ExperienceType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {EXPERIENCES.map((e) => (
-                    <SelectItem key={e} value={e}>
-                      {e}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Cake baked</Label>
+              <Input
+                list="bake-options"
+                value={bake}
+                onChange={(e) => setBake(e.target.value)}
+                placeholder="e.g. Victoria Sponge"
+              />
+              <datalist id="bake-options">
+                {(bakes ?? []).map((b) => (
+                  <option key={b} value={b} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1">
-              <Label>Covers</Label>
+              <Label>Covers (guests)</Label>
               <Input type="number" inputMode="numeric" value={covers} onChange={(e) => setCovers(e.target.value)} />
             </div>
           </div>
-          <Button variant="outline" onClick={() => void loadExpected()} disabled={!Number(covers) || expected.isPending}>
+          <Button
+            variant="outline"
+            onClick={() => void loadExpected()}
+            disabled={!bake.trim() || !Number(covers) || expected.isPending}
+          >
             {expected.isPending ? 'Loading…' : 'Load expected quantities'}
           </Button>
         </CardContent>

@@ -10,16 +10,17 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { pk, companyId, auditTimestamps, experienceTypeEnum } from './common.js';
+import { pk, companyId, auditTimestamps } from './common.js';
 import { products } from './products.js';
 import { sites } from './sites.js';
 
 // ============================================================
-// Recipes / BOM (spec §A6) — what each experience consumes
+// Recipes / BOM (spec §A6) — what each cake (bake) consumes
 // ------------------------------------------------------------
-// A recipe defines, per experience type, the ingredient/packaging
-// quantity consumed per cover, so expected consumption = recipe × covers
-// (the ExpectedConsumptionService). Recipes are versioned + date-effective:
+// A recipe defines, per cake (`bake`, a free-form menu item), the
+// ingredient/packaging quantity consumed per cover (per guest, who bakes one
+// cake), so expected consumption = recipe × covers (the
+// ExpectedConsumptionService). Recipes are versioned + date-effective:
 // a session on a given date resolves to the recipe effective then. A recipe
 // with `siteId = NULL` is the global default; a row with `siteId` set is a
 // per-site override (e.g. Dallas) that beats the global for that site.
@@ -30,11 +31,13 @@ export const recipes = pgTable(
   {
     id: pk(),
     companyId: companyId(),
-    experience: experienceTypeEnum('experience').notNull(),
+    /** The cake this recipe makes (free-form menu item, e.g. "Victoria Sponge").
+     *  The recipe IS the cake's definition; new cakes need no migration. */
+    bake: varchar('bake', { length: 200 }).notNull(),
     /** NULL = global recipe; set = per-site override (beats the global). */
     siteId: uuid('site_id').references(() => sites.id, { onDelete: 'cascade' }),
-    /** Monotonic per (experience, site). The newest version effective on a
-     *  date wins; superseding a recipe means creating a new version. */
+    /** Monotonic per (bake, site). The newest version effective on a date wins;
+     *  superseding a recipe means creating a new version. */
     version: integer('version').notNull().default(1),
     /** Inclusive YYYY-MM-DD the version takes effect. */
     effectiveFrom: date('effective_from').notNull(),
@@ -45,12 +48,12 @@ export const recipes = pgTable(
     ...auditTimestamps,
   },
   (t) => ({
-    recipesLookupIdx: index('recipes_lookup_idx').on(t.companyId, t.experience, t.siteId),
+    recipesLookupIdx: index('recipes_lookup_idx').on(t.companyId, t.bake, t.siteId),
     // Guards site-specific versions; global rows (siteId NULL) are version-
     // allocated by the service (Postgres treats NULLs as distinct here).
-    recipesVersionUnq: uniqueIndex('recipes_company_experience_site_version_unq').on(
+    recipesVersionUnq: uniqueIndex('recipes_company_bake_site_version_unq').on(
       t.companyId,
-      t.experience,
+      t.bake,
       t.siteId,
       t.version,
     ),

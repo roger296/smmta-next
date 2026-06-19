@@ -2,7 +2,6 @@ import * as React from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { BookOpen, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,16 +20,14 @@ import { useSites } from '@/features/sites/use-sites';
 import { useProductsList } from '@/features/products/use-products';
 import {
   useRecipes,
+  useBakes,
   useCreateRecipe,
-  type ExperienceType,
   type Recipe,
 } from '@/features/recipes/use-recipes';
 
 export const Route = createFileRoute('/_authed/recipes')({
   component: RecipesPage,
 });
-
-const EXPERIENCES: ExperienceType[] = ['CLASSIC', 'SWEETER', 'ULTIMATE'];
 
 interface DraftLine {
   productId: string;
@@ -39,6 +36,7 @@ interface DraftLine {
 
 function RecipesPage() {
   const { data: recipes, isLoading } = useRecipes();
+  const { data: bakes } = useBakes();
   const { data: sites } = useSites();
   // Ingredient / packaging products are what recipes consume.
   const { data: productPage } = useProductsList({ pageSize: 500 });
@@ -57,7 +55,7 @@ function RecipesPage() {
     [sites],
   );
 
-  const [experience, setExperience] = React.useState<ExperienceType>('CLASSIC');
+  const [bake, setBake] = React.useState<string>('');
   const [scope, setScope] = React.useState<string>('GLOBAL');
   const [effectiveFrom, setEffectiveFrom] = React.useState<string>('');
   const [effectiveTo, setEffectiveTo] = React.useState<string>('');
@@ -69,18 +67,18 @@ function RecipesPage() {
   const removeLine = (i: number) => setLines((ls) => ls.filter((_, idx) => idx !== i));
 
   const validLines = lines.filter((l) => l.productId && Number(l.qtyPerCover) > 0);
-  const canSubmit = !!effectiveFrom && validLines.length > 0 && !create.isPending;
+  const canSubmit = !!bake.trim() && !!effectiveFrom && validLines.length > 0 && !create.isPending;
 
   const submit = async () => {
     try {
       await create.mutateAsync({
-        experience,
+        bake: bake.trim(),
         siteId: scope === 'GLOBAL' ? null : scope,
         effectiveFrom,
         effectiveTo: effectiveTo || null,
         lines: validLines.map((l) => ({ productId: l.productId, qtyPerCover: Number(l.qtyPerCover) })),
       });
-      toast({ title: `Recipe saved — ${experience} (${siteName(scope === 'GLOBAL' ? null : scope)})` });
+      toast({ title: `Recipe saved — ${bake.trim()} (${siteName(scope === 'GLOBAL' ? null : scope)})` });
       setLines([{ productId: '', qtyPerCover: '' }]);
       setEffectiveTo('');
     } catch (err) {
@@ -93,9 +91,10 @@ function RecipesPage() {
       <div>
         <h1 className="text-2xl font-semibold">Recipes</h1>
         <p className="text-sm text-[var(--color-muted-foreground)]">
-          What each experience consumes per cover. Recipes are versioned and date-effective — a new
-          version supersedes the old from its effective date. A per-site recipe overrides the global
-          one for that site (e.g. Dallas in imperial units). Expected consumption = recipe × covers.
+          What each cake consumes per cover (per guest). Recipes are keyed by the cake, not the
+          experience package — Classic / Sweeter / Ultimate are price tiers, not recipes. Versioned
+          and date-effective; a per-site recipe overrides the global one (e.g. Dallas in imperial
+          units). Expected consumption = recipe × covers.
         </p>
       </div>
 
@@ -106,19 +105,18 @@ function RecipesPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div className="space-y-1.5">
-              <Label>Experience</Label>
-              <Select value={experience} onValueChange={(v) => setExperience(v as ExperienceType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {EXPERIENCES.map((e) => (
-                    <SelectItem key={e} value={e}>
-                      {e}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Cake</Label>
+              <Input
+                list="bake-options"
+                value={bake}
+                onChange={(e) => setBake(e.target.value)}
+                placeholder="e.g. Victoria Sponge"
+              />
+              <datalist id="bake-options">
+                {(bakes ?? []).map((b) => (
+                  <option key={b} value={b} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1.5">
               <Label>Scope</Label>
@@ -211,7 +209,7 @@ function RecipesPage() {
         <EmptyState
           icon={BookOpen}
           title="No recipes yet"
-          description="Define what each experience consumes per cover above."
+          description="Define what each cake consumes per cover above."
         />
       )}
 
@@ -221,7 +219,7 @@ function RecipesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--color-border)] text-left text-[var(--color-muted-foreground)]">
-                  <th className="px-4 py-3 font-medium">Experience</th>
+                  <th className="px-4 py-3 font-medium">Cake</th>
                   <th className="px-4 py-3 font-medium">Scope</th>
                   <th className="px-4 py-3 font-medium">Version</th>
                   <th className="px-4 py-3 font-medium">Effective from</th>
@@ -231,9 +229,7 @@ function RecipesPage() {
               <tbody>
                 {recipes.map((r: Recipe) => (
                   <tr key={r.id} className="border-b border-[var(--color-border)] last:border-0">
-                    <td className="px-4 py-3">
-                      <Badge variant="secondary">{r.experience}</Badge>
-                    </td>
+                    <td className="px-4 py-3 font-medium">{r.bake}</td>
                     <td className="px-4 py-3">
                       {r.siteId ? siteName(r.siteId) : <span className="text-[var(--color-muted-foreground)]">Global</span>}
                     </td>

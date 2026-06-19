@@ -115,14 +115,14 @@ export const itemKindEnum = pgEnum('item_kind', [
  *  (Dallas runs IMPERIAL / lb·oz; UK sites METRIC / g). */
 export const uomSystemEnum = pgEnum('uom_system', ['METRIC', 'IMPERIAL']);
 
-/** Experience type a recipe is defined for (spec §A6). The three Big Bakes
- *  experiences; extensible by adding a value (+ migration). A session's
- *  experience is resolved from the Tonic experience product on its order
- *  lines (`products.experience_type`), since BumbleBee has no experience
- *  column. */
-export const experienceTypeEnum = pgEnum('experience_type', [
-  'CLASSIC', 'SWEETER', 'ULTIMATE',
-]);
+// NOTE (model correction): a recipe is keyed by the **cake/bake** being made
+// (a free-form menu item, `recipes.bake`), NOT by the experience package tier.
+// Classic / Sweeter / Ultimate are *experience packages* (experience + merch +
+// beverage at different prices) sold via Square/BumbleBee — a pricing concern,
+// not an ingredient one. Two guests on different packages can bake the same
+// cake. A product that is a bookable experience package is flagged
+// `products.is_experience_booking` so a session's covers (guest count) can be
+// summed from its order lines; the cake is a session-level choice.
 
 /** How a supplier order is placed (spec §A7). EMAIL_PO renders + emails a PO
  *  (the default for Big Bakes food/merch suppliers); API_CONNECTOR uses the

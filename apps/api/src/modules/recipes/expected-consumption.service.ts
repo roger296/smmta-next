@@ -1,21 +1,19 @@
 /**
  * ExpectedConsumptionService (P15, spec §A6).
  *
- * Given a session (site, date, experience, covers) it computes the expected
+ * Given a session (site, date, cake, covers) it computes the expected
  * consumption per ingredient = Σ(qty_per_cover × covers), resolving the recipe
- * that's effective on the session date and letting a per-site override beat the
- * global. A session can mix experiences (a booking with CLASSIC + ULTIMATE
- * lines), so `expectedForSession` aggregates across cover-groups.
- *
- * Covers/experience come from the session's order lines — BumbleBee has no
- * experience column — so `resolveCoverGroups` maps the Tonic experience product
- * on each line (`products.experience_type`) to its experience + cover count.
+ * for that **cake** (`bake`) effective on the session date and letting a
+ * per-site override beat the global. A session bakes one cake — everyone bakes
+ * the same recipe — so the experience *package* a guest bought (Classic /
+ * Sweeter / Ultimate) doesn't affect ingredients; it only affects the covers
+ * count, which can be summed from the order lines' experience-booking products.
  */
 import { and, eq, gt, inArray, isNull, lte, or } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { products, recipeLines, recipes } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
-import type { ExperienceType, Recipe, RecipeLine } from './recipe.service.js';
+import type { Recipe, RecipeLine } from './recipe.service.js';
 
 export interface ExpectedLine {
   productId: string;
@@ -26,12 +24,7 @@ export interface ExpectedLine {
   expectedCost: number | null;
 }
 
-export interface CoverGroup {
-  experience: ExperienceType;
-  covers: number;
-}
-
-/** A session order line as polled from BumbleBee — enough to resolve covers. */
+/** A session order line as polled from BumbleBee — enough to sum covers. */
 export interface SessionLine {
   productId?: string | null;
   bumblebeeProductId?: string | null;
@@ -42,12 +35,12 @@ export class ExpectedConsumptionService {
   private db = getDb();
 
   /**
-   * The recipe effective for (experience, site, date). A per-site override
+   * The recipe for a cake effective on a date at a site. A per-site override
    * (siteId set) beats the global (siteId NULL); within the winning scope the
    * newest version effective on the date wins.
    */
   async getEffectiveRecipe(input: {
-    experience: ExperienceType;
+    bake: string;
     siteId: string;
     onDate: string; // YYYY-MM-DD
     companyId?: string;
@@ -60,7 +53,7 @@ export class ExpectedConsumptionService {
     const candidates = await this.db.query.recipes.findMany({
       where: and(
         eq(recipes.companyId, companyId),
-        eq(recipes.experience, input.experience),
+        eq(recipes.bake, input.bake),
         or(isNull(recipes.siteId), eq(recipes.siteId, input.siteId)),
         effectiveOn,
       ),
@@ -86,9 +79,9 @@ export class ExpectedConsumptionService {
     return { recipe, lines };
   }
 
-  /** Expected consumption per ingredient for one experience × covers. */
-  async expectedForExperience(input: {
-    experience: ExperienceType;
+  /** Expected consumption per ingredient for one session = recipe(cake) × covers. */
+  async expectedForSession(input: {
+    bake: string;
     siteId: string;
     covers: number;
     onDate: string;
@@ -98,7 +91,7 @@ export class ExpectedConsumptionService {
     if (!found) return [];
     return found.lines.map((l) => {
       const qtyPerCover = Number(l.qtyPerCover);
-      const expectedQty = qtyPerCover * input.covers;
+      const expectedQty = round4(qtyPerCover * input.covers);
       const unitCost = l.unitCost != null ? Number(l.unitCost) : null;
       return {
         productId: l.productId,
@@ -111,47 +104,12 @@ export class ExpectedConsumptionService {
     });
   }
 
-  /** Aggregate expected consumption across a session's cover-groups. */
-  async expectedForSession(input: {
-    siteId: string;
-    onDate: string;
-    coverGroups: CoverGroup[];
-    companyId?: string;
-  }): Promise<ExpectedLine[]> {
-    const byProduct = new Map<string, ExpectedLine>();
-    for (const group of input.coverGroups) {
-      const lines = await this.expectedForExperience({
-        experience: group.experience,
-        siteId: input.siteId,
-        covers: group.covers,
-        onDate: input.onDate,
-        companyId: input.companyId,
-      });
-      for (const line of lines) {
-        const existing = byProduct.get(line.productId);
-        if (existing) {
-          existing.expectedQty = round4(existing.expectedQty + line.expectedQty);
-          existing.expectedCost =
-            existing.expectedCost != null && line.expectedCost != null
-              ? round4(existing.expectedCost + line.expectedCost)
-              : (existing.expectedCost ?? line.expectedCost);
-        } else {
-          byProduct.set(line.productId, { ...line });
-        }
-      }
-    }
-    return [...byProduct.values()];
-  }
-
   /**
-   * Resolve a session's cover-groups from its order lines. A line whose product
-   * is a Tonic experience product (`products.experience_type` set) contributes
-   * `quantity` covers to that experience; non-experience lines are ignored.
+   * Sum a session's covers (guest count) from its order lines: a line whose
+   * product is a bookable experience package (`products.is_experience_booking`)
+   * contributes `quantity` covers, regardless of which package tier it is.
    */
-  async resolveCoverGroups(
-    lines: SessionLine[],
-    companyId = getSingletonCompanyId(),
-  ): Promise<CoverGroup[]> {
+  async resolveCovers(lines: SessionLine[], companyId = getSingletonCompanyId()): Promise<number> {
     const byProductId = new Map<string, number>();
     const byBumblebeeId = new Map<string, number>();
     for (const line of lines) {
@@ -161,27 +119,24 @@ export class ExpectedConsumptionService {
     }
     const ids = [...byProductId.keys()];
     const bbIds = [...byBumblebeeId.keys()];
+    if (ids.length === 0 && bbIds.length === 0) return 0;
     const rows = await this.db.query.products.findMany({
       where: and(
         eq(products.companyId, companyId),
+        eq(products.isExperienceBooking, true),
         or(
           ids.length ? inArray(products.id, ids) : undefined,
           bbIds.length ? inArray(products.bumblebeeProductId, bbIds) : undefined,
         ),
       ),
-      columns: { id: true, bumblebeeProductId: true, experienceType: true },
+      columns: { id: true, bumblebeeProductId: true },
     });
-    const byExperience = new Map<ExperienceType, number>();
+    let covers = 0;
     for (const row of rows) {
-      if (!row.experienceType) continue;
-      const covers =
-        (row.id ? byProductId.get(row.id) ?? 0 : 0) +
-        (row.bumblebeeProductId ? byBumblebeeId.get(row.bumblebeeProductId) ?? 0 : 0);
-      if (covers <= 0) continue;
-      const exp = row.experienceType as ExperienceType;
-      byExperience.set(exp, (byExperience.get(exp) ?? 0) + covers);
+      covers += (row.id ? byProductId.get(row.id) ?? 0 : 0)
+        + (row.bumblebeeProductId ? byBumblebeeId.get(row.bumblebeeProductId) ?? 0 : 0);
     }
-    return [...byExperience.entries()].map(([experience, covers]) => ({ experience, covers }));
+    return covers;
   }
 }
 

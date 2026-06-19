@@ -22,7 +22,6 @@ import { sites } from '../../db/schema/index.js';
 import { and, eq } from 'drizzle-orm';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 
-const experienceSchema = z.enum(['CLASSIC', 'SWEETER', 'ULTIMATE']);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
 const submitSchema = z.object({
@@ -31,10 +30,9 @@ const submitSchema = z.object({
   sessionDate: dateSchema,
   bakerName: z.string().min(1).max(200),
   bakerRef: z.string().max(200).nullable().optional(),
-  coverGroups: z
-    .array(z.object({ experience: experienceSchema, covers: z.coerce.number().min(0) }))
-    .max(20)
-    .optional(),
+  /** The cake baked + the covers (guest count) → expected = recipe × covers. */
+  bake: z.string().min(1).max(200).nullable().optional(),
+  covers: z.coerce.number().min(0).optional(),
   lines: z
     .array(
       z.object({

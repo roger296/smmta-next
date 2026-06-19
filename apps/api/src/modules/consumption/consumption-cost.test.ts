@@ -54,7 +54,8 @@ async function submitOne(): Promise<void> {
     siteId,
     sessionDate: DATE,
     bakerName: 'Pat',
-    coverGroups: [{ experience: 'CLASSIC', covers: 8 }],
+    bake: 'Victoria Sponge',
+    covers: 8,
     lines: [{ productId: flourId, actualQty: 750, wastageQty: 50, wastageReason: 'spill' }],
     companyId: COMPANY,
   });
@@ -79,7 +80,7 @@ beforeAll(async () => {
     .returning();
   siteId = site!.id;
   await recipeSvc.create({
-    experience: 'CLASSIC',
+    bake: 'Victoria Sponge',
     effectiveFrom: '2026-01-01',
     lines: [{ productId: flourId, qtyPerCover: 100 }],
     companyId: COMPANY,

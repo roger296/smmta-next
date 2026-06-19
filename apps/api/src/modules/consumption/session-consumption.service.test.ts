@@ -78,7 +78,7 @@ beforeAll(async () => {
 
   // CLASSIC recipe: 100 g flour + 50 g sugar per cover.
   await recipeSvc.create({
-    experience: 'CLASSIC',
+    bake: 'Victoria Sponge',
     effectiveFrom: '2026-01-01',
     lines: [
       { productId: flourId, qtyPerCover: 100 },
@@ -106,7 +106,8 @@ const baseInput = () => ({
   siteId,
   sessionDate: '2026-06-18',
   bakerName: 'Sam Baker',
-  coverGroups: [{ experience: 'CLASSIC' as const, covers: 8 }],
+  bake: 'Victoria Sponge',
+  covers: 8,
   companyId: COMPANY,
 });
 

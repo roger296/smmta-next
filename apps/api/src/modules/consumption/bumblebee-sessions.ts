@@ -9,20 +9,22 @@
  * dashboard / MCP tool degrade gracefully rather than throwing.
  */
 import { getEnv } from '../../config/env.js';
-import { ExpectedConsumptionService, type CoverGroup, type SessionLine } from '../recipes/expected-consumption.service.js';
+import { ExpectedConsumptionService, type SessionLine } from '../recipes/expected-consumption.service.js';
 
 export interface BumbleBeeSession {
   sessionId: string;
   siteCanonicalName?: string;
   sessionDate?: string;
-  /** Order lines, used to resolve experience + covers. */
+  /** Order lines, used to sum covers (guest count). */
   lines?: SessionLine[];
 }
 
 export interface DaySession {
   sessionId: string;
   sessionDate: string;
-  coverGroups: CoverGroup[];
+  /** Guest count summed from the experience-booking order lines. The cake
+   *  baked isn't on the booking — the head-baker picks it on the form. */
+  covers: number;
 }
 
 export class BumbleBeeSessionClient {
@@ -56,9 +58,7 @@ export class BumbleBeeSessionClient {
     fallbackDate: string,
     companyId?: string,
   ): Promise<DaySession> {
-    const coverGroups = s.lines?.length
-      ? await this.expected.resolveCoverGroups(s.lines, companyId)
-      : [];
-    return { sessionId: s.sessionId, sessionDate: s.sessionDate ?? fallbackDate, coverGroups };
+    const covers = s.lines?.length ? await this.expected.resolveCovers(s.lines, companyId) : 0;
+    return { sessionId: s.sessionId, sessionDate: s.sessionDate ?? fallbackDate, covers };
   }
 }

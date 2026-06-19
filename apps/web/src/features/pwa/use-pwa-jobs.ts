@@ -103,7 +103,8 @@ export interface ConsumptionSubmitDraft {
   siteId: string;
   sessionDate: string;
   bakerName: string;
-  coverGroups?: Array<{ experience: 'CLASSIC' | 'SWEETER' | 'ULTIMATE'; covers: number }>;
+  bake?: string | null;
+  covers?: number;
   lines: ConsumptionLineDraft[];
   notes?: string | null;
 }

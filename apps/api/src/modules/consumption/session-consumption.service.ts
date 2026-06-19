@@ -21,7 +21,7 @@ import {
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { canAccessSite, type JwtPayload } from '../../shared/middleware/auth.js';
 import { StockLevelService } from '../stock/stock-level.service.js';
-import { ExpectedConsumptionService, type CoverGroup } from '../recipes/expected-consumption.service.js';
+import { ExpectedConsumptionService } from '../recipes/expected-consumption.service.js';
 import { getSiteCurrency } from '../sites/site-currency.js';
 import { BatchService } from '../stock/batch.service.js';
 
@@ -41,8 +41,10 @@ export interface SubmitInput {
   sessionDate: string; // YYYY-MM-DD
   bakerName: string;
   bakerRef?: string | null;
-  /** Cover-groups (experience × covers) to compute expected from the recipe. */
-  coverGroups?: CoverGroup[];
+  /** The cake baked this session + the covers (guest count), to compute
+   *  expected consumption = recipe(bake) × covers. */
+  bake?: string | null;
+  covers?: number;
   lines: SubmitLineInput[];
   notes?: string | null;
   /** Offline idempotency key — a replay with the same key is a no-op. */
@@ -82,18 +84,19 @@ export class SessionConsumptionService {
       }>;
     }
 
-    // Expected consumption per ingredient (recipe × covers).
-    const expectedLines = input.coverGroups?.length
+    // Expected consumption per ingredient = recipe(cake) × covers.
+    const expectedLines = input.bake && input.covers
       ? await this.expected.expectedForSession({
+          bake: input.bake,
           siteId: input.siteId,
+          covers: input.covers,
           onDate: input.sessionDate,
-          coverGroups: input.coverGroups,
           companyId,
         })
       : [];
     const expectedByProduct = new Map(expectedLines.map((l) => [l.productId, l]));
 
-    const totalCovers = (input.coverGroups ?? []).reduce((s, g) => s + (g.covers || 0), 0);
+    const totalCovers = input.covers ?? 0;
     const currencyCode = await getSiteCurrency(input.siteId, companyId);
     const version = (existing?.version ?? 0) + 1;
     let record: SessionConsumption;
@@ -104,6 +107,7 @@ export class SessionConsumptionService {
           bakerName: input.bakerName,
           bakerRef: input.bakerRef ?? existing.bakerRef,
           sessionDate: input.sessionDate,
+          bake: input.bake ?? existing.bake,
           covers: totalCovers || existing.covers,
           version,
           clientKey: input.clientKey ?? existing.clientKey,
@@ -124,6 +128,7 @@ export class SessionConsumptionService {
           sessionDate: input.sessionDate,
           bakerName: input.bakerName,
           bakerRef: input.bakerRef ?? null,
+          bake: input.bake ?? null,
           covers: totalCovers,
           version,
           clientKey: input.clientKey ?? null,

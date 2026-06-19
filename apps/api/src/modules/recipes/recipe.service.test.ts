@@ -1,10 +1,10 @@
 /**
  * Recipes / BOM (P15, spec §A6). Real Postgres, isolated company.
  *
- * Covers: expected = Σ(qty_per_cover × covers) per ingredient; version /
- * date-effective selection picks the right recipe for a session date; a
- * per-site override beats the global recipe; recipe-line unit cost is seeded
- * from the product's BumbleBee cost (expected_next_cost).
+ * Covers: expected = Σ(qty_per_cover × covers) per ingredient for a session's
+ * cake; version/date-effective selection; a per-site override beats the global;
+ * recipe-line unit cost is seeded from the product's BumbleBee cost; a session's
+ * covers are summed from its experience-booking order lines.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
@@ -21,7 +21,10 @@ let siteId: string;
 let dallasId: string;
 let flourId: string;
 let sugarId: string;
-let classicProductId: string;
+let classicPackageId: string; // a bookable experience package (not a cake)
+
+const SPONGE = 'Victoria Sponge';
+const BATTENBURG = 'Battenburg';
 
 async function clearRecipes(): Promise<void> {
   const db = getDb();
@@ -43,14 +46,14 @@ beforeAll(async () => {
     .insert(products)
     .values({ companyId: COMPANY, name: 'R Sugar', slug: 'r-sugar', itemKind: 'INGREDIENT', stockUom: 'g', expectedNextCost: '0.02' })
     .returning();
-  // A Tonic experience product (the booking line that names the experience).
+  // A bookable experience *package* (a price tier, not a cake).
   const [c] = await db
     .insert(products)
-    .values({ companyId: COMPANY, name: 'Classic Experience', slug: 'r-classic', itemKind: 'RETAIL', experienceType: 'CLASSIC' })
+    .values({ companyId: COMPANY, name: 'Classic Package', slug: 'r-classic', itemKind: 'RETAIL', isExperienceBooking: true })
     .returning();
   flourId = f!.id;
   sugarId = s!.id;
-  classicProductId = c!.id;
+  classicPackageId = c!.id;
 
   const [site] = await db
     .insert(sites)
@@ -77,7 +80,7 @@ afterAll(async () => {
 describe('cost seeding', () => {
   it('seeds recipe-line unit cost + uom from the product when omitted', async () => {
     const { lines } = await recipeSvc.create({
-      experience: 'CLASSIC',
+      bake: SPONGE,
       effectiveFrom: '2026-01-01',
       lines: [
         { productId: flourId, qtyPerCover: 100 }, // no unitCost → seeded 0.05
@@ -94,9 +97,9 @@ describe('cost seeding', () => {
 });
 
 describe('expected consumption', () => {
-  it('expected = Σ(qty_per_cover × covers) per ingredient', async () => {
+  it('expected = Σ(qty_per_cover × covers) per ingredient for the session cake', async () => {
     await recipeSvc.create({
-      experience: 'CLASSIC',
+      bake: SPONGE,
       effectiveFrom: '2026-01-01',
       lines: [
         { productId: flourId, qtyPerCover: 100 },
@@ -104,8 +107,8 @@ describe('expected consumption', () => {
       ],
       companyId: COMPANY,
     });
-    const lines = await expected.expectedForExperience({
-      experience: 'CLASSIC',
+    const lines = await expected.expectedForSession({
+      bake: SPONGE,
       siteId,
       covers: 8,
       onDate: '2026-06-18',
@@ -118,81 +121,53 @@ describe('expected consumption', () => {
     expect(flour.expectedCost).toBe(40); // 800 × 0.05
   });
 
-  it('aggregates a session that mixes experiences, resolved from order lines', async () => {
-    await recipeSvc.create({
-      experience: 'CLASSIC',
-      effectiveFrom: '2026-01-01',
-      lines: [{ productId: flourId, qtyPerCover: 100 }],
-      companyId: COMPANY,
-    });
-    await recipeSvc.create({
-      experience: 'ULTIMATE',
-      effectiveFrom: '2026-01-01',
-      lines: [{ productId: flourId, qtyPerCover: 250 }],
-      companyId: COMPANY,
-    });
-    // Order lines: 8 covers booked on the Classic experience product.
-    const groups = await expected.resolveCoverGroups(
-      [{ productId: classicProductId, quantity: 8 }],
-      COMPANY,
-    );
-    expect(groups).toEqual([{ experience: 'CLASSIC', covers: 8 }]);
-
-    const lines = await expected.expectedForSession({
-      siteId,
-      onDate: '2026-06-18',
-      coverGroups: [
-        { experience: 'CLASSIC', covers: 8 },
-        { experience: 'ULTIMATE', covers: 4 },
-      ],
-      companyId: COMPANY,
-    });
-    const flour = lines.find((l) => l.productId === flourId)!;
-    expect(flour.expectedQty).toBe(1800); // 100×8 + 250×4
+  it('sums covers from the experience-booking order lines (any package tier)', async () => {
+    // 8 guests booked the Classic package → 8 covers, regardless of tier.
+    const covers = await expected.resolveCovers([{ productId: classicPackageId, quantity: 8 }], COMPANY);
+    expect(covers).toBe(8);
   });
 });
 
 describe('versioning / date-effective + per-site override', () => {
   it('picks the version effective on the session date', async () => {
-    // v1: 100 g/cover from Jan; v2: 120 g/cover from June.
     await recipeSvc.create({
-      experience: 'CLASSIC',
+      bake: SPONGE,
       effectiveFrom: '2026-01-01',
       effectiveTo: '2026-06-01',
       lines: [{ productId: flourId, qtyPerCover: 100 }],
       companyId: COMPANY,
     });
     await recipeSvc.create({
-      experience: 'CLASSIC',
+      bake: SPONGE,
       effectiveFrom: '2026-06-01',
       lines: [{ productId: flourId, qtyPerCover: 120 }],
       companyId: COMPANY,
     });
 
-    const may = await expected.expectedForExperience({ experience: 'CLASSIC', siteId, covers: 1, onDate: '2026-05-15', companyId: COMPANY });
-    const june = await expected.expectedForExperience({ experience: 'CLASSIC', siteId, covers: 1, onDate: '2026-06-18', companyId: COMPANY });
+    const may = await expected.expectedForSession({ bake: SPONGE, siteId, covers: 1, onDate: '2026-05-15', companyId: COMPANY });
+    const june = await expected.expectedForSession({ bake: SPONGE, siteId, covers: 1, onDate: '2026-06-18', companyId: COMPANY });
     expect(may[0]!.qtyPerCover).toBe(100);
     expect(june[0]!.qtyPerCover).toBe(120);
   });
 
   it('a per-site override beats the global recipe for that site', async () => {
     await recipeSvc.create({
-      experience: 'CLASSIC',
+      bake: BATTENBURG,
       effectiveFrom: '2026-01-01',
       lines: [{ productId: flourId, qtyPerCover: 100 }],
       companyId: COMPANY,
     });
     // Dallas override — imperial recipe uses a different per-cover quantity.
     await recipeSvc.create({
-      experience: 'CLASSIC',
+      bake: BATTENBURG,
       siteId: dallasId,
       effectiveFrom: '2026-01-01',
       lines: [{ productId: flourId, qtyPerCover: 3.5 }],
       companyId: COMPANY,
     });
 
-    const uk = await expected.expectedForExperience({ experience: 'CLASSIC', siteId, covers: 1, onDate: '2026-06-18', companyId: COMPANY });
-    const dallas = await expected.expectedForExperience({ experience: 'CLASSIC', siteId: dallasId, covers: 1, onDate: '2026-06-18', companyId: COMPANY });
+    const uk = await expected.expectedForSession({ bake: BATTENBURG, siteId, covers: 1, onDate: '2026-06-18', companyId: COMPANY });
+    const dallas = await expected.expectedForSession({ bake: BATTENBURG, siteId: dallasId, covers: 1, onDate: '2026-06-18', companyId: COMPANY });
     expect(uk[0]!.qtyPerCover).toBe(100); // global
     expect(dallas[0]!.qtyPerCover).toBe(3.5); // override
   });

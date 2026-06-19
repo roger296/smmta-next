@@ -1,11 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 
-export type ExperienceType = 'CLASSIC' | 'SWEETER' | 'ULTIMATE';
-
 export interface Recipe {
   id: string;
-  experience: ExperienceType;
+  /** The cake this recipe makes (free-form, e.g. "Victoria Sponge"). */
+  bake: string;
   siteId: string | null;
   version: number;
   effectiveFrom: string;
@@ -32,7 +31,7 @@ export interface RecipeLineInput {
 }
 
 export interface CreateRecipeInput {
-  experience: ExperienceType;
+  bake: string;
   siteId?: string | null;
   effectiveFrom: string;
   effectiveTo?: string | null;
@@ -46,10 +45,18 @@ export const recipeKeys = {
   detail: (id: string) => ['recipes', 'detail', id] as const,
 };
 
-export function useRecipes(filter?: { experience?: ExperienceType; siteId?: string }) {
+export function useRecipes(filter?: { bake?: string; siteId?: string }) {
   return useQuery<Recipe[]>({
     queryKey: [...recipeKeys.all, filter ?? {}],
     queryFn: () => apiFetch<Recipe[]>('/recipes', { searchParams: filter }),
+  });
+}
+
+/** The distinct cakes that have a recipe (the menu) — for pickers. */
+export function useBakes() {
+  return useQuery<string[]>({
+    queryKey: [...recipeKeys.all, 'bakes'],
+    queryFn: () => apiFetch<string[]>('/recipes/bakes'),
   });
 }
 
