@@ -253,6 +253,13 @@
       "when": 1781866713389,
       "tag": "0035_cake_remodel_drop",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1782379596545,
+      "tag": "0036_jittery_wendell_vaughn",
+      "breakpoints": true
     }
   ]
 }

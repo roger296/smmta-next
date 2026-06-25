@@ -23,6 +23,7 @@ import { xeroAccountMapRoutes } from './modules/xero/xero-account-map.routes.js'
 import { reorderRoutes } from './modules/reorder/reorder.routes.js';
 import { goodsInRoutes } from './modules/goods-in/goods-in.routes.js';
 import { stockTakeRoutes } from './modules/stock-take/stock-take.routes.js';
+import { stockTakeLiteRoutes } from './modules/stocktake-lite/stocktake-lite.routes.js';
 import { squareRoutes } from './modules/square/square.routes.js';
 import { catalogueSyncRoutes } from './modules/catalogue-sync/catalogue-sync.routes.js';
 import { recipeRoutes } from './modules/recipes/recipe.routes.js';
@@ -122,6 +123,10 @@ export async function buildApp() {
 
   // Auto-Stock: stock-takes — count vs book, true-up + adjustment (spec §A6).
   await app.register(stockTakeRoutes, { prefix: '/api/v1' });
+
+  // Auto-Stock: stock-take-lite — the standalone iPad stock-take demo (P26).
+  // Decoupled from products/ledger/Xero; access-code gated, not JWT.
+  await app.register(stockTakeLiteRoutes, { prefix: '/api/v1' });
 
   // Auto-Stock: Square sales → automatic stock decrement (spec §A8).
   await app.register(squareRoutes, { prefix: '/api/v1' });

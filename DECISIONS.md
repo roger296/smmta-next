@@ -393,3 +393,29 @@ packages bake the same cake.
   is "place the approved proposal" (reorder_proposals carry the rendered PO),
   consistent with D6 (reorder uses `reorder_proposals`, not the drop-ship
   `supplier_orders`).
+
+## P26 — Stock-take-lite (standalone iPad demo)
+
+- **A separate app, not the existing stock-take.** Auto-Stock already has a
+  count-vs-book stock-take (`stock_takes`, tied to products/ledger/Xero/JWT).
+  The June demo is a deliberately decoupled "stock-take-lite": a blank count
+  seeded from the spreadsheet, CSV out, no ledger. Confirmed with owner — the
+  point is a low-friction wedge, so it must not drag in the full system.
+- **Backend reuses `apps/api` infra but stays isolated.** New `stocktake_lite_*`
+  tables have **no FK** to products/sites/ledger; routes are access-code gated
+  (`x-stocktake-code`), not JWT. Hosting the sync API in the already-deployed
+  api was the fast path; the data model is fully decoupled so it never touches
+  Auto-Stock's real stock paths.
+- **Catalogue header detection by cell bold.** The spreadsheet encodes structure
+  in formatting, not data — bold col-A = heading, bold-followed-by-bold = area.
+  SheetJS (the repo lib) can't read bold, so the seed generator is
+  Python+openpyxl. The generated JSON is the committed artifact; re-run the
+  script only when the master item list changes.
+- **Conflicts are flagged, never summed.** When two devices at one site count the
+  same item, consolidation marks it CONFLICT and holds it out of the CSV until a
+  `stocktake_lite_resolutions` row settles it. Custom ("added") lines collide by
+  normalised name so two people adding the same item are caught too. Chosen over
+  silent-sum to avoid an unnoticed double-count inflating stock (owner decision).
+- **0 is a real count.** "Counted" is its own flag on each line, never derived
+  from quantity > 0 — so a tapped "0" is recorded and shows as done, and the
+  "not counted" filter stays accurate.

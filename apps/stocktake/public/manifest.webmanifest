@@ -1,0 +1,15 @@
+{
+  "name": "Big Bakes Stock Take",
+  "short_name": "Stock Take",
+  "description": "Quick on-site stock take for Big Bakes managers — count on the iPad, export a CSV.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1f2a37",
+  "theme_color": "#1f2a37",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

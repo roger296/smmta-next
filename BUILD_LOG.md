@@ -714,3 +714,44 @@ database (seeded with sites + a login + the cakes) so demo data never pollutes
 the `smmta_next` **test** DB. Start the api for the demo with
 `DATABASE_URL=…/smmta_dev npm run dev -w @smmta/api`; tests keep using
 `…/smmta_next`.
+
+---
+
+## P26 — Stock-take-lite: the standalone iPad stock-take demo (2026-06-25)
+
+A separate, deliberately **decoupled** stock-take PWA to win site managers over
+before the full Auto-Stock rollout, built for the **end-of-June** quarter count.
+Distinct from the existing count-vs-book `stock_takes` tool: this is a blank
+count seeded from the head-office spreadsheet, output as a plain CSV — no
+products, no ledger, no Xero.
+
+**Catalogue (Phase 1).** Parsed the master spreadsheet's "Stockcount List JUNE
+2026" sheet into a 386-item seed (`apps/stocktake/src/data/catalogue.json`),
+across 6 areas / 39 sections. Header-vs-item is detected by **cell bold**
+(bold col-A = heading; a bold row followed by another bold row = top-level area).
+SheetJS can't read bold, so the generator is Python+openpyxl
+(`apps/stocktake/scripts/build-catalogue.py`).
+
+**Backend (Phase 2, in `apps/api`).** New isolated module `stocktake-lite` +
+two tables (`stocktake_lite_counts`, `stocktake_lite_resolutions`, migration
+`0036`), no FK to products/sites/ledger. `POST /sync` upserts a device's counts
+(idempotent on company+period+device+item). Consolidation groups by item across
+devices: one counter ⇒ resolved; two or more ⇒ **CONFLICT** (never summed),
+cleared by a resolution row. `GET /export.csv` emits resolved rows and lists
+conflicts separately. Access-code gated (`x-stocktake-code` vs
+`STOCKTAKE_ACCESS_CODE`), not JWT. 7 service tests green; full HTTP smoke test of
+sync → conflict → resolve → CSV passed.
+
+**PWA (Phase 3/4, new `apps/stocktake`).** Vite + React 19, offline-first
+(catalogue bundled, counts in localStorage, sync-when-online), installable
+(manifest + service worker + icons). Start screen (site + counter + access code),
+the big-button count screen (hero "0", ± steppers, tap-to-type, pack-size hints,
+counted-vs-not state where **0 is a real count**, progress, "not counted" filter,
+search, section nav, add-any-line), and a head-office consolidation screen
+(per-site conflicts, resolve, CSV export). Typecheck + 5 unit tests + production
+build green; verified visually in the preview at iPad size.
+
+**Deploy (Phase 5, prepared).** nginx template
+`infra/nginx/stocktake.conf.template` (static dist + `/api` proxy, no-cache on
+`sw.js`); target host `stocktake.starship.thebigbakes.com`. The VPS deploy
+itself is the remaining step.

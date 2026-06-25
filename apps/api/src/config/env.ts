@@ -32,6 +32,12 @@ const envSchema = z.object({
   // Auth
   JWT_SECRET: z.string().default('dev-secret-change-in-production'),
 
+  // Stock-take-lite (P26): shared access code for the standalone iPad demo.
+  // The demo is NOT JWT-gated; every /stocktake-lite route checks this code in
+  // the x-stocktake-code header. Empty ⇒ gate open (dev only) — a deployment
+  // MUST set this.
+  STOCKTAKE_ACCESS_CODE: z.string().default(''),
+
   // Singleton tenant id. smmta-next is single-tenant per deployment;
   // every row's `company_id` is set to this value. Defaults to the
   // Filament Store production UUID so existing deployments keep working
