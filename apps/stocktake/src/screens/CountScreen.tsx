@@ -155,6 +155,12 @@ export function CountScreen({ session, onExit }: CountScreenProps) {
       </div>
 
       <div className="scroll" ref={scrollRef}>
+        <div className="add-bar">
+          <button className="btn" onClick={() => setShowAdd(true)}>
+            + Add item not on the list
+          </button>
+        </div>
+
         {groups.map((g) => {
           const visible = g.items.filter((it) => matches(it) && showItem(it.key));
           if (visible.length === 0) return null;
