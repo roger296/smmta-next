@@ -33,6 +33,10 @@ SMMTA_USER="${SMMTA_USER:-smmta}"
 SMMTA_HOME="/home/${SMMTA_USER}"
 REPO_DIR="${SMMTA_HOME}/smmta-next"
 REPO_URL="${SMMTA_REPO_URL:-https://github.com/roger296/smmta-next.git}"
+# Branch to deploy. The Auto-Stock work lives on `autostock`; the repo default
+# (main) is the Filament Store production branch, so this MUST be set to deploy
+# Auto-Stock. Defaults to main only for back-compat.
+SMMTA_BRANCH="${SMMTA_BRANCH:-main}"
 NODE_MAJOR="${SMMTA_NODE_MAJOR:-22}"
 
 # The four periodic jobs Auto-Stock installs (name → tsx script).
@@ -49,6 +53,7 @@ die()  { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
 print_plan() {
   log "Auto-Stock install plan"
+  info "PLAN: deploy branch ${SMMTA_BRANCH} from ${REPO_URL}"
   info "PLAN: deploy apps/api (REST API + MCP server at /mcp)"
   info "PLAN: deploy apps/web (admin SPA + iPad PWA)"
   info "PLAN: NOT deploying apps/store / apps/store-clothes (storefront stays dormant)"
@@ -103,10 +108,13 @@ install_node() {
 }
 
 clone_and_build() {
-  log "Cloning + building (api + web only — NOT the storefront)"
+  log "Cloning + building branch ${SMMTA_BRANCH} (api + web only — NOT the storefront)"
   if [[ ! -d "${REPO_DIR}/.git" ]]; then
     sudo -u "${SMMTA_USER}" git clone --quiet "${REPO_URL}" "${REPO_DIR}"
   fi
+  # Check out + fast-forward the requested branch (idempotent on re-run).
+  sudo -u "${SMMTA_USER}" bash -lc "cd ${REPO_DIR} && git fetch --quiet --all --tags --prune \
+    && git checkout ${SMMTA_BRANCH} && git pull --ff-only origin ${SMMTA_BRANCH}"
   sudo -u "${SMMTA_USER}" bash -lc "cd ${REPO_DIR} && npm install --no-audit --no-fund"
   sudo -u "${SMMTA_USER}" bash -lc "cd ${REPO_DIR} && npm run build -w @smmta/shared-types"
   sudo -u "${SMMTA_USER}" bash -lc "cd ${REPO_DIR} && npm run build -w @smmta/api"
@@ -136,6 +144,12 @@ FEATURE_CONVERSATIONAL_SEARCH=false
 CATALOGUE_SYNC=false
 MATERIALS_COST_SYNC=false
 EOF
+  # Stock-take-lite demo (P26): shared access code for the iPad PWA. Only written
+  # if provided; otherwise add STOCKTAKE_ACCESS_CODE to apps/api/.env by hand
+  # before exposing the stock-take site (see docs/runbooks/stocktake-deploy.md).
+  if [[ -n "${SMMTA_STOCKTAKE_CODE:-}" ]]; then
+    echo "STOCKTAKE_ACCESS_CODE=${SMMTA_STOCKTAKE_CODE}" >>"${REPO_DIR}/apps/api/.env"
+  fi
   chown "${SMMTA_USER}:${SMMTA_USER}" "${REPO_DIR}/apps/api/.env"
 }
 

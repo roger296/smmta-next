@@ -1,79 +1,95 @@
 # Runbook — deploy the stock-take-lite PWA (P26)
 
 The standalone iPad stock-take demo: a static Vite bundle served by nginx, plus
-the `stocktake-lite` API module (lives inside the already-running `apps/api`).
-This runbook is the **one-off setup**. After it's done, every future update is a
-single command:
+the `stocktake-lite` API module (inside `apps/api`). The output is a plain CSV.
+
+This is written for the case where **Auto-Stock has not been deployed live yet**,
+so it stands up the API + Postgres first (via the tested `install-autostock.sh`),
+then layers the stock-take site on top. Target host:
+`stocktake.starship.thebigbakes.com`, branch `autostock`.
+
+After the one-off below, every future update is one command:
 
 ```bash
-~/smmta-next/infra/scripts/deploy-stocktake.sh <branch>
+~/smmta-next/infra/scripts/deploy-stocktake.sh autostock
 ```
-
-> Fill in the two placeholders before you start:
-> - `STOCKTAKE_HOST` — the hostname, e.g. `stocktake.starship.thebigbakes.com`
-> - `BRANCH` — the git branch the VPS tracks for Auto-Stock (e.g. `autostock` or `main`)
-
-This runbook assumes the Auto-Stock API is **already deployed and running** on the
-VPS (systemd unit `smmta-api`, Docker Postgres, nginx + certbot), per
-`docs/VPS-FRONTEND-DEPLOYMENT.md`. If Auto-Stock has never been deployed on this
-box, run `infra/install-autostock.sh` first.
 
 ---
 
-## 0. Get the code to GitHub (from your PC, PowerShell)
+## Prerequisites
 
-The VPS pulls from GitHub, so the work must be pushed first. The Auto-Stock work
-lives on the `autostock` branch.
+- A fresh Ubuntu 22.04/24.04 VPS, 2+ CPU / 4 GB RAM, with a sudo user and SSH.
+- The `autostock` branch pushed to GitHub (done from the dev PC).
+- DNS control for `thebigbakes.com`.
+
+---
+
+## 1. (dev PC, PowerShell) push the branch — already done
 
 ```powershell
 cd "C:\Users\roger\Big bakes\auto-stock"
 git push -u origin autostock
 ```
 
-> Do **not** merge into `main` unless you intend to: the Filament Store
-> production box tracks `main` and pulls it on deploy.
+> Never merge to `main` for this — `main` is Filament Store production.
 
 ---
 
-## 1. DNS — point the host at the VPS
+## 2. DNS — point the host at the VPS
 
-At your DNS provider for `thebigbakes.com`, add an **A record**:
+At your DNS provider, add an **A record**:
 
-| Type | Host (subdomain)        | Value      | TTL |
-|------|-------------------------|------------|-----|
-| A    | `stocktake.starship`    | `<VPS_IP>` | 300 |
+| Type | Host                 | Value      | TTL |
+|------|----------------------|------------|-----|
+| A    | `stocktake.starship` | `<VPS_IP>` | 300 |
 
-Wait for it to resolve (from the VPS):
+Confirm it resolves before TLS (step 6):
 
 ```bash
-nslookup STOCKTAKE_HOST
+nslookup stocktake.starship.thebigbakes.com
 ```
 
-Don't continue to TLS until this returns the VPS IP.
-
 ---
 
-## 2. Set the shared access code (on the VPS)
+## 3. Provision the API + database (on the VPS, as root)
 
-The demo API is gated by a shared code, not logins. Add it to the API env and
-restart:
+This installs Docker + nginx + certbot + Node 22, clones the repo, checks out
+`autostock`, brings up Postgres, runs migrations (incl. `0036`), writes
+`apps/api/.env` (with the stock-take access code), and starts the `smmta-api`
+systemd service. Pick a real access code.
 
 ```bash
-echo 'STOCKTAKE_ACCESS_CODE=<pick-a-code>' >> ~/smmta-next/apps/api/.env
-sudo systemctl restart smmta-api
+sudo SMMTA_NONINTERACTIVE=1 \
+     SMMTA_BRANCH=autostock \
+     SMMTA_BUSINESS_NAME="Big Bakes" \
+     SMMTA_ADMIN_HOST=stocktake.starship.thebigbakes.com \
+     SMMTA_ADMIN_EMAIL=admin@thebigbakes.com \
+     SMMTA_ADMIN_PASSWORD='change-me' \
+     SMMTA_LE_EMAIL=admin@thebigbakes.com \
+     SMMTA_STOCKTAKE_CODE='<pick-a-shared-code>' \
+     bash /home/smmta/smmta-next/infra/install-autostock.sh
 ```
 
-Counters and head office type this code once per device.
+> First time on a brand-new box you won't have the repo yet. Either clone it
+> first (`sudo -u smmta git clone https://github.com/roger296/smmta-next.git
+> /home/smmta/smmta-next`) then run the line above, or download just the script
+> and run it — it clones for you. The `apps/web` admin SPA + the four background
+> timers are installed too but aren't exposed publicly; they're harmless for the
+> demo (Square/BumbleBee polls are no-ops until configured).
+
+Verify the API:
+
+```bash
+curl -fsS http://127.0.0.1:3000/health && echo "  API up"
+```
 
 ---
 
-## 3. First build + publish (on the VPS)
+## 4. Build + publish the stock-take PWA (on the VPS, as smmta)
 
 ```bash
+sudo -iu smmta
 cd ~/smmta-next
-git checkout BRANCH && git pull --ff-only origin BRANCH
-npm install --no-audit --no-fund
-( cd apps/api && npx drizzle-kit migrate )        # applies migration 0036
 npm run build -w @smmta/stocktake
 sudo mkdir -p /var/www/stocktake-web
 sudo cp -r apps/stocktake/dist/* /var/www/stocktake-web/
@@ -82,64 +98,64 @@ sudo chown -R www-data:www-data /var/www/stocktake-web
 
 ---
 
-## 4. nginx site (HTTP first, on the VPS)
+## 5. nginx site (HTTP first)
 
 ```bash
-sed "s|__STOCKTAKE_HOST__|STOCKTAKE_HOST|g" \
+sed "s|__STOCKTAKE_HOST__|stocktake.starship.thebigbakes.com|g" \
   ~/smmta-next/infra/nginx/stocktake.conf.template \
   | sudo tee /etc/nginx/sites-available/stocktake >/dev/null
 sudo ln -sf /etc/nginx/sites-available/stocktake /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
+sudo ufw allow 'Nginx Full' 2>/dev/null || true
 ```
 
-The template has the TLS lines commented out so nginx starts on port 80; certbot
+The template keeps the TLS lines commented so nginx boots on port 80; certbot
 fills them in next.
 
 ---
 
-## 5. TLS via certbot (on the VPS)
+## 6. TLS via certbot
 
 ```bash
-sudo certbot --nginx -d STOCKTAKE_HOST
+sudo certbot --nginx -d stocktake.starship.thebigbakes.com
 ```
 
-Choose **Redirect** when asked. Verify:
+Choose **Redirect**. Verify end to end:
 
 ```bash
-curl -I https://STOCKTAKE_HOST            # 200 + serves index.html
-curl -s https://STOCKTAKE_HOST/api/v1/stocktake-lite/sites?period=JUNE-2026 \
-  -H 'x-stocktake-code: <pick-a-code>'    # {"success":true,"data":[]}
+curl -I https://stocktake.starship.thebigbakes.com
+curl -s "https://stocktake.starship.thebigbakes.com/api/v1/stocktake-lite/sites?period=JUNE-2026" \
+  -H 'x-stocktake-code: <pick-a-shared-code>'      # → {"success":true,"data":[]}
 ```
 
 ---
 
-## 6. Install it on the iPads
+## 7. Install on the iPads
 
-1. Open Safari → `https://STOCKTAKE_HOST`
-2. Share → **Add to Home Screen** → it installs as "Stock Take"
-3. Open the icon, pick the site, enter your name + the access code, start counting.
+1. Safari → `https://stocktake.starship.thebigbakes.com`
+2. Share → **Add to Home Screen** → installs as "Stock Take".
+3. Open it, pick the site, type your name + the access code, count.
 
-Head office: `https://STOCKTAKE_HOST/#/consolidate` → load sites, settle any
-conflicts, **Export all sites**.
+Head office: `…/#/consolidate` → Load sites → settle conflicts → **Export all
+sites**.
 
 ---
 
-## Future updates
+## Future updates (one command)
 
 ```bash
-~/smmta-next/infra/scripts/deploy-stocktake.sh BRANCH
+~/smmta-next/infra/scripts/deploy-stocktake.sh autostock
 ```
 
-Pulls, installs, migrates, restarts the API, rebuilds + republishes the PWA, and
-reloads nginx.
+Pulls `autostock`, installs, migrates, restarts the API, rebuilds + republishes
+the PWA, reloads nginx.
 
 ## Troubleshooting
 
-- **401 from /api** — the `x-stocktake-code` header doesn't match
-  `STOCKTAKE_ACCESS_CODE` in `apps/api/.env`. Re-check + `sudo systemctl restart
-  smmta-api`.
-- **502 on /api** — API down: `sudo systemctl status smmta-api` +
-  `curl http://127.0.0.1:3000/health`.
-- **Blank page / old version** — hard refresh (the service worker caches the
-  shell); the deploy script clears `/var/www/stocktake-web` each run.
-- **certbot DNS error** — DNS hasn't propagated; wait and re-run step 5.
+- **401 from /api** — `x-stocktake-code` header ≠ `STOCKTAKE_ACCESS_CODE` in
+  `apps/api/.env`. Fix + `sudo systemctl restart smmta-api`.
+- **502 on /api** — API down: `sudo systemctl status smmta-api` /
+  `sudo journalctl -u smmta-api -n 50`.
+- **Blank / stale page** — hard refresh; the deploy script wipes
+  `/var/www/stocktake-web` each run so the new bundle always wins.
+- **certbot DNS error** — DNS not propagated yet; wait and re-run step 6.
