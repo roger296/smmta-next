@@ -1,38 +1,44 @@
 #!/usr/bin/env bash
 #
-# Deploy / update the standalone stock-take-lite PWA (P26) on the Auto-Stock VPS.
+# Deploy / update the standalone stock-take-lite PWA (P26).
 #
-# Run this ON the VPS (as the smmta user). It is idempotent — safe to re-run for
-# every update. The one-off setup (DNS A record, nginx site, certbot TLS) is in
-# docs/runbooks/stocktake-deploy.md and only needs doing once; after that, a
-# deploy is just:
+# Run this ON the server (as the smmta user). Idempotent — safe to re-run for
+# every update. The one-off setup (DNS, nginx site, certbot TLS, the API systemd
+# unit) is in docs/runbooks/stocktake-deploy.md and only needs doing once.
 #
-#   ~/smmta-next/infra/scripts/deploy-stocktake.sh [git-ref]
+# It is topology-aware via env vars, so it works both for a dedicated box and for
+# the side-by-side install alongside Filament Store (separate clone, separate DB,
+# separate API service on its own port):
 #
-# git-ref defaults to the current branch. Pass e.g. `autostock` to track that
-# branch, or a tag.
+#   # dedicated box (API is the main smmta-api in ~/smmta-next):
+#   ~/smmta-next/infra/scripts/deploy-stocktake.sh autostock
 #
-# Pre-reqs (one-off, see the runbook):
-#   - The Auto-Stock API is already deployed + running (systemd: smmta-api).
-#   - STOCKTAKE_ACCESS_CODE is set in apps/api/.env (this script refuses to
-#     deploy without it, so the demo isn't left open on a public URL).
-#   - /var/www/stocktake-web exists and is writable via sudo.
-#   - nginx site for the stock-take host is enabled (see the runbook).
+#   # side-by-side with Filament (second API "autostock-api" in ~/auto-stock):
+#   SMMTA_REPO_DIR=~/auto-stock STOCKTAKE_API_SERVICE=autostock-api \
+#     ~/auto-stock/infra/scripts/deploy-stocktake.sh autostock
+#
+# Env (all optional):
+#   SMMTA_REPO_DIR          repo checkout to deploy from   (default: ~/smmta-next)
+#   STOCKTAKE_API_SERVICE   systemd unit to restart        (default: smmta-api)
+#   STOCKTAKE_WEB_ROOT      where the static bundle is served from
+#                                                          (default: /var/www/stocktake-web)
+#   STOCKTAKE_API_PORT      health-check port              (default: 3000)
 set -euo pipefail
 
 REPO_DIR="${SMMTA_REPO_DIR:-$HOME/smmta-next}"
+API_SERVICE="${STOCKTAKE_API_SERVICE:-smmta-api}"
 WEB_ROOT="${STOCKTAKE_WEB_ROOT:-/var/www/stocktake-web}"
+API_PORT="${STOCKTAKE_API_PORT:-3000}"
 REF="${1:-}"
 
 cd "${REPO_DIR}"
-
-echo "==> Stock-take-lite deploy from ${REPO_DIR}"
+echo "==> Stock-take-lite deploy from ${REPO_DIR} (service ${API_SERVICE}, port ${API_PORT})"
 
 if [[ -n "${REF}" ]]; then
   echo "--> git fetch + checkout ${REF}"
   git fetch --all --tags --prune
   git checkout "${REF}"
-  git pull --ff-only origin "${REF}" || true
+  git pull --ff-only origin "${REF}"
 else
   REF="$(git rev-parse --abbrev-ref HEAD)"
   echo "--> git pull (current branch: ${REF})"
@@ -42,23 +48,27 @@ fi
 echo "--> npm install (workspaces)"
 npm install --no-audit --no-fund
 
-# --- API side: apply the migration + restart so the new routes are live ------
-echo "--> Applying DB migrations (drizzle-kit migrate)"
-( cd apps/api && npx drizzle-kit migrate )
+echo "--> Building @smmta/shared-types (the API imports it)"
+npm run build -w @smmta/shared-types
 
-if ! grep -q '^STOCKTAKE_ACCESS_CODE=..*' apps/api/.env 2>/dev/null; then
-  echo "ERROR: STOCKTAKE_ACCESS_CODE is not set in apps/api/.env." >&2
-  echo "       Add a line like: STOCKTAKE_ACCESS_CODE=<some-shared-code>" >&2
-  echo "       (without it the demo API is open to anyone with the URL)." >&2
+# Migrate using the DB URL from the API's OWN .env, never drizzle's dev default —
+# critical when this clone points at an isolated database (e.g. `autostock`).
+if [[ ! -f apps/api/.env ]]; then
+  echo "ERROR: apps/api/.env not found in ${REPO_DIR}." >&2
   exit 1
 fi
+if ! grep -q '^STOCKTAKE_ACCESS_CODE=..*' apps/api/.env; then
+  echo "ERROR: STOCKTAKE_ACCESS_CODE not set in apps/api/.env (demo would be open)." >&2
+  exit 1
+fi
+echo "--> Applying DB migrations"
+( cd apps/api && DATABASE_URL="$(grep -oP '^DATABASE_URL=\K.*' .env)" npx drizzle-kit migrate )
 
-echo "--> Restarting smmta-api"
-sudo systemctl restart smmta-api
+echo "--> Restarting ${API_SERVICE}"
+sudo systemctl restart "${API_SERVICE}"
 sleep 3
-curl -fsS http://127.0.0.1:3000/health >/dev/null && echo "    API healthy"
+curl -fsS "http://127.0.0.1:${API_PORT}/health" >/dev/null && echo "    API healthy on :${API_PORT}"
 
-# --- PWA side: build + publish the static bundle -----------------------------
 echo "--> Building @smmta/stocktake"
 npm run build -w @smmta/stocktake
 
@@ -72,5 +82,3 @@ echo "--> Reloading nginx"
 sudo nginx -t && sudo systemctl reload nginx
 
 echo "==> Stock-take-lite deploy complete (${REF})."
-echo "    Counters:    https://<your-stocktake-host>/"
-echo "    Head office: https://<your-stocktake-host>/#/consolidate"
