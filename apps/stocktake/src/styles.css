@@ -118,6 +118,21 @@ button { font-family: inherit; cursor: pointer; }
 }
 .zero:active { transform: scale(0.96); }
 
+/* Part-unit (fraction) entry — hidden behind a per-line unlock. */
+.unlock {
+  min-width: 40px; height: 46px; border-radius: var(--radius);
+  border: 1px dashed var(--border, var(--line)); background: var(--card);
+  font-size: 17px; color: var(--muted);
+}
+.fracs { display: flex; gap: 6px; }
+.frac {
+  min-width: 40px; height: 46px; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--card);
+  font-size: 18px; font-weight: 600; color: var(--ink);
+}
+.frac.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.unlock:active, .frac:active { transform: scale(0.96); }
+
 /* ── Add item ─────────────────────────────────────────────── */
 .add-bar { padding: 14px 16px; }
 .btn {

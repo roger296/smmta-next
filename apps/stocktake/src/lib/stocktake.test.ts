@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { setCount, clearCount } from './storage';
 import { groupCatalogue } from './catalogue';
+import { partUnit } from './fractions';
 import { dirtyCounted } from './api';
 import type { CatalogueItem, CountsMap } from './types';
 
@@ -43,6 +44,23 @@ describe('dirtyCounted', () => {
     counts = clearCount(counts, 'k2');
     const out = dirtyCounted(counts);
     expect(out.map((c) => c.itemKey)).toEqual(['k1']);
+  });
+});
+
+describe('partUnit', () => {
+  it('adds a fraction onto the whole number', () => {
+    expect(partUnit(0, 0.5)).toBe(0.5);
+    expect(partUnit(4, 0.25)).toBe(4.25);
+    expect(partUnit(4, 0.75)).toBe(4.75);
+  });
+
+  it('keeps the whole number when switching fraction', () => {
+    expect(partUnit(4.25, 0.5)).toBe(4.5);
+  });
+
+  it('toggles the active fraction back off to the whole number', () => {
+    expect(partUnit(0.5, 0.5)).toBe(0);
+    expect(partUnit(4.5, 0.5)).toBe(4);
   });
 });
 
