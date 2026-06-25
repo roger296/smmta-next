@@ -46,6 +46,38 @@ def slugify(*parts):
     return base
 
 
+# Units that mark the "subsidiary" (single-item) size, e.g. the "1l" in "12 x 1l".
+_UNIT_RE = re.compile(r"(?:ml|cl|ltr|l|kg|g|oz|lb|cm)\b", re.I)
+
+
+def _has_unit(s):
+    return bool(_UNIT_RE.search(s))
+
+
+def simplify_pack(pack):
+    """Reduce "<carton count> x <unit>" (either order) to just the unit, so a
+    counter knows they're counting single items, not packs. "12 x 1l" -> "1l",
+    "330ml x 24" -> "330ml", "1 box is 6x 100ml tubes" -> "100ml". Sizes that
+    are already a single unit ("25kg") or genuinely ambiguous ("1 x 5", "6x6")
+    are left untouched."""
+    if not pack:
+        return pack
+    s = pack.strip()
+    # "<count> x <unit...>"  (count first)
+    m = re.match(r"^[\d.,/]+\s*[x×]\s*(.+)$", s, re.I)
+    if m and _has_unit(m.group(1)):
+        return m.group(1).strip()
+    # "<unit...> x <count>"  (count last)
+    m = re.match(r"^(.+?)\s*[x×]\s*[\d.,/]+\s*$", s, re.I)
+    if m and _has_unit(m.group(1)):
+        return m.group(1).strip()
+    # embedded "<count>x <unit>" inside a phrase, e.g. "1 box is 6x 100ml tubes"
+    m = re.search(r"\d+\s*[x×]\s*(\d+(?:\.\d+)?\s*(?:ml|cl|ltr|l|kg|g)\b)", s, re.I)
+    if m:
+        return m.group(1).strip()
+    return s
+
+
 def build(src_path, sheet_name):
     wb = openpyxl.load_workbook(src_path)
     ws = wb[sheet_name]
@@ -86,7 +118,7 @@ def build(src_path, sheet_name):
                 section = v
             continue
         order += 1
-        pack = norm(ws.cell(r, 2).value)
+        pack = simplify_pack(norm(ws.cell(r, 2).value))
         supplier = norm(ws.cell(r, 3).value)
         key = slugify(section or area or "general", v)
         # Guard against duplicate item names within a section (e.g. a colour

@@ -98,7 +98,7 @@
       "area": "General Ingredients",
       "section": "WET STOCK",
       "name": "Long Life Semi Skimmed Milk",
-      "pack": "12 x 1l",
+      "pack": "1l",
       "supplier": "Brakes",
       "order": 11
     },
@@ -125,7 +125,7 @@
       "area": "General Ingredients",
       "section": "WET STOCK",
       "name": "Unsalted Butter",
-      "pack": "40 x 250g",
+      "pack": "250g",
       "supplier": "Brakes",
       "order": 14
     },
@@ -224,7 +224,7 @@
       "area": "General Ingredients",
       "section": "DIETARIES",
       "name": "Long Life Soya Milk",
-      "pack": "8 x 1l",
+      "pack": "1l",
       "supplier": "Brakes",
       "order": 25
     },
@@ -233,7 +233,7 @@
       "area": "General Ingredients",
       "section": "DIETARIES",
       "name": "Long Life Oat Milk",
-      "pack": "6 x 1l",
+      "pack": "1l",
       "supplier": "Brakes",
       "order": 26
     },
@@ -251,7 +251,7 @@
       "area": "General Ingredients",
       "section": "DIETARIES",
       "name": "Vegan (sheese) Cream Cheese",
-      "pack": "8 x 255g",
+      "pack": "255g",
       "supplier": "Brakes",
       "order": 28
     },
@@ -350,7 +350,7 @@
       "area": "General Ingredients",
       "section": "FONDANT",
       "name": "brown fondant",
-      "pack": "12x250g",
+      "pack": "250g",
       "supplier": "culpitt",
       "order": 39
     },
@@ -593,7 +593,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Sweets",
       "name": "Biscoff Crumb",
-      "pack": "8x750g",
+      "pack": "750g",
       "supplier": null,
       "order": 66
     },
@@ -728,7 +728,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Orange",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 81
     },
@@ -737,7 +737,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Mint",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 82
     },
@@ -746,7 +746,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Sky blue",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 83
     },
@@ -755,7 +755,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Baby Pink",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 84
     },
@@ -764,7 +764,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Candy",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 85
     },
@@ -773,7 +773,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Purple",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 86
     },
@@ -782,7 +782,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Red",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 87
     },
@@ -791,7 +791,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Brown",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 88
     },
@@ -800,7 +800,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Yellow",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 89
     },
@@ -809,7 +809,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Green",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 90
     },
@@ -818,7 +818,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Royal blue",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 91
     },
@@ -827,7 +827,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "Black",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 92
     },
@@ -836,7 +836,7 @@
       "area": "Creation Corner Ingredients",
       "section": "Food Colouring - RB",
       "name": "White",
-      "pack": "1 box is 6x 100ml tubes",
+      "pack": "100ml",
       "supplier": "ColourMill",
       "order": 93
     },
@@ -944,7 +944,7 @@
       "area": "CAFE STOCK",
       "section": "Pastries",
       "name": "All Butter Crossiant",
-      "pack": "50 x 60g",
+      "pack": "60g",
       "supplier": "Brakes",
       "order": 105
     },
@@ -953,7 +953,7 @@
       "area": "CAFE STOCK",
       "section": "Pastries",
       "name": "Almond Crossiant",
-      "pack": "48 x 95g",
+      "pack": "95g",
       "supplier": "Brakes",
       "order": 106
     },
@@ -962,7 +962,7 @@
       "area": "CAFE STOCK",
       "section": "Pastries",
       "name": "Pain au Raisin",
-      "pack": "36 x 96g",
+      "pack": "96g",
       "supplier": "Brakes",
       "order": 107
     },
@@ -971,7 +971,7 @@
       "area": "CAFE STOCK",
       "section": "Pastries",
       "name": "Pain au Chocolat",
-      "pack": "48 x 75g",
+      "pack": "75g",
       "supplier": "Brakes",
       "order": 108
     },
@@ -980,7 +980,7 @@
       "area": "CAFE STOCK",
       "section": "Pastries",
       "name": "Cheese Twist",
-      "pack": "50 x 90g",
+      "pack": "90g",
       "supplier": "Brakes",
       "order": 109
     },
@@ -989,7 +989,7 @@
       "area": "CAFE STOCK",
       "section": "Pastries",
       "name": "Sausage Rolls",
-      "pack": "40 x 190g",
+      "pack": "190g",
       "supplier": "Brakes",
       "order": 110
     },
@@ -1043,7 +1043,7 @@
       "area": "CAFE STOCK",
       "section": "Breads",
       "name": "Sourdough",
-      "pack": "8 x 800g",
+      "pack": "800g",
       "supplier": "Brakes",
       "order": 116
     },
@@ -1079,7 +1079,7 @@
       "area": "CAFE STOCK",
       "section": "Sandwich Fillings",
       "name": "Ham",
-      "pack": "1 x 454g",
+      "pack": "454g",
       "supplier": "Brakes",
       "order": 120
     },
@@ -1088,7 +1088,7 @@
       "area": "CAFE STOCK",
       "section": "Sandwich Fillings",
       "name": "Emmental",
-      "pack": "1 x 500g (25 slices)",
+      "pack": "500g (25 slices)",
       "supplier": "Brakes",
       "order": 121
     },
@@ -1115,7 +1115,7 @@
       "area": "CAFE STOCK",
       "section": "Sandwich Fillings",
       "name": "Fresh Mozzarella",
-      "pack": "12 x 125g",
+      "pack": "125g",
       "supplier": "Brakes",
       "order": 124
     },
@@ -1133,7 +1133,7 @@
       "area": "CAFE STOCK",
       "section": "Sandwich Fillings",
       "name": "Salt Beef",
-      "pack": "1 x 1kg",
+      "pack": "1kg",
       "supplier": "Brakes",
       "order": 126
     },
@@ -1142,7 +1142,7 @@
       "area": "CAFE STOCK",
       "section": "Sandwich Fillings",
       "name": "Smoked Cheddar Slices",
-      "pack": "1 x 1kg (50 slices)",
+      "pack": "1kg (50 slices)",
       "supplier": "Brakes",
       "order": 127
     },
@@ -1151,7 +1151,7 @@
       "area": "CAFE STOCK",
       "section": "Sandwich Fillings",
       "name": "Sliced Pickles",
-      "pack": "1 x 2.3kg",
+      "pack": "2.3kg",
       "supplier": "Brakes",
       "order": 128
     },
@@ -1160,7 +1160,7 @@
       "area": "CAFE STOCK",
       "section": "Pre Packed Offering",
       "name": "Vegan Flapjack",
-      "pack": "18 x 85g",
+      "pack": "85g",
       "supplier": "Brakes",
       "order": 129
     },
@@ -1178,7 +1178,7 @@
       "area": "CAFE STOCK",
       "section": "Pre Packed Offering",
       "name": "Raspberry & Almond Slice",
-      "pack": "18 x 60g",
+      "pack": "60g",
       "supplier": "Brakes",
       "order": 131
     },
@@ -1187,7 +1187,7 @@
       "area": "CAFE STOCK",
       "section": "Pre Packed Offering",
       "name": "Shortbread",
-      "pack": "120 x 40g",
+      "pack": "40g",
       "supplier": "Brakes",
       "order": 132
     },
@@ -1205,7 +1205,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Fat Barrel Sauvignon Blanc",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 134
     },
@@ -1214,7 +1214,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Sangiovese Primi soli",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 135
     },
@@ -1223,7 +1223,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Sea Change Pinot Grigio Rose",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 136
     },
@@ -1232,7 +1232,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Sea Change Provence Rosé",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 137
     },
@@ -1241,7 +1241,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Famiglia Botter Prosecco",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 138
     },
@@ -1250,7 +1250,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Castelli Pinot Grigio Doc",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 139
     },
@@ -1259,7 +1259,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Macon Lugny Les Genievres Louis",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 140
     },
@@ -1268,7 +1268,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Cramele Recas Pinot Noir",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 141
     },
@@ -1277,7 +1277,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Alma De Chile Merlot Reserva",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 142
     },
@@ -1286,7 +1286,7 @@
       "area": "Bar Stock",
       "section": "Wines",
       "name": "Champagne - Charles Joubert NV",
-      "pack": "1 x 75cl",
+      "pack": "75cl",
       "supplier": "LWC",
       "order": 143
     },
@@ -1295,7 +1295,7 @@
       "area": "Bar Stock",
       "section": "Beer, Cider & Seltzer",
       "name": "Peroni 5.1% Nrb",
-      "pack": "330ml x 24",
+      "pack": "330ml",
       "supplier": "Booker",
       "order": 144
     },
@@ -1304,7 +1304,7 @@
       "area": "Bar Stock",
       "section": "Beer, Cider & Seltzer",
       "name": "Corona Extra Nrb",
-      "pack": "330ml x 24",
+      "pack": "330ml",
       "supplier": "Booker",
       "order": 145
     },
@@ -1313,7 +1313,7 @@
       "area": "Bar Stock",
       "section": "Beer, Cider & Seltzer",
       "name": "Birra Moretti Nrb",
-      "pack": "330ml x 24",
+      "pack": "330ml",
       "supplier": "Booker",
       "order": 146
     },
@@ -1322,7 +1322,7 @@
       "area": "Bar Stock",
       "section": "Beer, Cider & Seltzer",
       "name": "Kopparberg MF",
-      "pack": "500ml x 15",
+      "pack": "500ml",
       "supplier": "Booker",
       "order": 147
     },
@@ -1331,7 +1331,7 @@
       "area": "Bar Stock",
       "section": "Beer, Cider & Seltzer",
       "name": "Kopparberg S&L",
-      "pack": "500ml x 15",
+      "pack": "500ml",
       "supplier": "Booker",
       "order": 148
     },
@@ -1403,7 +1403,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Absolut Vodka (house vodka)",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 156
     },
@@ -1412,7 +1412,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Smirnoff Vodka",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 157
     },
@@ -1430,7 +1430,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Bacardi White Rum",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 159
     },
@@ -1439,7 +1439,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Captain Morgan Spiced",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 160
     },
@@ -1448,7 +1448,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Jack Daniels Whiskey",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 161
     },
@@ -1457,7 +1457,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Buffalo Trace Bourbon",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 162
     },
@@ -1466,7 +1466,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Tanqueray Gin 43.1% (house gin)",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 163
     },
@@ -1475,7 +1475,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Tanqueray Royal",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 164
     },
@@ -1484,7 +1484,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Gordons Gin",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 165
     },
@@ -1502,7 +1502,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Glenfiddich 12 yr",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 167
     },
@@ -1511,7 +1511,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Woodford Reserve",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 168
     },
@@ -1520,7 +1520,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Olmeca Silver Tequila",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 169
     },
@@ -1529,7 +1529,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Olmeca GoldTequila",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 170
     },
@@ -1538,7 +1538,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Amaretto Disaronno",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 171
     },
@@ -1547,7 +1547,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Baileys Irish Cream",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 172
     },
@@ -1556,7 +1556,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Campari",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 173
     },
@@ -1574,7 +1574,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Aperol",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 175
     },
@@ -1583,7 +1583,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Cointreau",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 176
     },
@@ -1592,7 +1592,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Pimm's No.1",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "LWC",
       "order": 177
     },
@@ -1601,7 +1601,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Kahlua",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 178
     },
@@ -1610,7 +1610,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Gordons Mediterranean Orange Gin",
-      "pack": "1 x 70cl",
+      "pack": "70cl",
       "supplier": "Booker",
       "order": 179
     },
@@ -1619,7 +1619,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Mozart - Dark",
-      "pack": "1 x 50cl",
+      "pack": "50cl",
       "supplier": "Booker",
       "order": 180
     },
@@ -1628,7 +1628,7 @@
       "area": "Bar Stock",
       "section": "Spirits",
       "name": "Mozart - White Chocolate",
-      "pack": "1 x 50cl",
+      "pack": "50cl",
       "supplier": "Booker",
       "order": 181
     },
@@ -1745,7 +1745,7 @@
       "area": "Bar Stock",
       "section": "EXTRA'S - Cocktail Mix Ingredients",
       "name": "Peach Puree Funkin",
-      "pack": "1kg x 5",
+      "pack": "1kg",
       "supplier": "Booker",
       "order": 194
     },
@@ -1754,7 +1754,7 @@
       "area": "Bar Stock",
       "section": "EXTRA'S - Cocktail Mix Ingredients",
       "name": "Lime Puree Funkin",
-      "pack": "1kg x 5",
+      "pack": "1kg",
       "supplier": "Booker",
       "order": 195
     },
@@ -1763,7 +1763,7 @@
       "area": "Bar Stock",
       "section": "EXTRA'S - Cocktail Mix Ingredients",
       "name": "Passion Fruit Puree Funkin",
-      "pack": "1kg x 5",
+      "pack": "1kg",
       "supplier": "Booker",
       "order": 196
     },
@@ -1772,7 +1772,7 @@
       "area": "Bar Stock",
       "section": "EXTRA'S - Cocktail Mix Ingredients",
       "name": "cherry Puree Funkin",
-      "pack": "1kg x 5",
+      "pack": "1kg",
       "supplier": "Booker",
       "order": 197
     },
@@ -1781,7 +1781,7 @@
       "area": "Bar Stock",
       "section": "EXTRA'S - Cocktail Mix Ingredients",
       "name": "Mango Puree Funkin",
-      "pack": "1kg x 5",
+      "pack": "1kg",
       "supplier": "Booker",
       "order": 198
     },
@@ -1790,7 +1790,7 @@
       "area": "Bar Stock",
       "section": "EXTRA'S - Cocktail Mix Ingredients",
       "name": "Strawberry Puree Funkin",
-      "pack": "1kg x 5",
+      "pack": "1kg",
       "supplier": "Booker",
       "order": 199
     },
@@ -1808,7 +1808,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Marlish Sparkling Water",
-      "pack": "24 x 330ml",
+      "pack": "330ml",
       "supplier": "LWC",
       "order": 201
     },
@@ -1817,7 +1817,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Marlish Still Water",
-      "pack": "24 x 330ml",
+      "pack": "330ml",
       "supplier": "LWC",
       "order": 202
     },
@@ -1826,7 +1826,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Coca Cola",
-      "pack": "24 x 330ml",
+      "pack": "330ml",
       "supplier": "Booker",
       "order": 203
     },
@@ -1835,7 +1835,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Coca Cola Zero",
-      "pack": "24 x 330ml",
+      "pack": "330ml",
       "supplier": "Booker",
       "order": 204
     },
@@ -1844,7 +1844,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Diet Coca Cola",
-      "pack": "24 x 200ml",
+      "pack": "200ml",
       "supplier": "Booker",
       "order": 205
     },
@@ -1853,7 +1853,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "R.Whites Lemonade Can",
-      "pack": "24 x 330ml",
+      "pack": "330ml",
       "supplier": "Booker",
       "order": 206
     },
@@ -1862,7 +1862,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Fever Tree Ginger Beer",
-      "pack": "24 x 200ml",
+      "pack": "200ml",
       "supplier": "LWC",
       "order": 207
     },
@@ -1871,7 +1871,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Fever Tree Indian Tonic Water",
-      "pack": "24 x 200ml",
+      "pack": "200ml",
       "supplier": "Booker",
       "order": 208
     },
@@ -1880,7 +1880,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Fever Tree Light Tonic Water",
-      "pack": "24 x 200ml",
+      "pack": "200ml",
       "supplier": "Booker",
       "order": 209
     },
@@ -1889,7 +1889,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Cranberry Juice",
-      "pack": "12/8 x 1ltr",
+      "pack": "1ltr",
       "supplier": "Booker",
       "order": 210
     },
@@ -1898,7 +1898,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Orange Juice",
-      "pack": "12/8 x 1ltr",
+      "pack": "1ltr",
       "supplier": "Booker",
       "order": 211
     },
@@ -1907,7 +1907,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Pineapple Juice",
-      "pack": "12.8 x 1ltr",
+      "pack": "1ltr",
       "supplier": "Booker",
       "order": 212
     },
@@ -1916,7 +1916,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Apple Juice",
-      "pack": "12.8 x 1ltr",
+      "pack": "1ltr",
       "supplier": "Booker",
       "order": 213
     },
@@ -1925,7 +1925,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Fever Tree Soda Water",
-      "pack": "24 x 200ml",
+      "pack": "200ml",
       "supplier": "Booker",
       "order": 214
     },
@@ -1934,7 +1934,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "London Essence Peach & Jasmine Soda",
-      "pack": "24 x 200ml",
+      "pack": "200ml",
       "supplier": "LWC",
       "order": 215
     },
@@ -1943,7 +1943,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "London Essence Roasted Pineapple Soda",
-      "pack": "24 x 200ml",
+      "pack": "200ml",
       "supplier": "LWC",
       "order": 216
     },
@@ -1952,7 +1952,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Redbull",
-      "pack": "24 x 250ml",
+      "pack": "250ml",
       "supplier": "Booker",
       "order": 217
     },
@@ -1961,7 +1961,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "J20 O&P",
-      "pack": "12 x 275ml",
+      "pack": "275ml",
       "supplier": "Booker",
       "order": 218
     },
@@ -1970,7 +1970,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "J20 A&R",
-      "pack": "12 x 275ml",
+      "pack": "275ml",
       "supplier": "Booker",
       "order": 219
     },
@@ -1979,7 +1979,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Fruit Shoot Orange",
-      "pack": "12 x 275ml",
+      "pack": "275ml",
       "supplier": "Booker",
       "order": 220
     },
@@ -1988,7 +1988,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Fruit Shoot Apple & Blackcurrant",
-      "pack": "12 x 275ml",
+      "pack": "275ml",
       "supplier": "Booker",
       "order": 221
     },
@@ -1997,7 +1997,7 @@
       "area": "Bar Stock",
       "section": "Soft/Mixers",
       "name": "Apple & Blackcurrant Squash",
-      "pack": "12 x 750ml",
+      "pack": "750ml",
       "supplier": "Booker",
       "order": 222
     },
@@ -2015,7 +2015,7 @@
       "area": "Bar Stock",
       "section": "Alcohol Free",
       "name": "Nozecco",
-      "pack": "6 x 75cl",
+      "pack": "75cl",
       "supplier": "Booker",
       "order": 224
     },
@@ -2132,7 +2132,7 @@
       "area": "Bar Stock",
       "section": "Other",
       "name": "Milk",
-      "pack": "12 x 1l",
+      "pack": "1l",
       "supplier": "Brakes",
       "order": 237
     },
@@ -2141,7 +2141,7 @@
       "area": "Bar Stock",
       "section": "Other",
       "name": "Oat Milk",
-      "pack": "6 x 1l",
+      "pack": "1l",
       "supplier": "Booker",
       "order": 238
     },
@@ -2150,7 +2150,7 @@
       "area": "Bar Stock",
       "section": "Other",
       "name": "Soya Milk",
-      "pack": "12 x 1l",
+      "pack": "1l",
       "supplier": "Booker",
       "order": 239
     },
@@ -2591,7 +2591,7 @@
       "area": "Corporate Food",
       "section": "LUNCH",
       "name": "Falafel",
-      "pack": "60 x 25g",
+      "pack": "25g",
       "supplier": "Brakes",
       "order": 288
     },
@@ -2627,7 +2627,7 @@
       "area": "Corporate Food",
       "section": "LUNCH",
       "name": "Crisps",
-      "pack": "6 x 450g",
+      "pack": "450g",
       "supplier": "Brakes",
       "order": 292
     },
@@ -2636,7 +2636,7 @@
       "area": "Corporate Food",
       "section": "LUNCH",
       "name": "Popcorn",
-      "pack": "8 x 90g",
+      "pack": "90g",
       "supplier": "Brakes",
       "order": 293
     },
@@ -2726,7 +2726,7 @@
       "area": "Corporate Food",
       "section": "BAR FOOD",
       "name": "Tortilla Chips",
-      "pack": "12 x 300g",
+      "pack": "300g",
       "supplier": "Brakes",
       "order": 303
     },
@@ -2816,7 +2816,7 @@
       "area": "Corporate Food",
       "section": "BAR FOOD",
       "name": "Whole Mozzarella",
-      "pack": "8 x 125g",
+      "pack": "125g",
       "supplier": "Brakes",
       "order": 313
     },
@@ -2825,7 +2825,7 @@
       "area": "Corporate Food",
       "section": "BAR FOOD",
       "name": "Camembert",
-      "pack": "6 x 240g",
+      "pack": "240g",
       "supplier": "Brakes",
       "order": 314
     },
@@ -2987,7 +2987,7 @@
       "area": "Corporate Food",
       "section": "Bar Snacks",
       "name": "Popcorn",
-      "pack": "8 x 90g",
+      "pack": "90g",
       "supplier": "Brakes",
       "order": 332
     },
@@ -2996,7 +2996,7 @@
       "area": "Corporate Food",
       "section": "Bar Snacks",
       "name": "Kettle Salted",
-      "pack": "18x40g",
+      "pack": "40g",
       "supplier": "Brakes",
       "order": 333
     },
@@ -3005,7 +3005,7 @@
       "area": "Corporate Food",
       "section": "Bar Snacks",
       "name": "Kettle Salt & Vinegar",
-      "pack": "18x40g",
+      "pack": "40g",
       "supplier": "Brakes",
       "order": 334
     },
@@ -3014,7 +3014,7 @@
       "area": "Corporate Food",
       "section": "Bar Snacks",
       "name": "Kettle Cheese & Onion",
-      "pack": "18x40g",
+      "pack": "40g",
       "supplier": "Brakes",
       "order": 335
     },
@@ -3023,7 +3023,7 @@
       "area": "Corporate Food",
       "section": "Bar Snacks",
       "name": "Kettle Sweet Chilli",
-      "pack": "18x40g",
+      "pack": "40g",
       "supplier": "Brakes",
       "order": 336
     },
