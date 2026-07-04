@@ -120,6 +120,13 @@
       "when": 1778769613616,
       "tag": "0016_happy_boomer",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1783193641638,
+      "tag": "0017_domain_events",
+      "breakpoints": true
     }
   ]
 }

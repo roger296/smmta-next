@@ -10,3 +10,4 @@ export * from './auth.js';
 export * from './storefront.js';
 export * from './channels.js';
 export * from './notifications.js';
+export * from './events.js';

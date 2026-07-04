@@ -95,3 +95,66 @@ entry per prompt: (a) what was built, (b) deviations from THE SPEC and why,
 
 ### Gate
 `npm run gate` → green. Committed as `build(0): orientation and scaffolding`.
+
+---
+
+## Entry 1 — Worker, pg-boss, domain events (2026-07-04)
+
+### (a) What was built
+- **`domain_events` outbox table** (`apps/api/src/db/schema/events.ts`, migration
+  `0017_domain_events.sql`): partial index on unprocessed rows
+  (`ix_events_unprocessed … WHERE processed_at IS NULL`) + aggregate index.
+- **`emitDomainEvent(tx, input)`** (`src/shared/events/emit.ts`): takes a Drizzle
+  transaction handle (typed `DbTx`, derived from the `transaction` callback param)
+  so an event can only be written inside the same tx as its business change.
+  Typed event union `DomainEventType` (`shared/events/types.ts`) covering the full
+  §12.2/§12.4/§16.4 taxonomy.
+- **pg-boss integration** (`src/worker/`): `pgboss.ts` (instance in its own
+  `pgboss` schema), `registry.ts` (typed `EVENT_HANDLERS` fan-out map + the
+  §12.3 scheduled-job cron catalogue + retry policy), `dispatcher.ts` (the
+  outbox-dispatcher), `handlers.ts` (hot-swappable handler registry + Prompt-1
+  no-op stubs), `job-failures.ts` (recent-failure query for the digest),
+  `index.ts` (`startWorker`/`stopWorker`/`setupQueues`).
+- **Crash-safe dispatch**: each event is claimed with `FOR UPDATE SKIP LOCKED`;
+  handlers are enqueued with `singletonKey = <eventId>:<queue>` on queues created
+  with pg-boss **`policy: 'short'`** (unique index on `(name, singleton_key)`
+  while a job is in the `created` state). So a crash between enqueue and the
+  `processed_at` commit re-dispatches without creating a duplicate job — the
+  handler fires exactly once. `outbox-dispatcher` runs on a ~10s `setInterval`
+  loop (pg-boss cron min-granularity is 1 min), per §12.3.
+- **`apps/worker`**: a thin, separately-deployable process
+  (`apps/worker/src/index.ts`) that loads env and calls `startWorker()`, with
+  SIGINT/SIGTERM graceful shutdown. Boots cleanly (`worker started`, 5 handler
+  queues + 8 scheduled jobs).
+
+### (b) Deviations from THE SPEC (with reasons)
+- **Where the code lives.** §4.1 sketches `apps/worker` as the home of all job
+  logic. The repo already co-locates workers with the schema in `apps/api`
+  (`src/workers/*`) and the Drizzle schema is not a shared package (it lives in
+  `apps/api/src/db/schema`, not the spec's `packages/db/schema`). To honour "share
+  the Drizzle schema with the API" without a cross-package `.ts` resolution mess,
+  ALL event/dispatcher/pg-boss code lives in `apps/api/src/worker` (one
+  typecheck/test unit with the schema + db), and `apps/worker` is a thin
+  bootstrap that imports `startWorker` from `@smmta/api/worker` (subpath export
+  → source; worker tsconfig `paths` mirror it for typecheck). This preserves the
+  spec's separately-deployable worker process / systemd unit / scale-out story.
+- **`company_id` on `domain_events`.** Added (repo convention: every table has it,
+  single-tenant singleton). §13.5's sketch omits it.
+
+### (c) Test counts
+- Before: 394 api tests. After: **402 api tests, all green** (+8):
+  `emit.test.ts` (4 — committed write, rollback-never-persists, registry
+  consistency) and `dispatcher.test.ts` (4 — exactly-once + processed stamp,
+  exactly-once across a simulated crash between enqueue and commit,
+  rollback-never-dispatched, retry-per-policy→dead-letter).
+
+### (d) Notes / gotchas discovered
+- pg-boss v10 dedup is **policy-driven**: `singletonKey` only dedups `created`
+  jobs under `policy: 'short'` (or `stately`); the default `standard` policy does
+  not. And `createQueue` is `ON CONFLICT DO NOTHING`, so an already-existing queue
+  keeps its old policy — `setupQueues` therefore calls `createQueue` **then**
+  `updateQueue` to enforce policy/retry/dead-letter idempotently on redeploy.
+
+### Gate
+`npm run gate` → green (402 tests). Worker boots. Commit `build(1): worker,
+pg-boss, domain events`.

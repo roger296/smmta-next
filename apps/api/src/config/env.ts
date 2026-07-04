@@ -28,6 +28,11 @@ const envSchema = z.object({
   // Redis (for BullMQ)
   REDIS_URL: z.string().default('redis://localhost:6379'),
 
+  // Worker / pg-boss. The queue lives in the same Postgres as everything
+  // else (SPEC §4.2) in its own schema, so a single pg_dump captures orders,
+  // stock, AND pending jobs.
+  PGBOSS_SCHEMA: z.string().default('pgboss'),
+
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications
   // triggered by a GRN). Empty string disables the call (the queue
