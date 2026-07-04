@@ -8,7 +8,7 @@
  * fee = 200 bp) stay integer-exact — no floats near money. The pricing engine
  * (Prompt 5) is the sole consumer.
  */
-import { pgTable, uuid, text, integer, timestamp, jsonb, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, timestamp, jsonb, boolean, unique } from 'drizzle-orm/pg-core';
 import { pk, companyId } from './common.js';
 
 /** One pre-order band: applies when days-to-ETA ≥ `minDaysToEta`; the engine
@@ -52,5 +52,30 @@ export const pricingRules = pgTable(
     uqPricingCategory: unique('uq_pricing_rules_category')
       .on(t.companyId, t.category)
       .nullsNotDistinct(),
+  }),
+);
+
+/**
+ * Discount codes (SPEC §15.5). Minimal: percent (basis points) or fixed-pence
+ * off the base price. Applied per line as "structural stack OR code, whichever
+ * is cheaper for the customer — never both" (the best-of rule).
+ */
+export const discountCodes = pgTable(
+  'discount_codes',
+  {
+    id: pk(),
+    companyId: companyId(),
+    code: text('code').notNull(),
+    kind: text('kind', { enum: ['percent', 'fixed'] }).notNull(),
+    /** For kind='percent': basis points off base (1500 = 15%). */
+    valueBp: integer('value_bp'),
+    /** For kind='fixed': pence off base. */
+    valuePence: integer('value_pence'),
+    active: boolean('active').notNull().default(true),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    uqDiscountCode: unique('uq_discount_code').on(t.companyId, t.code),
   }),
 );

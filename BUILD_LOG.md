@@ -322,3 +322,49 @@ pg-boss, domain events`.
 ### Gate
 `npm run gate` → green (420). Commit `build(4): inbound shipments and presale
 pools`.
+
+---
+
+## Entry 5 — Pricing engine (2026-07-04)
+
+### (a) What was built
+- **Pure engine** (`modules/pricing/pricing.engine.ts`): `computeQuote(inputs)` —
+  carton tier (exact whole-carton multiples only), pre-order band from
+  days-to-ETA (`bandDiscountBp`, highest satisfied `minDaysToEta` wins), additive
+  structural stacking capped at `maxStackBp`, silent floor clamp
+  (`priceFloorPence` = landed + variable fulfilment + payment-fee% + min-
+  contribution%). Best-of codes (structural stack OR code, cheaper wins, never
+  both). Output carries `*Internal` fields; `toCustomerFacing` strips them.
+- **PricingService** (`pricing.service.ts`): resolves product (base =
+  `minSellingPrice`→pence, `cartonSize`, `landedCostPence`) + `pricing_rules`
+  default + pool ETA + optional code from the DB, then calls the pure engine.
+  Typed `PricingError` with codes `INVALID_SKU`/`POOL_UNAVAILABLE`/`INVALID_CODE`
+  (aligned to the §14.2 agent envelope). `discount_codes` table + `validateCode`
+  (migration `0020`). Everything is integer pence / basis points.
+
+### (b) Decisions (logged)
+- **Money rounding:** discount amounts use `Math.round` (nearest pence) so the
+  §15.3 worked example lands exactly (£19.99 × 30% = 600p → £13.99), not floor.
+- **A discount never raises the price:** for an underwater SKU (landed > base,
+  so floor > base) the engine falls back to base rather than presenting a
+  higher-than-shelf "discounted" price. The floor invariant (`unit ≥ floor`)
+  therefore holds for realistically-priced SKUs (base ≥ floor); an underwater SKU
+  is a merchandising misconfig the pricing engine won't "fix" by inflating price.
+- **Base price = `minSellingPrice`** (filament shelf price). Channel-specific
+  pricing (ChannelService) as a base override is a noted future hook — not wired
+  now. Per-category `pricing_rules` override is also a hook (default row used);
+  logged for Prompt 14/follow-up.
+- **Savings itemisation:** floor-clamped totals are allocated across
+  carton/preorder in proportion to nominal bp so the itemised £ always sum to the
+  real `savingsVsBasePence`.
+
+### (c) Test counts
+- Before: 420. After: **433 api tests green** (+13): engine (band boundaries,
+  exact-multiple carton + upsell hint, golden §15.3 £13.99 + clears floor, £14.99
+  promo clamps, best-of either side of crossover, **floor-never-breached property
+  grid**, no-`*Internal`-leak scan) + service (warehouse base, stacked carton off
+  70-day pool, code best-of, INVALID_SKU/POOL_UNAVAILABLE/INVALID_CODE,
+  customer-facing strip).
+
+### Gate
+`npm run gate` → green (433). Commit `build(5): pricing engine`.
