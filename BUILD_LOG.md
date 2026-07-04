@@ -217,3 +217,59 @@ pg-boss, domain events`.
 
 ### Gate
 `npm run gate` → green (407). Commit `build(2): full schema`.
+
+---
+
+## Entry 3 — Identity, auth, consent (2026-07-04)
+
+### (a) What was built
+- **ConsentService** (`modules/identity/consent.service.ts`): append-only
+  grant/revoke (each a new row) emitting `consent.granted`/`consent.revoked` in
+  the same tx; `currentConsent(userId, type)` = latest row, default false.
+- **IdentityService** (`modules/identity/identity.service.ts`):
+  - `captureGuest(email)` — idempotent guest creation, emits `user.created`.
+  - `findOrCreateForProvider(...)` — the Auth.js signIn path: existing identity →
+    its user; else verified email matches a user → link identity + upgrade
+    guest→account + mark verified; else create a fresh account. Emits
+    `user.created` for new users.
+  - `mergeUsers(a, b)` — survivor rule (`pickSurvivor`: account beats guest,
+    else oldest `created_at`), re-points auth_identities / interest_flags (unique-
+    aware) / chat_sessions / message_drafts / subscriptions, carries consent
+    forward as new append-only rows, stamps `merged_into` (never deletes), emits
+    `user.merged`.
+- **Routes** (`modules/identity/identity.routes.ts`, storefront-api-key gated):
+  `POST /storefront/identity/guest`, `POST /storefront/identity/resolve-provider`,
+  `POST /storefront/consent`, `GET /storefront/consent/:userId/:type`. Registered
+  in `app.ts`.
+
+### (b) Decisions / deviations (logged)
+- **Survivor rule (exact):** if exactly one of the pair is non-guest → it
+  survives; else the older `created_at` survives.
+- **Consent on merge:** consent_records is append-only, so a merge cannot
+  re-point consent rows by UPDATE. The survivor's consent is **carried forward as
+  new rows** for any type the survivor has no record of (loser's rows remain as
+  PECR evidence). Logged as the compliant interpretation of "consent re-points to
+  the survivor".
+- **Orders do NOT re-point.** The spec says merge re-points orders "when they
+  exist" — in this repo orders reference the existing `customers` table, not
+  `storefront_users`, so there is nothing to re-point here; the linkage between a
+  storefront_user and a customer is Prompt 6 (checkout) territory.
+
+### (c) BLOCKED — needs live credentials / storefront wiring
+- **Auth.js (NextAuth) in `apps/store`**: needs the `next-auth` dependency +
+  Google OAuth client id/secret (env `GOOGLE_CLIENT_ID`/`SECRET`), with Facebook
+  code-complete behind `AUTH_FACEBOOK_ENABLED` (default off). The API-side
+  identity resolution (`resolve-provider`) + guest/consent endpoints are built
+  and tested; the NextAuth route + storefront account UI wire to them in
+  **Prompt 14** (storefront account area). Per Prompt 3's gate, the email/guest
+  tier is proven via service tests in lieu of a live Google sign-in. A human must
+  supply the Google OAuth credentials before the social-login path can run.
+
+### (c) Test counts
+- Before: 407. After: **415 api tests green** (+8 in `identity.service.test.ts`:
+  guest idempotency + user.created, currentConsent across grant/revoke + events,
+  pickSurvivor rules, merge guest→account with FK re-point + consent carry +
+  event, merge account→account oldest-survives, provider create + link/upgrade).
+
+### Gate
+`npm run gate` → green (415). Commit `build(3): identity, auth, consent`.

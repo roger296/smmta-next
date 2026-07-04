@@ -25,6 +25,7 @@ import {
 } from './modules/storefront/storefront.routes.js';
 import { notifyMeRoutes } from './modules/storefront/notify-me.routes.js';
 import { registerStorefrontRequestId } from './modules/storefront/log.js';
+import { identityRoutes } from './modules/identity/identity.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -113,6 +114,10 @@ export async function buildApp() {
 
   // Storefront: notify-me when back in stock.
   await app.register(notifyMeRoutes, { prefix: '/api/v1' });
+
+  // Storefront: customer identity (guest capture, provider resolution) + consent
+  // (Prompt 3). Gated by the storefront api-key.
+  await app.register(identityRoutes, { prefix: '/api/v1' });
 
   return app;
 }
