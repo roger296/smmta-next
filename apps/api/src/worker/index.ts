@@ -18,6 +18,7 @@ import {
   retryPolicyFor,
 } from './registry.js';
 import { installStubHandlers, workQueue } from './handlers.js';
+import { installFeatureHandlers } from './feature-handlers.js';
 import { runDispatchLoop, type DispatchLoopHandle } from './dispatcher.js';
 
 export { emitDomainEvent } from '../shared/events/index.js';
@@ -81,6 +82,8 @@ export async function startWorker(opts: StartWorkerOptions = {}): Promise<Worker
   boss.on('error', (err) => logger.error({ err }, 'pg-boss error'));
 
   await setupQueues();
+  // Real handlers first; stubs only fill the gaps for queues not yet implemented.
+  installFeatureHandlers(logger);
   installStubHandlers(logger);
 
   // Wire a pg-boss worker for every handler + scheduled queue.

@@ -368,3 +368,51 @@ pools`.
 
 ### Gate
 `npm run gate` → green (433). Commit `build(5): pricing engine`.
+
+---
+
+## Entry 7 — Interest flags & prospective products (2026-07-04)
+
+> Taken before Prompt 6 (Mollie): interest flags are self-contained and the
+> optional deposit tier is explicitly deferrable to Prompt 6. Prompt 6 (payments)
+> remains pending. Logged here.
+
+### (a) What was built
+- **InterestFlagService** (`modules/interest/interest.service.ts`):
+  - `resolveFlagType(state)` — the F8 contextual button: out_of_stock→restock,
+    in_stock/low_stock→offers, prospective→register_interest.
+  - `createInterestFlag` — for a guest (email, no userId) the user + the
+    `flag_updates` consent + the flag are created **atomically in one
+    transaction**, with `user.created` / `consent.granted` /
+    `interest.flag_created` events. Duplicate flags are a no-op via the
+    NULLS-NOT-DISTINCT unique index.
+  - `clearFlag`, and `listInterests(userId)` **enriched** — for a watched SKU on
+    an unarrived pool it adds the ETA + per-unit pre-order saving by reusing
+    `InboundService.getStockAndEta` + `PricingService.quote` (no duplication).
+  - `thresholdCheck(eventId)` — the **first real event handler** (replaces the
+    Prompt 1 stub): row-locks the prospective, counts active flags, and emits
+    `interest.threshold_crossed` **exactly once** (idempotent via
+    `threshold_crossed_at`), flipping status to `group_buy_open`.
+- **Handler wiring**: `worker/feature-handlers.ts` registers the real
+  `threshold-check` handler at boot **before** the stubs; `startWorker` calls
+  `installFeatureHandlers` then `installStubHandlers` (stubs only fill gaps).
+- **Routes** (`interest.routes.ts`, storefront-api-key gated): create flag,
+  clear flag, list interests. Registered in `app.ts`.
+
+### (b) Decisions / deferrals (logged)
+- **Owner notification = the event, not a draft.** `message_drafts.user_id` FKs
+  to storefront customers, not the owner, so threshold-crossed does NOT write a
+  draft; the emitted `interest.threshold_crossed` event is surfaced by the digest
+  (Prompt 15). (Spec allowed either; chose the event.)
+- **Deposit tier deferred** to Prompt 6 (needs the Mollie deposit path) — SPEC
+  open question 2. Schema already carries `deposit_pence` / `deposit_paid_pence`.
+- **Storefront button component + coming-soon catalogue** (apps/store) deferred to
+  Prompt 14 (storefront UX); the API is complete + tested.
+
+### (c) Test counts
+- Before: 433. After: **438 api tests green** (+5): flag-type resolution, guest
+  atomic create (user+consent+flag+events), duplicate no-op, **threshold
+  exactly-once under concurrent checks**, enrichment £-saving.
+
+### Gate
+`npm run gate` → green (438). Commit `build(7): interest flags`.
