@@ -21,6 +21,9 @@ export const HANDLER_QUEUES = [
   'back-in-stock-fanout',
   'threshold-check',
   'identity-merge',
+  'notify-eta-changed',
+  'notify-arrival',
+  'cancel-user-drafts',
 ] as const;
 
 export type HandlerQueue = (typeof HANDLER_QUEUES)[number];
@@ -36,6 +39,10 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'user.created': ['identity-merge'],
   // An approved (or auto-approved) draft goes straight to the send-time gate.
   'draft.approved': ['send-message'],
+  // Notification agent reactions (§12.4).
+  'shipment.eta_changed': ['notify-eta-changed'],
+  'shipment.arrived': ['notify-arrival'],
+  'consent.revoked': ['cancel-user-drafts'],
 };
 
 export function handlersFor(eventType: string): HandlerQueue[] {

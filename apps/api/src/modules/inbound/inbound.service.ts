@@ -326,7 +326,16 @@ export class InboundService {
 
         // Bridge received units into warehouse inventory.
         if (receipt.qtyReceived > 0) {
-          await this.receiveIntoWarehouse(tx, receipt.sku, receipt.qtyReceived);
+          const wasRestocked = await this.receiveIntoWarehouse(tx, receipt.sku, receipt.qtyReceived);
+          // out→in transition → back-in-stock trigger (§12.4).
+          if (wasRestocked) {
+            await emitDomainEvent(tx, {
+              eventType: 'stock.replenished',
+              aggregateType: 'stock',
+              aggregateId: shipmentId,
+              payload: { sku: receipt.sku, qty: receipt.qtyReceived, pool: 'warehouse' },
+            });
+          }
         }
       }
 
@@ -353,13 +362,19 @@ export class InboundService {
     });
   }
 
-  private async receiveIntoWarehouse(tx: DbTx, sku: string, qty: number): Promise<void> {
+  /** Returns true if the SKU went from 0 IN_STOCK to >0 (a restock transition). */
+  private async receiveIntoWarehouse(tx: DbTx, sku: string, qty: number): Promise<boolean> {
     const [product] = await tx
       .select({ id: products.id, defaultWarehouseId: products.defaultWarehouseId })
       .from(products)
       .where(and(eq(products.companyId, this.companyId), eq(products.stockCode, sku)))
       .limit(1);
     if (!product) throw new Error(`goods-in: no product with stock code ${sku}`);
+
+    const [{ n: priorInStock }] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(stockItems)
+      .where(and(eq(stockItems.productId, product.id), eq(stockItems.status, 'IN_STOCK')));
 
     let warehouseId = product.defaultWarehouseId;
     if (!warehouseId) {
@@ -381,6 +396,7 @@ export class InboundService {
       status: 'IN_STOCK' as const,
     }));
     await tx.insert(stockItems).values(rows);
+    return priorInStock === 0 && qty > 0;
   }
 
   private _lowStockThreshold: number | undefined;

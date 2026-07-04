@@ -13,6 +13,7 @@ import { PreorderService } from '../modules/payments/preorder.service.js';
 import { ComposeService, type ComposeInput } from '../modules/messaging/compose.service.js';
 import { SendService } from '../modules/messaging/send.service.js';
 import { ApprovalQueueService } from '../modules/approval/approval.service.js';
+import { NotificationService } from '../modules/notification/notification.service.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
@@ -20,6 +21,7 @@ export function installFeatureHandlers(logger: Logger): void {
   const compose = new ComposeService();
   const send = new SendService();
   const approval = new ApprovalQueueService();
+  const notify = new NotificationService();
 
   // threshold-check (Prompt 7): count flags for a prospective product on
   // interest.flag_created; emit interest.threshold_crossed exactly once.
@@ -64,5 +66,30 @@ export function installFeatureHandlers(logger: Logger): void {
   setHandler('expired-draft-sweep', async () => {
     const n = await approval.expiredDraftSweep();
     logger.info({ expired: n }, 'expired-draft-sweep ran');
+  });
+
+  // ---- Notification agent reactions (Prompt 11, §12.4) ----
+  setHandler('back-in-stock-fanout', async (data) => {
+    const { eventId } = (data ?? {}) as { eventId?: string };
+    if (eventId) logger.info({ n: await notify.backInStockFanout(eventId) }, 'back-in-stock-fanout ran');
+  });
+  setHandler('notify-eta-changed', async (data) => {
+    const { eventId } = (data ?? {}) as { eventId?: string };
+    if (eventId) logger.info({ n: await notify.reactEtaChanged(eventId) }, 'notify-eta-changed ran');
+  });
+  setHandler('notify-arrival', async (data) => {
+    const { eventId } = (data ?? {}) as { eventId?: string };
+    logger.debug({ eventId }, 'notify-arrival ran (window already closed on arrival)');
+  });
+  setHandler('cancel-user-drafts', async (data) => {
+    const { eventId } = (data ?? {}) as { eventId?: string };
+    if (!eventId) return;
+    const [event] = await getDb()
+      .select({ payload: domainEvents.payload })
+      .from(domainEvents)
+      .where(eq(domainEvents.id, eventId))
+      .limit(1);
+    const userId = (event?.payload as { userId?: string })?.userId;
+    if (userId) logger.info({ n: await notify.cancelDraftsForUser(userId) }, 'cancel-user-drafts ran');
   });
 }

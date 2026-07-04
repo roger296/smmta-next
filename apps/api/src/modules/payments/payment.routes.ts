@@ -11,8 +11,10 @@ import { z } from 'zod';
 import { requireAuth } from '../../shared/middleware/auth.js';
 import { apiKeyAuth } from '../../shared/middleware/api-key.js';
 import { PreorderService, PaymentMethodNotAllowedError } from './preorder.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 const preorders = new PreorderService();
+const notify = new NotificationService();
 
 const createSchema = z.object({
   userId: z.string().uuid(),
@@ -51,6 +53,20 @@ export async function preorderStorefrontRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     await preorders.cancel(id);
     return reply.send({ success: true });
+  });
+
+  // Swap a pre-order line to in-stock at the locked price (from an ETA-slip
+  // notification, §12.4).
+  app.post('/storefront/preorders/:id/lines/:lineId/swap-to-warehouse', async (request, reply) => {
+    const { id, lineId } = z
+      .object({ id: z.string().uuid(), lineId: z.string().uuid() })
+      .parse(request.params);
+    try {
+      await notify.swapToWarehouse(id, lineId);
+      return reply.send({ success: true });
+    } catch (err) {
+      return reply.status(409).send({ success: false, error: (err as Error).message });
+    }
   });
 }
 

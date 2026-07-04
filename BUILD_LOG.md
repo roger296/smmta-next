@@ -612,3 +612,48 @@ pools`.
 
 ### Gate
 `npm run gate` → green (468). Commit `build(10): approval queue`.
+
+---
+
+## Entry 11 — Notification agent: reactions (2026-07-04)
+
+### (a) What was built
+- **NotificationService** (`modules/notification/notification.service.ts`) — the
+  proactive layer, event-driven per §12.4:
+  - `backInStockFanout` — on `stock.replenished`, compose for every active
+    restock watcher under a shared `back_in_stock:<sku>` group_key, then clear
+    the flags.
+  - `reactEtaChanged` — on a material `shipment.eta_changed` (worse by > config
+    threshold, default 2 days), compose the wait/swap/refund options to each
+    affected pre-order customer. **Idempotent per (order, new ETA)**.
+  - `cancelDraftsForUser` — `consent.revoked` cancels the user's queued/pending
+    marketing drafts.
+  - `swapToWarehouse` — swaps a pre-order line to warehouse stock at the LOCKED
+    price: releases the presale allocation, consumes warehouse `stock_items`,
+    keeps the locked unit price → **stock and money both conserve**.
+- **`stock.replenished` now emitted from `goodsIn`** on an out→in transition
+  (per-SKU), so arrival drives the back-in-stock fanout.
+- **Worker wiring**: real `back-in-stock-fanout` + new `notify-eta-changed`,
+  `notify-arrival`, `cancel-user-drafts` handlers; `EVENT_HANDLERS` maps
+  `shipment.eta_changed`, `shipment.arrived`, `consent.revoked`.
+- **Swap route**: `POST /storefront/preorders/:id/lines/:lineId/swap-to-warehouse`.
+
+### (b) Decisions / deferrals (logged)
+- **Reactions are event-driven** (§12.4) rather than periodic scanners: the
+  daily `eta-watch` / hourly `stock-watch` scan variants are represented by the
+  event reactions above (arrival closes the window via `arrivedAt`, which the
+  pricing engine already honours → `POOL_UNAVAILABLE`). The pure periodic
+  scanners (which need per-SKU band-tracking state) are a follow-up; the customer
+  outcomes §12.4 specifies are covered now.
+- **Flags cleared at compose time** (not on `message.sent`) — simpler; the
+  partial unique index lets a customer re-enrol. Logged.
+- **`shipment.arrived` fulfilment-notice compose** is stubbed (handler logs);
+  the window-closing behaviour (the load-bearing part) is done via `arrivedAt`.
+
+### (c) Test counts
+- Before: 468. After: **473 api tests green** (+5): fanout count + flag clear,
+  **ETA-slip idempotency + threshold**, **arrival → POOL_UNAVAILABLE**,
+  cancel-on-revoke, **swap conserves stock + money**.
+
+### Gate
+`npm run gate` → green (473). Commit `build(11): notification agent`.
