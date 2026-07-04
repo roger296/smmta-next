@@ -36,6 +36,7 @@ import {
 import { chatRoutes } from './modules/agent/chat.routes.js';
 import { sendgridWebhookRoutes, unsubscribeRoutes } from './modules/messaging/messaging.routes.js';
 import { approvalRoutes } from './modules/approval/approval.routes.js';
+import { subscriptionRoutes } from './modules/subscriptions/subscription.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -151,6 +152,9 @@ export async function buildApp() {
   // Approval queue (Prompt 10): owner's inbox — approve/edit/reject, groups,
   // graduation, escalations. JWT-gated.
   await app.register(approvalRoutes, { prefix: '/api/v1' });
+
+  // Subscriptions (Prompt 13): signup/pause/resume, apply credit. Storefront-gated.
+  await app.register(subscriptionRoutes, { prefix: '/api/v1' });
 
   return app;
 }

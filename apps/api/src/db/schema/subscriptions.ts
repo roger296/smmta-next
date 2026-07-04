@@ -23,6 +23,10 @@ export const subscriptions = pgTable('subscriptions', {
   }).notNull(),
   creditBalancePence: integer('credit_balance_pence').notNull().default(0),
   renewsAt: timestamp('renews_at', { withTimezone: true }),
+  // Dunning (§16.4): retry ladder state while past_due.
+  dunningAttempts: integer('dunning_attempts').notNull().default(0),
+  firstFailedAt: timestamp('first_failed_at', { withTimezone: true }),
+  lastAttemptAt: timestamp('last_attempt_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

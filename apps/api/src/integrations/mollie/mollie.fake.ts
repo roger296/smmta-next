@@ -15,6 +15,7 @@ export class FakeMollie implements MolliePort {
   private payments = new Map<string, MolliePayment>();
   private refunds = new Map<string, MollieRefund>();
   private customers = new Map<string, MollieCustomer>();
+  private failMandates = new Set<string>(); // mandate ids whose charges fail
   private seq = 0;
 
   private id(prefix: string): string {
@@ -72,7 +73,7 @@ export class FakeMollie implements MolliePort {
   }): Promise<MolliePayment> {
     const payment: MolliePayment = {
       id: this.id('tr'),
-      status: 'paid', // mandate charges settle immediately in the fake
+      status: this.failMandates.has(input.mandateId) ? 'failed' : 'paid',
       amountPence: input.amountPence,
       description: input.description,
       method: 'directdebit',
@@ -83,6 +84,12 @@ export class FakeMollie implements MolliePort {
     };
     this.payments.set(payment.id, payment);
     return { ...payment };
+  }
+
+  /** Test control: make (or stop making) charges against a mandate fail. */
+  setMandateCharges(mandateId: string, outcome: 'paid' | 'failed'): void {
+    if (outcome === 'failed') this.failMandates.add(mandateId);
+    else this.failMandates.delete(mandateId);
   }
 
   // ---- test helpers ----
@@ -98,6 +105,7 @@ export class FakeMollie implements MolliePort {
     this.payments.clear();
     this.refunds.clear();
     this.customers.clear();
+    this.failMandates.clear();
     this.seq = 0;
   }
 }

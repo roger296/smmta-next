@@ -169,6 +169,13 @@
       "when": 1783200741535,
       "tag": "0023_run_out_predictions",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783201094084,
+      "tag": "0024_subscription_dunning",
+      "breakpoints": true
     }
   ]
 }

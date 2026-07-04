@@ -15,6 +15,7 @@ import { SendService } from '../modules/messaging/send.service.js';
 import { ApprovalQueueService } from '../modules/approval/approval.service.js';
 import { NotificationService } from '../modules/notification/notification.service.js';
 import { MarketingService } from '../modules/marketing/marketing.service.js';
+import { SubscriptionService } from '../modules/subscriptions/subscription.service.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
@@ -24,6 +25,7 @@ export function installFeatureHandlers(logger: Logger): void {
   const approval = new ApprovalQueueService();
   const notify = new NotificationService();
   const marketing = new MarketingService();
+  const subs = new SubscriptionService();
 
   // threshold-check (Prompt 7): count flags for a prospective product on
   // interest.flag_created; emit interest.threshold_crossed exactly once.
@@ -76,6 +78,13 @@ export function installFeatureHandlers(logger: Logger): void {
   });
   setHandler('marketing-nightly', async () => {
     logger.info(await marketing.runNightly(), 'marketing-nightly ran');
+  });
+
+  // Subscriptions (Prompt 13): renewal charges + dunning retries.
+  setHandler('subscription-renewal-scan', async () => {
+    const renewals = await subs.renewalScan();
+    const dunning = await subs.paymentRetry();
+    logger.info({ ...renewals, ...dunning }, 'subscription-renewal-scan ran');
   });
 
   // ---- Notification agent reactions (Prompt 11, §12.4) ----

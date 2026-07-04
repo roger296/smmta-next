@@ -695,3 +695,44 @@ pools`.
 
 ### Gate
 `npm run gate` → green (477). Commit `build(12): marketing agent`.
+
+---
+
+## Entry 13 — Subscriptions: mandates, credits, dunning (2026-07-04)
+
+### (a) What was built
+- **Plan config** (`plans.ts`): credit-bonus model (§15.4) — £20→£23, £50→£59;
+  renewal interval + dunning ladder days [1,3,5].
+- **Schema**: `subscriptions` gained `dunning_attempts`, `first_failed_at`,
+  `last_attempt_at` (migration 0024).
+- **SubscriptionService**:
+  - `signup` — Mollie customer + a first payment (`sequenceType='first'`) to
+    establish the mandate; `activateFromPayment` (paid first-payment webhook) →
+    create the subscription + grant the first credit; **idempotent per customer**.
+  - `renewalScan` — charges due mandates; paid → credit_grant + advance
+    `renewsAt`; failure → `past_due` + `subscription.payment_failed`.
+  - `paymentRetry` (dunning §16.4) — retries at day **1/3/5** after the first
+    failure; a successful retry recovers to active; the final failure **pauses**
+    the sub + composes a personal-tone message. Frozen-clock driven.
+  - `applyCredit` — consumes `min(balance, amount)` at normal prices (credits are
+    money-equivalent, no discount interaction); returns credit used + residual.
+  - `pause`/`resume` (subscription_events + `subscription.modified`).
+  - **Credit conservation by construction**: every balance change writes a signed
+    `subscription_events.amount_pence`, so `balance == Σ amounts`.
+- **Mollie fake** gained `setMandateCharges(mandate, 'failed'|'paid')` to drive
+  dunning. **Webhook** now dispatches to both preorder + subscription activation.
+- **Routes**: signup / pause / resume / apply-credit (storefront-gated);
+  `subscription-renewal-scan` worker stub replaced (renewal + dunning).
+
+### (b) Deferred
+- Storefront account UI (credits, skip/pause) → Prompt 14. Live Mollie mandates
+  BLOCKED on a test key (fake used).
+
+### (c) Test counts
+- Before: 477. After: **483 api tests green** (+6): activation + first credit
+  (idempotent), **renewal + credit conservation (balance == Σ events)**, **dunning
+  ladder day-1/3/5 → pause**, successful-retry recovery, **pause blocks the scan +
+  retains balance**, applyCredit exact/partial/zero.
+
+### Gate
+`npm run gate` → green (483). Commit `build(13): subscriptions`.

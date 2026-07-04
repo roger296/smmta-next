@@ -12,9 +12,11 @@ import { requireAuth } from '../../shared/middleware/auth.js';
 import { apiKeyAuth } from '../../shared/middleware/api-key.js';
 import { PreorderService, PaymentMethodNotAllowedError } from './preorder.service.js';
 import { NotificationService } from '../notification/notification.service.js';
+import { SubscriptionService } from '../subscriptions/subscription.service.js';
 
 const preorders = new PreorderService();
 const notify = new NotificationService();
+const subscriptions = new SubscriptionService();
 
 const createSchema = z.object({
   userId: z.string().uuid(),
@@ -85,8 +87,12 @@ export async function mollieWebhookRoutes(app: FastifyInstance) {
   app.post('/webhooks/mollie', async (request, reply) => {
     const body = z.object({ id: z.string().min(1) }).safeParse(request.body);
     if (!body.success) return reply.status(200).send('ok'); // never make Mollie retry on our parse
-    // Fire-and-normalise; the handler is idempotent so a duplicate webhook is safe.
-    preorders.handleWebhook(body.data.id).catch((err) => {
+    // Fire-and-normalise; both handlers are idempotent and no-op if the payment
+    // isn't theirs (dispatch by metadata.kind).
+    Promise.all([
+      preorders.handleWebhook(body.data.id),
+      subscriptions.activateFromPayment(body.data.id),
+    ]).catch((err) => {
       request.log.error({ err, id: body.data.id }, 'mollie webhook normalise failed');
     });
     return reply.status(200).send('ok');
