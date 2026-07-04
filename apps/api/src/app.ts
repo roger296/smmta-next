@@ -28,6 +28,11 @@ import { registerStorefrontRequestId } from './modules/storefront/log.js';
 import { identityRoutes } from './modules/identity/identity.routes.js';
 import { inboundRoutes } from './modules/inbound/inbound.routes.js';
 import { interestRoutes } from './modules/interest/interest.routes.js';
+import {
+  preorderStorefrontRoutes,
+  preorderAdminRoutes,
+  mollieWebhookRoutes,
+} from './modules/payments/payment.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -126,6 +131,12 @@ export async function buildApp() {
 
   // Interest flags / demand-signal registry (Prompt 7). Storefront api-key gated.
   await app.register(interestRoutes, { prefix: '/api/v1' });
+
+  // Pre-order payments (Prompt 6): storefront place/cancel, admin mark-paid,
+  // and the thin Mollie webhook.
+  await app.register(preorderStorefrontRoutes, { prefix: '/api/v1' });
+  await app.register(preorderAdminRoutes, { prefix: '/api/v1' });
+  await app.register(mollieWebhookRoutes, { prefix: '/api/v1' });
 
   return app;
 }

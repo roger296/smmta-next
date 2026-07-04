@@ -33,6 +33,11 @@ const envSchema = z.object({
   // stock, AND pending jobs.
   PGBOSS_SCHEMA: z.string().default('pgboss'),
 
+  // Payments (Mollie, §16). TEST key only during the build. Empty → the
+  // in-memory fake is used (dev/test), so the app boots without a key.
+  MOLLIE_API_KEY: z.string().default(''),
+  APP_BASE_URL: z.string().default('http://localhost:3000'),
+
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications
   // triggered by a GRN). Empty string disables the call (the queue

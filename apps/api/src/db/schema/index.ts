@@ -19,3 +19,4 @@ export * from './chat.js';
 export * from './messaging.js';
 export * from './subscriptions.js';
 export * from './pricing.js';
+export * from './preorders.js';

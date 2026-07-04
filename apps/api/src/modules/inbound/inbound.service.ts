@@ -216,46 +216,53 @@ export class InboundService {
    * PresaleOversellError rather than overselling.
    */
   async allocatePresale(shipmentId: string, sku: string, qty: number): Promise<void> {
+    await this.db.transaction((tx) => this.allocatePresaleTx(tx, shipmentId, sku, qty));
+  }
+
+  /** Transaction-aware presale allocation, so callers (e.g. pre-order creation)
+   *  can allocate stock atomically with their own writes. Row-locks the line. */
+  async allocatePresaleTx(tx: DbTx, shipmentId: string, sku: string, qty: number): Promise<void> {
     if (qty <= 0 || !Number.isInteger(qty)) throw new Error(`invalid presale qty ${qty}`);
-    await this.db.transaction(async (tx) => {
-      const [line] = await tx
-        .select({
-          id: inboundShipmentLines.id,
-          qtyManifested: inboundShipmentLines.qtyManifested,
-          qtyPresold: inboundShipmentLines.qtyPresold,
-          bufferPct: inboundShipments.bufferPct,
-        })
-        .from(inboundShipmentLines)
-        .innerJoin(inboundShipments, eq(inboundShipmentLines.shipmentId, inboundShipments.id))
-        .where(and(eq(inboundShipmentLines.shipmentId, shipmentId), eq(inboundShipmentLines.sku, sku)))
-        .for('update'); // locks the line row (and joined shipment row) for this tx
-      if (!line) throw new Error(`shipment line not found for ${sku}`);
+    const [line] = await tx
+      .select({
+        id: inboundShipmentLines.id,
+        qtyManifested: inboundShipmentLines.qtyManifested,
+        qtyPresold: inboundShipmentLines.qtyPresold,
+        bufferPct: inboundShipments.bufferPct,
+      })
+      .from(inboundShipmentLines)
+      .innerJoin(inboundShipments, eq(inboundShipmentLines.shipmentId, inboundShipments.id))
+      .where(and(eq(inboundShipmentLines.shipmentId, shipmentId), eq(inboundShipmentLines.sku, sku)))
+      .for('update'); // locks the line row (and joined shipment row) for this tx
+    if (!line) throw new Error(`shipment line not found for ${sku}`);
 
-      const available = presaleAvailable(line.qtyManifested, line.bufferPct, line.qtyPresold);
-      if (available < qty) throw new PresaleOversellError(sku, available, qty);
+    const available = presaleAvailable(line.qtyManifested, line.bufferPct, line.qtyPresold);
+    if (available < qty) throw new PresaleOversellError(sku, available, qty);
 
-      await tx
-        .update(inboundShipmentLines)
-        .set({ qtyPresold: line.qtyPresold + qty })
-        .where(eq(inboundShipmentLines.id, line.id));
-    });
+    await tx
+      .update(inboundShipmentLines)
+      .set({ qtyPresold: line.qtyPresold + qty })
+      .where(eq(inboundShipmentLines.id, line.id));
   }
 
   /** Release presale qty (cancel/lapse). Floors qtyPresold at 0. */
   async releasePresale(shipmentId: string, sku: string, qty: number): Promise<void> {
     if (qty <= 0) return;
-    await this.db.transaction(async (tx) => {
-      const [line] = await tx
-        .select()
-        .from(inboundShipmentLines)
-        .where(and(eq(inboundShipmentLines.shipmentId, shipmentId), eq(inboundShipmentLines.sku, sku)))
-        .for('update');
-      if (!line) return;
-      await tx
-        .update(inboundShipmentLines)
-        .set({ qtyPresold: Math.max(0, line.qtyPresold - qty) })
-        .where(eq(inboundShipmentLines.id, line.id));
-    });
+    await this.db.transaction((tx) => this.releasePresaleTx(tx, shipmentId, sku, qty));
+  }
+
+  async releasePresaleTx(tx: DbTx, shipmentId: string, sku: string, qty: number): Promise<void> {
+    if (qty <= 0) return;
+    const [line] = await tx
+      .select()
+      .from(inboundShipmentLines)
+      .where(and(eq(inboundShipmentLines.shipmentId, shipmentId), eq(inboundShipmentLines.sku, sku)))
+      .for('update');
+    if (!line) return;
+    await tx
+      .update(inboundShipmentLines)
+      .set({ qtyPresold: Math.max(0, line.qtyPresold - qty) })
+      .where(eq(inboundShipmentLines.id, line.id));
   }
 
   /**

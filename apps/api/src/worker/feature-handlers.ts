@@ -6,9 +6,11 @@
 import type { Logger } from 'pino';
 import { setHandler } from './handlers.js';
 import { InterestFlagService } from '../modules/interest/interest.service.js';
+import { PreorderService } from '../modules/payments/preorder.service.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
+  const preorders = new PreorderService();
 
   // threshold-check (Prompt 7): count flags for a prospective product on
   // interest.flag_created; emit interest.threshold_crossed exactly once.
@@ -17,5 +19,11 @@ export function installFeatureHandlers(logger: Logger): void {
     if (!eventId) return;
     await interest.thresholdCheck(eventId);
     logger.debug({ eventId }, 'threshold-check ran');
+  });
+
+  // payment-window-scan (Prompt 6): manual-transfer overdue/lapse sweep.
+  setHandler('payment-window-scan', async () => {
+    const result = await preorders.scanPaymentWindow();
+    logger.info(result, 'payment-window-scan ran');
   });
 }

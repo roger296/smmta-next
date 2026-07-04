@@ -416,3 +416,59 @@ pools`.
 
 ### Gate
 `npm run gate` → green (438). Commit `build(7): interest flags`.
+
+---
+
+## Entry 6 — Mollie payments & payment timing (2026-07-04)
+
+### (a) What was built
+- **Mollie wrapper** (`integrations/mollie/`, mirrors the Luca pattern):
+  `MolliePort` interface + a real fetch-based `MollieClient` (Payments API, TEST
+  mode) + an in-memory `FakeMollie` (test helpers to drive paid/failed) +
+  `getMollie()` factory (fake when no key / NODE_ENV=test). Integer pence ↔
+  Mollie decimal at the boundary.
+- **Payment-timing rule** (`modules/payments/payment-rules.ts`, pure):
+  `isBankOnlyOrder`/`offeredMethods`/`isMethodAllowed` — any line with ETA
+  **>30 days** forces bank-only; exactly 30 is still the full set.
+- **PreorderService** (`preorder.service.ts`): `createPreorder` — resolves pool
+  ETA, quotes + **locks band/£ savings/unit price** onto each line, allocates
+  presale **atomically** (new `InboundService.allocatePresaleTx`/`releasePresaleTx`),
+  persists the order, emits `order.placed` + `order.awaiting_payment`, and opens a
+  Mollie payment (bank-only methods on >30-day) for non-manual methods.
+  `markPaid` (idempotent → `order.payment_received` + `order.paid`), `cancel`
+  (release presale, `order.cancelled`, refund_pending if paid), `scanPaymentWindow`
+  (frozen-clock: day-3 `order.payment_overdue` once, day-5 lapse → release
+  presale + `order.lapsed_unpaid`), `handleWebhook` (thin, idempotent).
+- **Worker**: `payment-window-scan` scheduled stub replaced with the real scan.
+- **Routes**: storefront place/get/cancel pre-order, admin mark-paid, thin
+  `/webhooks/mollie` (ACK 200 fast, normalise async + idempotent).
+
+### (b) Decisions / deviations (logged)
+- **Pre-orders modelled in a dedicated `preorder_orders`/`preorder_order_lines`**
+  (migration 0021), not the existing `customer_orders`. The existing warehouse
+  checkout is stock-item-reservation based and cannot represent unarrived-stock
+  pre-orders (no `stock_items` until goods-in), and §16.4's split-basket design
+  already produces a SEPARATE order for the pre-order half. This is the
+  "extend, don't fork" line drawn where the existing model genuinely doesn't fit.
+- **Band lock = a per-line snapshot** (`locked_unit_price_pence`,
+  `locked_band_bp`, `locked_saving_pence`) written at order time; a later
+  `pricing_rules` change never reprices it (tested).
+
+### (c) BLOCKED / deferred
+- **Live Mollie**: `MollieClient` is BLOCKED until a `MOLLIE_API_KEY` (test) is
+  supplied; the whole flow is exercised against `FakeMollie`.
+- **Mixed-basket split UI + the >30-day CCR confirmation tick** are storefront
+  (apps/store) — deferred to Prompt 14; the split is a server operation producing
+  the separate pre-order (this service) + the existing warehouse order.
+- **Luca GL reconciliation** of manual transfers → `markPaid` is the manual
+  bridge now (admin action); auto-match is a later integration.
+
+### (d) Test counts
+- Before: 438. After: **446 api tests green** (+8): rule boundary at exactly 30
+  days + method allow-list; **band lock survives a pricing_rules change**;
+  window-scan day-3-once / day-5-lapse under a frozen clock with **presale
+  released**; **webhook idempotency** (duplicate → one `order.paid`); card
+  rejected on a >30-day order.
+
+### Gate
+`npm run gate` → green (446). Commit `build(6): payments and payment timing`.
