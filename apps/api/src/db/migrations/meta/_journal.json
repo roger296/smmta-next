@@ -127,6 +127,20 @@
       "when": 1783193641638,
       "tag": "0017_domain_events",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783194452160,
+      "tag": "0018_filament_core_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1783194546120,
+      "tag": "0019_product_preorder_fields",
+      "breakpoints": true
     }
   ]
 }

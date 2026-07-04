@@ -158,3 +158,62 @@ entry per prompt: (a) what was built, (b) deviations from THE SPEC and why,
 ### Gate
 `npm run gate` → green (402 tests). Worker boots. Commit `build(1): worker,
 pg-boss, domain events`.
+
+---
+
+## Entry 2 — Full schema migration set (2026-07-04)
+
+### (a) What was built
+- Every remaining SPEC §13 table + §17.8 deltas, in new schema files
+  (migration `0018_filament_core_schema.sql`):
+  - Identity/consent (`identity.ts`): `storefront_users`, `auth_identities`,
+    `consent_records`, `suppression_list`.
+  - Interest (`interest.ts`): `prospective_products`, `interest_flags`.
+  - Inbound (`inbound.ts`): `inbound_shipments`, `inbound_shipment_lines`.
+  - Chat/LLM (`chat.ts`): `chat_sessions`, `chat_messages`, `llm_log`.
+  - Messaging (`messaging.ts`): `message_drafts` (with §17.8 deltas expires_at,
+    group_key, reject_reason, body_original), `escalations`, `agent_config`
+    (per-event-type auto_send).
+  - Subscriptions (`subscriptions.ts`): `subscriptions`, `subscription_events`.
+  - Pricing (`pricing.ts`): `pricing_rules` config (bands/carton/floor as data).
+- **Product delta** (migration `0019`): `products.carton_size` +
+  `products.landed_cost_pence` — pulled forward from Prompt 5 so `seed:dev`'s
+  "SKUs with carton multiples" and the pricing floor are coherent now.
+- **Enforced invariants:** `uq_provider_account` unique; `uq_flag` unique
+  **NULLS NOT DISTINCT** (via `unique()` constraint) so prospective-only watches
+  with NULL sku still dedup; `uq_pricing_rules_category` NULLS NOT DISTINCT for a
+  unique default row; **consent_records append-only** via a plpgsql trigger
+  (`consent_records_append_only`) raising on UPDATE/DELETE (appended to the
+  migration — drizzle can't express triggers); `merged_into` is a plain uuid
+  column (no FK) so it never cascades.
+- **`seed:dev`** (`scripts/seed-dev.ts`, `npm run seed:dev`): idempotent seed —
+  3 filament SKUs w/ carton multiples + landed cost, 3 inbound pools at ETA
+  +70/+40/+20 days (one per §15.2 band), 2 prospective products, 3 users
+  (guest/Google-linked/trade) + consent rows, default `pricing_rules`.
+
+### (b) Deviations / decisions (logged)
+- **`users` → `storefront_users`.** The spec's canonical customer table is
+  `users`, but the repo already has `users` (admin operators). New table is
+  `storefront_users`; spec design (person vs login-methods, merge-on-verified-
+  email, guest tier) preserved. All new FKs point here.
+- **Enum style = text-enum, not pgEnum.** THE SPEC defines every new table with
+  Drizzle `text(.., { enum })` (§13.1 rationale: cheaper to extend). Followed for
+  the new tables — a deliberate divergence from the repo's `pgEnum` convention
+  (the spec's literal definitions win here, per Prompt G's "spec wins on
+  conflict").
+- **Percentages as basis points.** `pricing_rules` stores all % as integer bp
+  (10000 = 100%) so fractional rates (2% fee = 200 bp) stay integer-exact — no
+  floats near money.
+- **"one inbound shipment with lines and ETAs at 70/40/20 days"** read as one
+  pool per band (three shipments) so the pricing engine has each band to exercise.
+- **`consent_records` append-only** enforced with a DB trigger (chosen over
+  app-layer REVOKE); tests disable it transiently to clean fixtures.
+
+### (c) Test counts
+- Before: 402. After: **407 api tests green** (+5 invariant tests in
+  `filament-schema.test.ts`: append-only consent, NULLS-NOT-DISTINCT flag dedup,
+  presale default 0, merged_into no-cascade, seed idempotency).
+- Fresh-DB path verified: empty DB → 20 migrations → `seed:dev` → OK.
+
+### Gate
+`npm run gate` → green (407). Commit `build(2): full schema`.
