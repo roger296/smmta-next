@@ -736,3 +736,59 @@ pools`.
 
 ### Gate
 `npm run gate` → green (483). Commit `build(13): subscriptions`.
+
+---
+
+## Entry 14 — Storefront commerce UX (DEFERRED)
+
+Prompt 14 is entirely `apps/store` (Next.js) frontend work. **Every backend API
+it needs is built and tested**: `getStockAndEta` (stock pools + ETA), the
+customer-facing pricing serializer (£-only savings, carton hints via
+`cartonMultipleHint`), pre-order create with the >30-day payment framing,
+the SSE chat route, interest flags + coming-soon data, subscriptions (credits/
+skip/pause), and consent. The React screens (product-page pool rendering, basket/
+checkout with the §16.2a framing + CCR tick, coming-soon catalogue, account area,
+the £-only storefront lint) are out of the backend gate and are the main
+remaining frontend pass. Per CLAUDE.md the storefront is a config+theme diff, so
+this is a focused re-skin/build against the finished API. Tracked as the
+storefront-frontend task.
+
+---
+
+## Entry 15 — Digest, observability, ops (2026-07-04)
+
+### (a) What was built
+- **DigestService** (`modules/digest/digest.service.ts`): assembles the daily
+  owner digest — queue counts by type, auto-sent, failed/expired drafts, open
+  escalations, payment-window (awaiting/overdue), OpenRouter spend vs cap,
+  upcoming renewals, last-night marketing segment counts, job-failure count.
+  Wired as the `agent-digest` job.
+- **Health** (`modules/health/health.routes.ts`): `GET /healthz` on the API (DB
+  + pg-boss-schema checks; 200/503) and a `checkHealth()` reused by the worker's
+  optional `WORKER_HEALTH_PORT` http server.
+- **Sentry** (`shared/observability/sentry.ts`): dependency-free init behind
+  `SENTRY_ENABLED` + `SENTRY_DSN`, called from the API app and the worker.
+- **Ops**: `infra/systemd/smmta-worker.service.template` (Type=simple, restart
+  on-failure, in the installer's token style); `infra/backup.sh` (pg_dump -Fc +
+  rclone push + retention, `DRY_RUN`) and `infra/restore.sh` +
+  `docs/RESTORE.md` runbook; `docs/HUMAN-OPS.md` (SendGrid SPF/DKIM + subuser,
+  Mollie Pay-by-Bank + mandates, OpenRouter cap, Google OAuth, backups, Sentry).
+- **Full-system smoke** (`apps/api/scripts/smoke.ts`, `npm run smoke`): fresh
+  test DB → seed → **place >30-day pre-order (band+£ locked) → mark paid → slip
+  ETA → eta_slip draft appears → approve → send (sandbox) → flag SKU → goods-in
+  restock → back-in-stock fanout + flag cleared → digest payload contains it
+  all**, asserting DB state at every step. Runs the reactions inline for
+  determinism; cleans up its own data.
+
+### (b) Deferred
+- `install.sh` edit to actually install the worker unit is a small addition in
+  the installer's existing loop (the template is ready + documented). Real
+  `@sentry/node` install is opt-in per HUMAN-OPS.
+
+### (c) Test counts
+- Before: 483. After: **485 api tests green** (+2: `checkHealth` DB-up; digest
+  payload assembly). **`npm run smoke` passes** the whole chain end-to-end.
+
+### Gate
+`npm run gate` → green (485) **and** `npm run smoke` → green. Commit
+`build(15): digest and ops`.

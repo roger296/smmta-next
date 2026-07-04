@@ -59,6 +59,12 @@ const envSchema = z.object({
   /** Marketing agent: max drafts composed per nightly run. */
   MARKETING_MAX_SENDS_PER_NIGHT: z.coerce.number().int().default(200),
 
+  // Observability (Sentry, §6). Off unless a DSN + flag are set.
+  SENTRY_DSN: z.string().default(''),
+  SENTRY_ENABLED: z.coerce.boolean().default(false),
+  /** Worker health-check HTTP port (0 disables the server). */
+  WORKER_HEALTH_PORT: z.coerce.number().int().default(0),
+
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications
   // triggered by a GRN). Empty string disables the call (the queue

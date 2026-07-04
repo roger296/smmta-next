@@ -1,0 +1,35 @@
+# Systemd unit (Type=simple, long-running) for the background worker
+# (pg-boss dispatcher + scheduled jobs + agent handlers). SPEC §4.1, §6.
+#
+# Tokens replaced by infra/install.sh:
+#   __SMMTA_USER__, __SMMTA_HOME__, __SMMTA_NODE_BIN__
+
+[Unit]
+Description=smmta-next background worker (pg-boss, agents)
+Documentation=https://github.com/roger296/smmta-next
+After=network-online.target docker.service smmta-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__SMMTA_USER__
+Group=__SMMTA_USER__
+WorkingDirectory=__SMMTA_HOME__/smmta-next/apps/worker
+# The worker loads env from apps/worker/.env, falling back to apps/api/.env.
+EnvironmentFile=__SMMTA_HOME__/smmta-next/apps/api/.env
+Environment=PATH=__SMMTA_HOME__/.nvm/versions/node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=production
+
+ExecStart=__SMMTA_NODE_BIN__ __SMMTA_HOME__/smmta-next/node_modules/.bin/tsx apps/worker/src/index.ts
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=smmta-worker
+
+[Install]
+WantedBy=multi-user.target

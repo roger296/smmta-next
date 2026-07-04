@@ -16,6 +16,7 @@ import { ApprovalQueueService } from '../modules/approval/approval.service.js';
 import { NotificationService } from '../modules/notification/notification.service.js';
 import { MarketingService } from '../modules/marketing/marketing.service.js';
 import { SubscriptionService } from '../modules/subscriptions/subscription.service.js';
+import { DigestService } from '../modules/digest/digest.service.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
@@ -26,6 +27,7 @@ export function installFeatureHandlers(logger: Logger): void {
   const notify = new NotificationService();
   const marketing = new MarketingService();
   const subs = new SubscriptionService();
+  const digest = new DigestService();
 
   // threshold-check (Prompt 7): count flags for a prospective product on
   // interest.flag_created; emit interest.threshold_crossed exactly once.
@@ -70,6 +72,12 @@ export function installFeatureHandlers(logger: Logger): void {
   setHandler('expired-draft-sweep', async () => {
     const n = await approval.expiredDraftSweep();
     logger.info({ expired: n }, 'expired-draft-sweep ran');
+  });
+
+  // agent-digest (Prompt 15, §6): assemble + log the owner digest. The email
+  // send goes through the transactional pipeline once a recipient is wired.
+  setHandler('agent-digest', async () => {
+    logger.info({ digest: await digest.buildDigest() }, 'agent-digest ran');
   });
 
   // Marketing agent (Prompt 12): nightly cadence recompute + segmentation.

@@ -32,6 +32,8 @@ export {
   DEAD_LETTER_QUEUE,
 } from './registry.js';
 export { setHandler, installStubHandlers } from './handlers.js';
+export { initSentry } from '../shared/observability/sentry.js';
+export { checkHealth } from '../modules/health/health.routes.js';
 
 export function createWorkerLogger(): Logger {
   return pino({

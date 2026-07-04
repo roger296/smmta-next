@@ -8,7 +8,8 @@
  * composition jobs ever contend with web traffic it can move to a second VPS
  * without touching the API (SPEC §6 scale-out).
  */
-import { startWorker } from '@smmta/api/worker';
+import { createServer } from 'node:http';
+import { startWorker, initSentry, checkHealth } from '@smmta/api/worker';
 
 // Load environment from the worker's own .env, falling back to the API's, so a
 // dev run needs no exported vars. In production systemd supplies the env via
@@ -26,8 +27,29 @@ function loadEnv(): void {
   }
 }
 
+/** Optional health server for monitoring/systemd (WORKER_HEALTH_PORT > 0). */
+function startHealthServer(): ReturnType<typeof createServer> | undefined {
+  const port = Number(process.env.WORKER_HEALTH_PORT ?? 0);
+  if (!port) return undefined;
+  const server = createServer((req, res) => {
+    if (req.url === '/healthz') {
+      void checkHealth().then((h) => {
+        res.writeHead(h.status === 'ok' ? 200 : 503, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(h));
+      });
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  server.listen(port);
+  return server;
+}
+
 async function main(): Promise<void> {
   loadEnv();
+  initSentry('worker');
+  const health = startHealthServer();
   const handle = await startWorker();
 
   let shuttingDown = false;
@@ -35,6 +57,7 @@ async function main(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     handle.logger.info({ sig }, 'worker: signal received, shutting down');
+    health?.close();
     await handle.stop();
     process.exit(0);
   };

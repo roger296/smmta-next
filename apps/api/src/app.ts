@@ -4,6 +4,7 @@ import jwt from '@fastify/jwt';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { getEnv } from './config/env.js';
+import { initSentry } from './shared/observability/sentry.js';
 import { errorHandler } from './shared/middleware/error-handler.js';
 import { productRoutes } from './modules/products/product.routes.js';
 import { productGroupRoutes } from './modules/products/product-group.routes.js';
@@ -37,9 +38,11 @@ import { chatRoutes } from './modules/agent/chat.routes.js';
 import { sendgridWebhookRoutes, unsubscribeRoutes } from './modules/messaging/messaging.routes.js';
 import { approvalRoutes } from './modules/approval/approval.routes.js';
 import { subscriptionRoutes } from './modules/subscriptions/subscription.routes.js';
+import { healthRoutes } from './modules/health/health.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
+  initSentry('api');
 
   const app = Fastify({
     logger: {
@@ -155,6 +158,9 @@ export async function buildApp() {
 
   // Subscriptions (Prompt 13): signup/pause/resume, apply credit. Storefront-gated.
   await app.register(subscriptionRoutes, { prefix: '/api/v1' });
+
+  // Health (Prompt 15): /healthz for nginx / monitoring / systemd.
+  await app.register(healthRoutes);
 
   return app;
 }
