@@ -575,3 +575,40 @@ pools`.
 
 ### Gate
 `npm run gate` → green (460). Commit `build(9): compose/send pipeline`.
+
+---
+
+## Entry 10 — Approval queue & escalations (2026-07-04)
+
+### (a) What was built
+- **ApprovalQueueService** (`modules/approval/approval.service.ts`):
+  - `listQueue` — one priority-ordered inbox of pending drafts + open escalations
+    (§17.3: eta_slip → escalation → back_in_stock fanout → nightly marketing),
+    with expiry countdowns.
+  - `getDraftDetail` — draft + its trigger-event payload (the facts panel, §17.2).
+  - `approve` / `editThenApprove` (stores `body_original`) / `reject` (mandatory
+    reason) — a strict state machine (`IllegalTransitionError` on non-pending);
+    approval emits `draft.approved` → send-message.
+  - `getGroup` (one rendered instance + K **seeded-deterministic** random
+    spot-checks, `selectSpotChecks`) + `approveGroup` (touches exactly the group).
+  - `resolveEscalation`, `graduationStats` (rolling approved-unedited rate over
+    last N of a type), `setAutoSend` (flips `agent_config` → compose auto-approves).
+  - `expiredDraftSweep` (§17.7) — new hourly `expired-draft-sweep` scheduled job.
+- **Admin routes** (`approval.routes.ts`, JWT): queue list/detail, approve/
+  edit-approve/reject, group get/approve, escalation resolve, graduation +
+  auto-send toggle. Registered in `app.ts`.
+
+### (b) Deferred
+- **Admin SPA screens** (apps/web: mobile-first inbox, facts-panel detail, swipe
+  approve, reject sheet, group review, graduation banner) — the REST surface is
+  complete + tested; apps/web is out of the gate. Tracked for the admin-frontend
+  pass.
+
+### (c) Test counts
+- Before: 460. After: **468 api tests green** (+8): seeded spot-check determinism,
+  priority ordering, approve→event + illegal re-transition, edit stores original,
+  reject reason, group approve touches exactly members, **graduation rate + toggle
+  flips compose to auto_approved (end-to-end)**, expiry sweep.
+
+### Gate
+`npm run gate` → green (468). Commit `build(10): approval queue`.

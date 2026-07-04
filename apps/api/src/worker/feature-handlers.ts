@@ -12,12 +12,14 @@ import { InterestFlagService } from '../modules/interest/interest.service.js';
 import { PreorderService } from '../modules/payments/preorder.service.js';
 import { ComposeService, type ComposeInput } from '../modules/messaging/compose.service.js';
 import { SendService } from '../modules/messaging/send.service.js';
+import { ApprovalQueueService } from '../modules/approval/approval.service.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
   const preorders = new PreorderService();
   const compose = new ComposeService();
   const send = new SendService();
+  const approval = new ApprovalQueueService();
 
   // threshold-check (Prompt 7): count flags for a prospective product on
   // interest.flag_created; emit interest.threshold_crossed exactly once.
@@ -56,5 +58,11 @@ export function installFeatureHandlers(logger: Logger): void {
       const outcome = await send.send(draftId);
       logger.info({ draftId, outcome }, 'send-message ran');
     }
+  });
+
+  // expired-draft-sweep (Prompt 10, §17.7): expire stale drafts.
+  setHandler('expired-draft-sweep', async () => {
+    const n = await approval.expiredDraftSweep();
+    logger.info({ expired: n }, 'expired-draft-sweep ran');
   });
 }

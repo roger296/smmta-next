@@ -60,6 +60,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: 'subscription-renewal-scan', cron: '0 5 * * *', description: 'Daily: due renewals → mandate charges + reminders' },
   { name: 'payment-window-scan', cron: '0 4 * * *', description: 'Daily: manual-transfer overdue/lapse (§16.4)' },
   { name: 'agent-digest', cron: '0 7 * * *', description: 'Daily 07:00: owner digest email' },
+  { name: 'expired-draft-sweep', cron: '10 * * * *', description: 'Hourly: expire stale drafts (§17.7)' },
 ];
 
 // ---- Retry / dead-letter policy (§12.3) ----

@@ -35,6 +35,7 @@ import {
 } from './modules/payments/payment.routes.js';
 import { chatRoutes } from './modules/agent/chat.routes.js';
 import { sendgridWebhookRoutes, unsubscribeRoutes } from './modules/messaging/messaging.routes.js';
+import { approvalRoutes } from './modules/approval/approval.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -146,6 +147,10 @@ export async function buildApp() {
   // Email pipeline (Prompt 9): SendGrid event webhook + one-click unsubscribe.
   await app.register(sendgridWebhookRoutes, { prefix: '/api/v1' });
   await app.register(unsubscribeRoutes, { prefix: '/api/v1' });
+
+  // Approval queue (Prompt 10): owner's inbox — approve/edit/reject, groups,
+  // graduation, escalations. JWT-gated.
+  await app.register(approvalRoutes, { prefix: '/api/v1' });
 
   return app;
 }
