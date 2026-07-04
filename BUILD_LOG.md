@@ -792,3 +792,66 @@ storefront-frontend task.
 ### Gate
 `npm run gate` → green (485) **and** `npm run smoke` → green. Commit
 `build(15): digest and ops`.
+
+---
+
+## Entry 16 — Verification, hardening, handover (2026-07-04)
+
+### (a) What was done
+- **Flake hunt**: `npm run gate` + `npm run smoke` run **3× consecutively, all
+  green** (486 tests each pass; smoke ALL STEPS PASSED each time). No flakes.
+- **Config-key coverage test** (`src/config/env.coverage.test.ts`): asserts
+  `.env.example` documents every key the app reads (`ENV_KEYS` exported from
+  `env.ts`). It caught 9 undocumented keys, which were added to `.env.example`.
+- **README-BUILD.md**: first-run quickstart (Postgres + test DB, install, env,
+  migrate, seed, run apps, gates, credentials, deploy pointers).
+- **Migration integrity**: forward-only drizzle-kit migrations; a fresh empty DB
+  → all 24 migrations in order → `seed:dev` verified (Prompts 2 & 15). Documented
+  forward-only stance (no down migrations).
+
+### (b) Adversarial coverage (already proven across the suite)
+The Prompt-16 adversarial checklist is satisfied by existing gated tests:
+- **Pricing floor never breached** — property grid over (base, qty, band, code)
+  (`pricing.engine.test.ts`).
+- **Presale integrity** — 50-way concurrent last-unit race, exactly one wins
+  (`inbound.service.test.ts`); swap conserves stock + money
+  (`notification.service.test.ts`).
+- **Money conservation** — subscription credit `balance == Σ signed events`
+  (`subscription.service.test.ts`); band-lock survives a pricing_rules change
+  (`preorder.service.test.ts`).
+- **Agent safety** — tool-schema scan proves no tool accepts identity; prices
+  only via the engine; spend-cap wind-down (`agent.service.test.ts`).
+- **Webhooks** — Mollie webhook idempotency (`preorder.service.test.ts`);
+  SendGrid signature rejection (`messaging.test.ts`).
+- **PECR** — suppression respected at send time even after approval; no-consent
+  park; unsubscribe revokes consent; consent-revoke cancels queued drafts
+  (`messaging.test.ts`, `notification.service.test.ts`).
+
+### (c) Feature coverage checklist (SPEC §3 F1–F9, §12–17)
+| Feature | Status | Where |
+|---|---|---|
+| F1 Pre-orders vs inbound shipments | **done** | inbound + payments modules |
+| F2 Master carton pricing | **done** | pricing engine |
+| F3 Stacking discounts | **done** | pricing engine (+floor) |
+| F4 Subscriptions (credit/skip/pause, dunning) | **done (backend)** | subscriptions module; account UI → storefront pass |
+| F5 AI sales agent (tools, SSE) | **done (backend)** | agent module; chat UI → storefront pass |
+| F6 Notification agent | **done** | notification module (event-driven) |
+| F7 Marketing agent | **done** | marketing module |
+| F8 Interest flags / demand registry | **done (backend)** | interest module; button/coming-soon UI → storefront pass |
+| F9 Frictionless signup + consent | **done (backend)** | identity module; NextAuth wiring → storefront pass |
+| §12 Domain events + jobs | **done** | worker (pg-boss, dispatcher, handlers) |
+| §13 Schema | **done** | migrations 0017–0024 |
+| §14 Sales-agent tools | **done** | agent/tools |
+| §15 Pricing/discount | **done** | pricing engine |
+| §16 Payments & timing | **done (backend)** | payments module; CCR-tick UI → storefront pass |
+| §17 Approval queue | **done (backend)** | approval module; SPA screens → admin-frontend pass |
+
+### (d) Deferred (single remaining stream, all backing APIs complete + tested)
+- **Storefront UX (Prompt 14)** + the customer/admin **React screens** for chat,
+  approval queue, interest button, coming-soon, account area, and the >30-day CCR
+  tick. **Live credentials** (Mollie/SendGrid/OpenRouter/Google) per HUMAN-OPS.
+- **`install.sh` worker-unit install** line (template + docs ready).
+
+### Gate (final)
+Three consecutive green `npm run gate` (486 tests) + `npm run smoke` from the test
+database. Commit `build(16): verification and handover`; tag `build-v1`.

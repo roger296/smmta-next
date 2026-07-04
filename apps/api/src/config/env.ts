@@ -75,6 +75,10 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+/** Every environment key the app reads. Used by the config-coverage test to
+ *  prove `.env.example` documents every variable. */
+export const ENV_KEYS: readonly string[] = Object.keys(envSchema.shape);
+
 let _env: Env | undefined;
 
 export function getEnv(): Env {
