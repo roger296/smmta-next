@@ -521,3 +521,57 @@ pools`.
 
 ### Gate
 `npm run gate` → green (451). Commit `build(8): sales agent`.
+
+---
+
+## Entry 9 — SendGrid compose/send pipeline (2026-07-04)
+
+### (a) What was built
+- **SendGrid wrapper** (`integrations/sendgrid/`): `SendGridPort` +
+  `SendGridClient` (transactional/marketing sender identity by `category`;
+  sandbox enforced) + `FakeSendGrid` (dedupes by idempotency key). Postgres is
+  the contactability source of truth.
+- **ComposeService** (`compose.service.ts`): one OpenRouter `compose` call per
+  message with a versioned per-templateKey prompt (`templates.ts`); writes a
+  `message_drafts` row (category, `group_key`, `expires_at`), emits
+  `draft.created`, and — if the type is graduated (`agent_config.auto_send_enabled`)
+  — emits `draft.approved` for the auto-send path. £ facts are computed by code
+  and passed in; the model only formats.
+- **SendService** (`send.service.ts`) — the **last gate before SendGrid**. AT
+  SEND TIME re-checks suppression, marketing consent, expiry, and the frequency
+  cap (config `MARKETING_FREQ_CAP_COUNT`/`_DAYS`); parks with a queryable reason
+  otherwise. Idempotency = draft id (wrapper dedupe **+** conditional
+  `status <> 'sent'` update), so a retry can never double-send. Emits
+  `message.sent` / `message.failed`.
+- **SuppressionService**: upserts the suppression cache + emits
+  `suppression.updated`; an unsubscribe/complaint also writes a
+  `general_marketing` consent revocation and cancels the user's pending marketing
+  drafts (§12.4).
+- **Webhook + unsubscribe routes** (`messaging.routes.ts`): signature-verified
+  SendGrid event webhook (HMAC-SHA256 over the body with `SENDGRID_WEBHOOK_KEY`)
+  and a signed one-click unsubscribe (`unsubscribe.ts`, HMAC over user id) with
+  `List-Unsubscribe`/`-Post` headers on marketing sends.
+- **Worker**: `compose-message` + `send-message` stubs replaced;
+  `EVENT_HANDLERS['draft.approved'] = ['send-message']` so an approved draft
+  flows straight to the send gate.
+
+### (b) Decisions (logged)
+- **Webhook signature = HMAC-SHA256** over the JSON body (production may switch
+  to SendGrid's ECDSA public-key scheme — a localized wrapper change).
+- **Parked = `status:'failed'` + `editorNotes:'parked:<reason>'`** (the enum has
+  no `parked` state); the reason is queryable, and `reject_reason='expired'` is
+  set for expiry so the digest can surface zombies.
+
+### (c) BLOCKED / deferred
+- **Live SendGrid** BLOCKED until `SENDGRID_API_KEY` supplied (sandbox/fake used).
+  SPF/DKIM on the sending subdomain is an ops task (Prompt 15 HUMAN-OPS).
+
+### (d) Test counts
+- Before: 451. After: **460 api tests green** (+9): **no-% template lint**,
+  compose→draft.created, **suppression respected after approval**, no-consent
+  park, **frequency-cap parks the (N+1)th (reason queryable)**, expired never
+  sends, **idempotent retry (one send, one message.sent)**, webhook **signature
+  rejection** + valid bounce→suppress+revoke, signed unsubscribe revokes consent.
+
+### Gate
+`npm run gate` → green (460). Commit `build(9): compose/send pipeline`.

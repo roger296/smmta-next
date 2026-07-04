@@ -34,6 +34,8 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'stock.replenished': ['back-in-stock-fanout'],
   'interest.flag_created': ['threshold-check'],
   'user.created': ['identity-merge'],
+  // An approved (or auto-approved) draft goes straight to the send-time gate.
+  'draft.approved': ['send-message'],
 };
 
 export function handlersFor(eventType: string): HandlerQueue[] {

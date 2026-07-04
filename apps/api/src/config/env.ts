@@ -45,6 +45,18 @@ const envSchema = z.object({
   /** Per-day spend ceiling in integer micro-USD (1_000_000 = $1.00). */
   OPENROUTER_DAILY_CAP_MICROUSD: z.coerce.number().int().default(2_000_000),
 
+  // Email (SendGrid, §4.6). Empty key or SENDGRID_SANDBOX → the fake is used.
+  SENDGRID_API_KEY: z.string().default(''),
+  SENDGRID_WEBHOOK_KEY: z.string().default('dev-webhook-key'),
+  SENDGRID_FROM_TRANSACTIONAL: z.string().default('orders@filament.shop.cleverdeals.net'),
+  SENDGRID_FROM_MARKETING: z.string().default('hello@filament.shop.cleverdeals.net'),
+  SENDGRID_SANDBOX: z.coerce.boolean().default(true),
+  /** Signs one-click unsubscribe URLs. */
+  UNSUBSCRIBE_SECRET: z.string().default('dev-unsubscribe-secret'),
+  /** Marketing frequency cap: max N messages per user per rolling M days. */
+  MARKETING_FREQ_CAP_COUNT: z.coerce.number().int().default(3),
+  MARKETING_FREQ_CAP_DAYS: z.coerce.number().int().default(7),
+
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications
   // triggered by a GRN). Empty string disables the call (the queue

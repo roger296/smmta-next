@@ -34,6 +34,7 @@ import {
   mollieWebhookRoutes,
 } from './modules/payments/payment.routes.js';
 import { chatRoutes } from './modules/agent/chat.routes.js';
+import { sendgridWebhookRoutes, unsubscribeRoutes } from './modules/messaging/messaging.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -141,6 +142,10 @@ export async function buildApp() {
 
   // Sales agent chat (Prompt 8): SSE, storefront api-key gated.
   await app.register(chatRoutes, { prefix: '/api/v1' });
+
+  // Email pipeline (Prompt 9): SendGrid event webhook + one-click unsubscribe.
+  await app.register(sendgridWebhookRoutes, { prefix: '/api/v1' });
+  await app.register(unsubscribeRoutes, { prefix: '/api/v1' });
 
   return app;
 }
