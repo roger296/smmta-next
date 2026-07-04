@@ -33,6 +33,7 @@ import {
   preorderAdminRoutes,
   mollieWebhookRoutes,
 } from './modules/payments/payment.routes.js';
+import { chatRoutes } from './modules/agent/chat.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -137,6 +138,9 @@ export async function buildApp() {
   await app.register(preorderStorefrontRoutes, { prefix: '/api/v1' });
   await app.register(preorderAdminRoutes, { prefix: '/api/v1' });
   await app.register(mollieWebhookRoutes, { prefix: '/api/v1' });
+
+  // Sales agent chat (Prompt 8): SSE, storefront api-key gated.
+  await app.register(chatRoutes, { prefix: '/api/v1' });
 
   return app;
 }

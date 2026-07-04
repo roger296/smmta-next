@@ -38,6 +38,13 @@ const envSchema = z.object({
   MOLLIE_API_KEY: z.string().default(''),
   APP_BASE_URL: z.string().default('http://localhost:3000'),
 
+  // LLM (OpenRouter, §4.5). Empty key → the scripted fake is used (dev/test).
+  OPENROUTER_API_KEY: z.string().default(''),
+  OPENROUTER_MODEL: z.string().default('anthropic/claude-3.5-haiku'),
+  OPENROUTER_FALLBACK_MODELS: z.string().default('google/gemini-flash-1.5'),
+  /** Per-day spend ceiling in integer micro-USD (1_000_000 = $1.00). */
+  OPENROUTER_DAILY_CAP_MICROUSD: z.coerce.number().int().default(2_000_000),
+
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications
   // triggered by a GRN). Empty string disables the call (the queue

@@ -472,3 +472,52 @@ pools`.
 
 ### Gate
 `npm run gate` → green (446). Commit `build(6): payments and payment timing`.
+
+---
+
+## Entry 8 — OpenRouter wrapper & sales agent (2026-07-04)
+
+### (a) What was built
+- **OpenRouter wrapper** (`integrations/openrouter/`): `LlmPort` + real
+  `OpenRouterClient` (OpenAI-compatible tool-calling) + scripted `FakeLlm` +
+  `OpenRouterService` — **model fallback list**, **per-day spend cap** (sums
+  today's `llm_log.cost_micro_usd`; `SpendCapExceededError`), and **every call
+  logged to `llm_log`** (audit + tuning dataset). Cost is integer micro-USD.
+- **Basket** (`modules/agent/basket.service.ts` + `baskets`/`basket_lines`
+  tables, migration 0022): prices are NEVER stored on a line — `view()`
+  re-quotes through the pricing engine every time, so a skipped/tampered price
+  can't corrupt an order. `addLine` stock-validates (warehouse count / presale
+  availability) → `InsufficientStockError`.
+- **Tool layer** (`modules/agent/tools.ts`): the §14.3 `TOOL_SCHEMAS` +
+  `ToolExecutor` — direct service-layer calls returning the uniform
+  `{ok,data}|{ok:false,error:{code,message}}` envelope with §14.2 codes.
+  `quote_price` returns the **customer-facing serializer only**. Identity +
+  basket are injected from the session (`ToolContext`), **never** tool args.
+- **Agent loop** (`agent.service.ts`): `startSession` (session + basket),
+  `runTurn` — model → execute tools → loop, max **8 tool calls/turn** and **60/
+  session**, graceful wind-down on spend cap / budget. Messages + tool calls/
+  results persist to `chat_sessions`/`chat_messages` for replay.
+- **Versioned system prompt** (`system-prompt.ts`, `sales-agent/v1`) embedding
+  §14.4 + §16.2a + §15.1a (£-not-%, out-of-stock resolution order, >30-day
+  payment framing, escalate-don't-improvise).
+- **SSE chat route** (`chat.routes.ts`): start session + stream a turn.
+
+### (b) Decisions / deferrals (logged)
+- **Live OpenRouter BLOCKED** until `OPENROUTER_API_KEY` supplied; the whole
+  loop runs against `FakeLlm`.
+- **SSE is turn-atomic** (one `message` event per turn), not token-level
+  streaming — a thin transport enhancement for later.
+- **Storefront chat UI** (apps/store floating panel, anonymous-email form)
+  deferred to Prompt 14.
+- **Anonymous `create_interest_flag`** returns `LOGIN_REQUIRED` (the email
+  capture form is a UI concern); logged-in path is wired.
+
+### (c) Test counts
+- Before: 446. After: **451 api tests green** (+5): **tool-schema scan proves no
+  tool accepts user/session/basket id** (structural anti-injection), happy path
+  (search→quote→add, basket priced ONLY by the engine, llm_log rows written),
+  out-of-stock → `INSUFFICIENT_STOCK` envelope, **spend-cap wind-down (model
+  never called)**, anonymous `get_customer_interests` → `LOGIN_REQUIRED`.
+
+### Gate
+`npm run gate` → green (451). Commit `build(8): sales agent`.
