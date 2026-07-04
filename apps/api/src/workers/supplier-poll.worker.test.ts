@@ -315,28 +315,33 @@ describe('runSupplierPoll — per-chunk error tolerance', () => {
   // 100-SKU chunk; the worker reads `stockChunkSize` at runtime.
 
   const EXTRA_SKUS = ['SKU-C', 'SKU-D', 'SKU-E'];
+  const extraProductIds: string[] = [];
 
   beforeAll(async () => {
     const db = getDb();
     // Add three more mappings on top of the SKU-A/B from the suite's
-    // beforeAll, sharing Product A as the product link (we only care
-    // about supplier_products state in these assertions).
+    // beforeAll. Each mapping needs a DISTINCT product: the unique
+    // constraint `supplier_products_product_supplier_unq` is on
+    // (product_id, supplier_id), so we create one product per extra SKU
+    // rather than reusing Product A (which already maps SKU-A). The suite
+    // beforeAll wipes COMPANY products/mappings, so a fresh insert is safe.
     for (const sku of EXTRA_SKUS) {
-      const existing = await db.query.supplierProducts.findFirst({
-        where: and(
-          eq(supplierProducts.supplierId, supplierId),
-          eq(supplierProducts.supplierSku, sku),
-        ),
-      });
-      if (!existing) {
-        await db.insert(supplierProducts).values({
+      const [p] = await db
+        .insert(products)
+        .values({
           companyId: COMPANY,
-          productId: productAId,
-          supplierId,
-          supplierSku: sku,
-          costGbp: '4.00',
-        });
-      }
+          name: `Worker ${sku}`,
+          slug: `worker-product-${sku.toLowerCase()}`,
+        })
+        .returning();
+      extraProductIds.push(p!.id);
+      await db.insert(supplierProducts).values({
+        companyId: COMPANY,
+        productId: p!.id,
+        supplierId,
+        supplierSku: sku,
+        costGbp: '4.00',
+      });
     }
   });
 
@@ -351,6 +356,9 @@ describe('runSupplierPoll — per-chunk error tolerance', () => {
           inArray(supplierProducts.supplierSku, EXTRA_SKUS),
         ),
       );
+    if (extraProductIds.length > 0) {
+      await db.delete(products).where(inArray(products.id, extraProductIds));
+    }
   });
 
   beforeEach(() => {
