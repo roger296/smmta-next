@@ -657,3 +657,41 @@ pools`.
 
 ### Gate
 `npm run gate` → green (473). Commit `build(11): notification agent`.
+
+---
+
+## Entry 12 — Marketing agent (2026-07-04)
+
+### (a) What was built
+- **Cadence math** (`modules/marketing/cadence.ts`, pure): `medianIntervalDays`
+  + `predictRunOut` (min-data floor of 3 → a single/one-off purchase is
+  excluded; `regular` = interval CV < 0.5 → the subscription-upsell signal).
+- **`run_out_predictions` table** (migration 0023): per (user, sku) cadence.
+- **MarketingService** (`marketing.service.ts`):
+  - `recomputePredictions` — nightly cadence from paid pre-orders → upserts
+    predictions.
+  - `runNightly` — SQL-first segmentation (run-out-due, offer-watchers,
+    subscription-upsell = regular + no active sub, lapsed = paid but silent 90d).
+    **Selection gates run BEFORE compose** (consent + suppression + frequency-cap
+    headroom), so LLM spend is never burned on unsendables. A user in two
+    segments is **deduped to one message/night** (highest-priority segment wins).
+    Per-segment enable flags + `MARKETING_MAX_SENDS_PER_NIGHT`. Returns per-segment
+    counts for the digest. Composes via the same pipeline with a segment
+    `group_key`.
+- **Templates**: added `lapsed_winback` + `subscription_upsell` (no-% lint from
+  Prompt 9 covers them).
+- **Worker**: `run-out-prediction` + `marketing-nightly` stubs replaced.
+
+### (b) Decisions (logged)
+- **Predictions keyed on (user, sku)** as a testable proxy for the spec's
+  (user, material-category) while the storefront-user↔order linkage and a product
+  material taxonomy are still being built.
+
+### (c) Test counts
+- Before: 473. After: **477 api tests green** (+4): cadence (regular predicts,
+  single/insufficient excluded, irregular not "regular"), **segmentation excludes
+  unconsented/suppressed at selection time**, **dedupe to one message/night**,
+  disabled-segment honoured.
+
+### Gate
+`npm run gate` → green (477). Commit `build(12): marketing agent`.

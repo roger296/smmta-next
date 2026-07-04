@@ -21,3 +21,4 @@ export * from './subscriptions.js';
 export * from './pricing.js';
 export * from './preorders.js';
 export * from './baskets.js';
+export * from './marketing.js';

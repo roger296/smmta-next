@@ -56,6 +56,8 @@ const envSchema = z.object({
   /** Marketing frequency cap: max N messages per user per rolling M days. */
   MARKETING_FREQ_CAP_COUNT: z.coerce.number().int().default(3),
   MARKETING_FREQ_CAP_DAYS: z.coerce.number().int().default(7),
+  /** Marketing agent: max drafts composed per nightly run. */
+  MARKETING_MAX_SENDS_PER_NIGHT: z.coerce.number().int().default(200),
 
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications

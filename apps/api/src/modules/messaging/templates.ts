@@ -56,6 +56,21 @@ Gently remind them and make reordering easy. It is a helpful nudge, not a hard
 sell.
 ${SHARED_RULES}`,
   },
+  lapsed_winback: {
+    key: 'lapsed_winback',
+    category: 'marketing',
+    systemPrompt: `The customer hasn't bought in a while. Warmly check in and remind them what we
+offer, with no pressure. A light "we've missed you" tone.
+${SHARED_RULES}`,
+  },
+  subscription_upsell: {
+    key: 'subscription_upsell',
+    category: 'marketing',
+    systemPrompt: `The customer buys regularly and could save with a subscription (bonus credit).
+Explain the benefit in pounds using the facts given, and that they can skip or
+pause any time. Never oversell.
+${SHARED_RULES}`,
+  },
   preorder_fulfilment: {
     key: 'preorder_fulfilment',
     category: 'transactional',

@@ -14,6 +14,7 @@ import { ComposeService, type ComposeInput } from '../modules/messaging/compose.
 import { SendService } from '../modules/messaging/send.service.js';
 import { ApprovalQueueService } from '../modules/approval/approval.service.js';
 import { NotificationService } from '../modules/notification/notification.service.js';
+import { MarketingService } from '../modules/marketing/marketing.service.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
@@ -22,6 +23,7 @@ export function installFeatureHandlers(logger: Logger): void {
   const send = new SendService();
   const approval = new ApprovalQueueService();
   const notify = new NotificationService();
+  const marketing = new MarketingService();
 
   // threshold-check (Prompt 7): count flags for a prospective product on
   // interest.flag_created; emit interest.threshold_crossed exactly once.
@@ -66,6 +68,14 @@ export function installFeatureHandlers(logger: Logger): void {
   setHandler('expired-draft-sweep', async () => {
     const n = await approval.expiredDraftSweep();
     logger.info({ expired: n }, 'expired-draft-sweep ran');
+  });
+
+  // Marketing agent (Prompt 12): nightly cadence recompute + segmentation.
+  setHandler('run-out-prediction', async () => {
+    logger.info({ written: await marketing.recomputePredictions() }, 'run-out-prediction ran');
+  });
+  setHandler('marketing-nightly', async () => {
+    logger.info(await marketing.runNightly(), 'marketing-nightly ran');
   });
 
   // ---- Notification agent reactions (Prompt 11, §12.4) ----
