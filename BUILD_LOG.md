@@ -273,3 +273,52 @@ pg-boss, domain events`.
 
 ### Gate
 `npm run gate` → green (415). Commit `build(3): identity, auth, consent`.
+
+---
+
+## Entry 4 — Inbound shipments & presale stock pools (2026-07-04)
+
+### (a) What was built
+- **InboundService** (`modules/inbound/inbound.service.ts`):
+  - Shipment CRUD (`createShipment` w/ lines → `shipment.created`;
+    `getShipment`/`listShipments`; `setStatus`; `setTrackingRefs` multi-format).
+  - `updateEta` — emits `shipment.eta_changed {oldEta,newEta}`, no-op (no event)
+    when unchanged.
+  - **Presale allocation** — `allocatePresale`/`releasePresale`, row-locked
+    (`SELECT … FOR UPDATE` on the line joined to its shipment for `bufferPct`),
+    refuses oversell with `PresaleOversellError`. `presaleAvailable(manifested,
+    buffer, presold)` = `floor(manifested×(100−buffer)/100) − presold`, floor 0.
+  - **`goodsIn`** — sets `qty_received` per line, emits `shipment.arrived`,
+    `shipment.short_shipped` (variance), and `stock.allocation_broken` when
+    `received < presold`; sets status `received` + `arrivedAt`.
+  - **`getStockAndEta(sku)`** — the single read model: warehouse band
+    (`in_stock`/`low_stock`/`out_of_stock`) from IN_STOCK row count vs the
+    `pricing_rules.low_stock_threshold`, plus every unarrived inbound pool with
+    exact `presaleAvailable`.
+- **Admin routes** (`inbound.routes.ts`, JWT-gated): list/detail/create, ETA
+  edit, status, tracking-refs editor, goods-in, allocate. Registered in `app.ts`.
+
+### (b) Goods-in inventory bridge (logged)
+- The existing warehouse model is **one `stock_items` row = one unit** (the
+  storefront reservation service locks rows with `FOR UPDATE SKIP LOCKED` and
+  `availableQty` is the COUNT of IN_STOCK rows — `catalogue.service.ts`). So
+  `goodsIn` bridges by inserting `qtyReceived` IN_STOCK `stock_items` rows for
+  the SKU's product at its `defaultWarehouseId` (falling back to the company's
+  first warehouse). No parallel inventory system is built — presale pools live
+  only on the shipment line until goods-in transfers them to the warehouse.
+
+### (c) BLOCKED / deferred
+- **Admin SPA screens** (apps/web: shipment list/detail, tracking editor, ETA
+  edit, goods-in form) deferred to sit alongside the broader admin UI work; the
+  admin REST surface is complete + tested and `apps/web` is out of the gate.
+  Tracked here.
+
+### (d) Test counts
+- Before: 415. After: **420 api tests green** (+5 in `inbound.service.test.ts`:
+  buffer arithmetic, created/eta_changed events, **50-way presale oversell race
+  (exactly one wins)**, short-shipment → arrived+short_shipped+allocation_broken
+  + goods-in bridge, and band thresholds out/low/in with exact presale avail).
+
+### Gate
+`npm run gate` → green (420). Commit `build(4): inbound shipments and presale
+pools`.
