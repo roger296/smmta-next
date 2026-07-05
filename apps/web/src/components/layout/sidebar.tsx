@@ -14,6 +14,7 @@ import {
   Boxes,
   FolderTree,
   Inbox,
+  Ship,
 } from 'lucide-react';
 
 interface NavItem {
@@ -32,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Product groups', to: '/product-groups', icon: Boxes },
   { label: 'Categories', to: '/categories', icon: FolderTree },
   { label: 'Stock', to: '/stock', icon: Warehouse },
+  { label: 'Inbound', to: '/inbound', icon: Ship },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },
   { label: 'Supplier Invoices', to: '/supplier-invoices', icon: FileText },
