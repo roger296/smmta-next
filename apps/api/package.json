@@ -24,6 +24,7 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "seed:dev": "tsx scripts/seed-dev.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "check:credentials": "tsx scripts/check-credentials.ts",
     "import:uneek-products": "tsx scripts/import-uneek-products.ts",
     "seed:ralawise-catalogue": "tsx scripts/seed-ralawise-catalogue.ts",
     "seed:categories": "tsx scripts/seed-categories.ts",
