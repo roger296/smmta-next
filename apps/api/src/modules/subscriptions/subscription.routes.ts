@@ -6,9 +6,16 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { apiKeyAuth } from '../../shared/middleware/api-key.js';
+import { requireAuth } from '../../shared/middleware/auth.js';
 import { SubscriptionService } from './subscription.service.js';
 
 const subs = new SubscriptionService();
+
+/** Admin (JWT) read view of subscriptions. */
+export async function subscriptionAdminRoutes(app: FastifyInstance) {
+  app.addHook('preHandler', requireAuth);
+  app.get('/admin/subscriptions', async () => ({ success: true, data: await subs.listAdmin() }));
+}
 
 export async function subscriptionRoutes(app: FastifyInstance) {
   app.addHook('preHandler', apiKeyAuth(['storefront:write']));

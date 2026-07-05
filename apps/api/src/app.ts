@@ -40,7 +40,7 @@ import {
 import { chatRoutes } from './modules/agent/chat.routes.js';
 import { sendgridWebhookRoutes, unsubscribeRoutes } from './modules/messaging/messaging.routes.js';
 import { approvalRoutes } from './modules/approval/approval.routes.js';
-import { subscriptionRoutes } from './modules/subscriptions/subscription.routes.js';
+import { subscriptionRoutes, subscriptionAdminRoutes } from './modules/subscriptions/subscription.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { digestRoutes } from './modules/digest/digest.routes.js';
 
@@ -167,6 +167,7 @@ export async function buildApp() {
 
   // Subscriptions (Prompt 13): signup/pause/resume, apply credit. Storefront-gated.
   await app.register(subscriptionRoutes, { prefix: '/api/v1' });
+  await app.register(subscriptionAdminRoutes, { prefix: '/api/v1' });
 
   // Health (Prompt 15): /healthz for nginx / monitoring / systemd.
   await app.register(healthRoutes);

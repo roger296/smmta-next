@@ -18,6 +18,7 @@ import {
   Bot,
   Newspaper,
   Sparkles,
+  CreditCard,
 } from 'lucide-react';
 
 interface NavItem {
@@ -31,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Digest', to: '/digest', icon: Newspaper },
   { label: 'Approvals', to: '/approval', icon: Inbox },
   { label: 'Agents', to: '/agents', icon: Bot },
+  { label: 'Subscriptions', to: '/subscriptions', icon: CreditCard },
   { label: 'Customers', to: '/customers', icon: Users },
   { label: 'Orders', to: '/orders', icon: ShoppingCart },
   { label: 'Invoices', to: '/invoices', icon: FileText },

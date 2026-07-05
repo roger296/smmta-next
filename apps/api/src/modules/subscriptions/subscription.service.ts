@@ -10,7 +10,7 @@
 import { and, eq, lte, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
-import { subscriptions, subscriptionEvents } from '../../db/schema/index.js';
+import { subscriptions, subscriptionEvents, storefrontUsers } from '../../db/schema/index.js';
 import { emitDomainEvent, type DbTx } from '../../shared/events/emit.js';
 import { getMollie } from '../../integrations/mollie/index.js';
 import { ComposeService } from '../messaging/compose.service.js';
@@ -257,6 +257,25 @@ export class SubscriptionService {
       }
     }
     return { recovered, paused };
+  }
+
+  /** Admin: all subscriptions with the customer email + plan/status/credit. */
+  async listAdmin() {
+    return this.db
+      .select({
+        id: subscriptions.id,
+        plan: subscriptions.plan,
+        status: subscriptions.status,
+        creditBalancePence: subscriptions.creditBalancePence,
+        renewsAt: subscriptions.renewsAt,
+        dunningAttempts: subscriptions.dunningAttempts,
+        email: storefrontUsers.email,
+        createdAt: subscriptions.createdAt,
+      })
+      .from(subscriptions)
+      .innerJoin(storefrontUsers, eq(subscriptions.userId, storefrontUsers.id))
+      .where(eq(subscriptions.companyId, this.companyId))
+      .orderBy(subscriptions.createdAt);
   }
 
   async pause(subId: string): Promise<void> {

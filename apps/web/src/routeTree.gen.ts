@@ -15,6 +15,7 @@ import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppliers/index'
 import { Route as AuthedSupplierOrdersIndexRouteImport } from './routes/_authed/supplier-orders/index'
 import { Route as AuthedSupplierInvoicesIndexRouteImport } from './routes/_authed/supplier-invoices/index'
+import { Route as AuthedSubscriptionsIndexRouteImport } from './routes/_authed/subscriptions/index'
 import { Route as AuthedStockIndexRouteImport } from './routes/_authed/stock/index'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedPurchaseOrdersIndexRouteImport } from './routes/_authed/purchase-orders/index'
@@ -81,6 +82,12 @@ const AuthedSupplierInvoicesIndexRoute =
   AuthedSupplierInvoicesIndexRouteImport.update({
     id: '/supplier-invoices/',
     path: '/supplier-invoices/',
+    getParentRoute: () => AuthedRouteRoute,
+  } as any)
+const AuthedSubscriptionsIndexRoute =
+  AuthedSubscriptionsIndexRouteImport.update({
+    id: '/subscriptions/',
+    path: '/subscriptions/',
     getParentRoute: () => AuthedRouteRoute,
   } as any)
 const AuthedStockIndexRoute = AuthedStockIndexRouteImport.update({
@@ -307,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/purchase-orders/': typeof AuthedPurchaseOrdersIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/stock/': typeof AuthedStockIndexRoute
+  '/subscriptions/': typeof AuthedSubscriptionsIndexRoute
   '/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
   '/suppliers/': typeof AuthedSuppliersIndexRoute
@@ -350,6 +358,7 @@ export interface FileRoutesByTo {
   '/purchase-orders': typeof AuthedPurchaseOrdersIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/stock': typeof AuthedStockIndexRoute
+  '/subscriptions': typeof AuthedSubscriptionsIndexRoute
   '/supplier-invoices': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders': typeof AuthedSupplierOrdersIndexRoute
   '/suppliers': typeof AuthedSuppliersIndexRoute
@@ -395,6 +404,7 @@ export interface FileRoutesById {
   '/_authed/purchase-orders/': typeof AuthedPurchaseOrdersIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/stock/': typeof AuthedStockIndexRoute
+  '/_authed/subscriptions/': typeof AuthedSubscriptionsIndexRoute
   '/_authed/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/_authed/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
   '/_authed/suppliers/': typeof AuthedSuppliersIndexRoute
@@ -440,6 +450,7 @@ export interface FileRouteTypes {
     | '/purchase-orders/'
     | '/settings/'
     | '/stock/'
+    | '/subscriptions/'
     | '/supplier-invoices/'
     | '/supplier-orders/'
     | '/suppliers/'
@@ -483,6 +494,7 @@ export interface FileRouteTypes {
     | '/purchase-orders'
     | '/settings'
     | '/stock'
+    | '/subscriptions'
     | '/supplier-invoices'
     | '/supplier-orders'
     | '/suppliers'
@@ -527,6 +539,7 @@ export interface FileRouteTypes {
     | '/_authed/purchase-orders/'
     | '/_authed/settings/'
     | '/_authed/stock/'
+    | '/_authed/subscriptions/'
     | '/_authed/supplier-invoices/'
     | '/_authed/supplier-orders/'
     | '/_authed/suppliers/'
@@ -579,6 +592,13 @@ declare module '@tanstack/react-router' {
       path: '/supplier-invoices'
       fullPath: '/supplier-invoices/'
       preLoaderRoute: typeof AuthedSupplierInvoicesIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/subscriptions/': {
+      id: '/_authed/subscriptions/'
+      path: '/subscriptions'
+      fullPath: '/subscriptions/'
+      preLoaderRoute: typeof AuthedSubscriptionsIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/stock/': {
@@ -874,6 +894,7 @@ interface AuthedRouteRouteChildren {
   AuthedPurchaseOrdersIndexRoute: typeof AuthedPurchaseOrdersIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedStockIndexRoute: typeof AuthedStockIndexRoute
+  AuthedSubscriptionsIndexRoute: typeof AuthedSubscriptionsIndexRoute
   AuthedSupplierInvoicesIndexRoute: typeof AuthedSupplierInvoicesIndexRoute
   AuthedSupplierOrdersIndexRoute: typeof AuthedSupplierOrdersIndexRoute
   AuthedSuppliersIndexRoute: typeof AuthedSuppliersIndexRoute
@@ -917,6 +938,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedPurchaseOrdersIndexRoute: AuthedPurchaseOrdersIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
   AuthedStockIndexRoute: AuthedStockIndexRoute,
+  AuthedSubscriptionsIndexRoute: AuthedSubscriptionsIndexRoute,
   AuthedSupplierInvoicesIndexRoute: AuthedSupplierInvoicesIndexRoute,
   AuthedSupplierOrdersIndexRoute: AuthedSupplierOrdersIndexRoute,
   AuthedSuppliersIndexRoute: AuthedSuppliersIndexRoute,
