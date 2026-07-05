@@ -6,6 +6,7 @@
  *
  * This is a server component (async) — safe to render in a Next PDP.
  */
+import Link from 'next/link';
 import { getSkuPools, SmmtaApiError, type SkuPool } from '@/lib/smmta';
 
 const gbp = (pence: number) => `£${(pence / 100).toFixed(2)}`;
@@ -75,6 +76,12 @@ export async function PreorderPools({ sku }: { sku: string }) {
                   )}
                 </div>
               </div>
+              <Link
+                href={`/shop/preorder?slug=${encodeURIComponent(sku)}&pool=${encodeURIComponent(pool.shipmentRef)}`}
+                className="mt-3 inline-block bg-[var(--brand-accent)] px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Pre-order
+              </Link>
             </li>
           ))}
         </ul>
