@@ -28,6 +28,7 @@ import { notifyMeRoutes } from './modules/storefront/notify-me.routes.js';
 import { registerStorefrontRequestId } from './modules/storefront/log.js';
 import { identityRoutes } from './modules/identity/identity.routes.js';
 import { inboundRoutes } from './modules/inbound/inbound.routes.js';
+import { poolsRoutes } from './modules/inbound/pools.routes.js';
 import { interestRoutes } from './modules/interest/interest.routes.js';
 import {
   preorderStorefrontRoutes,
@@ -135,6 +136,9 @@ export async function buildApp() {
 
   // Inbound shipments & presale stock pools (Prompt 4). Admin/operator surface.
   await app.register(inboundRoutes, { prefix: '/api/v1' });
+
+  // Storefront-facing stock + pre-order pools for a SKU (PDP). Api-key gated.
+  await app.register(poolsRoutes, { prefix: '/api/v1' });
 
   // Interest flags / demand-signal registry (Prompt 7). Storefront api-key gated.
   await app.register(interestRoutes, { prefix: '/api/v1' });
