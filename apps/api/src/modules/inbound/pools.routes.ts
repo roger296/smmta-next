@@ -6,19 +6,34 @@
  * what the PDP renders.
  */
 import type { FastifyInstance } from 'fastify';
+import { and, eq, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { apiKeyAuth } from '../../shared/middleware/api-key.js';
+import { getDb } from '../../config/database.js';
+import { getSingletonCompanyId } from '../../shared/auth/company.js';
+import { products } from '../../db/schema/index.js';
 import { InboundService } from './inbound.service.js';
 import { PricingService, PricingError } from '../pricing/pricing.service.js';
 
 const inbound = new InboundService();
 const pricing = new PricingService();
 
+/** Resolve a path param that may be a stock code OR a product slug → stock code. */
+async function resolveSku(param: string): Promise<string | null> {
+  const [row] = await getDb()
+    .select({ stockCode: products.stockCode })
+    .from(products)
+    .where(and(eq(products.companyId, getSingletonCompanyId()), or(eq(products.stockCode, param), eq(products.slug, param))))
+    .limit(1);
+  return row?.stockCode ?? null;
+}
+
 export async function poolsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', apiKeyAuth(['storefront:read']));
 
   app.get('/storefront/skus/:sku/pools', async (request, reply) => {
-    const { sku } = z.object({ sku: z.string().min(1) }).parse(request.params);
+    const { sku: param } = z.object({ sku: z.string().min(1) }).parse(request.params);
+    const sku = (await resolveSku(param)) ?? param;
     const stock = await inbound.getStockAndEta(sku);
 
     // Warehouse base price (customer-facing) for reference, if the SKU is priced.
