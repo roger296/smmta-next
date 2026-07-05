@@ -31,6 +31,7 @@ import { inboundRoutes } from './modules/inbound/inbound.routes.js';
 import { poolsRoutes } from './modules/inbound/pools.routes.js';
 import { interestRoutes } from './modules/interest/interest.routes.js';
 import { comingSoonRoutes } from './modules/interest/coming-soon.routes.js';
+import { prospectiveRoutes } from './modules/interest/prospective.routes.js';
 import {
   preorderStorefrontRoutes,
   preorderAdminRoutes,
@@ -145,6 +146,7 @@ export async function buildApp() {
   // Interest flags / demand-signal registry (Prompt 7). Storefront api-key gated.
   await app.register(interestRoutes, { prefix: '/api/v1' });
   await app.register(comingSoonRoutes, { prefix: '/api/v1' });
+  await app.register(prospectiveRoutes, { prefix: '/api/v1' });
 
   // Pre-order payments (Prompt 6): storefront place/cancel, admin mark-paid,
   // and the thin Mollie webhook.

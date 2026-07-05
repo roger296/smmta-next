@@ -18,6 +18,7 @@ import { Route as AuthedSupplierInvoicesIndexRouteImport } from './routes/_authe
 import { Route as AuthedStockIndexRouteImport } from './routes/_authed/stock/index'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedPurchaseOrdersIndexRouteImport } from './routes/_authed/purchase-orders/index'
+import { Route as AuthedProspectiveIndexRouteImport } from './routes/_authed/prospective/index'
 import { Route as AuthedProductsIndexRouteImport } from './routes/_authed/products/index'
 import { Route as AuthedProductGroupsIndexRouteImport } from './routes/_authed/product-groups/index'
 import { Route as AuthedOrdersIndexRouteImport } from './routes/_authed/orders/index'
@@ -98,6 +99,11 @@ const AuthedPurchaseOrdersIndexRoute =
     path: '/purchase-orders/',
     getParentRoute: () => AuthedRouteRoute,
   } as any)
+const AuthedProspectiveIndexRoute = AuthedProspectiveIndexRouteImport.update({
+  id: '/prospective/',
+  path: '/prospective/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 const AuthedProductsIndexRoute = AuthedProductsIndexRouteImport.update({
   id: '/products/',
   path: '/products/',
@@ -297,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/orders/': typeof AuthedOrdersIndexRoute
   '/product-groups/': typeof AuthedProductGroupsIndexRoute
   '/products/': typeof AuthedProductsIndexRoute
+  '/prospective/': typeof AuthedProspectiveIndexRoute
   '/purchase-orders/': typeof AuthedPurchaseOrdersIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/stock/': typeof AuthedStockIndexRoute
@@ -339,6 +346,7 @@ export interface FileRoutesByTo {
   '/orders': typeof AuthedOrdersIndexRoute
   '/product-groups': typeof AuthedProductGroupsIndexRoute
   '/products': typeof AuthedProductsIndexRoute
+  '/prospective': typeof AuthedProspectiveIndexRoute
   '/purchase-orders': typeof AuthedPurchaseOrdersIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/stock': typeof AuthedStockIndexRoute
@@ -383,6 +391,7 @@ export interface FileRoutesById {
   '/_authed/orders/': typeof AuthedOrdersIndexRoute
   '/_authed/product-groups/': typeof AuthedProductGroupsIndexRoute
   '/_authed/products/': typeof AuthedProductsIndexRoute
+  '/_authed/prospective/': typeof AuthedProspectiveIndexRoute
   '/_authed/purchase-orders/': typeof AuthedPurchaseOrdersIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/stock/': typeof AuthedStockIndexRoute
@@ -427,6 +436,7 @@ export interface FileRouteTypes {
     | '/orders/'
     | '/product-groups/'
     | '/products/'
+    | '/prospective/'
     | '/purchase-orders/'
     | '/settings/'
     | '/stock/'
@@ -469,6 +479,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/product-groups'
     | '/products'
+    | '/prospective'
     | '/purchase-orders'
     | '/settings'
     | '/stock'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/_authed/orders/'
     | '/_authed/product-groups/'
     | '/_authed/products/'
+    | '/_authed/prospective/'
     | '/_authed/purchase-orders/'
     | '/_authed/settings/'
     | '/_authed/stock/'
@@ -588,6 +600,13 @@ declare module '@tanstack/react-router' {
       path: '/purchase-orders'
       fullPath: '/purchase-orders/'
       preLoaderRoute: typeof AuthedPurchaseOrdersIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/prospective/': {
+      id: '/_authed/prospective/'
+      path: '/prospective'
+      fullPath: '/prospective/'
+      preLoaderRoute: typeof AuthedProspectiveIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/products/': {
@@ -851,6 +870,7 @@ interface AuthedRouteRouteChildren {
   AuthedOrdersIndexRoute: typeof AuthedOrdersIndexRoute
   AuthedProductGroupsIndexRoute: typeof AuthedProductGroupsIndexRoute
   AuthedProductsIndexRoute: typeof AuthedProductsIndexRoute
+  AuthedProspectiveIndexRoute: typeof AuthedProspectiveIndexRoute
   AuthedPurchaseOrdersIndexRoute: typeof AuthedPurchaseOrdersIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedStockIndexRoute: typeof AuthedStockIndexRoute
@@ -893,6 +913,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedOrdersIndexRoute: AuthedOrdersIndexRoute,
   AuthedProductGroupsIndexRoute: AuthedProductGroupsIndexRoute,
   AuthedProductsIndexRoute: AuthedProductsIndexRoute,
+  AuthedProspectiveIndexRoute: AuthedProspectiveIndexRoute,
   AuthedPurchaseOrdersIndexRoute: AuthedPurchaseOrdersIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
   AuthedStockIndexRoute: AuthedStockIndexRoute,

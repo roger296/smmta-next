@@ -166,6 +166,55 @@ export class InterestFlagService {
     );
   }
 
+  /** Admin: all prospective products (any status) with live interest counts. */
+  async listProspectiveAdmin() {
+    const rows = await this.db
+      .select()
+      .from(prospectiveProducts)
+      .where(eq(prospectiveProducts.companyId, this.companyId))
+      .orderBy(prospectiveProducts.createdAt);
+    return Promise.all(
+      rows.map(async (p) => {
+        const [{ n }] = await this.db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(interestFlags)
+          .where(and(eq(interestFlags.prospectiveId, p.id), isNull(interestFlags.clearedAt)));
+        return { ...p, interestCount: Number(n) };
+      }),
+    );
+  }
+
+  async createProspective(input: {
+    name: string;
+    description?: string;
+    interestThreshold?: number;
+    creatorPartner?: string;
+  }) {
+    const [row] = await this.db
+      .insert(prospectiveProducts)
+      .values({
+        companyId: this.companyId,
+        name: input.name,
+        description: input.description,
+        interestThreshold: input.interestThreshold,
+        creatorPartner: input.creatorPartner,
+      })
+      .returning();
+    return row!;
+  }
+
+  async updateProspective(
+    id: string,
+    patch: { status?: 'considering' | 'group_buy_open' | 'ordered' | 'ranged' | 'abandoned'; interestThreshold?: number },
+  ) {
+    const [row] = await this.db
+      .update(prospectiveProducts)
+      .set(patch)
+      .where(and(eq(prospectiveProducts.id, id), eq(prospectiveProducts.companyId, this.companyId)))
+      .returning();
+    return row;
+  }
+
   async clearFlag(flagId: string): Promise<void> {
     await this.db
       .update(interestFlags)
