@@ -130,6 +130,14 @@ function Header() {
             </li>
             <li>
               <a
+                href="/shop/coming-soon"
+                className="transition-colors hover:text-[var(--brand-accent)]"
+              >
+                Coming soon
+              </a>
+            </li>
+            <li>
+              <a
                 href="/faq"
                 className="transition-colors hover:text-[var(--brand-accent)]"
               >

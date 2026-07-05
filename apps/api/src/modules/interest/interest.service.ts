@@ -135,6 +135,37 @@ export class InterestFlagService {
     });
   }
 
+  /** The public "coming soon" catalogue (F8): prospective products still open,
+   *  with their live interest count + threshold for the progress bar. */
+  async listComingSoon() {
+    const rows = await this.db
+      .select()
+      .from(prospectiveProducts)
+      .where(
+        and(
+          eq(prospectiveProducts.companyId, this.companyId),
+          sql`${prospectiveProducts.status} IN ('considering','group_buy_open')`,
+        ),
+      );
+    return Promise.all(
+      rows.map(async (p) => {
+        const [{ n }] = await this.db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(interestFlags)
+          .where(and(eq(interestFlags.prospectiveId, p.id), isNull(interestFlags.clearedAt)));
+        return {
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          status: p.status,
+          interestThreshold: p.interestThreshold,
+          interestCount: Number(n),
+          creatorPartner: p.creatorPartner,
+        };
+      }),
+    );
+  }
+
   async clearFlag(flagId: string): Promise<void> {
     await this.db
       .update(interestFlags)
