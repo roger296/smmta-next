@@ -93,7 +93,8 @@ services:
       PORT: 3000
       HOSTNAME: 0.0.0.0
       # The storefront reads catalogue/pricing from the API and its own store DB.
-      SMMTA_API_BASE_URL: ${SMMTA_API_BASE_URL:-http://api:3000}
+      # Base URL must include the /api/v1 prefix (the store appends paths to it).
+      SMMTA_API_BASE_URL: ${SMMTA_API_BASE_URL:-http://api:3000/api/v1}
       SMMTA_API_KEY: ${SMMTA_API_KEY:?set SMMTA_API_KEY (issue-store-key)}
       DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
     expose:

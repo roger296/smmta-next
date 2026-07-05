@@ -6,6 +6,7 @@ import { getEnv } from '@/lib/env';
 import { QueryProvider } from '@/components/query-provider';
 import { CartHeaderLink } from '@/components/cart-header-link';
 import { SiteFooter } from '@/components/site-footer';
+import { ChatPanel } from '@/components/chat-panel';
 
 const STORE_NAME = 'Filament Store';
 const STORE_TAGLINE =
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </main>
           <SiteFooter />
+          <ChatPanel />
         </QueryProvider>
       </body>
     </html>
