@@ -66,6 +66,11 @@ export function PreorderCheckout({
           Please pay {gbp(totalPence ?? 0)} by bank transfer using reference <strong>{ref}</strong>. We&apos;ll email you
           when it&apos;s received. You can cancel any time before dispatch for a full refund.
         </p>
+        <p className="mt-3 text-xs">
+          <a href="/preorder-status" className="underline">
+            Check your pre-order status
+          </a>
+        </p>
       </div>
     );
   }

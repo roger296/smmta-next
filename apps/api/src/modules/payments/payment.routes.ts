@@ -51,6 +51,16 @@ export async function preorderStorefrontRoutes(app: FastifyInstance) {
     return { success: true, data: order };
   });
 
+  // Customer status lookup by reference + email (no account needed).
+  app.post('/storefront/preorders/lookup', async (request, reply) => {
+    const { reference, email } = z
+      .object({ reference: z.string().min(1), email: z.string().email() })
+      .parse(request.body);
+    const data = await preorders.lookupByReference(reference, email);
+    if (!data) return reply.status(404).send({ success: false, error: 'not found' });
+    return reply.send({ success: true, data });
+  });
+
   app.post('/storefront/preorders/:id/cancel', async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     await preorders.cancel(id);

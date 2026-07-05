@@ -14,6 +14,7 @@ import {
   preorderOrderLines,
   inboundShipments,
   pricingRules,
+  storefrontUsers,
 } from '../../db/schema/index.js';
 import { emitDomainEvent } from '../../shared/events/emit.js';
 import { InboundService } from '../inbound/inbound.service.js';
@@ -315,6 +316,32 @@ export class PreorderService {
       await this.markPaid(orderId);
     }
     // failed/expired/canceled: leave in the window; the scan lapses it in time.
+  }
+
+  /** Customer status lookup by payment reference — gated on a matching email so
+   *  a reference alone can't reveal someone else's order. */
+  async lookupByReference(reference: string, email: string) {
+    const [row] = await this.db
+      .select({
+        status: preorderOrders.status,
+        totalPence: preorderOrders.totalPence,
+        paymentReference: preorderOrders.paymentReference,
+        paymentMethod: preorderOrders.paymentMethod,
+        createdAt: preorderOrders.createdAt,
+        userEmail: storefrontUsers.email,
+      })
+      .from(preorderOrders)
+      .innerJoin(storefrontUsers, eq(preorderOrders.userId, storefrontUsers.id))
+      .where(and(eq(preorderOrders.companyId, this.companyId), eq(preorderOrders.paymentReference, reference)))
+      .limit(1);
+    if (!row || row.userEmail?.toLowerCase() !== email.toLowerCase()) return null;
+    return {
+      status: row.status,
+      totalPence: row.totalPence,
+      paymentReference: row.paymentReference,
+      paymentMethod: row.paymentMethod,
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   async getOrder(orderId: string) {
