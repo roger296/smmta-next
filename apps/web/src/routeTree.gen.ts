@@ -27,6 +27,7 @@ import { Route as AuthedInboundIndexRouteImport } from './routes/_authed/inbound
 import { Route as AuthedCustomersIndexRouteImport } from './routes/_authed/customers/index'
 import { Route as AuthedCategoriesIndexRouteImport } from './routes/_authed/categories/index'
 import { Route as AuthedApprovalIndexRouteImport } from './routes/_authed/approval/index'
+import { Route as AuthedAgentsIndexRouteImport } from './routes/_authed/agents/index'
 import { Route as AuthedSuppliersNewRouteImport } from './routes/_authed/suppliers/new'
 import { Route as AuthedSuppliersIdRouteImport } from './routes/_authed/suppliers/$id'
 import { Route as AuthedSupplierInvoicesIdRouteImport } from './routes/_authed/supplier-invoices/$id'
@@ -140,6 +141,11 @@ const AuthedCategoriesIndexRoute = AuthedCategoriesIndexRouteImport.update({
 const AuthedApprovalIndexRoute = AuthedApprovalIndexRouteImport.update({
   id: '/approval/',
   path: '/approval/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedAgentsIndexRoute = AuthedAgentsIndexRouteImport.update({
+  id: '/agents/',
+  path: '/agents/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedSuppliersNewRoute = AuthedSuppliersNewRouteImport.update({
@@ -274,6 +280,7 @@ export interface FileRoutesByFullPath {
   '/supplier-invoices/$id': typeof AuthedSupplierInvoicesIdRoute
   '/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/suppliers/new': typeof AuthedSuppliersNewRoute
+  '/agents/': typeof AuthedAgentsIndexRoute
   '/approval/': typeof AuthedApprovalIndexRoute
   '/categories/': typeof AuthedCategoriesIndexRoute
   '/customers/': typeof AuthedCustomersIndexRoute
@@ -314,6 +321,7 @@ export interface FileRoutesByTo {
   '/supplier-invoices/$id': typeof AuthedSupplierInvoicesIdRoute
   '/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/suppliers/new': typeof AuthedSuppliersNewRoute
+  '/agents': typeof AuthedAgentsIndexRoute
   '/approval': typeof AuthedApprovalIndexRoute
   '/categories': typeof AuthedCategoriesIndexRoute
   '/customers': typeof AuthedCustomersIndexRoute
@@ -356,6 +364,7 @@ export interface FileRoutesById {
   '/_authed/supplier-invoices/$id': typeof AuthedSupplierInvoicesIdRoute
   '/_authed/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/_authed/suppliers/new': typeof AuthedSuppliersNewRoute
+  '/_authed/agents/': typeof AuthedAgentsIndexRoute
   '/_authed/approval/': typeof AuthedApprovalIndexRoute
   '/_authed/categories/': typeof AuthedCategoriesIndexRoute
   '/_authed/customers/': typeof AuthedCustomersIndexRoute
@@ -398,6 +407,7 @@ export interface FileRouteTypes {
     | '/supplier-invoices/$id'
     | '/suppliers/$id'
     | '/suppliers/new'
+    | '/agents/'
     | '/approval/'
     | '/categories/'
     | '/customers/'
@@ -438,6 +448,7 @@ export interface FileRouteTypes {
     | '/supplier-invoices/$id'
     | '/suppliers/$id'
     | '/suppliers/new'
+    | '/agents'
     | '/approval'
     | '/categories'
     | '/customers'
@@ -479,6 +490,7 @@ export interface FileRouteTypes {
     | '/_authed/supplier-invoices/$id'
     | '/_authed/suppliers/$id'
     | '/_authed/suppliers/new'
+    | '/_authed/agents/'
     | '/_authed/approval/'
     | '/_authed/categories/'
     | '/_authed/customers/'
@@ -627,6 +639,13 @@ declare module '@tanstack/react-router' {
       path: '/approval'
       fullPath: '/approval/'
       preLoaderRoute: typeof AuthedApprovalIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/agents/': {
+      id: '/_authed/agents/'
+      path: '/agents'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AuthedAgentsIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/suppliers/new': {
@@ -802,6 +821,7 @@ interface AuthedRouteRouteChildren {
   AuthedSupplierInvoicesIdRoute: typeof AuthedSupplierInvoicesIdRoute
   AuthedSuppliersIdRoute: typeof AuthedSuppliersIdRoute
   AuthedSuppliersNewRoute: typeof AuthedSuppliersNewRoute
+  AuthedAgentsIndexRoute: typeof AuthedAgentsIndexRoute
   AuthedApprovalIndexRoute: typeof AuthedApprovalIndexRoute
   AuthedCategoriesIndexRoute: typeof AuthedCategoriesIndexRoute
   AuthedCustomersIndexRoute: typeof AuthedCustomersIndexRoute
@@ -842,6 +862,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedSupplierInvoicesIdRoute: AuthedSupplierInvoicesIdRoute,
   AuthedSuppliersIdRoute: AuthedSuppliersIdRoute,
   AuthedSuppliersNewRoute: AuthedSuppliersNewRoute,
+  AuthedAgentsIndexRoute: AuthedAgentsIndexRoute,
   AuthedApprovalIndexRoute: AuthedApprovalIndexRoute,
   AuthedCategoriesIndexRoute: AuthedCategoriesIndexRoute,
   AuthedCustomersIndexRoute: AuthedCustomersIndexRoute,

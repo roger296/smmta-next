@@ -216,6 +216,18 @@ export class ApprovalQueueService {
     return { sampleSize: n, approvedUneditedRate: n > 0 ? approvedUnedited / n : 0 };
   }
 
+  /** Current per-type auto-send config (for the graduation UI). */
+  async listAgentConfig() {
+    return this.db
+      .select({
+        eventType: agentConfig.eventType,
+        autoSendEnabled: agentConfig.autoSendEnabled,
+        approvedUneditedRateBp: agentConfig.approvedUneditedRateBp,
+      })
+      .from(agentConfig)
+      .where(eq(agentConfig.companyId, this.companyId));
+  }
+
   async setAutoSend(templateKey: string, enabled: boolean): Promise<void> {
     await this.db
       .insert(agentConfig)

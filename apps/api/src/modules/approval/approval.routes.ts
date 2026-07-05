@@ -70,6 +70,8 @@ export async function approvalRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  app.get('/admin/agent-config', async () => ({ success: true, data: await queue.listAgentConfig() }));
+
   app.get('/admin/agent-config/:templateKey/graduation', async (request, reply) => {
     const { templateKey } = z.object({ templateKey: z.string() }).parse(request.params);
     return reply.send({ success: true, data: await queue.graduationStats(templateKey) });
