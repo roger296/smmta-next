@@ -1,0 +1,118 @@
+# Production stack for Coolify (Docker Compose resource). All five services on
+# one internal network. Set the secrets + domains in the Coolify UI (see
+# docs/COOLIFY-DEPLOY.md). The API runs migrations on start; the worker consumes
+# the same Postgres. Money/credentials are TEST/sandbox until you swap to live.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smmta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a strong POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-smmta_next}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Creates the second database (smmta_store) on first boot.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-smmta} -d ${POSTGRES_DB:-smmta_next}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-smmta_next}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      COMPANY_ID: ${COMPANY_ID:-11111111-1111-4111-8111-111111111111}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      PGBOSS_SCHEMA: pgboss
+      MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_DAILY_CAP_MICROUSD: ${OPENROUTER_DAILY_CAP_MICROUSD:-2000000}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_WEBHOOK_KEY: ${SENDGRID_WEBHOOK_KEY:-change-me}
+      SENDGRID_SANDBOX: ${SENDGRID_SANDBOX:-true}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENABLED: ${SENTRY_ENABLED:-false}
+    expose:
+      - '3000'
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-smmta_next}
+      COMPANY_ID: ${COMPANY_ID:-11111111-1111-4111-8111-111111111111}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      PGBOSS_SCHEMA: pgboss
+      MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_DAILY_CAP_MICROUSD: ${OPENROUTER_DAILY_CAP_MICROUSD:-2000000}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_SANDBOX: ${SENDGRID_SANDBOX:-true}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
+      WORKER_HEALTH_PORT: '3100'
+    expose:
+      - '3100'
+
+  store:
+    build:
+      context: .
+      dockerfile: docker/store.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      # The storefront reads catalogue/pricing from the API and its own store DB.
+      SMMTA_API_BASE_URL: ${SMMTA_API_BASE_URL:-http://api:3000}
+      SMMTA_API_KEY: ${SMMTA_API_KEY:?set SMMTA_API_KEY (issue-store-key)}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
+    expose:
+      - '3000'
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        # Baked in at build. Point the SPA at the API's public URL, or use the
+        # nginx same-origin /api proxy (default).
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    expose:
+      - '80'
+
+volumes:
+  pgdata:

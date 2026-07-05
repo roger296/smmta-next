@@ -64,11 +64,13 @@ async function main() {
   const allOk = results.every(Boolean);
   // eslint-disable-next-line no-console
   console.log(`\n${allOk ? 'All credentials verified.' : 'Some credentials failed — see above.'}`);
-  process.exit(allOk ? 0 : 1);
+  // Set exitCode (not process.exit) so keep-alive sockets drain cleanly on
+  // Windows without a libuv teardown assertion.
+  process.exitCode = allOk ? 0 : 1;
 }
 
 main().catch((err) => {
   // eslint-disable-next-line no-console
   console.error('check-credentials error', err);
-  process.exit(1);
+  process.exitCode = 1;
 });
