@@ -855,3 +855,55 @@ The Prompt-16 adversarial checklist is satisfied by existing gated tests:
 ### Gate (final)
 Three consecutive green `npm run gate` (486 tests) + `npm run smoke` from the test
 database. Commit `build(16): verification and handover`; tag `build-v1`.
+
+---
+
+## Entry 17 — Frontend build-out + deployment (2026-07-05)
+
+Credentials verified (`npm run check:credentials`): OpenRouter ✓, Mollie ✓
+(test), SendGrid ✓. `.env` var names aligned to `MOLLIE_API_KEY` /
+`OPENROUTER_API_KEY` / `SENDGRID_API_KEY`.
+
+### Storefront (`apps/store`, Next.js)
+- **AI sales-assistant chat panel** — site-wide floating panel over the SSE agent
+  route via two server proxies (`app/api/chat/*`), api-key server-side.
+- **Shop listing** (`/shop`) + **PDP** (`/shop/[slug]`) — buy box (Add-to-cart →
+  Notify-Me), **inbound pre-order pools with £ savings** (new
+  `GET /storefront/skus/:sku/pools`, slug-or-stockcode), and a **watch-for-offers**
+  F8 button on in-stock items.
+- **Pre-order checkout** (`/shop/preorder`) — §16.2a honest framing + one unticked
+  **CCR tick**; `app/api/preorder` proxy does guest-capture → bank-only pre-order;
+  confirmation shows the transfer reference.
+- **Coming-soon** (`/shop/coming-soon`) — group-buy progress + register-interest
+  (`GET /storefront/coming-soon`).
+- **Pre-order status lookup** (`/preorder-status`) — no-login check by reference +
+  email (`POST /storefront/preorders/lookup`).
+
+### Admin SPA (`apps/web`, Vite/TanStack Router — already mature)
+New pages inside the `_authed` layout + sidebar items:
+- **Approvals** (`/approval`) — §17 inbox: priority list, facts panel, approve /
+  edit / reject-reason, resolve escalation.
+- **Digest** (`/digest`) — the operator cockpit (`GET /admin/digest`).
+- **Agents** (`/agents`) — §17.6 auto-send graduation toggle + rate
+  (`GET /admin/agent-config`).
+- **Inbound** (`/inbound`) — shipment list/create/ETA/goods-in (F1 admin, deferred
+  from Prompt 4).
+- **Coming soon** (`/prospective`) — prospective-product CRUD + thresholds
+  (`/admin/prospective`).
+- **Subscriptions** (`/subscriptions`) — read-only overview (`/admin/subscriptions`).
+
+### Deployment (Coolify)
+- `docker/{api,worker,store,web}.Dockerfile` + `docker/web-nginx.conf` +
+  `docker-compose.coolify.yml` (all 5 services, env-driven, healthchecks). **API
+  image build-verified (exit 0).**
+- `docs/COOLIFY-DEPLOY.md` — full step-by-step Docker-Compose deploy.
+
+### Verification
+Backend `npm run gate` green (**488 api tests**), `npm run smoke` green; `apps/store`
++ `apps/web` both typecheck, `apps/web` production build succeeds.
+
+### Still deferred
+- **Storefront customer account area** (my orders/watches/subscription/consent) +
+  social login — needs Auth.js/NextAuth + a Google client (API identity/consent is
+  done + tested); the reference+email lookup is the interim.
+- Mixed-basket split UI. Live provider swap (test→live keys) per HUMAN-OPS.
