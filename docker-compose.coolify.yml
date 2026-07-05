@@ -33,6 +33,10 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-smmta_next}
+      # The API entrypoint self-heals the storefront DB: creates smmta_store if
+      # missing (init scripts only run on a fresh volume) and runs the store's
+      # own drizzle migrations against it before booting.
+      STORE_DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       COMPANY_ID: ${COMPANY_ID:-11111111-1111-4111-8111-111111111111}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}

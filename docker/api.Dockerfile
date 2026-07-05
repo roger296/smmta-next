@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends postgresql-clie
   && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app ./
 EXPOSE 3000
-# Migrate then boot. HOST is forced to 0.0.0.0 so the container is reachable;
-# it stays behind Coolify's proxy.
-CMD ["sh", "-c", "cd apps/api && npx drizzle-kit migrate && HOST=0.0.0.0 npx tsx src/server.ts"]
+# Ensure smmta_store exists, migrate both DBs, then boot. HOST is forced to
+# 0.0.0.0 so the container is reachable; it stays behind Coolify's proxy.
+# Invoked via `sh` (not the exec bit) so a Windows-authored script still runs.
+CMD ["sh", "/app/docker/api-entrypoint.sh"]

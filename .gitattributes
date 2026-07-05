@@ -1,0 +1,4 @@
+# Shell scripts must stay LF — they run under Linux `sh` in Docker, and CRLF
+# line endings produce `\r: command not found` failures at container start.
+*.sh text eol=lf
+docker/*.sh text eol=lf
