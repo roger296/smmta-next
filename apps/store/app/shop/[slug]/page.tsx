@@ -10,6 +10,7 @@ import { notFound } from 'next/navigation';
 import { getProductBySlug, SmmtaApiError } from '@/lib/smmta';
 import { AddToCartButton } from '@/components/add-to-cart-button';
 import { PreorderPools } from '@/components/preorder-pools';
+import { WatchOffersButton } from '@/components/watch-offers-button';
 
 export const revalidate = 60;
 
@@ -65,6 +66,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
         <div className="mt-6">
           <AddToCartButton productId={product.id} inStock={inStock} />
+          {/* In-stock: offer a "watch for offers" flag (F8 contextual button). */}
+          {inStock && <WatchOffersButton sku={product.slug ?? product.id} />}
         </div>
 
         {/* Warehouse band + inbound pre-order pools with £ savings. */}

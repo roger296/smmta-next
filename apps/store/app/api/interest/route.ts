@@ -10,10 +10,14 @@ import { getEnv } from '@/lib/env';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const bodySchema = z.object({
-  email: z.string().email(),
-  prospectiveId: z.string().uuid(),
-});
+const bodySchema = z
+  .object({
+    email: z.string().email(),
+    prospectiveId: z.string().uuid().optional(),
+    sku: z.string().min(1).optional(),
+    flagType: z.enum(['restock', 'offers', 'register_interest']).default('register_interest'),
+  })
+  .refine((v) => v.prospectiveId || v.sku, { message: 'sku or prospectiveId required' });
 
 export async function POST(request: NextRequest) {
   const env = getEnv();
@@ -28,8 +32,9 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({
       email: parsed.data.email,
       prospectiveId: parsed.data.prospectiveId,
-      flagType: 'register_interest',
-      sourcePage: 'coming-soon',
+      sku: parsed.data.sku,
+      flagType: parsed.data.flagType,
+      sourcePage: parsed.data.sku ? 'pdp' : 'coming-soon',
     }),
   });
   if (!res.ok) return NextResponse.json({ error: 'failed' }, { status: 502 });
