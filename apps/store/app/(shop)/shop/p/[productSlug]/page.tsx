@@ -18,6 +18,8 @@ import { getEnv } from '@/lib/env';
 import { breadcrumbLd, productLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { Markdown } from '@/lib/markdown';
 import { AddToCartButton } from '@/components/add-to-cart-button';
+import { PreorderPools } from '@/components/preorder-pools';
+import { WatchOffersButton } from '@/components/watch-offers-button';
 
 export const revalidate = 60;
 
@@ -217,6 +219,10 @@ export default async function StandaloneProductPage({
             productId={product.id}
             inStock={product.availableQty > 0}
           />
+          {product.availableQty > 0 && <WatchOffersButton sku={product.slug ?? product.id} />}
+
+          {/* Inbound pre-order pools with £ savings (F1). */}
+          <PreorderPools sku={product.slug ?? product.id} />
         </div>
       </div>
 

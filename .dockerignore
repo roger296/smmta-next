@@ -1,0 +1,26 @@
+# Keep the build context small + clean (Linux images must NOT get the host's
+# node_modules — native binaries differ). The deps stage runs `npm ci` fresh.
+**/node_modules
+.git
+.gitignore
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+*.log
+npm-debug.log*
+
+# Large non-code artefacts that don't belong in an image build context.
+*.xlsx
+*.docx
+*.gdoc
+.~lock.*
+tmp-*
+.tmp-*
+scratchpad/
+playwright-report/
+test-results/

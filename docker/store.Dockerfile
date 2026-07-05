@@ -16,6 +16,8 @@ RUN npm ci --no-audit --no-fund
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 ENV NODE_ENV=production
+# Cap Node's heap so the Next build stays under memory pressure on small hosts.
+ENV NODE_OPTIONS=--max-old-space-size=2048
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build -w @smmta/shared-types \

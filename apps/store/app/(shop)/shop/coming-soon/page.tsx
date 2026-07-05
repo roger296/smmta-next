@@ -14,10 +14,12 @@ export const metadata: Metadata = {
     'Filament we are considering ranging — register interest and help us decide what to bring in next.',
 };
 
-export const revalidate = 60;
+// Live demand data — render at request time (avoids a build-time fetch to the
+// API, which isn't running during `next build`).
+export const dynamic = 'force-dynamic';
 
 export default async function ComingSoonPage() {
-  const items = await getComingSoon();
+  const items = await getComingSoon().catch(() => []);
 
   return (
     <div>
