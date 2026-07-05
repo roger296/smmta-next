@@ -24,6 +24,7 @@ import { Route as AuthedOrdersIndexRouteImport } from './routes/_authed/orders/i
 import { Route as AuthedInvoicesIndexRouteImport } from './routes/_authed/invoices/index'
 import { Route as AuthedIntegrationsIndexRouteImport } from './routes/_authed/integrations/index'
 import { Route as AuthedInboundIndexRouteImport } from './routes/_authed/inbound/index'
+import { Route as AuthedDigestIndexRouteImport } from './routes/_authed/digest/index'
 import { Route as AuthedCustomersIndexRouteImport } from './routes/_authed/customers/index'
 import { Route as AuthedCategoriesIndexRouteImport } from './routes/_authed/categories/index'
 import { Route as AuthedApprovalIndexRouteImport } from './routes/_authed/approval/index'
@@ -126,6 +127,11 @@ const AuthedIntegrationsIndexRoute = AuthedIntegrationsIndexRouteImport.update({
 const AuthedInboundIndexRoute = AuthedInboundIndexRouteImport.update({
   id: '/inbound/',
   path: '/inbound/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedDigestIndexRoute = AuthedDigestIndexRouteImport.update({
+  id: '/digest/',
+  path: '/digest/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedCustomersIndexRoute = AuthedCustomersIndexRouteImport.update({
@@ -284,6 +290,7 @@ export interface FileRoutesByFullPath {
   '/approval/': typeof AuthedApprovalIndexRoute
   '/categories/': typeof AuthedCategoriesIndexRoute
   '/customers/': typeof AuthedCustomersIndexRoute
+  '/digest/': typeof AuthedDigestIndexRoute
   '/inbound/': typeof AuthedInboundIndexRoute
   '/integrations/': typeof AuthedIntegrationsIndexRoute
   '/invoices/': typeof AuthedInvoicesIndexRoute
@@ -325,6 +332,7 @@ export interface FileRoutesByTo {
   '/approval': typeof AuthedApprovalIndexRoute
   '/categories': typeof AuthedCategoriesIndexRoute
   '/customers': typeof AuthedCustomersIndexRoute
+  '/digest': typeof AuthedDigestIndexRoute
   '/inbound': typeof AuthedInboundIndexRoute
   '/integrations': typeof AuthedIntegrationsIndexRoute
   '/invoices': typeof AuthedInvoicesIndexRoute
@@ -368,6 +376,7 @@ export interface FileRoutesById {
   '/_authed/approval/': typeof AuthedApprovalIndexRoute
   '/_authed/categories/': typeof AuthedCategoriesIndexRoute
   '/_authed/customers/': typeof AuthedCustomersIndexRoute
+  '/_authed/digest/': typeof AuthedDigestIndexRoute
   '/_authed/inbound/': typeof AuthedInboundIndexRoute
   '/_authed/integrations/': typeof AuthedIntegrationsIndexRoute
   '/_authed/invoices/': typeof AuthedInvoicesIndexRoute
@@ -411,6 +420,7 @@ export interface FileRouteTypes {
     | '/approval/'
     | '/categories/'
     | '/customers/'
+    | '/digest/'
     | '/inbound/'
     | '/integrations/'
     | '/invoices/'
@@ -452,6 +462,7 @@ export interface FileRouteTypes {
     | '/approval'
     | '/categories'
     | '/customers'
+    | '/digest'
     | '/inbound'
     | '/integrations'
     | '/invoices'
@@ -494,6 +505,7 @@ export interface FileRouteTypes {
     | '/_authed/approval/'
     | '/_authed/categories/'
     | '/_authed/customers/'
+    | '/_authed/digest/'
     | '/_authed/inbound/'
     | '/_authed/integrations/'
     | '/_authed/invoices/'
@@ -618,6 +630,13 @@ declare module '@tanstack/react-router' {
       path: '/inbound'
       fullPath: '/inbound/'
       preLoaderRoute: typeof AuthedInboundIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/digest/': {
+      id: '/_authed/digest/'
+      path: '/digest'
+      fullPath: '/digest/'
+      preLoaderRoute: typeof AuthedDigestIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/customers/': {
@@ -825,6 +844,7 @@ interface AuthedRouteRouteChildren {
   AuthedApprovalIndexRoute: typeof AuthedApprovalIndexRoute
   AuthedCategoriesIndexRoute: typeof AuthedCategoriesIndexRoute
   AuthedCustomersIndexRoute: typeof AuthedCustomersIndexRoute
+  AuthedDigestIndexRoute: typeof AuthedDigestIndexRoute
   AuthedInboundIndexRoute: typeof AuthedInboundIndexRoute
   AuthedIntegrationsIndexRoute: typeof AuthedIntegrationsIndexRoute
   AuthedInvoicesIndexRoute: typeof AuthedInvoicesIndexRoute
@@ -866,6 +886,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedApprovalIndexRoute: AuthedApprovalIndexRoute,
   AuthedCategoriesIndexRoute: AuthedCategoriesIndexRoute,
   AuthedCustomersIndexRoute: AuthedCustomersIndexRoute,
+  AuthedDigestIndexRoute: AuthedDigestIndexRoute,
   AuthedInboundIndexRoute: AuthedInboundIndexRoute,
   AuthedIntegrationsIndexRoute: AuthedIntegrationsIndexRoute,
   AuthedInvoicesIndexRoute: AuthedInvoicesIndexRoute,

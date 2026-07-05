@@ -41,6 +41,7 @@ import { sendgridWebhookRoutes, unsubscribeRoutes } from './modules/messaging/me
 import { approvalRoutes } from './modules/approval/approval.routes.js';
 import { subscriptionRoutes } from './modules/subscriptions/subscription.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { digestRoutes } from './modules/digest/digest.routes.js';
 
 export async function buildApp() {
   const env = getEnv();
@@ -167,6 +168,9 @@ export async function buildApp() {
 
   // Health (Prompt 15): /healthz for nginx / monitoring / systemd.
   await app.register(healthRoutes);
+
+  // Admin digest (Prompt 15): the operator cockpit on demand. JWT-gated.
+  await app.register(digestRoutes, { prefix: '/api/v1' });
 
   return app;
 }
