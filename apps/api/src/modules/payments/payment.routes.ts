@@ -93,6 +93,23 @@ export async function preorderAdminRoutes(app: FastifyInstance) {
 }
 
 export async function mollieWebhookRoutes(app: FastifyInstance) {
+  // Mollie POSTs the webhook as application/x-www-form-urlencoded (`id=tr_...`),
+  // which Fastify has no built-in parser for (→ 415 before the handler runs).
+  // Add a scoped parser so request.body is the parsed object. Scoped to this
+  // encapsulated plugin, so other routes keep the default JSON parser. The
+  // inherited JSON parser still applies for application/json callers (tests).
+  app.addContentTypeParser(
+    'application/x-www-form-urlencoded',
+    { parseAs: 'string' },
+    (_req, body, done) => {
+      try {
+        done(null, Object.fromEntries(new URLSearchParams(body as string)));
+      } catch (err) {
+        done(err as Error);
+      }
+    },
+  );
+
   // Thin webhook: Mollie POSTs only { id }. ACK 200 immediately, then normalise.
   app.post('/webhooks/mollie', async (request, reply) => {
     const body = z.object({ id: z.string().min(1) }).safeParse(request.body);
