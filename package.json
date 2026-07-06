@@ -9,7 +9,10 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",
-    "lint": "turbo lint",
+    "lint": "turbo run lint:ts",
+    "typecheck": "turbo run typecheck",
+    "gate": "turbo run typecheck lint:ts test --filter=@smmta/shared-types --filter=@smmta/api --filter=@smmta/worker",
+    "smoke": "npm run smoke -w @smmta/api",
     "db:generate": "turbo db:generate",
     "db:migrate": "turbo db:migrate",
     "db:push": "turbo db:push"

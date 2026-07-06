@@ -175,6 +175,51 @@ export function getGroupBySlug(
   });
 }
 
+/** One inbound pre-order pool for a SKU (customer-facing — £ savings only). */
+export interface SkuPool {
+  shipmentRef: string;
+  mode: string;
+  eta: string;
+  presaleAvailable: number;
+  unitPricePence: number;
+  savingsVsBasePence: number;
+}
+export interface SkuPools {
+  sku: string;
+  warehouse: { band: 'in_stock' | 'low_stock' | 'out_of_stock'; availableQty: number; pricePence: number | null };
+  inbound: SkuPool[];
+}
+
+/** GET /storefront/skus/:sku/pools — warehouse band + inbound pre-order pools
+ *  with exact presale availability and the £ pre-order price (F1). */
+export function getSkuPools(sku: string, opts?: RequestOptions): Promise<SkuPools> {
+  return smmtaFetch<SkuPools>(`storefront/skus/${encodeURIComponent(sku)}/pools`, {
+    revalidate: 60,
+    tags: [`storefront:pools:${sku}`],
+    ...opts,
+  });
+}
+
+/** A prospective ("coming soon") product with live interest count (F8). */
+export interface ComingSoonItem {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  interestThreshold: number | null;
+  interestCount: number;
+  creatorPartner: string | null;
+}
+
+/** GET /storefront/coming-soon — prospective products open for interest. */
+export function getComingSoon(opts?: RequestOptions): Promise<ComingSoonItem[]> {
+  return smmtaFetch<ComingSoonItem[]>('storefront/coming-soon', {
+    revalidate: 60,
+    tags: ['storefront:coming-soon'],
+    ...opts,
+  });
+}
+
 /** GET /storefront/products/:slug — single product (works for grouped variants too). */
 export function getProductBySlug(
   slug: string,

@@ -27,7 +27,9 @@ export function useDashboardKpis() {
         apiFetch<PaginatedResult<SupplierInvoice>>('/supplier-invoices', {
           searchParams: { pageSize: 100 },
         }).catch(() => ({ data: [], total: 0, page: 1, pageSize: 100, totalPages: 0 })),
-        apiFetch<StockReportRow[]>('/stock-items/report').catch(() => []),
+        apiFetch<{ lines: StockReportRow[]; grandTotal: number }>(
+          '/stock-items/report',
+        ).catch(() => ({ lines: [], grandTotal: 0 })),
       ]);
 
       const openStatuses = new Set([
@@ -42,7 +44,9 @@ export function useDashboardKpis() {
       const open = openOrders.data.filter((o) => openStatuses.has(o.status));
       const openOrdersValue = open.reduce((s, o) => s + Number(o.total), 0);
 
-      const stockValue = stock.reduce((s, r) => s + Number(r.totalValue), 0);
+      // The /stock-items/report endpoint returns { lines, grandTotal }, not a
+      // bare array — use the server-computed total rather than reducing here.
+      const stockValue = Number(stock.grandTotal ?? 0);
       const unpaidInvoicesTotal = invoices.data.reduce(
         (s, i) => s + Number(i.outstandingAmount),
         0,

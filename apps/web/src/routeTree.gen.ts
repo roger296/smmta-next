@@ -15,16 +15,22 @@ import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppliers/index'
 import { Route as AuthedSupplierOrdersIndexRouteImport } from './routes/_authed/supplier-orders/index'
 import { Route as AuthedSupplierInvoicesIndexRouteImport } from './routes/_authed/supplier-invoices/index'
+import { Route as AuthedSubscriptionsIndexRouteImport } from './routes/_authed/subscriptions/index'
 import { Route as AuthedStockIndexRouteImport } from './routes/_authed/stock/index'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedPurchaseOrdersIndexRouteImport } from './routes/_authed/purchase-orders/index'
+import { Route as AuthedProspectiveIndexRouteImport } from './routes/_authed/prospective/index'
 import { Route as AuthedProductsIndexRouteImport } from './routes/_authed/products/index'
 import { Route as AuthedProductGroupsIndexRouteImport } from './routes/_authed/product-groups/index'
 import { Route as AuthedOrdersIndexRouteImport } from './routes/_authed/orders/index'
 import { Route as AuthedInvoicesIndexRouteImport } from './routes/_authed/invoices/index'
 import { Route as AuthedIntegrationsIndexRouteImport } from './routes/_authed/integrations/index'
+import { Route as AuthedInboundIndexRouteImport } from './routes/_authed/inbound/index'
+import { Route as AuthedDigestIndexRouteImport } from './routes/_authed/digest/index'
 import { Route as AuthedCustomersIndexRouteImport } from './routes/_authed/customers/index'
 import { Route as AuthedCategoriesIndexRouteImport } from './routes/_authed/categories/index'
+import { Route as AuthedApprovalIndexRouteImport } from './routes/_authed/approval/index'
+import { Route as AuthedAgentsIndexRouteImport } from './routes/_authed/agents/index'
 import { Route as AuthedSuppliersNewRouteImport } from './routes/_authed/suppliers/new'
 import { Route as AuthedSuppliersIdRouteImport } from './routes/_authed/suppliers/$id'
 import { Route as AuthedSupplierInvoicesIdRouteImport } from './routes/_authed/supplier-invoices/$id'
@@ -78,6 +84,12 @@ const AuthedSupplierInvoicesIndexRoute =
     path: '/supplier-invoices/',
     getParentRoute: () => AuthedRouteRoute,
   } as any)
+const AuthedSubscriptionsIndexRoute =
+  AuthedSubscriptionsIndexRouteImport.update({
+    id: '/subscriptions/',
+    path: '/subscriptions/',
+    getParentRoute: () => AuthedRouteRoute,
+  } as any)
 const AuthedStockIndexRoute = AuthedStockIndexRouteImport.update({
   id: '/stock/',
   path: '/stock/',
@@ -94,6 +106,11 @@ const AuthedPurchaseOrdersIndexRoute =
     path: '/purchase-orders/',
     getParentRoute: () => AuthedRouteRoute,
   } as any)
+const AuthedProspectiveIndexRoute = AuthedProspectiveIndexRouteImport.update({
+  id: '/prospective/',
+  path: '/prospective/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 const AuthedProductsIndexRoute = AuthedProductsIndexRouteImport.update({
   id: '/products/',
   path: '/products/',
@@ -120,6 +137,16 @@ const AuthedIntegrationsIndexRoute = AuthedIntegrationsIndexRouteImport.update({
   path: '/integrations/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedInboundIndexRoute = AuthedInboundIndexRouteImport.update({
+  id: '/inbound/',
+  path: '/inbound/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedDigestIndexRoute = AuthedDigestIndexRouteImport.update({
+  id: '/digest/',
+  path: '/digest/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 const AuthedCustomersIndexRoute = AuthedCustomersIndexRouteImport.update({
   id: '/customers/',
   path: '/customers/',
@@ -128,6 +155,16 @@ const AuthedCustomersIndexRoute = AuthedCustomersIndexRouteImport.update({
 const AuthedCategoriesIndexRoute = AuthedCategoriesIndexRouteImport.update({
   id: '/categories/',
   path: '/categories/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedApprovalIndexRoute = AuthedApprovalIndexRouteImport.update({
+  id: '/approval/',
+  path: '/approval/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedAgentsIndexRoute = AuthedAgentsIndexRouteImport.update({
+  id: '/agents/',
+  path: '/agents/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedSuppliersNewRoute = AuthedSuppliersNewRouteImport.update({
@@ -262,16 +299,22 @@ export interface FileRoutesByFullPath {
   '/supplier-invoices/$id': typeof AuthedSupplierInvoicesIdRoute
   '/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/suppliers/new': typeof AuthedSuppliersNewRoute
+  '/agents/': typeof AuthedAgentsIndexRoute
+  '/approval/': typeof AuthedApprovalIndexRoute
   '/categories/': typeof AuthedCategoriesIndexRoute
   '/customers/': typeof AuthedCustomersIndexRoute
+  '/digest/': typeof AuthedDigestIndexRoute
+  '/inbound/': typeof AuthedInboundIndexRoute
   '/integrations/': typeof AuthedIntegrationsIndexRoute
   '/invoices/': typeof AuthedInvoicesIndexRoute
   '/orders/': typeof AuthedOrdersIndexRoute
   '/product-groups/': typeof AuthedProductGroupsIndexRoute
   '/products/': typeof AuthedProductsIndexRoute
+  '/prospective/': typeof AuthedProspectiveIndexRoute
   '/purchase-orders/': typeof AuthedPurchaseOrdersIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/stock/': typeof AuthedStockIndexRoute
+  '/subscriptions/': typeof AuthedSubscriptionsIndexRoute
   '/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
   '/suppliers/': typeof AuthedSuppliersIndexRoute
@@ -300,16 +343,22 @@ export interface FileRoutesByTo {
   '/supplier-invoices/$id': typeof AuthedSupplierInvoicesIdRoute
   '/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/suppliers/new': typeof AuthedSuppliersNewRoute
+  '/agents': typeof AuthedAgentsIndexRoute
+  '/approval': typeof AuthedApprovalIndexRoute
   '/categories': typeof AuthedCategoriesIndexRoute
   '/customers': typeof AuthedCustomersIndexRoute
+  '/digest': typeof AuthedDigestIndexRoute
+  '/inbound': typeof AuthedInboundIndexRoute
   '/integrations': typeof AuthedIntegrationsIndexRoute
   '/invoices': typeof AuthedInvoicesIndexRoute
   '/orders': typeof AuthedOrdersIndexRoute
   '/product-groups': typeof AuthedProductGroupsIndexRoute
   '/products': typeof AuthedProductsIndexRoute
+  '/prospective': typeof AuthedProspectiveIndexRoute
   '/purchase-orders': typeof AuthedPurchaseOrdersIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/stock': typeof AuthedStockIndexRoute
+  '/subscriptions': typeof AuthedSubscriptionsIndexRoute
   '/supplier-invoices': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders': typeof AuthedSupplierOrdersIndexRoute
   '/suppliers': typeof AuthedSuppliersIndexRoute
@@ -340,16 +389,22 @@ export interface FileRoutesById {
   '/_authed/supplier-invoices/$id': typeof AuthedSupplierInvoicesIdRoute
   '/_authed/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/_authed/suppliers/new': typeof AuthedSuppliersNewRoute
+  '/_authed/agents/': typeof AuthedAgentsIndexRoute
+  '/_authed/approval/': typeof AuthedApprovalIndexRoute
   '/_authed/categories/': typeof AuthedCategoriesIndexRoute
   '/_authed/customers/': typeof AuthedCustomersIndexRoute
+  '/_authed/digest/': typeof AuthedDigestIndexRoute
+  '/_authed/inbound/': typeof AuthedInboundIndexRoute
   '/_authed/integrations/': typeof AuthedIntegrationsIndexRoute
   '/_authed/invoices/': typeof AuthedInvoicesIndexRoute
   '/_authed/orders/': typeof AuthedOrdersIndexRoute
   '/_authed/product-groups/': typeof AuthedProductGroupsIndexRoute
   '/_authed/products/': typeof AuthedProductsIndexRoute
+  '/_authed/prospective/': typeof AuthedProspectiveIndexRoute
   '/_authed/purchase-orders/': typeof AuthedPurchaseOrdersIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/stock/': typeof AuthedStockIndexRoute
+  '/_authed/subscriptions/': typeof AuthedSubscriptionsIndexRoute
   '/_authed/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/_authed/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
   '/_authed/suppliers/': typeof AuthedSuppliersIndexRoute
@@ -380,16 +435,22 @@ export interface FileRouteTypes {
     | '/supplier-invoices/$id'
     | '/suppliers/$id'
     | '/suppliers/new'
+    | '/agents/'
+    | '/approval/'
     | '/categories/'
     | '/customers/'
+    | '/digest/'
+    | '/inbound/'
     | '/integrations/'
     | '/invoices/'
     | '/orders/'
     | '/product-groups/'
     | '/products/'
+    | '/prospective/'
     | '/purchase-orders/'
     | '/settings/'
     | '/stock/'
+    | '/subscriptions/'
     | '/supplier-invoices/'
     | '/supplier-orders/'
     | '/suppliers/'
@@ -418,16 +479,22 @@ export interface FileRouteTypes {
     | '/supplier-invoices/$id'
     | '/suppliers/$id'
     | '/suppliers/new'
+    | '/agents'
+    | '/approval'
     | '/categories'
     | '/customers'
+    | '/digest'
+    | '/inbound'
     | '/integrations'
     | '/invoices'
     | '/orders'
     | '/product-groups'
     | '/products'
+    | '/prospective'
     | '/purchase-orders'
     | '/settings'
     | '/stock'
+    | '/subscriptions'
     | '/supplier-invoices'
     | '/supplier-orders'
     | '/suppliers'
@@ -457,16 +524,22 @@ export interface FileRouteTypes {
     | '/_authed/supplier-invoices/$id'
     | '/_authed/suppliers/$id'
     | '/_authed/suppliers/new'
+    | '/_authed/agents/'
+    | '/_authed/approval/'
     | '/_authed/categories/'
     | '/_authed/customers/'
+    | '/_authed/digest/'
+    | '/_authed/inbound/'
     | '/_authed/integrations/'
     | '/_authed/invoices/'
     | '/_authed/orders/'
     | '/_authed/product-groups/'
     | '/_authed/products/'
+    | '/_authed/prospective/'
     | '/_authed/purchase-orders/'
     | '/_authed/settings/'
     | '/_authed/stock/'
+    | '/_authed/subscriptions/'
     | '/_authed/supplier-invoices/'
     | '/_authed/supplier-orders/'
     | '/_authed/suppliers/'
@@ -521,6 +594,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSupplierInvoicesIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/subscriptions/': {
+      id: '/_authed/subscriptions/'
+      path: '/subscriptions'
+      fullPath: '/subscriptions/'
+      preLoaderRoute: typeof AuthedSubscriptionsIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
     '/_authed/stock/': {
       id: '/_authed/stock/'
       path: '/stock'
@@ -540,6 +620,13 @@ declare module '@tanstack/react-router' {
       path: '/purchase-orders'
       fullPath: '/purchase-orders/'
       preLoaderRoute: typeof AuthedPurchaseOrdersIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/prospective/': {
+      id: '/_authed/prospective/'
+      path: '/prospective'
+      fullPath: '/prospective/'
+      preLoaderRoute: typeof AuthedProspectiveIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/products/': {
@@ -577,6 +664,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIntegrationsIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/inbound/': {
+      id: '/_authed/inbound/'
+      path: '/inbound'
+      fullPath: '/inbound/'
+      preLoaderRoute: typeof AuthedInboundIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/digest/': {
+      id: '/_authed/digest/'
+      path: '/digest'
+      fullPath: '/digest/'
+      preLoaderRoute: typeof AuthedDigestIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
     '/_authed/customers/': {
       id: '/_authed/customers/'
       path: '/customers'
@@ -589,6 +690,20 @@ declare module '@tanstack/react-router' {
       path: '/categories'
       fullPath: '/categories/'
       preLoaderRoute: typeof AuthedCategoriesIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/approval/': {
+      id: '/_authed/approval/'
+      path: '/approval'
+      fullPath: '/approval/'
+      preLoaderRoute: typeof AuthedApprovalIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/agents/': {
+      id: '/_authed/agents/'
+      path: '/agents'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AuthedAgentsIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/suppliers/new': {
@@ -764,16 +879,22 @@ interface AuthedRouteRouteChildren {
   AuthedSupplierInvoicesIdRoute: typeof AuthedSupplierInvoicesIdRoute
   AuthedSuppliersIdRoute: typeof AuthedSuppliersIdRoute
   AuthedSuppliersNewRoute: typeof AuthedSuppliersNewRoute
+  AuthedAgentsIndexRoute: typeof AuthedAgentsIndexRoute
+  AuthedApprovalIndexRoute: typeof AuthedApprovalIndexRoute
   AuthedCategoriesIndexRoute: typeof AuthedCategoriesIndexRoute
   AuthedCustomersIndexRoute: typeof AuthedCustomersIndexRoute
+  AuthedDigestIndexRoute: typeof AuthedDigestIndexRoute
+  AuthedInboundIndexRoute: typeof AuthedInboundIndexRoute
   AuthedIntegrationsIndexRoute: typeof AuthedIntegrationsIndexRoute
   AuthedInvoicesIndexRoute: typeof AuthedInvoicesIndexRoute
   AuthedOrdersIndexRoute: typeof AuthedOrdersIndexRoute
   AuthedProductGroupsIndexRoute: typeof AuthedProductGroupsIndexRoute
   AuthedProductsIndexRoute: typeof AuthedProductsIndexRoute
+  AuthedProspectiveIndexRoute: typeof AuthedProspectiveIndexRoute
   AuthedPurchaseOrdersIndexRoute: typeof AuthedPurchaseOrdersIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedStockIndexRoute: typeof AuthedStockIndexRoute
+  AuthedSubscriptionsIndexRoute: typeof AuthedSubscriptionsIndexRoute
   AuthedSupplierInvoicesIndexRoute: typeof AuthedSupplierInvoicesIndexRoute
   AuthedSupplierOrdersIndexRoute: typeof AuthedSupplierOrdersIndexRoute
   AuthedSuppliersIndexRoute: typeof AuthedSuppliersIndexRoute
@@ -802,16 +923,22 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedSupplierInvoicesIdRoute: AuthedSupplierInvoicesIdRoute,
   AuthedSuppliersIdRoute: AuthedSuppliersIdRoute,
   AuthedSuppliersNewRoute: AuthedSuppliersNewRoute,
+  AuthedAgentsIndexRoute: AuthedAgentsIndexRoute,
+  AuthedApprovalIndexRoute: AuthedApprovalIndexRoute,
   AuthedCategoriesIndexRoute: AuthedCategoriesIndexRoute,
   AuthedCustomersIndexRoute: AuthedCustomersIndexRoute,
+  AuthedDigestIndexRoute: AuthedDigestIndexRoute,
+  AuthedInboundIndexRoute: AuthedInboundIndexRoute,
   AuthedIntegrationsIndexRoute: AuthedIntegrationsIndexRoute,
   AuthedInvoicesIndexRoute: AuthedInvoicesIndexRoute,
   AuthedOrdersIndexRoute: AuthedOrdersIndexRoute,
   AuthedProductGroupsIndexRoute: AuthedProductGroupsIndexRoute,
   AuthedProductsIndexRoute: AuthedProductsIndexRoute,
+  AuthedProspectiveIndexRoute: AuthedProspectiveIndexRoute,
   AuthedPurchaseOrdersIndexRoute: AuthedPurchaseOrdersIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
   AuthedStockIndexRoute: AuthedStockIndexRoute,
+  AuthedSubscriptionsIndexRoute: AuthedSubscriptionsIndexRoute,
   AuthedSupplierInvoicesIndexRoute: AuthedSupplierInvoicesIndexRoute,
   AuthedSupplierOrdersIndexRoute: AuthedSupplierOrdersIndexRoute,
   AuthedSuppliersIndexRoute: AuthedSuppliersIndexRoute,

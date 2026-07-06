@@ -25,6 +25,13 @@ export const products = pgTable(
     expectedNextCost: decimal('expected_next_cost', { precision: 18, scale: 2 }).default('0'),
     minSellingPrice: decimal('min_selling_price', { precision: 18, scale: 2 }),
     maxSellingPrice: decimal('max_selling_price', { precision: 18, scale: 2 }),
+    // Pre-order / carton pricing (New Filament Store, SPEC §14.3, §15.3).
+    // carton_size = units per master carton (null/1 = no carton tier).
+    // landed_cost_pence = fully-landed unit cost in integer pence; the base of
+    // the pricing-engine floor (Prompt 5). Kept as pence (spec money rule)
+    // even though legacy price columns above are decimal pounds.
+    cartonSize: integer('carton_size'),
+    landedCostPence: integer('landed_cost_pence'),
     ean: varchar('ean', { length: 50 }),
     productType: productTypeEnum('product_type').notNull().default('PHYSICAL'),
     requireSerialNumber: boolean('require_serial_number').notNull().default(false),

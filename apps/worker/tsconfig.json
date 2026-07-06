@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "@smmta/api/worker": ["../api/src/worker/index.ts"],
+      "@smmta/api/events": ["../api/src/shared/events/index.ts"],
+      "@smmta/api/db": ["../api/src/config/database.ts"],
+      "@smmta/api/schema": ["../api/src/db/schema/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

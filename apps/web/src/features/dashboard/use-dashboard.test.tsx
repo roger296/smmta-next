@@ -76,13 +76,14 @@ describe('useDashboardKpis', () => {
           totalPages: 1,
         }),
       ),
+      // The report endpoint returns { lines, grandTotal } — NOT a bare array.
       http.get(`${API}/stock-items/report`, () =>
         HttpResponse.json({
           success: true,
-          data: [
-            { totalValue: '500.00' },
-            { totalValue: '1000.00' },
-          ],
+          data: {
+            lines: [{ totalValue: '500.00' }, { totalValue: '1000.00' }],
+            grandTotal: 1500,
+          },
         }),
       ),
     );
