@@ -3,7 +3,6 @@
  * FakeSendGrid (NODE_ENV=test).
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createHmac } from 'node:crypto';
 import { and, eq, inArray, like, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../app.js';
@@ -200,8 +199,8 @@ describe('webhook + unsubscribe', () => {
     await app.ready();
     const user = await makeUser(true);
     const payload = [{ email: user.email, event: 'unsubscribe' }];
-    const raw = JSON.stringify(payload);
-    const sig = createHmac('sha256', getEnv().SENDGRID_WEBHOOK_KEY).update(raw).digest('hex');
+    // Auth is a shared secret presented in the header (see messaging.routes.ts).
+    const sig = getEnv().SENDGRID_WEBHOOK_KEY;
 
     const bad = await app.inject({
       method: 'POST',

@@ -4,11 +4,14 @@
  *    upsert the suppression list (+ consent revocation).
  *  - /unsubscribe: signed link → revoke general_marketing consent + suppress.
  *
- * Signature scheme (logged): HMAC-SHA256 over the JSON body with
- * SENDGRID_WEBHOOK_KEY. Production may switch to SendGrid's ECDSA public-key
- * verification; the wrapper boundary makes that a localized change.
+ * Auth scheme: a shared secret SendGrid sends as a static custom header
+ * `X-Webhook-Signature: <SENDGRID_WEBHOOK_KEY>`. SendGrid's Event Webhook can
+ * attach static headers but cannot HMAC the request body, so a shared secret
+ * over HTTPS (body integrity guaranteed by TLS) is the pragmatic check. Future
+ * hardening: SendGrid's ECDSA signed webhook (needs the raw request body + the
+ * verification public key); this wrapper keeps that a localized change.
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -20,11 +23,15 @@ import { verifyUnsubscribe } from './unsubscribe.js';
 
 const suppression = new SuppressionService();
 
-function verifySignature(rawJson: string, signature: string | undefined): boolean {
-  if (!signature) return false;
-  const expected = createHmac('sha256', getEnv().SENDGRID_WEBHOOK_KEY).update(rawJson).digest('hex');
-  if (signature.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+// Constant-time comparison of the shared secret presented in the webhook header
+// against SENDGRID_WEBHOOK_KEY. See the file header for the scheme + rationale.
+function verifySignature(signature: string | undefined): boolean {
+  const secret = getEnv().SENDGRID_WEBHOOK_KEY;
+  if (!signature || !secret) return false;
+  const presented = Buffer.from(signature);
+  const expected = Buffer.from(secret);
+  if (presented.length !== expected.length) return false;
+  return timingSafeEqual(presented, expected);
 }
 
 const EVENT_TO_REASON: Record<string, SuppressionReason | undefined> = {
@@ -38,8 +45,7 @@ const EVENT_TO_REASON: Record<string, SuppressionReason | undefined> = {
 export async function sendgridWebhookRoutes(app: FastifyInstance) {
   app.post('/webhooks/sendgrid', async (request, reply) => {
     const signature = request.headers['x-webhook-signature'] as string | undefined;
-    const rawJson = JSON.stringify(request.body);
-    if (!verifySignature(rawJson, signature)) {
+    if (!verifySignature(signature)) {
       return reply.status(401).send({ success: false, error: 'invalid signature' });
     }
     const events = z
