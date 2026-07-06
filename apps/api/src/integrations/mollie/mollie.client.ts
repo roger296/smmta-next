@@ -67,6 +67,11 @@ export class MollieClient implements MolliePort {
   }
 
   async createPayment(input: CreatePaymentInput): Promise<MolliePayment> {
+    // Mollie's Payments API only calls back a per-payment webhookUrl (there is
+    // no account-level payments webhook). Default it to our public endpoint so
+    // Mollie pushes status changes to us; the polling fallback still covers any
+    // webhook Mollie can't deliver. APP_BASE_URL is the public API origin.
+    const base = getEnv().APP_BASE_URL.replace(/\/$/, '');
     const p = await this.request<MollieApiPayment>('POST', '/payments', {
       amount: { currency: 'GBP', value: penceToDecimal(input.amountPence) },
       description: input.description,
@@ -75,7 +80,7 @@ export class MollieClient implements MolliePort {
       customerId: input.customerId,
       metadata: input.metadata,
       redirectUrl: input.redirectUrl,
-      webhookUrl: input.webhookUrl,
+      webhookUrl: input.webhookUrl ?? `${base}/api/v1/webhooks/mollie`,
     });
     return this.normalise(p);
   }
