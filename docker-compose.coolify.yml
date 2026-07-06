@@ -46,6 +46,9 @@ services:
       OPENROUTER_DAILY_CAP_MICROUSD: ${OPENROUTER_DAILY_CAP_MICROUSD:-2000000}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SENDGRID_WEBHOOK_KEY: ${SENDGRID_WEBHOOK_KEY:-change-me}
+      # Base64 public key from SendGrid's Signed Event Webhook (verifies inbound
+      # bounce/complaint/unsubscribe events). Empty → the webhook rejects all.
+      SENDGRID_WEBHOOK_VERIFICATION_KEY: ${SENDGRID_WEBHOOK_VERIFICATION_KEY:-}
       SENDGRID_SANDBOX: ${SENDGRID_SANDBOX:-true}
       UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
       SENTRY_DSN: ${SENTRY_DSN:-}

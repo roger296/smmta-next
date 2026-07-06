@@ -2,12 +2,13 @@
  * Compose/send pipeline tests (Prompt 9, SPEC §12). Real Postgres; FakeLlm +
  * FakeSendGrid (NODE_ENV=test).
  */
+import { generateKeyPairSync, createSign } from 'node:crypto';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { and, eq, inArray, like, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
-import { getEnv } from '../../config/env.js';
+import { getEnv, resetEnvForTests } from '../../config/env.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import {
   storefrontUsers,
@@ -195,26 +196,46 @@ describe('webhook + unsubscribe', () => {
   let app: FastifyInstance;
 
   it('rejects a bad signature and processes a valid bounce/unsubscribe', async () => {
+    // Emulate SendGrid's Signed Event Webhook: ECDSA P-256 over timestamp+body,
+    // verified against the base64 SPKI public key in the env.
+    const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+    process.env.SENDGRID_WEBHOOK_VERIFICATION_KEY = publicKey
+      .export({ type: 'spki', format: 'der' })
+      .toString('base64');
+    resetEnvForTests();
+
     app = await buildApp();
     await app.ready();
     const user = await makeUser(true);
     const payload = [{ email: user.email, event: 'unsubscribe' }];
-    // Auth is a shared secret presented in the header (see messaging.routes.ts).
-    const sig = getEnv().SENDGRID_WEBHOOK_KEY;
+    const raw = JSON.stringify(payload);
+    const timestamp = '1700000000';
+    const sig = createSign('sha256')
+      .update(timestamp + raw)
+      .sign(privateKey)
+      .toString('base64');
 
     const bad = await app.inject({
       method: 'POST',
       url: '/api/v1/webhooks/sendgrid',
-      headers: { 'x-webhook-signature': 'nope' },
-      payload,
+      headers: {
+        'content-type': 'application/json',
+        'x-twilio-email-event-webhook-signature': 'nope',
+        'x-twilio-email-event-webhook-timestamp': timestamp,
+      },
+      payload: raw,
     });
     expect(bad.statusCode).toBe(401);
 
     const good = await app.inject({
       method: 'POST',
       url: '/api/v1/webhooks/sendgrid',
-      headers: { 'x-webhook-signature': sig },
-      payload,
+      headers: {
+        'content-type': 'application/json',
+        'x-twilio-email-event-webhook-signature': sig,
+        'x-twilio-email-event-webhook-timestamp': timestamp,
+      },
+      payload: raw,
     });
     expect(good.statusCode).toBe(200);
 

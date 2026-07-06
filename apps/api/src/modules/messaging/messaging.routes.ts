@@ -4,14 +4,15 @@
  *    upsert the suppression list (+ consent revocation).
  *  - /unsubscribe: signed link → revoke general_marketing consent + suppress.
  *
- * Auth scheme: a shared secret SendGrid sends as a static custom header
- * `X-Webhook-Signature: <SENDGRID_WEBHOOK_KEY>`. SendGrid's Event Webhook can
- * attach static headers but cannot HMAC the request body, so a shared secret
- * over HTTPS (body integrity guaranteed by TLS) is the pragmatic check. Future
- * hardening: SendGrid's ECDSA signed webhook (needs the raw request body + the
- * verification public key); this wrapper keeps that a localized change.
+ * Auth: SendGrid's Signed Event Webhook. SendGrid signs `timestamp + rawBody`
+ * with ECDSA P-256 and sends the base64 signature + timestamp in the
+ * X-Twilio-Email-Event-Webhook-Signature / -Timestamp headers. We verify with
+ * the base64 public verification key SendGrid shows when signing is enabled
+ * (SENDGRID_WEBHOOK_VERIFICATION_KEY). Verification needs the exact raw request
+ * body, so this route parses application/json as a raw string (scoped to the
+ * plugin) and JSON.parses it only after the signature checks out.
  */
-import { timingSafeEqual } from 'node:crypto';
+import { createVerify } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -23,15 +24,25 @@ import { verifyUnsubscribe } from './unsubscribe.js';
 
 const suppression = new SuppressionService();
 
-// Constant-time comparison of the shared secret presented in the webhook header
-// against SENDGRID_WEBHOOK_KEY. See the file header for the scheme + rationale.
-function verifySignature(signature: string | undefined): boolean {
-  const secret = getEnv().SENDGRID_WEBHOOK_KEY;
-  if (!signature || !secret) return false;
-  const presented = Buffer.from(signature);
-  const expected = Buffer.from(secret);
-  if (presented.length !== expected.length) return false;
-  return timingSafeEqual(presented, expected);
+// Verify SendGrid's ECDSA signature over `timestamp + rawBody`. The public
+// verification key is base64 SPKI DER; wrap it in PEM for Node. Node's default
+// EC signature encoding is DER, which matches SendGrid. Fails closed.
+function verifySignature(
+  rawBody: string,
+  signature: string | undefined,
+  timestamp: string | undefined,
+): boolean {
+  const key = getEnv().SENDGRID_WEBHOOK_VERIFICATION_KEY;
+  if (!key || !signature || !timestamp) return false;
+  const pem = `-----BEGIN PUBLIC KEY-----\n${key}\n-----END PUBLIC KEY-----\n`;
+  try {
+    const verifier = createVerify('sha256');
+    verifier.update(timestamp + rawBody);
+    verifier.end();
+    return verifier.verify(pem, signature, 'base64');
+  } catch {
+    return false;
+  }
 }
 
 const EVENT_TO_REASON: Record<string, SuppressionReason | undefined> = {
@@ -43,14 +54,33 @@ const EVENT_TO_REASON: Record<string, SuppressionReason | undefined> = {
 };
 
 export async function sendgridWebhookRoutes(app: FastifyInstance) {
+  // SendGrid signs the exact raw payload, so keep it as a string — JSON.stringify
+  // of a parsed object would not reproduce the signed bytes. Scoped to this
+  // encapsulated plugin, so other routes keep the default JSON parser.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) =>
+    done(null, body),
+  );
+
   app.post('/webhooks/sendgrid', async (request, reply) => {
-    const signature = request.headers['x-webhook-signature'] as string | undefined;
-    if (!verifySignature(signature)) {
+    const raw = typeof request.body === 'string' ? request.body : '';
+    const signature = request.headers['x-twilio-email-event-webhook-signature'] as
+      | string
+      | undefined;
+    const timestamp = request.headers['x-twilio-email-event-webhook-timestamp'] as
+      | string
+      | undefined;
+    if (!verifySignature(raw, signature, timestamp)) {
       return reply.status(401).send({ success: false, error: 'invalid signature' });
+    }
+    let payload: unknown;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      return reply.status(400).send({ success: false, error: 'invalid json' });
     }
     const events = z
       .array(z.object({ email: z.string().email(), event: z.string() }))
-      .safeParse(request.body);
+      .safeParse(payload);
     if (!events.success) return reply.status(400).send({ success: false, error: 'bad payload' });
 
     for (const e of events.data) {

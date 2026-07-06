@@ -48,6 +48,10 @@ const envSchema = z.object({
   // Email (SendGrid, §4.6). Empty key or SENDGRID_SANDBOX → the fake is used.
   SENDGRID_API_KEY: z.string().default(''),
   SENDGRID_WEBHOOK_KEY: z.string().default('dev-webhook-key'),
+  // SendGrid Signed Event Webhook: base64 public verification key (SPKI DER),
+  // shown when you enable signing in the Event Webhook settings. Empty means
+  // signature checks fail closed (the webhook rejects everything).
+  SENDGRID_WEBHOOK_VERIFICATION_KEY: z.string().default(''),
   SENDGRID_FROM_TRANSACTIONAL: z.string().default('orders@filament.shop.cleverdeals.net'),
   SENDGRID_FROM_MARKETING: z.string().default('hello@filament.shop.cleverdeals.net'),
   SENDGRID_SANDBOX: z.coerce.boolean().default(true),
@@ -86,4 +90,9 @@ export function getEnv(): Env {
     _env = envSchema.parse(process.env);
   }
   return _env;
+}
+
+/** Test hook: clear the cached env so the next getEnv() re-reads process.env. */
+export function resetEnvForTests(): void {
+  _env = undefined;
 }
