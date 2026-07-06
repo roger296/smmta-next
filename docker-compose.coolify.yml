@@ -100,6 +100,10 @@ services:
       # Base URL must include the /api/v1 prefix (the store appends paths to it).
       SMMTA_API_BASE_URL: ${SMMTA_API_BASE_URL:-http://api:3000/api/v1}
       SMMTA_API_KEY: ${SMMTA_API_KEY:?set SMMTA_API_KEY (issue-store-key)}
+      # The storefront's own public URL — used for canonical tags, Open Graph,
+      # sitemap.xml, robots.txt and order-confirmation links. Set to the public
+      # HTTPS hostname in Coolify; falls back to localhost for local dev.
+      STORE_BASE_URL: ${STORE_BASE_URL:-http://localhost:3000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
     expose:
       - '3000'
