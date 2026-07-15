@@ -5,8 +5,9 @@
 FROM node:22-bookworm-slim
 
 WORKDIR /app
+# tini for clean signals; curl so Coolify's container health check can hit /health.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends tini \
+  && apt-get install -y --no-install-recommends tini curl \
   && rm -rf /var/lib/apt/lists/*
 
 # Install the whole workspace (dev deps included — drizzle-kit is needed at

@@ -34,8 +34,11 @@ Two **A records** on `thebigbakes.com` → `165.84.215.138`:
 New Resource → **Application** → Public/Private Repository → `roger296/smmta-next`,
 branch `autostock`. Build pack = **Dockerfile**.
 
-- **Base directory:** `/`  ·  **Dockerfile location:** `apps/api/Dockerfile`
-- **Port:** `8080`  ·  **Health check path:** `/health`
+- **Base directory:** `/`  ·  **Dockerfile location:** `/apps/api/Dockerfile`
+- **Ports Exposes:** `8080` — Coolify often defaults this to `3000`; it MUST be
+  `8080` or the router + health check hit the wrong port ("bad gateway").
+- **Health check path:** `/health` (the api image ships `curl` for Coolify's
+  in-container probe).
 - **Domain:** `https://stock-api.thebigbakes.com`
 - **Environment variables:**
 
