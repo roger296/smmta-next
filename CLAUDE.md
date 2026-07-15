@@ -16,6 +16,27 @@ This checkout is **Auto-Stock**, the Big Bakes stock-control system-of-record �
 
 **Local test DB:** an isolated Postgres container `auto-stock-db` on `127.0.0.1:5435`; `apps/api/.env` (gitignored) points `DATABASE_URL` at it. Run the API suite with `DATABASE_URL=postgresql://smmta:smmta@localhost:5435/smmta_next npm run test -w @smmta/api`.
 
+### Touch-first venue PWA (added 2026-07-15)
+
+The four in-venue iPad pages — permanent stock-take (`/pwa/stock-take`), end-of-bake consumption (`/pwa/consumption`), goods-in (`/pwa/goods-in`), and the PIN login (`/pin-login`) — were rebuilt on a shared **touch design** ported from the proven `apps/stocktake` (stock-take-lite) app head office rolled out for the June quarter count. It lives in **`apps/web/src/components/touch/`**: `pwa-touch.css` (a plain-CSS system scoped under a `.touch-app` full-screen overlay so it can't leak into — or be affected by — the Tailwind/shadcn admin SPA) + `touch.tsx` (reusable `TouchScreen` / `TouchTopbar` (progress + sync pill) / `TouchToolbar` / `CountRow` (± steppers, hero value, tap-to-type, ½-unlock part-units) / `KeypadSheet` / `BottomSheet` / `BigButton` / `ActionBar`). Big targets (≥46px), on-screen number keypad, book-vs-count variance badges. **Only the `/pwa/*` + `pin-login` routes use the touch layer** — the desktop admin pages are untouched. No API/route changes. Web build + 117 web tests green.
+
+### LIVE deployment on Coolify (added 2026-07-15)
+
+The full app now runs in a realistic-test environment on Coolify. **This supersedes the bare-metal `infra/install.sh` story below (that's the inherited Filament path).** Deployed from `roger296/smmta-next @ autostock` (no separate fork yet).
+
+| | |
+|---|---|
+| Server | `165.84.215.138` (Coolify; a **separate box** from the BumbleBee / TheHippo VPS `.110`) |
+| Web (admin + iPad PWA) | `https://stock.thebigbakes.com` |
+| API | `https://stock-api.thebigbakes.com` (`/health`, Swagger at `/docs`) |
+
+- **Four Coolify resources:** PostgreSQL `stock-db` + Redis `stock-redis` (both Coolify-managed) + a `stock-api` application + a `stock-web` application.
+- **Containerised for Coolify** (the app had no Dockerfiles — only the bare-metal installer): **`apps/api/Dockerfile`** (single-stage `node:22-bookworm-slim`; full-workspace `npm ci`; builds `shared-types` then `api`; **CMD applies drizzle migrations then runs `node apps/api/dist/server.js`**; ships `tini` + **`curl`** so Coolify's in-container healthcheck can hit `/health`), **`apps/web/Dockerfile`** (multi-stage `node` build → `nginx:1.27-alpine` static; `VITE_API_BASE_URL` baked in via a build `ARG`), **`apps/web/nginx.conf`** (SPA fallback), **`.dockerignore`**. **Full step-by-step runbook: `DEPLOY_COOLIFY.md`.**
+- **Coolify app settings (gotchas learned deploying):** Base Directory `/` (repo root — the api Dockerfile `COPY . .`s the whole monorepo, so the context must be root); Dockerfile Location `/apps/api/Dockerfile` (else Coolify looks for a root `Dockerfile` and fails); **Ports Exposes `8080` for the api** — Coolify defaults it to `3000`, which yields "bad gateway" + a failed healthcheck; `80` for web; the web app's `VITE_API_BASE_URL` **must be flagged a Build Variable** (it's baked in at build time).
+- **API env vars (set in Coolify):** `NODE_ENV=production`, `PORT=8080`, `DATABASE_URL` + `REDIS_URL` (Coolify internal URLs), `JWT_SECRET`, `ENCRYPTION_KEY` (**store safely — it encrypts supplier/Xero tokens; changing/losing it makes them unrecoverable**), `STOCKTAKE_ACCESS_CODE`, `XERO_DRY_RUN=true`. Everything else stays default (`COMPANY_ID`, all `FEATURE_*` / `CATALOGUE_SYNC` / `MATERIALS_COST_SYNC` off).
+- **First boot** (run from the `stock-api` app's Coolify **Terminal**): migrations run automatically in the api CMD; then create the admin login + seed data — `npx tsx apps/api/scripts/create-user.ts --email … --name … --password …`, `npx tsx apps/api/scripts/seed-sites.ts`, `npx tsx apps/api/scripts/seed-bakes.ts`.
+- **Still Xero dry-run and all sync flags off** — the go-live gates in `BUILD_LOG.md` (flip `XERO_DRY_RUN` vs the Demo org, wire live Square + BumbleBee, capture a golden dataset) remain open. The four periodic sweeps (reorder / consumption / Square-poll / BumbleBee-poll) are not yet wired as Coolify Scheduled Tasks — see `DEPLOY_COOLIFY.md`.
+
 The rest of this file is the inherited `smmta-next` context — still accurate for the reused subsystems. Where it describes the storefront/marketplace/Filament tenant, treat that as **dormant** for Auto-Stock.
 
 ---
