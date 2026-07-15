@@ -1,9 +1,8 @@
 import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { setToken } from '@/lib/auth';
 import { API_BASE_URL } from '@/lib/api-client';
+import { TouchScreen, BigButton } from '@/components/touch/touch';
 
 export const Route = createFileRoute('/pin-login')({
   component: PinLoginPage,
@@ -59,42 +58,37 @@ function PinLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-muted)] px-4">
-      <Card className="w-full max-w-xs">
-        <CardHeader className="text-center">
-          <CardTitle>Auto-Stock</CardTitle>
-          <CardDescription>Enter your PIN to sign in on this device.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <TouchScreen>
+      <div className="scroll" style={{ display: 'flex', alignItems: 'center' }}>
+        <div className="center">
+          <h1 style={{ textAlign: 'center' }}>Auto-Stock</h1>
+          <p className="lede" style={{ textAlign: 'center' }}>Enter your PIN to sign in on this device.</p>
+
           <div
-            className="flex h-12 items-center justify-center rounded-md border border-[var(--color-border)] text-2xl tracking-[0.5em]"
+            className="keydisplay"
+            style={{ justifyContent: 'center', letterSpacing: '0.4em', fontSize: 34, marginBottom: 14 }}
             aria-label="PIN"
           >
             {pin.replace(/./g, '•') || ' '}
           </div>
-          {error && (
-            <p role="alert" className="text-center text-sm text-[var(--color-destructive)]">
-              {error}
-            </p>
-          )}
-          <div className="grid grid-cols-3 gap-2">
+
+          {error && <div className="notice warn" style={{ margin: '0 0 14px', textAlign: 'center' }} role="alert">{error}</div>}
+
+          <div className="keypad">
             {KEYS.map((k) => (
-              <Button
-                key={k}
-                type="button"
-                variant={k === 'clear' || k === 'del' ? 'outline' : 'secondary'}
-                className="h-14 text-lg"
-                onClick={() => press(k)}
-              >
+              <button key={k} type="button" className="key" onClick={() => press(k)}>
                 {k === 'del' ? '⌫' : k === 'clear' ? 'C' : k}
-              </Button>
+              </button>
             ))}
           </div>
-          <Button className="w-full" onClick={submit} disabled={submitting}>
-            {submitting ? 'Signing in…' : 'Sign in'}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+
+          <div style={{ marginTop: 16 }}>
+            <BigButton variant="solid" onClick={() => void submit()} disabled={submitting}>
+              {submitting ? 'Signing in…' : 'Sign in'}
+            </BigButton>
+          </div>
+        </div>
+      </div>
+    </TouchScreen>
   );
 }
