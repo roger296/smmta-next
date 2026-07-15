@@ -1,0 +1,191 @@
+/*
+ * Touch design system for the in-venue iPad PWA pages (stock-take, end-of-bake
+ * consumption, goods-in, PIN login). Ported from the proven stock-take-lite app
+ * (apps/stocktake) that head-office rolled out for the June quarter count.
+ *
+ * EVERYTHING is scoped under `.touch-app` (a fixed, full-screen overlay) so it
+ * cannot leak into — or be affected by — the Tailwind/shadcn admin SPA. Big
+ * touch targets (>=46px), status colour, ± steppers, hero numbers, tap-to-type.
+ */
+
+.touch-app {
+  --ink: #15161a;
+  --muted: #6b6e76;
+  --line: #d8dce1;
+  --paper: #f4f5f7;
+  --card: #ffffff;
+  --bar: #1f2a37;
+  --bar-ink: #f4f5f7;
+  --accent: #2f6fed;
+  --accent-soft: #e7eefc;
+  --ok: #1d9e75;
+  --ok-soft: #e1f5ee;
+  --warn: #b9770b;
+  --warn-soft: #faeeda;
+  --danger: #c0392b;
+  --danger-soft: #fbeaea;
+  --t-radius: 10px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-app *,
+.touch-app *::before,
+.touch-app *::after { box-sizing: border-box; }
+.touch-app button { font-family: inherit; cursor: pointer; }
+
+/* ── Top bar ──────────────────────────────────────────────── */
+.touch-app .topbar {
+  background: var(--bar);
+  color: var(--bar-ink);
+  padding: env(safe-area-inset-top) 16px 0;
+  position: sticky; top: 0; z-index: 10;
+}
+.touch-app .topbar-row { display: flex; align-items: center; gap: 12px; min-height: 56px; }
+.touch-app .topbar-title { font-size: 17px; font-weight: 600; }
+.touch-app .topbar-sub {
+  font-size: 12px; font-weight: 600; color: var(--bar-ink);
+  background: rgba(255, 255, 255, 0.14); padding: 3px 10px; border-radius: 6px;
+}
+.touch-app .topbar-spacer { flex: 1; }
+.touch-app .topbar-stat { font-size: 13px; opacity: 0.85; }
+.touch-app .backbtn {
+  background: none; border: none; color: #cdd3db; font-size: 30px; line-height: 1;
+  padding: 0 6px 0 0; min-width: 34px; text-align: left;
+}
+
+.touch-app .progress-track { height: 4px; background: rgba(255, 255, 255, 0.18); }
+.touch-app .progress-fill { height: 100%; background: #6fb1ff; transition: width 0.2s ease; }
+
+/* ── Toolbar (search + filter chips) ──────────────────────── */
+.touch-app .toolbar {
+  display: flex; gap: 8px; align-items: center;
+  padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line);
+  position: sticky; top: 56px; z-index: 9;
+}
+.touch-app .search {
+  flex: 1; height: 44px; border: 1px solid var(--line); border-radius: var(--t-radius);
+  padding: 0 12px; font-size: 16px; background: var(--paper); color: var(--ink);
+}
+.touch-app .chip {
+  height: 44px; padding: 0 14px; border: 1px solid var(--line); background: var(--card);
+  border-radius: var(--t-radius); font-size: 14px; font-weight: 500; color: var(--ink);
+  white-space: nowrap;
+}
+.touch-app .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Scroll body ──────────────────────────────────────────── */
+.touch-app .scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 120px; }
+
+/* ── Section headers ──────────────────────────────────────── */
+.touch-app .sec-head { position: sticky; top: 0; background: var(--paper); z-index: 1; padding: 14px 16px 6px; }
+.touch-app .sec-area { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--accent); text-transform: uppercase; }
+.touch-app .sec-name { font-size: 14px; font-weight: 700; letter-spacing: 0.03em; color: var(--muted); text-transform: uppercase; }
+
+/* ── Item / count row ─────────────────────────────────────── */
+.touch-app .row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--line);
+}
+.touch-app .row .status { width: 26px; font-size: 22px; line-height: 1; text-align: center; flex: none; }
+.touch-app .status-done { color: var(--ok); }
+.touch-app .status-todo { color: #c3c7cd; }
+.touch-app .status-warn { color: var(--warn); }
+.touch-app .row .meta { flex: 1; min-width: 0; }
+.touch-app .row .name { font-size: 16px; font-weight: 600; line-height: 1.25; }
+.touch-app .row .hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.touch-app .row .hint.book { color: var(--accent); font-weight: 600; }
+.touch-app .badge {
+  font-size: 11px; font-weight: 600; color: var(--accent);
+  background: var(--accent-soft); padding: 1px 7px; border-radius: 6px; margin-left: 6px;
+}
+.touch-app .badge.warn { color: var(--warn); background: var(--warn-soft); }
+.touch-app .badge.ok { color: var(--ok); background: var(--ok-soft); }
+
+/* ── Quantity controls (± steppers + hero value + zero) ───── */
+.touch-app .qty-controls { display: flex; align-items: center; gap: 8px; flex: none; }
+.touch-app .step {
+  width: 48px; height: 48px; border-radius: var(--t-radius); border: 1px solid var(--line);
+  background: var(--card); font-size: 24px; font-weight: 500; color: var(--ink);
+}
+.touch-app .step:active { transform: scale(0.96); }
+.touch-app .step:disabled { opacity: 0.4; }
+.touch-app .qty-value {
+  min-width: 60px; height: 48px; border: 1px solid var(--line); border-radius: var(--t-radius);
+  text-align: center; font-size: 20px; font-weight: 700; color: var(--ink); background: var(--paper);
+  padding: 0 4px; font-variant-numeric: tabular-nums;
+}
+.touch-app .qty-value.todo { color: #b6bac1; font-weight: 600; }
+.touch-app .zero {
+  min-width: 60px; height: 48px; border-radius: var(--t-radius); border: 1px solid var(--line);
+  background: var(--card); font-size: 16px; font-weight: 700; color: var(--ink);
+}
+.touch-app .zero:active { transform: scale(0.96); }
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.touch-app .btn {
+  width: 100%; min-height: 52px; border-radius: var(--t-radius); border: 1px solid var(--accent);
+  background: var(--card); color: var(--accent); font-size: 16px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.touch-app .btn.solid { background: var(--accent); color: #fff; }
+.touch-app .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+.touch-app .btn.ghost { border-color: var(--line); color: var(--ink); }
+.touch-app .btn:active { transform: scale(0.99); }
+.touch-app .btn:disabled { opacity: 0.5; }
+.touch-app .add-bar { padding: 14px 16px; }
+
+/* ── Sticky action bar at the foot ────────────────────────── */
+.touch-app .actionbar {
+  position: sticky; bottom: 0; display: flex; gap: 10px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--card); border-top: 1px solid var(--line);
+}
+.touch-app .actionbar .btn { flex: 1; }
+
+/* ── Start / centred screens + fields ─────────────────────── */
+.touch-app .center { max-width: 480px; width: 100%; margin: 0 auto; padding: 24px 18px; }
+.touch-app .center h1 { font-size: 22px; margin: 4px 0 2px; }
+.touch-app .center p.lede { color: var(--muted); margin: 0 0 20px; font-size: 15px; }
+.touch-app .field { margin-bottom: 16px; }
+.touch-app .field label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.touch-app .input, .touch-app .select {
+  width: 100%; height: 52px; border: 1px solid var(--line); border-radius: var(--t-radius);
+  padding: 0 12px; font-size: 16px; background: var(--card); color: var(--ink);
+}
+.touch-app .tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.touch-app .tile {
+  min-height: 60px; border: 1px solid var(--line); border-radius: var(--t-radius);
+  background: var(--card); font-size: 16px; font-weight: 600; color: var(--ink);
+}
+.touch-app .tile.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Bottom sheet (keypad / add item) ─────────────────────── */
+.touch-app .sheet-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: flex-end; z-index: 50; }
+.touch-app .sheet { width: 100%; background: var(--card); border-radius: 16px 16px 0 0; padding: 18px 18px 28px; max-height: 86%; overflow-y: auto; }
+.touch-app .sheet h2 { font-size: 18px; margin: 0 0 14px; }
+.touch-app .sheet-actions { display: flex; gap: 10px; margin-top: 16px; }
+.touch-app .sheet-actions .btn { flex: 1; }
+
+/* ── Number keypad ────────────────────────────────────────── */
+.touch-app .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+.touch-app .key { min-height: 60px; border: 1px solid var(--line); border-radius: var(--t-radius); background: var(--paper); font-size: 24px; font-weight: 600; color: var(--ink); }
+.touch-app .key:active { transform: scale(0.97); background: var(--accent-soft); }
+.touch-app .keydisplay { height: 60px; border: 1px solid var(--line); border-radius: var(--t-radius); background: var(--paper); display: flex; align-items: center; justify-content: flex-end; padding: 0 16px; font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Sync pill + notices ──────────────────────────────────── */
+.touch-app .syncpill { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+.touch-app .syncpill.ok { background: rgba(255, 255, 255, 0.16); color: #cfeede; }
+.touch-app .syncpill.pending { background: rgba(255, 255, 255, 0.16); color: #ffe1a8; }
+.touch-app .syncpill.offline { background: rgba(255, 255, 255, 0.16); color: #ffc9c2; }
+.touch-app .notice { background: var(--accent-soft); color: #14387a; padding: 12px 14px; border-radius: var(--t-radius); font-size: 14px; margin: 14px 16px; }
+.touch-app .notice.warn { background: var(--warn-soft); color: #7a4e08; }
+.touch-app .empty { text-align: center; color: var(--muted); padding: 48px 24px; font-size: 15px; }
