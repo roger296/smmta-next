@@ -74,7 +74,14 @@ export class BumbleBeeSessionClient {
     const env = getEnv();
     if (!env.BUMBLEBEE_API_BASE_URL) return [];
 
-    const rows = await this.get<SessionRowWire>('/api/v1/sessions', params);
+    // EVENT only. BumbleBee's other session type, CAFE_BAR, is a synthetic
+    // 08:00–22:00 container the Square sweeper creates per site per day to hold
+    // till takings — no bake leader, no cake, no consumption statement. Leaving
+    // it in would park one permanently-unfileable row on every site, so the
+    // "missing" badge would never clear and would stop meaning anything.
+    const rows = await this.get<SessionRowWire>('/api/v1/sessions', params, {
+      session_type: 'EVENT',
+    });
     if (rows.length === 0) return [];
 
     const covers = await this.coversBySession(params);
@@ -110,6 +117,7 @@ export class BumbleBeeSessionClient {
   private async get<T>(
     path: string,
     params: { siteCanonicalName: string; date: string },
+    extra: Record<string, string> = {},
   ): Promise<T[]> {
     const env = getEnv();
     const url = new URL(path, env.BUMBLEBEE_API_BASE_URL);
@@ -117,6 +125,7 @@ export class BumbleBeeSessionClient {
     url.searchParams.set('date_from', params.date);
     url.searchParams.set('date_to', params.date);
     url.searchParams.set('limit', '200');
+    for (const [k, v] of Object.entries(extra)) url.searchParams.set(k, v);
     const res = await fetch(url, {
       headers: env.BUMBLEBEE_API_KEY ? { Authorization: `Bearer ${env.BUMBLEBEE_API_KEY}` } : {},
     });

@@ -82,6 +82,29 @@ describe('BumbleBeeSessionClient', () => {
     expect(sessions.searchParams.has('date')).toBe(false);
   });
 
+  it('asks for EVENT sessions only, excluding the CAFE_BAR till container', async () => {
+    const seen: URL[] = [];
+    vi.stubGlobal(
+      'fetch',
+      mockFetch((url) => {
+        seen.push(url);
+        return { body: url.pathname.includes('sessions') ? SESSION_ROWS : { rows: [] } };
+      }),
+    );
+
+    await new BumbleBeeSessionClient().listSessionsForDay({
+      siteCanonicalName: 'Manchester',
+      date: '2026-07-26',
+    });
+
+    // CAFE_BAR is a synthetic all-day session the Square sweeper creates per
+    // site per day. Nobody can ever file a consumption statement against one,
+    // so including it would leave a permanent "missing" on every site.
+    expect(
+      seen.find((u) => u.pathname === '/api/v1/sessions')!.searchParams.get('session_type'),
+    ).toBe('EVENT');
+  });
+
   it('reads the `rows` key and maps `id`/`start`', async () => {
     vi.stubGlobal(
       'fetch',
