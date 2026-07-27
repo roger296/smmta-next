@@ -28,6 +28,17 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as csvParse } from 'csv-parse/sync';
 
+/** Operator marker in the SKU column meaning "no match — create a new product". */
+const ADD_ITEM = 'ADD ITEM';
+
+/** The operator's Unit of Measure column, normalised. `bottle` is kept rather
+ *  than folded into `each`: counting bar stock in bottles is what actually
+ *  happens on the floor, and the distinction is worth keeping in reports. */
+const UOM_MAP: Record<string, string> = {
+  kg: 'kg', g: 'g', l: 'l', ltr: 'l', litre: 'l', ml: 'ml',
+  each: 'each', unit: 'each', bottle: 'bottle', pack: 'pack',
+};
+
 /** Count-list area -> Auto-Stock item_kind. */
 const AREA_TO_ITEM_KIND: Record<string, string> = {
   merchandise: 'MERCH',
@@ -81,24 +92,49 @@ const clean = (v: unknown): string => String(v ?? '').trim();
  *  "CODE — Product Name" form carried over from the suggestion columns. */
 function parseConfirmedSku(raw: string): string {
   const v = clean(raw);
-  if (!v) return '';
+  if (!v || v.toUpperCase() === ADD_ITEM) return '';
   const code = v.split(/[—-]{1,2}\s/)[0]!.trim();
   return /^[A-Z0-9][A-Z0-9-]{2,}$/i.test(code) ? code.toUpperCase() : '';
 }
 
-/** Derive a stable SKU for an unmatched count item: 3 chunks of up to 4 chars
- *  from its significant words, matching the house style (BAKE-CAST-SUGR). */
+/** Words that carry no identifying information in a product name. */
+const SKU_STOPWORDS = new Set([
+  'OF', 'THE', 'IN', 'AND', 'WITH', 'FOR', 'TO', 'SIZE', 'PER', 'PLUS', 'A', 'AN',
+]);
+
+/** Garment/pack variants that MUST survive into the SKU — otherwise the six
+ *  sizes of one t-shirt all collapse to the same stem and get told apart only
+ *  by a meaningless counter (LEGE-IN-THE-6), which is unreadable to a human. */
+const VARIANT = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d{1,3}(OZ|ML|CL|KG|G|L|PK|IN))$/;
+
+/** Derive a stable SKU for an unmatched count item, in the house style
+ *  (BAKE-CAST-SUGR): up to 3 chunks of 4 chars from the significant words,
+ *  with any trailing size/variant preserved verbatim as the last chunk. */
 function deriveSku(name: string, used: Set<string>): string {
-  const words = name
+  // "Legend in the Baking - size XXL" -> base "Legend in the Baking", tail "XXL"
+  const [head = name, ...rest] = name.split(/\s+[-–:]\s+/);
+  const tailWords = rest
+    .join(' ')
     .toUpperCase()
     .replace(/[^A-Z0-9 ]+/g, ' ')
     .split(/\s+/)
-    .filter((w) => w.length > 1);
-  const parts = words.slice(0, 3).map((w) => w.slice(0, 4));
-  while (parts.length < 2) parts.push('ITEM');
-  let sku = parts.join('-');
+    .filter(Boolean);
+  const variant = tailWords.find((w) => VARIANT.test(w)) ?? '';
+
+  const words = head
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]+/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 1 && !SKU_STOPWORDS.has(w));
+
+  const parts = words.slice(0, variant ? 2 : 3).map((w) => w.slice(0, 4));
+  if (variant) parts.push(variant.slice(0, 4));
+  if (parts.length === 0) parts.push('ITEM');
+
+  const stem = parts.join('-');
+  let sku = stem;
   let n = 2;
-  while (used.has(sku)) sku = `${parts.join('-')}-${n++}`;
+  while (used.has(sku)) sku = `${stem}-${n++}`;
   used.add(sku);
   return sku;
 }
@@ -136,16 +172,37 @@ function main(): void {
   const notes: string[] = [];
   let matched = 0;
 
+  // Unmatched rows are deduplicated on (name + unit). Name alone is NOT safe:
+  // Creation Corner lists "Brown" twice — 100ml of ColourMill food colouring
+  // and 10kg of fondant — and "Mint" is both a colouring and a fresh herb.
+  // Merging those would fuse unrelated products into one stock balance. Where
+  // the unit also matches, a repeat really is the same item counted in two
+  // areas (Hummus, Popcorn, Chicken Strips) and collapses to one product.
+  const skuForUnmatched = new Map<string, string>();
+
   for (const r of rows) {
     const name = clean(r['Count item']);
     if (!name) continue;
     const area = clean(r.Area);
+    const rawUom = clean(r['Unit of Measure']).toLowerCase();
+    const uom = UOM_MAP[rawUom] ?? unitBySku.get(parseConfirmedSku(r['Suggested main SKU'] ?? '')) ?? 'each';
+    if (rawUom && !UOM_MAP[rawUom]) {
+      notes.push(`UNKNOWN UNIT "${rawUom}" on "${name}" - defaulted to ${uom}`);
+    }
+
     const confirmed = parseConfirmedSku(r['Suggested main SKU'] ?? '');
-    const sku = confirmed || deriveSku(name, usedDerived);
-    if (confirmed) matched += 1;
+    let sku: string;
+    if (confirmed) {
+      sku = confirmed;
+      matched += 1;
+    } else {
+      const dedupeKey = `${name.toLowerCase()}|${uom}`;
+      const already = skuForUnmatched.get(dedupeKey);
+      sku = already ?? deriveSku(name, usedDerived);
+      if (!already) skuForUnmatched.set(dedupeKey, sku);
+    }
 
     const kind = AREA_TO_ITEM_KIND[area.toLowerCase()] ?? 'INGREDIENT';
-    const uom = unitBySku.get(sku) ?? 'each';
 
     const existing = bySku.get(sku);
     if (!existing) {
@@ -181,7 +238,7 @@ function main(): void {
     'utf8',
   );
 
-  const inherited = products.filter((p) => p.stock_uom !== 'each').length;
+  const fromColumn = rows.filter((r) => UOM_MAP[clean(r['Unit of Measure']).toLowerCase()]).length;
   const byKind = products.reduce<Record<string, number>>((a, p) => {
     a[p.item_kind] = (a[p.item_kind] ?? 0) + 1;
     return a;
@@ -192,8 +249,8 @@ function main(): void {
     `products         : ${products.length}`,
     `  with a confirmed main SKU : ${matched}`,
     `  SKU derived from the name : ${rows.length - matched}`,
-    `base units       : ${inherited} inherited from the purchasing sheet, ` +
-      `${products.length - inherited} defaulted to "each" (review)`,
+    `base units       : ${fromColumn}/${rows.length} count lines carried an explicit ` +
+      `Unit of Measure; the rest fell back to the purchasing sheet or "each"`,
     `item kinds       : ${Object.entries(byKind).map(([k, n]) => `${k}=${n}`).join('  ')}`,
     '',
     `merges (${notes.length}) — two count lines resolving to one product; check the odd ones:`,
