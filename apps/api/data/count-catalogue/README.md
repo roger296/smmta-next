@@ -16,9 +16,14 @@ makes the import reproducible from a clean deploy.
 
 ## Running the import
 
-From the Coolify **stock-api** terminal (dry run first — it writes nothing):
+From the Coolify **stock-api** terminal. The container's WORKDIR is the
+monorepo root (`/app`), so `cd` into the api workspace first — otherwise tsx
+looks for `/app/scripts/...` and fails with ERR_MODULE_NOT_FOUND.
+
+Dry run first — it writes nothing:
 
 ```
+cd /app/apps/api
 npx tsx scripts/import-catalogue.ts --dir=data/count-catalogue
 npx tsx scripts/import-catalogue.ts --dir=data/count-catalogue --apply
 ```
@@ -29,7 +34,7 @@ is left alone, so a partial file cannot wipe the catalogue.
 
 ## Regenerating
 
-When the count list changes, re-export it as CSV and:
+When the count list changes, re-export it as CSV and (from `apps/api`):
 
 ```
 npx tsx scripts/extract-count-list.ts \
