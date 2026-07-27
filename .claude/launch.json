@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "stocktake",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@smmta/stocktake"],
+      "port": 4100
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@smmta/web"],
+      "port": 5173
+    }
+  ]
+}

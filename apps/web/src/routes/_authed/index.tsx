@@ -101,6 +101,13 @@ function SessionsTile({ data }: { data: DashboardOverview }) {
           </tbody>
         </table>
       )}
+      {/* A site BumbleBee couldn't answer for is simply absent from the table
+          above, so say which and why rather than letting it read as "no bakes". */}
+      {sessions.available && sessions.reason && (
+        <p className="border-t border-[var(--color-border)] px-4 py-2 text-xs text-[var(--color-destructive)]">
+          {sessions.reason}
+        </p>
+      )}
     </Tile>
   );
 }

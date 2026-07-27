@@ -109,6 +109,8 @@ export class DashboardService {
     const client = new BumbleBeeSessionClient();
     const consumption = new SessionConsumptionService();
     const rows: SessionRow[] = [];
+    const failures: string[] = [];
+
     for (const site of siteRows) {
       try {
         const daySessions = await client.listSessionsForDay({
@@ -124,12 +126,26 @@ export class DashboardService {
           missing: awaiting.length,
           missingSessionIds: awaiting.map((a) => a.sessionId).slice(0, 20),
         });
-      } catch {
-        // One site failing to answer must not blank the tile for the others.
-        rows.push({ siteId: site.id, sessions: 0, filed: 0, missing: 0, missingSessionIds: [] });
+      } catch (e) {
+        // One site failing must not blank the tile for the others — but it must
+        // not be reported as a quiet day either. A bad API key and a bank
+        // holiday both produce zero sessions; only one of them is fine.
+        failures.push(`${site.canonicalName}: ${e instanceof Error ? e.message : 'failed'}`);
       }
     }
-    return { available: true, rows };
+
+    if (rows.length === 0) {
+      return {
+        available: false,
+        reason: `BumbleBee did not answer. ${failures[0] ?? ''}`.trim(),
+        rows: [],
+      };
+    }
+    return {
+      available: true,
+      reason: failures.length ? `Some sites could not be checked — ${failures.join('; ')}` : undefined,
+      rows,
+    };
   }
 
   // ── 2. stock held ────────────────────────────────────────────────────
