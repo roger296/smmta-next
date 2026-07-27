@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { setCount, clearCount } from './storage';
 import { groupCatalogue } from './catalogue';
+import { countingLabel } from './units';
 import { partUnit } from './fractions';
 import { dirtyCounted } from './api';
 import type { CatalogueItem, CountsMap } from './types';
@@ -76,5 +77,31 @@ describe('groupCatalogue', () => {
     expect(groups[0]!.section).toBe('DRY');
     expect(groups[0]!.items).toHaveLength(2);
     expect(groups[1]!.section).toBe('WET');
+  });
+});
+
+describe('countingLabel', () => {
+  it('spells the units out for the shelf, not the database', () => {
+    expect(countingLabel('kg')).toBe('Counting in Kilograms');
+    expect(countingLabel('l')).toBe('Counting in Litres');
+    expect(countingLabel('bottle')).toBe('Counting in Bottles');
+  });
+
+  it('drops the "in" for individual units', () => {
+    expect(countingLabel('each')).toBe('Counting Individual Units');
+  });
+
+  it('is case- and whitespace-tolerant', () => {
+    expect(countingLabel(' KG ')).toBe('Counting in Kilograms');
+  });
+
+  it('gives no line at all when there is no unit', () => {
+    expect(countingLabel(null)).toBeNull();
+    expect(countingLabel('')).toBeNull();
+  });
+
+  it('leaves an unmapped code visibly raw rather than guessing', () => {
+    // Looks like it needs a label — better than a confident wrong sentence.
+    expect(countingLabel('sachet')).toBe('Counting in sachet');
   });
 });

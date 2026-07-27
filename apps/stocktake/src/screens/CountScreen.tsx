@@ -4,6 +4,7 @@ import { loadCounts, saveCounts, setCount } from '../lib/storage';
 import { dirtyCounted, pushCounts } from '../lib/api';
 import type { CatalogueItem, CountsMap, Session } from '../lib/types';
 import { ItemRow } from '../components/ItemRow';
+import { countingLabel } from '../lib/units';
 
 type Filter = 'all' | 'todo';
 type SyncState = 'synced' | 'pending' | 'offline' | 'syncing';
@@ -199,7 +200,7 @@ export function CountScreen({ session, onExit }: CountScreenProps) {
                 <ItemRow
                   key={item.key}
                   name={item.name}
-                  hint={item.uom ? `Counting in ${item.uom}` : null}
+                  hint={countingLabel(item.uom)}
                   isCustom={false}
                   entry={counts[item.key]}
                   onSet={(q) => apply(baseForItem(item), q)}
