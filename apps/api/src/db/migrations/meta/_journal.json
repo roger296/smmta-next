@@ -260,6 +260,13 @@
       "when": 1782379596545,
       "tag": "0036_jittery_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1785143759693,
+      "tag": "0037_widen_supplier_product_identity",
+      "breakpoints": true
     }
   ]
 }

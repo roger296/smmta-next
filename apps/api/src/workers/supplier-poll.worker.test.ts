@@ -320,14 +320,11 @@ describe('runSupplierPoll — per-chunk error tolerance', () => {
     const db = getDb();
     // Add three more mappings on top of the SKU-A/B from the suite's
     // beforeAll so the supplier spans multiple chunks at chunk size 2.
-    // Each mapping needs its OWN product: the
-    // `supplier_products_product_supplier_unq` index is on
-    // (product_id, supplier_id), so a single supplier cannot carry two
-    // SKUs against the same product.
-    const prodA = await db.query.products.findFirst({
-      where: eq(products.id, productAId),
-    });
-    const groupId = prodA!.groupId;
+    // All the extra SKUs hang off the SAME product on purpose — that is the
+    // real-world shape (one supplier listing a main product under several
+    // codes / pack sizes) and it exercises the widened identity index
+    // `supplier_products_product_supplier_sku_unq` on
+    // (product_id, supplier_id, supplier_sku).
     for (const sku of EXTRA_SKUS) {
       const existing = await db.query.supplierProducts.findFirst({
         where: and(
@@ -336,19 +333,9 @@ describe('runSupplierPoll — per-chunk error tolerance', () => {
         ),
       });
       if (!existing) {
-        const [p] = await db
-          .insert(products)
-          .values({
-            companyId: COMPANY,
-            name: `Product ${sku}`,
-            slug: `worker-product-${sku.toLowerCase()}`,
-            groupId,
-            minSellingPrice: '10.00',
-          })
-          .returning();
         await db.insert(supplierProducts).values({
           companyId: COMPANY,
-          productId: p!.id,
+          productId: productAId,
           supplierId,
           supplierSku: sku,
           costGbp: '4.00',

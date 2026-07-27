@@ -130,8 +130,16 @@ export const supplierProducts = pgTable('supplier_products', {
   supplierPackSize: decimal('supplier_pack_size', { precision: 18, scale: 3 }),
   ...auditTimestamps,
 }, (t) => ({
-  supplierProductsProductSupplierUnq: uniqueIndex('supplier_products_product_supplier_unq')
-    .on(t.productId, t.supplierId),
+  // Identity is (product, supplier, SKU) — NOT (product, supplier). One supplier
+  // routinely lists the same main product under several codes and pack sizes:
+  // Brakes sells "21IN-PIPE-BAGS" as 20954 / A 20954 / A20954, Booker sells
+  // Absolut as 318639 and 503510. Keying on (product, supplier) alone would
+  // reject all but the first, losing the alternative pack sizes the reorder
+  // engine needs to compare. (This is also why supplier-poll.worker.test.ts,
+  // which inserts several SKUs against one product, failed on the old index.)
+  supplierProductsProductSupplierSkuUnq: uniqueIndex(
+    'supplier_products_product_supplier_sku_unq',
+  ).on(t.productId, t.supplierId, t.supplierSku),
 }));
 
 // ============================================================

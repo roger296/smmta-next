@@ -1,0 +1,2 @@
+DROP INDEX "supplier_products_product_supplier_unq";--> statement-breakpoint
+CREATE UNIQUE INDEX "supplier_products_product_supplier_sku_unq" ON "supplier_products" USING btree ("product_id","supplier_id","supplier_sku");
