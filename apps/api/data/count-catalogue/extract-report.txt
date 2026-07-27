@@ -1,0 +1,15 @@
+source           : C:/Users/roger/AppData/Local/Temp/claude/C--Users-roger-Big-bakes-ingest-app-plan/5a0d41f4-2001-4dff-a036-6aea18614071/scratchpad/count-list-final.csv
+count lines      : 386
+products         : 364
+  with a confirmed main SKU : 142
+  SKU derived from the name : 244
+base units       : 386/386 count lines carried an explicit Unit of Measure; the rest fell back to the purchasing sheet or "each"
+item kinds       : INGREDIENT=162  RETAIL=152  MERCH=50
+
+merges (6) — two count lines resolving to one product; check the odd ones:
+  MERGED into BAKE-AGAV-SYRP: "Agave Nectar" + "Agave"
+  MERGED into DAIR-OAT-MILK: "Long Life Oat Milk" + "Oat Milk" (areas: General Ingredients / Bar Stock)
+  MERGED into DAIR-SOYA-MILK: "Long Life Soya Milk" + "Soya Milk" (areas: General Ingredients / Bar Stock)
+  MERGED into PROD-BEEF-TOMA: "Beef Tomato" + "Tomatoes" (areas: CAFE STOCK / Corporate Food)
+  MERGED into PROD-GREN-GRAP: "Red Grapes" + "Green Grapes"
+  MERGED into PROD-BEEF-TOMA: "Beef Tomato" + "Beef Tomatoes" (areas: CAFE STOCK / Corporate Food)

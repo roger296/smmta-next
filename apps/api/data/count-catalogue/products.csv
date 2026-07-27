@@ -1,0 +1,365 @@
+sku,name,slug,item_kind,stock_uom,group_id,source_lines
+BAKE-CAST-SUGR,Caster Sugar,bake-cast-sugr,INGREDIENT,kg,,1
+LGHT-BROW-SUGR,Light Brown Sugar,lght-brow-sugr,INGREDIENT,kg,,1
+BAKE-ICNG-SUGR,Icing Sugar,bake-icng-sugr,INGREDIENT,kg,,1
+BAKE-PLAN-FLOR,HP Plain Flour,bake-plan-flor,INGREDIENT,kg,,1
+SELF-RASG-FLOR,HP Self Raising Flour,self-rasg-flor,INGREDIENT,kg,,1
+BAKI-POWD,Baking Powder,baki-powd,INGREDIENT,kg,,1
+BICA-SODA,Bicarbonate of Soda,bica-soda,INGREDIENT,kg,,1
+SALT,Salt,salt,INGREDIENT,kg,,1
+BAKE-CORN-FLOR,Cornflour,bake-corn-flor,INGREDIENT,kg,,1
+LONG-LIFE-RAPE,Long Life Rapeseed Oil,long-life-rape,INGREDIENT,l,,1
+SEMI-SKIM-MILK,Long Life Semi Skimmed Milk,semi-skim-milk,INGREDIENT,l,,1
+DAIR-MEDM-EGGS,Whole Eggs,dair-medm-eggs,INGREDIENT,each,,1
+LIQD-EGG-WHIT,Egg Whites,liqd-egg-whit,INGREDIENT,kg,,1
+DAIR-UNSL-BUTR,Unsalted Butter,dair-unsl-butr,INGREDIENT,kg,,1
+STOR-BUTR-ALTN,Stork,stor-butr-altn,INGREDIENT,kg,,1
+CREA-CHEE,Cream Cheese,crea-chee,INGREDIENT,kg,,1
+FRUT-FORE-MIX,Frozen Fruits,frut-fore-mix,INGREDIENT,kg,,1
+WHIT-CHOC,White Chocolate,whit-choc,INGREDIENT,kg,,1
+MILK-CHOC-COUV,Milk Chocolate,milk-choc-couv,INGREDIENT,kg,,1
+DARK-CHOC-COUV,Dark Chocolate,dark-choc-couv,INGREDIENT,kg,,1
+GF-PLAI-FLOU,GF Plain Flour,gf-plai-flou,INGREDIENT,kg,,1
+GF-SELF-RAIS,GF Self Raising Flour,gf-self-rais,INGREDIENT,kg,,1
+GF-BAKI-POWD,GF Baking Powder,gf-baki-powd,INGREDIENT,kg,,1
+AQUA,Aquafaba - Oggs,aqua,INGREDIENT,l,,1
+DAIR-SOYA-MILK,Long Life Soya Milk,dair-soya-milk,INGREDIENT,l,,2
+DAIR-OAT-MILK,Long Life Oat Milk,dair-oat-milk,INGREDIENT,l,,2
+VEGA-DOUB-CREA,Vegan Double Cream,vega-doub-crea,INGREDIENT,l,,1
+VEGA-SHEE-CREA,Vegan (sheese) Cream Cheese,vega-shee-crea,INGREDIENT,kg,,1
+VEGA-WHIT-CHOC,Vegan White Chocolate,vega-whit-choc,INGREDIENT,kg,,1
+VEGA-MILK-DARK,Vegan Milk/dark Chocolate,vega-milk-dark,INGREDIENT,kg,,1
+BAKE-FOND-WHIT,White Fondant,bake-fond-whit,INGREDIENT,kg,,2
+BAKE-FOND-BLAK,Black Fondant,bake-fond-blak,INGREDIENT,kg,,2
+BAKE-FOND-RED,Red Fondant,bake-fond-red,INGREDIENT,kg,,2
+BAKE-FOND-PINK,Pink Fondant,bake-fond-pink,INGREDIENT,kg,,2
+BAKE-FOND-YELW,Yellow Fondant,bake-fond-yelw,INGREDIENT,kg,,2
+BAKE-FOND-ORNG,Orange Fondant,bake-fond-orng,INGREDIENT,kg,,2
+BAKE-FOND-BLUE,Blue Fondant,bake-fond-blue,INGREDIENT,kg,,1
+BAKE-FOND-GREN,Green Fondant,bake-fond-gren,INGREDIENT,kg,,2
+BROW-FOND,brown fondant,brow-fond,INGREDIENT,kg,,1
+BAKE-ESSN-VANL,Vanilla,bake-essn-vanl,INGREDIENT,l,,1
+BAKE-ESSN-LEMN,Lemon,bake-essn-lemn,INGREDIENT,l,,1
+BAKE-ESSN-ALMD,Almond,bake-essn-almd,INGREDIENT,l,,1
+BAKE-ESSN-COFF,Coffee,bake-essn-coff,INGREDIENT,l,,1
+BAKE-ESSN-BANA,Banana,bake-essn-bana,INGREDIENT,l,,1
+PROD-RASP-BERY,Raspberry,prod-rasp-bery,INGREDIENT,l,,1
+BAKE-ESSN-STRW,Strawberry,bake-essn-strw,INGREDIENT,l,,1
+PROD-BLAK-BERY,Blackberry,prod-blak-bery,INGREDIENT,l,,1
+BAKE-ESSN-ORBL,Orange Blossom,bake-essn-orbl,INGREDIENT,l,,1
+BAKE-ESSN-MANG,Mango,bake-essn-mang,INGREDIENT,l,,1
+BAKE-ESSN-BLCH,Black Cherry,bake-essn-blch,INGREDIENT,l,,1
+BAKE-ESSN-BTSC,Butterscotch,bake-essn-btsc,INGREDIENT,l,,1
+BAKE-ESSN-ELDR,Elderflower,bake-essn-eldr,INGREDIENT,l,,1
+BAKE-ESSN-RMRS,Rum & Raisin,bake-essn-rmrs,INGREDIENT,l,,1
+BAKE-ESSN-CARA,Caramel,bake-essn-cara,INGREDIENT,l,,1
+CINN,Cinnamon,cinn,INGREDIENT,kg,,1
+GING,Ginger,ging,INGREDIENT,kg,,1
+BAKE-DESI-COCO,Dessicated Coconut,bake-desi-coco,INGREDIENT,kg,,1
+BAKE-COCO-POWD,Cocoa Powder,bake-coco-powd,INGREDIENT,kg,,1
+NUTS-WHOL-HAZL,Hazelnuts,nuts-whol-hazl,INGREDIENT,kg,,1
+NUTS-WALN-PIEC,Walnuts,nuts-waln-piec,INGREDIENT,kg,,1
+BAKE-FLAK-ALMD,Flaked Almonds,bake-flak-almd,INGREDIENT,kg,,1
+CHOP-PIST,Chopped Pistachio,chop-pist,INGREDIENT,kg,,1
+SWET-JELY-BEAN,Jelly Beans,swet-jely-bean,INGREDIENT,kg,,1
+CHOC-BEAN,Chocolate Beans,choc-bean,INGREDIENT,kg,,1
+OREO-CRUM,Oreo Crumb,oreo-crum,INGREDIENT,kg,,1
+BAKE-BISC-CRUM,Biscoff Crumb,bake-bisc-crum,INGREDIENT,kg,,1
+SKIT,Skittles,skit,INGREDIENT,kg,,1
+PRET,Pretzels,pret,INGREDIENT,kg,,1
+GREE-CONF,Green Confetti,gree-conf,INGREDIENT,kg,,1
+RAIN-SPRI,Rainbow Sprinkles,rain-spri,INGREDIENT,kg,,1
+SILV-PEAR-MIX,Silver Pearl Mix,silv-pear-mix,INGREDIENT,kg,,1
+MINI-EGGS,mini eggs,mini-eggs,INGREDIENT,kg,,1
+SPRI-FROS,Sprinkletti Frosty,spri-fros,INGREDIENT,kg,,1
+MOTH-PEAR,Mother of Pearl,moth-pear,INGREDIENT,kg,,1
+PART-MIX,Party Mix,part-mix,INGREDIENT,kg,,1
+RED-GREE-WHIT,"Red, Green & White Strands",red-gree-whit,INGREDIENT,kg,,1
+GOLD-PEAR,Gold Pearls,gold-pear,INGREDIENT,kg,,1
+SPRI,Sprinkletti - Turquoise,spri,INGREDIENT,kg,,1
+SUGA-CRUN-BERR,Sugar Crunch Berry,suga-crun-berr,INGREDIENT,kg,,1
+HAPP-FLOW-MIX,happy flower mix,happ-flow-mix,INGREDIENT,kg,,1
+ORAN,Orange,oran,INGREDIENT,l,,1
+MINT,Mint,mint,INGREDIENT,l,,1
+SKY-BLUE,Sky blue,sky-blue,INGREDIENT,l,,1
+BABY-PINK,Baby Pink,baby-pink,INGREDIENT,l,,1
+CAND,Candy,cand,INGREDIENT,l,,1
+PURP,Purple,purp,INGREDIENT,l,,1
+COLR-MILL-RED,Red,colr-mill-red,INGREDIENT,l,,1
+BROW,Brown,brow,INGREDIENT,l,,1
+COLR-MILL-YELL,Yellow,colr-mill-yell,INGREDIENT,l,,1
+GREE,Green,gree,INGREDIENT,l,,1
+ROYA-BLUE,Royal blue,roya-blue,INGREDIENT,l,,1
+BLAC,Black,blac,INGREDIENT,l,,1
+WHIT,White,whit,INGREDIENT,l,,1
+BROW-2,Brown,brow-2,INGREDIENT,kg,,1
+PURP-FOND,Purple Fondant,purp-fond,INGREDIENT,kg,,1
+DARK-BLUE-FOND,Dark Blue Fondant,dark-blue-fond,INGREDIENT,kg,,1
+LIGH-BLUE-FOND,Light Blue Fondant,ligh-blue-fond,INGREDIENT,kg,,1
+PSTY-BUTR-CROI,All Butter Crossiant,psty-butr-croi,RETAIL,kg,,1
+PSTY-ALMD-CROI,Almond Crossiant,psty-almd-croi,RETAIL,kg,,1
+PAIN-AU-RAIS,Pain au Raisin,pain-au-rais,RETAIL,kg,,1
+PSTY-PAIN-CHOC,Pain au Chocolat,psty-pain-choc,RETAIL,kg,,1
+PSTY-CHEE-TWST,Cheese Twist,psty-chee-twst,RETAIL,kg,,1
+SAUS-ROLL,Sausage Rolls,saus-roll,RETAIL,kg,,1
+VEGN-CHOC-FUDG,Vegan Chocolate Cake,vegn-choc-fudg,RETAIL,each,,1
+GF-CARR-CAKE,GF Carrot Cake,gf-carr-cake,RETAIL,each,,1
+BAKE-CARA-COOK,Caramel Cake,bake-cara-cook,RETAIL,each,,1
+BANA-TOFF-LOAF,Banana & Toffee Loaf,bana-toff-loaf,RETAIL,each,,1
+LEMN-POPY-LOAF,Lemon & Poppyseed Loaf,lemn-popy-loaf,RETAIL,each,,1
+SOUR,Sourdough,sour,RETAIL,each,,1
+FOCC,Foccacia,focc,RETAIL,each,,2
+CHED,Cheddar,ched,RETAIL,kg,,1
+CARA-ONIO-CHUT,Red Onion Chutney,cara-onio-chut,RETAIL,kg,,2
+SLIC-GAMM-HAM,Ham,slic-gamm-ham,RETAIL,kg,,1
+EMME-CHEE-SLIC,Emmental,emme-chee-slic,RETAIL,kg,,1
+COLM-DIJO-MUST,Colmans Dijon Mustard,colm-dijo-must,RETAIL,kg,,1
+PEST,Pesto,pest,RETAIL,kg,,1
+CHEE-MOZZ-BALL,Fresh Mozzarella,chee-mozz-ball,RETAIL,kg,,1
+PROD-BEEF-TOMA,Beef Tomato,prod-beef-toma,RETAIL,kg,,3
+SALT-BEEF,Salt Beef,salt-beef,RETAIL,kg,,1
+SMOK-CHED-SLIC,Smoked Cheddar Slices,smok-ched-slic,RETAIL,kg,,1
+SLIC-PICK,Sliced Pickles,slic-pick,RETAIL,kg,,1
+VEGA-FLAP,Vegan Flapjack,vega-flap,RETAIL,kg,,1
+GLUT-FREE-CARA,Gluten Free Caramel Shortcake,glut-free-cara,RETAIL,each,,1
+RASP-ALMO-SLIC,Raspberry & Almond Slice,rasp-almo-slic,RETAIL,kg,,1
+SHOR,Shortbread,shor,RETAIL,kg,,1
+PACK-WHIT-NAPK,Napkins,pack-whit-napk,RETAIL,each,,1
+FAT-BARR-SAUV,Fat Barrel Sauvignon Blanc,fat-barr-sauv,RETAIL,bottle,,1
+SANG-PRIM-SOLI,Sangiovese Primi soli,sang-prim-soli,RETAIL,bottle,,1
+SEA-CHAN-PINO,Sea Change Pinot Grigio Rose,sea-chan-pino,RETAIL,bottle,,1
+SEA-CHAN-PROV,Sea Change Provence Rosé,sea-chan-prov,RETAIL,bottle,,1
+FAMI-BOTT-PROS,Famiglia Botter Prosecco,fami-bott-pros,RETAIL,bottle,,1
+CAST-PINO-GRIG,Castelli Pinot Grigio Doc,cast-pino-grig,RETAIL,bottle,,1
+MACO-LUGN-LES,Macon Lugny Les Genievres Louis,maco-lugn-les,RETAIL,bottle,,1
+WINE-PINO-NOIR,Cramele Recas Pinot Noir,wine-pino-noir,RETAIL,bottle,,1
+WINE-ALMA-MERL,Alma De Chile Merlot Reserva,wine-alma-merl,RETAIL,bottle,,1
+WINE-CHAM-PAGN,Champagne - Charles Joubert NV,wine-cham-pagn,RETAIL,bottle,,1
+PERO-NRB,Peroni 5.1% Nrb,pero-nrb,RETAIL,bottle,,1
+BEER-CORO-EXTR,Corona Extra Nrb,beer-coro-extr,RETAIL,bottle,,1
+BEER-BIRR-MORE,Birra Moretti Nrb,beer-birr-more,RETAIL,bottle,,1
+KOPP-MF,Kopparberg MF,kopp-mf,RETAIL,bottle,,1
+KOPP,Kopparberg S&L,kopp,RETAIL,bottle,,1
+ORCH-PIG-REVE,Orchard Pig Reveller,orch-pig-reve,RETAIL,bottle,,1
+BEAV-GAMA-RAY,Beavertown Gamma Ray,beav-gama-ray,RETAIL,bottle,,1
+WHIT-CLAW-RASP,White Claw Rasp Seltzer,whit-claw-rasp,RETAIL,bottle,,1
+WHIT-CLAW-BLAC,White Claw Black Cherry Seltzer,whit-claw-blac,RETAIL,bottle,,1
+EAST-SUPP,EAST SUPPLIER - 58&co Vodka (house vodka),east-supp,RETAIL,bottle,,1
+EAST-SUPP-2,EAST SUPPLIER - 58&co Apple & Hisbiscus (summer crumble),east-supp-2,RETAIL,bottle,,1
+EAST-SUPP-3,EAST SUPPLIER - 58&co Gin (house gin),east-supp-3,RETAIL,bottle,,1
+SPIR-ABSL-VODK,Absolut Vodka (house vodka),spir-absl-vodk,RETAIL,bottle,,1
+SMIR-VODK,Smirnoff Vodka,smir-vodk,RETAIL,bottle,,1
+SPIR-BELV-VODK,Belvedere Vodka,spir-belv-vodk,RETAIL,bottle,,1
+BACA-CART-BLAN,Bacardi White Rum,baca-cart-blan,RETAIL,bottle,,1
+CAPT-MORG-SPIC,Captain Morgan Spiced,capt-morg-spic,RETAIL,bottle,,1
+JACK-DANI-WHIS,Jack Daniels Whiskey,jack-dani-whis,RETAIL,bottle,,1
+BUFF-TRAC-BURB,Buffalo Trace Bourbon,buff-trac-burb,RETAIL,bottle,,1
+TANQ-GIN-43,Tanqueray Gin 43.1% (house gin),tanq-gin-43,RETAIL,bottle,,1
+TANQ-ROYA,Tanqueray Royal,tanq-roya,RETAIL,bottle,,1
+GORD-GIN,Gordons Gin,gord-gin,RETAIL,bottle,,1
+GORD-PINK-GIN,Gordons Pink Gin,gord-pink-gin,RETAIL,bottle,,1
+GLEN-12-YR,Glenfiddich 12 yr,glen-12-yr,RETAIL,bottle,,1
+WOOD-RESE,Woodford Reserve,wood-rese,RETAIL,bottle,,1
+OLME-SILV-TEQU,Olmeca Silver Tequila,olme-silv-tequ,RETAIL,bottle,,1
+OLME-GOLD,Olmeca GoldTequila,olme-gold,RETAIL,bottle,,1
+LIQR-DISA-AMAR,Amaretto Disaronno,liqr-disa-amar,RETAIL,bottle,,1
+BAIL-IRSH-CREM,Baileys Irish Cream,bail-irsh-crem,RETAIL,bottle,,1
+LIQR-CAMP-ARI,Campari,liqr-camp-ari,RETAIL,bottle,,1
+LIQR-CHAM-BORD,Chambord Rasberry,liqr-cham-bord,RETAIL,bottle,,1
+LIQR-APER-APRT,Aperol,liqr-aper-aprt,RETAIL,bottle,,1
+LIQR-COIN-TREA,Cointreau,liqr-coin-trea,RETAIL,bottle,,1
+PIMM-NO,Pimm's No.1,pimm-no,RETAIL,bottle,,1
+KAHL,Kahlua,kahl,RETAIL,bottle,,1
+GORD-MEDI-ORAN,Gordons Mediterranean Orange Gin,gord-medi-oran,RETAIL,bottle,,1
+MOZA,Mozart - Dark,moza,RETAIL,bottle,,1
+MOZA-2,Mozart - White Chocolate,moza-2,RETAIL,bottle,,1
+ANGO-ORNG-BITT,Orange Bitters,ango-orng-bitt,RETAIL,l,,1
+SPIR-ANGO-BITT,Cocktail Bitters,spir-ango-bitt,RETAIL,l,,1
+SIMP-SYRU-SUGA,Simple Syrup/Sugar Syrup,simp-syru-suga,RETAIL,l,,1
+BAKE-AGAV-SYRP,Agave Nectar,bake-agav-syrp,RETAIL,l,,2
+MART-ROSS,Martini Rosso,mart-ross,RETAIL,l,,1
+ROOI-TEA-SIMP,Rooibos Tea Simple Syrup,rooi-tea-simp,RETAIL,l,,1
+BACA-GOLD-RUM,Bacardi Gold Rum,baca-gold-rum,RETAIL,l,,1
+MONI-CHER-SYRU,Monin Cherry Syrup,moni-cher-syru,RETAIL,l,,1
+KAKU-YUZU-GIN,Kakuzo Yuzu Gin Liqueur,kaku-yuzu-gin,RETAIL,l,,1
+CHAS-RHUB-APPL,Chase Rhubarb & Apple Gin - TO REPLACE 58&CO APPLE & HIBISCUS for bham & mcr,chas-rhub-appl,RETAIL,l,,1
+BAR-STRW-SYRP,Strawberry Shrub,bar-strw-syrp,RETAIL,l,,1
+BAR-RASP-SYRP,Raspberry Shrub,bar-rasp-syrp,RETAIL,l,,1
+PEAC-PURE-FUNK,Peach Puree Funkin,peac-pure-funk,RETAIL,kg,,1
+LIME-PURE-FUNK,Lime Puree Funkin,lime-pure-funk,RETAIL,kg,,1
+PASS-FRUI-PURE,Passion Fruit Puree Funkin,pass-frui-pure,RETAIL,kg,,1
+CHER-PURE-FUNK,cherry Puree Funkin,cher-pure-funk,RETAIL,kg,,1
+MANG-PURE-FUNK,Mango Puree Funkin,mang-pure-funk,RETAIL,kg,,1
+STRA-PURE-FUNK,Strawberry Puree Funkin,stra-pure-funk,RETAIL,kg,,1
+BAR-GREN-SYRP,Monin Grenadine,bar-gren-syrp,RETAIL,l,,1
+MARL-SPAR-WATE,Marlish Sparkling Water,marl-spar-wate,RETAIL,l,,1
+STIL-BOTL-WATR,Marlish Still Water,stil-botl-watr,RETAIL,l,,1
+SOFT-COKE-BOTL,Coca Cola,soft-coke-botl,RETAIL,l,,1
+COKE-ZERO-CANS,Coca Cola Zero,coke-zero-cans,RETAIL,l,,1
+COKE-DIET-CANS,Diet Coca Cola,coke-diet-cans,RETAIL,l,,1
+SOFT-RWHT-LEMN,R.Whites Lemonade Can,soft-rwht-lemn,RETAIL,l,,1
+FEVE-TREE-GING,Fever Tree Ginger Beer,feve-tree-ging,RETAIL,l,,1
+FEVE-TREE-INDI,Fever Tree Indian Tonic Water,feve-tree-indi,RETAIL,l,,1
+FEVE-TREE-LIGH,Fever Tree Light Tonic Water,feve-tree-ligh,RETAIL,l,,1
+CRAN-JUIC,Cranberry Juice,cran-juic,RETAIL,l,,1
+JUIC-FRUT-ORG,Orange Juice,juic-frut-org,RETAIL,l,,1
+JUIC-FRUT-PIN,Pineapple Juice,juic-frut-pin,RETAIL,l,,1
+JUIC-FRUT-APP,Apple Juice,juic-frut-app,RETAIL,l,,1
+FEVE-TREE-SODA,Fever Tree Soda Water,feve-tree-soda,RETAIL,l,,1
+LOND-ESSE-PEAC,London Essence Peach & Jasmine Soda,lond-esse-peac,RETAIL,l,,1
+LOND-ESSE-ROAS,London Essence Roasted Pineapple Soda,lond-esse-roas,RETAIL,l,,1
+REDB,Redbull,redb,RETAIL,l,,1
+J20,J20 O&P,j20,RETAIL,l,,1
+J20-2,J20 A&R,j20-2,RETAIL,l,,1
+FRUI-SHOO-ORAN,Fruit Shoot Orange,frui-shoo-oran,RETAIL,l,,1
+FRUI-SHOO-APPL,Fruit Shoot Apple & Blackcurrant,frui-shoo-appl,RETAIL,l,,1
+APPL-BLAC-SQUA,Apple & Blackcurrant Squash,appl-blac-squa,RETAIL,l,,1
+CORO-CERO-NALC,Corona 0.0% Alc-free,coro-cero-nalc,RETAIL,l,,1
+NOZE,Nozecco,noze,RETAIL,l,,1
+KOPP-2,0% S&L Koppaberg,kopp-2,RETAIL,l,,1
+LUXA-CHER,Luxardo Cherries,luxa-cher,RETAIL,kg,,1
+BAMB-COCK-STIK,Cocktail Sticks,bamb-cock-stik,RETAIL,each,,1
+BAMB-COCK-SKEW,Bamboo Cocktail Skewers,bamb-cock-skew,RETAIL,each,,1
+LARG-ICE-CUBE,Large Ice Cubes,larg-ice-cube,RETAIL,kg,,1
+FIZZ-PRTY-SWET,Fizzy Cherry Sweets,fizz-prty-swet,RETAIL,kg,,1
+LEMO-JELL-SWEE,Lemon Jelly Sweets,lemo-jell-swee,RETAIL,kg,,1
+RAIN-SPRI-FROM,Rainbow Sprinkles (from CC),rain-spri-from,RETAIL,kg,,1
+BAKE-DEME-SUGR,Demerara Sugar,bake-deme-sugr,RETAIL,kg,,1
+MERI,Meringue,meri,RETAIL,kg,,1
+JASM-FLOW,Jasmin Flowers,jasm-flow,RETAIL,kg,,1
+DAIR-WHOL-MILK,Milk,dair-whol-milk,RETAIL,l,,1
+DAIR-AERO-CREM,Whipped Cream (aerosol),dair-aero-crem,RETAIL,kg,,1
+ROCK-SEA-SALT,Rock/Sea Salt (Margarita),rock-sea-salt,RETAIL,kg,,1
+DEHY-ORAN-SLIC,Dehydrated Orange Slices,dehy-oran-slic,RETAIL,kg,,1
+DRIE-APPL-CHIP,Dried Apple Chips,drie-appl-chip,RETAIL,kg,,1
+PROD-FRSH-MINT,Mint,prod-frsh-mint,RETAIL,kg,,1
+STRA,Strawberries,stra,RETAIL,kg,,2
+PROD-CUCU-MBER,Cucumber,prod-cucu-mber,RETAIL,kg,,2
+LEMO,Lemons,lemo,RETAIL,kg,,1
+LIME,Limes,lime,RETAIL,kg,,1
+ORAN-2,Oranges,oran-2,RETAIL,each,,1
+HOT-CHOC-POWD,Hot Chocolate Powder,hot-choc-powd,RETAIL,kg,,1
+COFF-BEAN,Coffee Beans,coff-bean,RETAIL,kg,,1
+DECA-COFF,Decaff Coffee - Ground,deca-coff,RETAIL,kg,,1
+TEA-BAGS,Tea Bags,tea-bags,RETAIL,each,,1
+EARL-GREY-TEA,Earl Grey Tea,earl-grey-tea,RETAIL,each,,1
+PEPP-TEA,Peppermint Tea,pepp-tea,RETAIL,each,,1
+GREE-TEA,Green Tea,gree-tea,RETAIL,each,,1
+ROOI-TEA,Rooibos Tea,rooi-tea,RETAIL,each,,1
+STRA-RASP-TEA,Strawberry & Raspberry Tea,stra-rasp-tea,RETAIL,each,,1
+DECA-TEA,Decaff Tea,deca-tea,RETAIL,each,,1
+MINI-PSTY-SELN,Pastries,mini-psty-seln,INGREDIENT,each,,1
+GF-PAST,GF Pastries,gf-past,INGREDIENT,each,,1
+FOOD-QUIC-LORR,Quiche Lorraine & Leek quiche,food-quic-lorr,INGREDIENT,each,,1
+TATE-TOTS,Tater Tots,tate-tots,INGREDIENT,each,,1
+CHIC-STRI,Chicken Strips,chic-stri,INGREDIENT,kg,,2
+GLUT-FREE-CHIC,Gluten Free Chicken Strips,glut-free-chic,INGREDIENT,kg,,1
+VEGN-CHIK-TEND,Vegan Chicken Strips,vegn-chik-tend,INGREDIENT,kg,,1
+SYSC-SIMP-PLAN,Sysco Simply Plant Based Veg & Sundried Tomato Tart,sysc-simp-plan,INGREDIENT,each,,1
+SYSC-SIMP-PLAN-2,Sysco Simply Plant Based Veg Tagine Tart,sysc-simp-plan-2,INGREDIENT,each,,1
+SAUS-ROLL-2,Sausage Rolls,saus-roll-2,INGREDIENT,each,,1
+VEGN-SAUS-ROLL,Vegan Sausage roll,vegn-saus-roll,INGREDIENT,each,,1
+PEA-SHOO,Pea Shoots,pea-shoo,INGREDIENT,kg,,1
+PROD-ROCK-LEAF,Roquette,prod-rock-leaf,INGREDIENT,kg,,1
+LETT,Lettuce,lett,INGREDIENT,kg,,1
+VINE,Vinegrette,vine,INGREDIENT,l,,1
+CARR,Carrots,carr,INGREDIENT,kg,,1
+FIGS,Figs,figs,INGREDIENT,kg,,1
+BRIT-CHEE-SELN,Cheese,brit-chee-seln,INGREDIENT,each,,1
+SNAC-CRAC-KERS,Crackers,snac-crac-kers,INGREDIENT,kg,,1
+PROD-GREN-GRAP,Red Grapes,prod-gren-grap,INGREDIENT,kg,,2
+HUMM,Hummus,humm,INGREDIENT,kg,,2
+FOOD-GUAC-MOLE,Guacamole,food-guac-mole,INGREDIENT,kg,,2
+TORT-CHIP,Tortilla Chips,tort-chip,INGREDIENT,each,,1
+FALA,Falafel,fala,INGREDIENT,kg,,1
+PORC-MUSH-ARAN,Mushroom Arancini,porc-mush-aran,INGREDIENT,kg,,2
+SALS,Salsa,sals,INGREDIENT,kg,,1
+PITT-MIXD-OLIV,Olives,pitt-mixd-oliv,INGREDIENT,kg,,1
+CRIS,Crisps,cris,INGREDIENT,kg,,1
+POPC,Popcorn,popc,INGREDIENT,kg,,2
+HALL-FRIE,Halloumi Fries,hall-frie,INGREDIENT,kg,,1
+TATE-TOTS-2,Tater Tots,tate-tots-2,INGREDIENT,kg,,1
+FLAT,Flatbreads,flat,INGREDIENT,each,,1
+COND-PIZA-SAUC,Pizza/Marinara Sauce,cond-piza-sauc,INGREDIENT,kg,,1
+HALA-BEEF-PEPP,Beef Pepperoni,hala-beef-pepp,INGREDIENT,kg,,1
+GRAT-MOZZ,Grated Mozzarella,grat-mozz,INGREDIENT,kg,,1
+GRAT-CHED-NACH,Grated Cheddar (nachos only),grat-ched-nach,INGREDIENT,kg,,1
+PITT-BREA,Pitta Breads,pitt-brea,INGREDIENT,each,,1
+TORT-CHIP-2,Tortilla Chips,tort-chip-2,INGREDIENT,kg,,1
+VEGA-CHIC-STRI,Vegan Chicken Strips,vega-chic-stri,INGREDIENT,kg,,1
+VEGA-CHEE,Vegan Cheese,vega-chee,INGREDIENT,kg,,1
+HOT-HONE,Hot Honey,hot-hone,INGREDIENT,kg,,1
+PROD-FRSH-BASL,Basil,prod-frsh-basl,INGREDIENT,kg,,1
+COND-GARL-SPRD,Garlic Spread,cond-garl-sprd,INGREDIENT,kg,,1
+SAVR-CAUL-WING,Cauliflower wings,savr-caul-wing,INGREDIENT,kg,,1
+CHEE-BUFF-MOZZ,Whole Mozzarella,chee-buff-mozz,INGREDIENT,kg,,1
+CHEE-CAME-BERT,Camembert,chee-came-bert,INGREDIENT,kg,,1
+BABY-SALA,Baby Salad,baby-sala,INGREDIENT,kg,,1
+MAYO,Mayonnaise,mayo,INGREDIENT,l,,1
+KETC,Ketchup,ketc,INGREDIENT,l,,1
+RANC,Ranch,ranc,INGREDIENT,l,,1
+COND-CHIL-JAM,Chilli Jam,cond-chil-jam,INGREDIENT,l,,1
+BBQ,BBQ,bbq,INGREDIENT,l,,1
+VEGA-MAYO,Vegan Mayonnaise,vega-mayo,INGREDIENT,l,,1
+OLIV-OIL,Olive Oil,oliv-oil,INGREDIENT,l,,1
+DAIR-SOUR-CREM,Sour Cream,dair-sour-crem,INGREDIENT,kg,,1
+BUFF-SAUC,Buffalo Sauce,buff-sauc,INGREDIENT,kg,,1
+COND-BALS-GLAZ,Balsamic Glaze,cond-bals-glaz,INGREDIENT,l,,1
+SCHW-SRIR-SEAS,Schwartz Sriracha Seasoning,schw-srir-seas,INGREDIENT,kg,,1
+OLIV,Olives,oliv,INGREDIENT,kg,,1
+CHIL-PEAN,Chilli Peanuts,chil-pean,INGREDIENT,kg,,1
+SALT-MIXE-NUTS,Salted Mixed Nuts & Corn,salt-mixe-nuts,INGREDIENT,kg,,1
+KETL-CHIP-SALT,Kettle Salted,ketl-chip-salt,INGREDIENT,kg,,1
+KETT-SALT-VINE,Kettle Salt & Vinegar,kett-salt-vine,INGREDIENT,kg,,1
+KETT-CHEE-ONIO,Kettle Cheese & Onion,kett-chee-onio,INGREDIENT,kg,,1
+KETL-CHIP-SWCH,Kettle Sweet Chilli,ketl-chip-swch,INGREDIENT,kg,,1
+LARG-BIG-BAKE,Large 'The Big Bakes' cake boxes with handle,larg-big-bake,MERCH,each,,1
+SMAL-BIG-BAKE,Small 'The Big Bakes' cake boxes with handle,smal-big-bake,MERCH,each,,1
+PIZZ-BOXE,Pizza Boxes,pizz-boxe,MERCH,each,,1
+CHIC-TAKE-BOXE,Chicken Takeaway Boxes,chic-take-boxe,MERCH,each,,1
+GREA-PROO-BAGS,Grease Proof Bags,grea-proo-bags,MERCH,each,,1
+12OZ-PAPE-CUPS,12oz paper cups + white plastic lids,12oz-pape-cups,MERCH,each,,1
+16OZ-PAPE-CUPS,16oz paper cups + white plastic lids,16oz-pape-cups,MERCH,each,,1
+4OZ-PAPE-CUPS,4oz paper cups + white plastic lids,4oz-pape-cups,MERCH,each,,1
+14OZ-PLAS-CUPS,14oz Plastic Cups + Clear Plastic Flat Lids,14oz-plas-cups,MERCH,each,,1
+27-25-CM,27 x 25 cm Parchment Food Paper,27-25-cm,MERCH,each,,1
+BIG-LOND-BAKE,The Big London Bake Logo Pin,big-lond-bake,MERCH,each,,1
+BIG-MANC-BAKE,The Big Manchester Bake Logo Pin,big-manc-bake,MERCH,each,,1
+BIG-BIRM-BAKE,The Big Birmingham Bake Logo Pin,big-birm-bake,MERCH,each,,1
+BIG-LIVE-BAKE,The Big Liverpool Bake Logo Pin,big-live-bake,MERCH,each,,1
+BIG-BAKE-LOGO,The Big Bakes Logo Pin,big-bake-logo,MERCH,each,,1
+BIG-BAKE-LOGO-2,The Big Bakes Logo Pin (Gold variant),big-bake-logo-2,MERCH,each,,1
+BIRT-BAKE-LOGO,The Birthday Baker Logo Pin,birt-bake-logo,MERCH,each,,1
+YOUN-BAKE-LOGO,The Young Baker Logo Pin,youn-bake-logo,MERCH,each,,1
+BAKE-HATS,Bakers hats,bake-hats,MERCH,each,,1
+LOND-SET-VICT,London Set: Victoria Sponge + City Cake + Mixer Pin,lond-set-vict,MERCH,each,,1
+MANC-SET-MANC,Manchester Set: Manchester Tart Cake + Logo + Oven Mit Pin,manc-set-manc,MERCH,each,,1
+BIRM-SET-CADB,Birmingham Set: Cadbury Bar + Logo + Flour Bag Pin,birm-set-cadb,MERCH,each,,1
+LIVE-SET-WET,Liverpool Set: Wet Nelly + Logo + Scales Pin,live-set-wet,MERCH,each,,1
+TEAL-TBB-APRO,Teal TBB Apron,teal-tbb-apro,MERCH,each,,1
+ORAN-BIRT-BAKE,Orange Birthday Baker Apron,oran-birt-bake,MERCH,each,,1
+WHIT-BRID-BE,White Bride to Be Apron,whit-brid-be,MERCH,each,,1
+PEAC-BRID-TRIB,Peach Bride Tribe Apron,peac-brid-trib,MERCH,each,,1
+CAKE-IT-XS,Cake it till you make it - size XS,cake-it-xs,MERCH,each,,1
+CAKE-IT-S,Cake it till you make it - size S,cake-it-s,MERCH,each,,1
+CAKE-IT-M,Cake it till you make it - size M,cake-it-m,MERCH,each,,1
+CAKE-IT-L,Cake it till you make it - size L,cake-it-l,MERCH,each,,1
+CAKE-IT-XL,Cake it till you make it - size XL,cake-it-xl,MERCH,each,,1
+CAKE-IT-XXL,Cake it till you make it - size XXL,cake-it-xxl,MERCH,each,,1
+GREY-TBB-XS,Grey TBB Logo - size XS,grey-tbb-xs,MERCH,each,,1
+GREY-TBB-S,Grey TBB Logo - size S,grey-tbb-s,MERCH,each,,1
+GREY-TBB-M,Grey TBB Logo - size M,grey-tbb-m,MERCH,each,,1
+GREY-TBB-L,Grey TBB Logo - size L,grey-tbb-l,MERCH,each,,1
+GREY-TBB-XL,Grey TBB Logo - size XL,grey-tbb-xl,MERCH,each,,1
+GREY-TBB-XXL,Grey TBB Logo - size XXL,grey-tbb-xxl,MERCH,each,,1
+LEGE-BAKI-XS,Legend in the Baking - size XS,lege-baki-xs,MERCH,each,,1
+LEGE-BAKI-S,Legend in the Baking - size S,lege-baki-s,MERCH,each,,1
+LEGE-BAKI-M,Legend in the Baking - size M,lege-baki-m,MERCH,each,,1
+LEGE-BAKI-L,Legend in the Baking - size L,lege-baki-l,MERCH,each,,1
+LEGE-BAKI-XL,Legend in the Baking - size XL,lege-baki-xl,MERCH,each,,1
+LEGE-BAKI-XXL,Legend in the Baking - size XXL,lege-baki-xxl,MERCH,each,,1
+COTT-BASI-TOTE,Cotton Basic Tote Bag,cott-basi-tote,MERCH,each,,1
+WOOD-SPOO,Wooden Spoons,wood-spoo,MERCH,each,,1
+CAKE-SLIC,Cake Slicers,cake-slic,MERCH,each,,1
+HATS,Hats,hats,MERCH,each,,1
+GOLD-EGG-PINS,Golden egg pins,gold-egg-pins,MERCH,each,,1
