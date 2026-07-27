@@ -20,12 +20,19 @@ export const Route = createFileRoute('/_authed/pwa/consumption')({
   component: ConsumptionScreen,
 });
 
+type EntryMode = 'CONSUMED' | 'REMAINING';
+
 interface FormLine {
   productId: string;
   name: string;
   stockUom: string;
   expectedQty: number;
   actualQty: number;
+  /** What's left, when this line is in REMAINING mode. The server derives the
+   *  usage from stock on hand — the form never guesses it, because the opening
+   *  it would have to assume is exactly what the server refuses to invent. */
+  remainingQty: number;
+  entryMode: EntryMode;
   wastageQty: number;
   wastageReason: string;
 }
@@ -77,6 +84,8 @@ function ConsumptionScreen() {
         stockUom: r.stockUom,
         expectedQty: r.expectedQty,
         actualQty: r.expectedQty, // pre-filled with expected; baker edits
+        remainingQty: 0,
+        entryMode: 'CONSUMED' as EntryMode,
         wastageQty: 0,
         wastageReason: '',
       })),
@@ -102,7 +111,9 @@ function ConsumptionScreen() {
       covers,
       lines: lines.map((l) => ({
         productId: l.productId,
+        entryMode: l.entryMode,
         actualQty: l.actualQty,
+        remainingQty: l.remainingQty,
         wastageQty: l.wastageQty || undefined,
         wastageReason: l.wastageReason || null,
       })),
@@ -200,23 +211,55 @@ function ConsumptionScreen() {
       <div className="scroll">
         {lines.length === 0 && <div className="empty">No ingredients for that recipe.</div>}
         {lines.map((l, i) => {
+          const remaining = l.entryMode === 'REMAINING';
+          // In REMAINING mode the row edits `remainingQty`; the usage is the
+          // server's to derive, so the form deliberately shows no consumed
+          // figure it hasn't been told.
+          const qty = remaining ? l.remainingQty : l.actualQty;
           const variance = Math.round((l.actualQty - l.expectedQty) * 100) / 100;
           const dot = l.wastageQty > 0 ? 'warn' : variance === 0 ? 'done' : 'warn';
+          const bump = (by: number) =>
+            setLine(i, remaining
+              ? { remainingQty: Math.max(0, Math.round((l.remainingQty + by) * 100) / 100) }
+              : { actualQty: Math.max(0, Math.round((l.actualQty + by) * 100) / 100) });
           return (
-            <div className="row" key={l.productId}>
+            <div className={`row mode-${remaining ? 'remaining' : 'consumed'}`} key={l.productId}>
               <div className={`status status-${dot}`} aria-hidden="true">{dot === 'done' ? '●' : '!'}</div>
               <div className="meta">
                 <div className="name">{l.name}</div>
+                {/* Both words AND colour — the number means opposite things in
+                    the two modes, so this must never be read at a glance. */}
+                <button
+                  type="button"
+                  className={`mode-toggle ${remaining ? 'remaining' : 'consumed'}`}
+                  aria-pressed={remaining}
+                  onClick={() =>
+                    setLine(i, {
+                      entryMode: remaining ? 'CONSUMED' : 'REMAINING',
+                      // Reset the figure being switched away from, so a value
+                      // typed as "used" can't survive as "left".
+                      ...(remaining ? { remainingQty: 0 } : { actualQty: 0 }),
+                    })
+                  }
+                >
+                  {remaining ? "ENTERING: WHAT'S LEFT — tap to switch" : 'ENTERING: AMOUNT USED — tap to switch'}
+                </button>
                 <div className="hint book">
                   Expected {l.expectedQty} {l.stockUom}
-                  {variance !== 0 && <span className="badge warn" style={{ marginLeft: 6 }}>Δ {variance > 0 ? '+' : ''}{variance}</span>}
+                  {!remaining && variance !== 0 && <span className="badge warn" style={{ marginLeft: 6 }}>Δ {variance > 0 ? '+' : ''}{variance}</span>}
                   {l.wastageQty > 0 && <span className="badge" style={{ marginLeft: 6 }}>waste {l.wastageQty}{l.wastageReason ? ` · ${l.wastageReason}` : ''}</span>}
                 </div>
               </div>
               <div className="qty-controls">
-                <button className="step" aria-label="Decrease" onClick={() => setLine(i, { actualQty: Math.max(0, Math.round((l.actualQty - 1) * 100) / 100) })}>−</button>
-                <button className="qty-value" aria-label="Type actual" onClick={() => setActualTarget(i)}>{l.actualQty}</button>
-                <button className="step" aria-label="Increase" onClick={() => setLine(i, { actualQty: Math.round((l.actualQty + 1) * 100) / 100 })}>+</button>
+                <button className="step" aria-label="Decrease" onClick={() => bump(-1)}>−</button>
+                <button
+                  className={`qty-value ${remaining ? 'remaining' : ''}`}
+                  aria-label={remaining ? `Type what is left of ${l.name}` : `Type amount of ${l.name} used`}
+                  onClick={() => setActualTarget(i)}
+                >
+                  {qty}
+                </button>
+                <button className="step" aria-label="Increase" onClick={() => bump(1)}>+</button>
                 <button className={`zero${l.wastageQty > 0 ? ' on' : ''}`} aria-label="Wastage" onClick={() => setWasteTarget(i)}>⚠</button>
               </div>
             </div>
@@ -233,10 +276,13 @@ function ConsumptionScreen() {
       {at && actualTarget !== null && (
         <KeypadSheet
           title={`${at.name} — actual (${at.stockUom})`}
-          initial={at.actualQty}
+          initial={at.entryMode === 'REMAINING' ? at.remainingQty : at.actualQty}
           onCancel={() => setActualTarget(null)}
           onConfirm={(v) => {
-            setLine(actualTarget, { actualQty: v });
+            setLine(
+              actualTarget,
+              at.entryMode === 'REMAINING' ? { remainingQty: v } : { actualQty: v },
+            );
             setActualTarget(null);
           }}
         />

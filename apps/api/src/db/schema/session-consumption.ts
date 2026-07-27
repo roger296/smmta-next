@@ -80,8 +80,27 @@ export const sessionConsumptionLines = pgTable(
     /** Expected = recipe × covers (snapshotted at submit, stock_uom). */
     expectedQty: numeric('expected_qty', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Actual used, as confirmed by the baker (the last-applied value — the
-     *  amend delta is computed against it). */
+     *  amend delta is computed against it). Canonical whichever way it was
+     *  entered: in REMAINING mode this is the DERIVED opening − remaining. */
     actualQty: numeric('actual_qty', { precision: 18, scale: 3 }).notNull().default('0'),
+    /**
+     * How the baker gave us this line — 'CONSUMED' (how much went in) or
+     * 'REMAINING' (what's left in the tub). Per line, not per session: some
+     * things are easier to weigh at the end than to track as you go.
+     */
+    entryMode: varchar('entry_mode', { length: 12 }).notNull().default('CONSUMED'),
+    /**
+     * On-hand at the moment of submit, snapshotted for REMAINING lines.
+     *
+     * Stored rather than recomputed because stock keeps moving: recomputing
+     * `opening − remaining` a week later would silently give a different
+     * answer. Together with `remainingQty` it also preserves what the baker
+     * actually typed, so an audit can tell "4 used" from "16 left" instead of
+     * seeing only the derived figure.
+     */
+    openingQty: numeric('opening_qty', { precision: 18, scale: 3 }),
+    /** What the baker said was left. Only set in REMAINING mode. */
+    remainingQty: numeric('remaining_qty', { precision: 18, scale: 3 }),
     wastageQty: numeric('wastage_qty', { precision: 18, scale: 3 }).notNull().default('0'),
     wastageReason: varchar('wastage_reason', { length: 200 }),
     unitCost: numeric('unit_cost', { precision: 18, scale: 4 }),

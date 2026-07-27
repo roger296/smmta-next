@@ -189,3 +189,49 @@
 .touch-app .notice { background: var(--accent-soft); color: #14387a; padding: 12px 14px; border-radius: var(--t-radius); font-size: 14px; margin: 14px 16px; }
 .touch-app .notice.warn { background: var(--warn-soft); color: #7a4e08; }
 .touch-app .empty { text-align: center; color: var(--muted); padding: 48px 24px; font-size: 15px; }
+
+/* ── Consumption entry mode ────────────────────────────────────────────────
+   A line can be filed as "amount used" or "what's left". The SAME number box
+   means opposite things in the two modes, so the difference is carried by
+   colour AND words AND a left edge — never by one signal a tired baker at the
+   end of a shift could miss. Amber is deliberately not the green/red already
+   used for variance and wastage, so it reads as "different mode", not "wrong".
+*/
+.row.mode-remaining {
+  background: color-mix(in srgb, #f59e0b 8%, transparent);
+  border-left: 4px solid #f59e0b;
+}
+.row.mode-consumed {
+  border-left: 4px solid transparent;
+}
+
+.mode-toggle {
+  display: inline-block;
+  margin: 2px 0 4px;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  /* Comfortably tappable on a shared iPad without shifting the row height. */
+  min-height: 28px;
+}
+.mode-toggle.consumed {
+  color: var(--color-muted-foreground, #64748b);
+}
+.mode-toggle.remaining {
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 18%, transparent);
+}
+
+/* The value itself is tinted too — the box is what a baker actually looks at
+   while typing, and it is the thing whose meaning has changed. */
+.qty-value.remaining {
+  background: color-mix(in srgb, #f59e0b 22%, transparent);
+  border-color: #f59e0b;
+  color: #7c2d12;
+}

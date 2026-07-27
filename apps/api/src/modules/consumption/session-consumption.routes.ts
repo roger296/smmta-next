@@ -35,12 +35,23 @@ const submitSchema = z.object({
   covers: z.coerce.number().min(0).optional(),
   lines: z
     .array(
-      z.object({
-        productId: z.string().uuid(),
-        actualQty: z.coerce.number().min(0),
-        wastageQty: z.coerce.number().min(0).optional(),
-        wastageReason: z.string().max(200).nullable().optional(),
-      }),
+      z
+        .object({
+          productId: z.string().uuid(),
+          /** How the baker entered this line. Defaults to CONSUMED so existing
+           *  clients are unaffected. */
+          entryMode: z.enum(['CONSUMED', 'REMAINING']).optional(),
+          actualQty: z.coerce.number().min(0).optional(),
+          remainingQty: z.coerce.number().min(0).optional(),
+          wastageQty: z.coerce.number().min(0).optional(),
+          wastageReason: z.string().max(200).nullable().optional(),
+        })
+        // Reject at the edge rather than let the service infer a zero: a line
+        // that names no quantity is a bug in the client, not a zero count.
+        .refine(
+          (l) => (l.entryMode === 'REMAINING' ? l.remainingQty != null : l.actualQty != null),
+          { message: 'Give actualQty for a CONSUMED line, or remainingQty for a REMAINING one.' },
+        ),
     )
     .min(1)
     .max(500),
@@ -137,6 +148,15 @@ export async function sessionConsumptionRoutes(app: FastifyInstance) {
       const data = await service.submit(parsed.data, { roles: user.roles, siteId: user.siteId });
       return reply.status(201).send({ success: true, data });
     } catch (err) {
+      // A line that can't be turned into a defensible usage figure is the
+      // baker's to resolve — tell them which item and why, don't 500.
+      if ((err as Error).name === 'ConsumptionEntryError') {
+        return reply.status(400).send({
+          success: false,
+          error: (err as Error).message,
+          productId: (err as { productId?: string }).productId,
+        });
+      }
       if ((err as Error).message === 'forbidden_site_scope') {
         return reply.status(403).send({ success: false, error: 'forbidden_site_scope' });
       }

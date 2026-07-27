@@ -267,6 +267,13 @@
       "when": 1785143759693,
       "tag": "0037_widen_supplier_product_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785143759694,
+      "tag": "0038_consumption_entry_mode",
+      "breakpoints": true
     }
   ]
 }

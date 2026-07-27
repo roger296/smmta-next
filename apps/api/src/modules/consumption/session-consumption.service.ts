@@ -28,11 +28,49 @@ import { BatchService } from '../stock/batch.service.js';
 export type SessionConsumption = typeof sessionConsumption.$inferSelect;
 export type SessionConsumptionLine = typeof sessionConsumptionLines.$inferSelect;
 
+/**
+ * How a baker gave us a line.
+ *
+ * 'CONSUMED'  — they typed how much went in.
+ * 'REMAINING' — they typed what's left in the tub, and we derive the usage
+ *               from the stock we believe was there.
+ *
+ * Chosen per line, not per session: flour is easy to weigh out as you go,
+ * whereas it is far easier to weigh what's left of the fondant at the end.
+ */
+export type ConsumptionEntryMode = 'CONSUMED' | 'REMAINING';
+
 export interface SubmitLineInput {
   productId: string;
-  actualQty: number;
+  /** Required in CONSUMED mode; ignored (and derived) in REMAINING mode. */
+  actualQty?: number;
+  /** Required in REMAINING mode: what's left. */
+  remainingQty?: number;
+  entryMode?: ConsumptionEntryMode;
   wastageQty?: number;
   wastageReason?: string | null;
+}
+
+/**
+ * A line that can't be turned into a defensible usage figure.
+ *
+ * Thrown rather than absorbed: in REMAINING mode the alternative is inventing
+ * a number — and an invented consumption figure silently moves stock and feeds
+ * the materials cost, where nobody would ever spot it.
+ */
+export class ConsumptionEntryError extends Error {
+  constructor(
+    readonly productId: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ConsumptionEntryError';
+  }
+}
+
+/** Consumed = what we thought was there − what the baker says is left. */
+export function derivedActualQty(openingQty: number, remainingQty: number): number {
+  return Math.round((openingQty - remainingQty) * 1000) / 1000;
 }
 
 export interface SubmitInput {
@@ -145,7 +183,8 @@ export class SessionConsumptionService {
       const expectedQty = exp?.expectedQty ?? 0;
       const unitCost = exp?.unitCost ?? (await this.productCost(line.productId, companyId));
       const stockUom = exp?.stockUom ?? (await this.productUom(line.productId, companyId));
-      const newActual = line.actualQty;
+      const resolved = await this.resolveLineQty(line, input.siteId, companyId);
+      const newActual = resolved.actualQty;
       const newWastage = line.wastageQty ?? 0;
       const variance = round3(newActual - expectedQty);
       materialsCost += newActual * (unitCost ?? 0);
@@ -170,6 +209,9 @@ export class SessionConsumptionService {
             unitCost: unitCost != null ? String(unitCost) : null,
             variance: String(variance),
             stockUom,
+            entryMode: resolved.entryMode,
+            openingQty: resolved.openingQty != null ? String(resolved.openingQty) : null,
+            remainingQty: resolved.remainingQty != null ? String(resolved.remainingQty) : null,
             updatedAt: new Date(),
           })
           .where(eq(sessionConsumptionLines.id, existingLine.id));
@@ -185,6 +227,9 @@ export class SessionConsumptionService {
           unitCost: unitCost != null ? String(unitCost) : null,
           variance: String(variance),
           stockUom,
+          entryMode: resolved.entryMode,
+          openingQty: resolved.openingQty != null ? String(resolved.openingQty) : null,
+          remainingQty: resolved.remainingQty != null ? String(resolved.remainingQty) : null,
         });
       }
 
@@ -328,6 +373,80 @@ export class SessionConsumptionService {
     });
     return p?.stockUom ?? 'each';
   }
+
+  /**
+   * Turn a submitted line into a usage figure, whichever way it was entered.
+   *
+   * CONSUMED is a pass-through. REMAINING reads what stock we believe is on
+   * hand and subtracts — and refuses outright when that can't be done
+   * honestly, because the fallbacks are all worse:
+   *
+   *  - no stock record at all ⇒ treating opening as 0 would derive a NEGATIVE
+   *    usage, which posts as stock arriving. A site that has never counted
+   *    would quietly inflate its own inventory every session.
+   *  - remaining > opening ⇒ either a delivery landed mid-session or the
+   *    opening is wrong. Either way the honest answer is "ask a human", not a
+   *    negative consumption movement.
+   *
+   * The opening is snapshotted onto the line so the derivation stays checkable
+   * after stock has moved on.
+   */
+  private async resolveLineQty(
+    line: SubmitLineInput,
+    siteId: string,
+    companyId: string,
+  ): Promise<{
+    actualQty: number;
+    entryMode: ConsumptionEntryMode;
+    openingQty: number | null;
+    remainingQty: number | null;
+  }> {
+    const mode: ConsumptionEntryMode = line.entryMode ?? 'CONSUMED';
+
+    if (mode === 'CONSUMED') {
+      const qty = line.actualQty ?? 0;
+      if (qty < 0) {
+        throw new ConsumptionEntryError(line.productId, 'Used quantity cannot be negative.');
+      }
+      return { actualQty: qty, entryMode: 'CONSUMED', openingQty: null, remainingQty: null };
+    }
+
+    const remaining = line.remainingQty;
+    if (remaining == null) {
+      throw new ConsumptionEntryError(
+        line.productId,
+        'Entering what is left needs a remaining quantity.',
+      );
+    }
+    if (remaining < 0) {
+      throw new ConsumptionEntryError(line.productId, 'Remaining quantity cannot be negative.');
+    }
+
+    const onHandRaw = await this.levels.getOnHand(line.productId, siteId, companyId);
+    const opening = Number(onHandRaw);
+    if (!Number.isFinite(opening)) {
+      throw new ConsumptionEntryError(
+        line.productId,
+        "This site has no stock figure for this item yet, so what's left can't be turned " +
+          'into what was used. Count it in a stock-take first, or enter the amount used.',
+      );
+    }
+    if (remaining > opening) {
+      throw new ConsumptionEntryError(
+        line.productId,
+        `More left (${remaining}) than we think was there (${opening}). If a delivery ` +
+          'arrived mid-session, book it in first; otherwise enter the amount used.',
+      );
+    }
+
+    return {
+      actualQty: derivedActualQty(opening, remaining),
+      entryMode: 'REMAINING',
+      openingQty: opening,
+      remainingQty: remaining,
+    };
+  }
+
 }
 
 function round3(n: number): number {
