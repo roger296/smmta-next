@@ -15,6 +15,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { StockTakeLiteService } from './stocktake-lite.service.js';
+import { CountCatalogueService } from './catalogue.service.js';
+import { getSingletonCompanyId } from '../../shared/auth/company.js';
 
 const syncSchema = z.object({
   period: z.string().min(1).max(40),
@@ -81,6 +83,14 @@ export async function stockTakeLiteRoutes(app: FastifyInstance) {
     }
     const data = await service.sync(parsed.data);
     return { success: true, data };
+  });
+
+  /** The count sheet itself, from the product catalogue. The PWA fetches this
+   *  on load and caches it, so the list follows the database rather than
+   *  whatever was baked into the bundle at build time. */
+  app.get('/stocktake-lite/catalogue', async (request, reply) => {
+    const items = await new CountCatalogueService().list(getSingletonCompanyId());
+    return reply.send({ success: true, data: { items } });
   });
 
   app.get('/stocktake-lite/sites', async (request, reply) => {

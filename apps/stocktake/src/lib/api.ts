@@ -1,4 +1,4 @@
-import type { CountEntry, CountsMap, Session } from './types';
+import type { CatalogueItem, CountEntry, CountsMap, Session } from './types';
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
 
@@ -8,6 +8,15 @@ function url(path: string): string {
 
 function headers(code: string): HeadersInit {
   return { 'Content-Type': 'application/json', 'x-stocktake-code': code };
+}
+
+/** The count sheet, from the product catalogue. Throws when offline or the
+ *  code is wrong so the caller can fall back to its cache. */
+export async function fetchCatalogue(accessCode: string): Promise<CatalogueItem[]> {
+  const res = await fetch(url('/catalogue'), { headers: headers(accessCode) });
+  if (!res.ok) throw new Error(`catalogue ${res.status}`);
+  const body = (await res.json()) as { data?: { items?: CatalogueItem[] } };
+  return body.data?.items ?? [];
 }
 
 /** Entries that need pushing: counted and not yet synced. A cleared entry

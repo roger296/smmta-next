@@ -3,8 +3,13 @@ export interface CatalogueItem {
   area: string | null;
   section: string | null;
   name: string;
-  pack: string | null;
-  supplier: string | null;
+  /** What the counter is counting in — kg, l, each, bottle. From the product
+   *  catalogue, so it is the same unit the stock system values against. */
+  uom?: string;
+  /** Only present on the bundled fallback catalogue; the API no longer sends
+   *  pack/supplier hints — they were more confusing than helpful. */
+  pack?: string | null;
+  supplier?: string | null;
   order: number;
 }
 

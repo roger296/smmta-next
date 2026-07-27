@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { catalogue, groupCatalogue, SITES } from '../lib/catalogue';
+import { groupCatalogue, loadCatalogue, SITES } from '../lib/catalogue';
 import { loadCounts, saveCounts, setCount } from '../lib/storage';
 import { dirtyCounted, pushCounts } from '../lib/api';
 import type { CatalogueItem, CountsMap, Session } from '../lib/types';
@@ -31,13 +31,31 @@ export function CountScreen({ session, onExit }: CountScreenProps) {
   const [typeTarget, setTypeTarget] = useState<TypeTarget | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const groups = useMemo(() => groupCatalogue(catalogue.items), []);
+  // The sheet comes from the product catalogue, fetched on load. Until it
+  // arrives we render nothing rather than the stale bundle, so a counter never
+  // starts against a list that is about to be replaced under them.
+  const [items, setItems] = useState<CatalogueItem[] | null>(null);
+  const [catalogueSource, setCatalogueSource] = useState<'live' | 'cache' | 'bundled'>('live');
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadCatalogue(session.accessCode).then((r) => {
+      if (cancelled) return;
+      setItems(r.items);
+      setCatalogueSource(r.source);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.accessCode]);
+
+  const groups = useMemo(() => groupCatalogue(items ?? []), [items]);
   const customEntries = useMemo(
     () => Object.values(counts).filter((c) => c.isCustom),
     [counts],
   );
 
-  const total = catalogue.items.length + customEntries.length;
+  const total = (items?.length ?? 0) + customEntries.length;
   const countedTotal = Object.values(counts).filter((c) => c.counted).length;
   const pct = total === 0 ? 0 : Math.round((countedTotal / total) * 100);
   const siteName = SITES.find((s) => s.slug === session.siteSlug)?.name ?? session.siteSlug;
@@ -95,7 +113,8 @@ export function CountScreen({ session, onExit }: CountScreenProps) {
     itemKey: item.key,
     itemName: item.name,
     section: item.section,
-    packSize: item.pack,
+    // Live catalogue lines carry no pack hint — only the bundled fallback does.
+    packSize: item.pack ?? null,
     isCustom: false,
   });
 
@@ -132,6 +151,12 @@ export function CountScreen({ session, onExit }: CountScreenProps) {
         <div className="topbar-row" style={{ minHeight: 0, paddingBottom: 8 }}>
           <span className="topbar-stat">
             {countedTotal} / {total} counted
+            {items !== null && catalogueSource !== 'live' && (
+              // Say so rather than let a stale list pass as the current one.
+              <span className="topbar-stale">
+                {catalogueSource === 'cache' ? ' · offline list' : ' · built-in list'}
+              </span>
+            )}
           </span>
         </div>
         <div className="progress-track">
@@ -174,7 +199,7 @@ export function CountScreen({ session, onExit }: CountScreenProps) {
                 <ItemRow
                   key={item.key}
                   name={item.name}
-                  hint={[item.pack, item.supplier].filter(Boolean).join(' · ') || null}
+                  hint={item.uom ? `Counting in ${item.uom}` : null}
                   isCustom={false}
                   entry={counts[item.key]}
                   onSet={(q) => apply(baseForItem(item), q)}

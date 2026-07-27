@@ -191,3 +191,13 @@ button { font-family: inherit; cursor: pointer; }
 .linkbtn { background: none; border: none; color: var(--accent); font-weight: 600; font-size: 14px; padding: 0; }
 .table-num { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 48px; text-align: right; }
 .notice { background: var(--accent-soft); color: #14387a; padding: 10px 12px; border-radius: var(--radius); font-size: 14px; margin-bottom: 14px; }
+
+/* The counting unit, under the item name. Deliberately more legible than the
+   old pack/supplier hint it replaced — not knowing whether you are counting
+   kilograms or sacks is the difference between a count and a guess. */
+.hint {
+  font-weight: 500;
+}
+.topbar-stale {
+  opacity: 0.75;
+}
