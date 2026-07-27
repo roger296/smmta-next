@@ -1,62 +1,217 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { useDashboardKpis } from '@/features/dashboard/use-dashboard';
-import { ORDER_STATUSES } from '@/features/orders/use-orders';
-import { formatDate, formatMoney } from '@/lib/format';
-import { CircleDollarSign, Package, ShoppingCart, Warehouse } from 'lucide-react';
+import {
+  useDashboardOverview,
+  type DashboardOverview,
+  type DashboardSite,
+} from '@/features/dashboard/use-dashboard';
+import { formatMoney } from '@/lib/format';
+import { ClipboardCheck, ShoppingBasket, Warehouse } from 'lucide-react';
 
 export const Route = createFileRoute('/_authed/')({
   component: DashboardPage,
 });
 
-interface KpiCardProps {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  value: string;
-  description?: string;
+/** Shown in place of a tile's table when that tile can't answer yet. Kept
+ *  deliberately plain and instructive — during setup these ARE the dashboard's
+ *  most useful content, because they say what still needs configuring. */
+function NotReady({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="p-6 text-sm text-[var(--color-muted-foreground)]">{children}</p>
+  );
 }
 
-function KpiCard({ icon: Icon, title, value, description }: KpiCardProps) {
+function Tile({
+  icon: Icon,
+  title,
+  subtitle,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-[var(--color-muted-foreground)]">
-          {title}
-        </CardTitle>
+      <CardHeader className="flex flex-row items-center gap-2 pb-3">
         <Icon className="h-4 w-4 text-[var(--color-muted-foreground)]" aria-hidden />
+        <div>
+          <CardTitle className="text-base">{title}</CardTitle>
+          {subtitle && (
+            <p className="text-xs text-[var(--color-muted-foreground)]">{subtitle}</p>
+          )}
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && <CardDescription className="mt-1">{description}</CardDescription>}
-      </CardContent>
+      <CardContent className="p-0">{children}</CardContent>
     </Card>
   );
 }
 
+const Th = ({ children, right }: { children: React.ReactNode; right?: boolean }) => (
+  <th className={`px-4 py-2 font-medium ${right ? 'text-right' : 'text-left'}`}>{children}</th>
+);
+const Td = ({ children, right }: { children: React.ReactNode; right?: boolean }) => (
+  <td className={`px-4 py-2 ${right ? 'text-right' : ''}`}>{children}</td>
+);
+
+function siteName(sites: DashboardSite[], id: string): string {
+  return sites.find((s) => s.id === id)?.name ?? 'Unknown site';
+}
+
+function SessionsTile({ data }: { data: DashboardOverview }) {
+  const { sessions, sites, date } = data;
+  return (
+    <Tile
+      icon={ClipboardCheck}
+      title="Consumption statements"
+      subtitle={`Bake sessions on ${date}`}
+    >
+      {!sessions.available ? (
+        <NotReady>{sessions.reason}</NotReady>
+      ) : sessions.rows.every((r) => r.sessions === 0) ? (
+        <NotReady>No bake sessions recorded for {date}.</NotReady>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
+            <tr>
+              <Th>Site</Th>
+              <Th right>Sessions</Th>
+              <Th right>Filed</Th>
+              <Th right>Outstanding</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {sessions.rows.map((r) => (
+              <tr key={r.siteId} className="border-b border-[var(--color-border)] last:border-b-0">
+                <Td>{siteName(sites, r.siteId)}</Td>
+                <Td right>{r.sessions}</Td>
+                <Td right>{r.filed}</Td>
+                <Td right>
+                  {r.missing === 0 ? (
+                    <Badge variant="secondary">All in</Badge>
+                  ) : (
+                    <Badge variant="destructive">{r.missing} missing</Badge>
+                  )}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Tile>
+  );
+}
+
+function StockTile({ data }: { data: DashboardOverview }) {
+  const { stock, sites } = data;
+  return (
+    <Tile icon={Warehouse} title="Stock held" subtitle="Value on hand by site">
+      {stock.rows.length === 0 ? (
+        <NotReady>{stock.reason ?? 'No stock recorded.'}</NotReady>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
+            <tr>
+              <Th>Site</Th>
+              <Th right>Lines</Th>
+              <Th right>Value</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {stock.rows.map((r) => (
+              <tr key={r.siteId} className="border-b border-[var(--color-border)] last:border-b-0">
+                <Td>{siteName(sites, r.siteId)}</Td>
+                <Td right>{r.linesTracked}</Td>
+                <Td right>{formatMoney(r.value, r.currencyCode)}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Tile>
+  );
+}
+
+function ReorderTile({ data }: { data: DashboardOverview }) {
+  const { reorder, sites } = data;
+  const nothingFlagged = reorder.rows.every(
+    (r) => r.belowReorderPoint === 0 && r.openProposals === 0,
+  );
+  return (
+    <Tile icon={ShoppingBasket} title="Needs ordering" subtitle="Items at or below their reorder point">
+      {nothingFlagged ? (
+        <NotReady>
+          {reorder.reason ?? 'Nothing below its reorder point — all sites are stocked.'}
+        </NotReady>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
+            <tr>
+              <Th>Site</Th>
+              <Th right>Below point</Th>
+              <Th right>Proposed orders</Th>
+              <Th>Examples</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {reorder.rows.map((r) => (
+              <tr key={r.siteId} className="border-b border-[var(--color-border)] last:border-b-0">
+                <Td>{siteName(sites, r.siteId)}</Td>
+                <Td right>
+                  {r.belowReorderPoint > 0 ? (
+                    <Badge variant="destructive">{r.belowReorderPoint}</Badge>
+                  ) : (
+                    0
+                  )}
+                </Td>
+                <Td right>{r.openProposals}</Td>
+                <Td>
+                  <span className="text-[var(--color-muted-foreground)]">
+                    {r.topItems.map((i) => i.name).join(', ') || '—'}
+                  </span>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Tile>
+  );
+}
+
 function DashboardPage() {
-  const { data, isLoading, isError } = useDashboardKpis();
+  const { data, isLoading, isError, error } = useDashboardOverview();
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 w-full" />
-          ))}
-        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-40 w-full" />
+        ))}
       </div>
     );
   }
 
+  // Only reached if the single overview call itself fails — individual tiles
+  // report their own problems inline rather than blanking the page.
   if (isError || !data) {
     return (
       <Card>
         <CardContent className="p-6" role="alert">
           <p className="text-sm text-[var(--color-destructive)]">
-            Failed to load dashboard data.
+            Could not load the dashboard.
+            {error instanceof Error ? ` ${error.message}` : ''}
+          </p>
+          <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
+            The rest of the app is unaffected — try{' '}
+            <Link to="/stock/by-site" className="text-[var(--color-primary)] hover:underline">
+              Stock by site
+            </Link>
+            .
           </p>
         </CardContent>
       </Card>
@@ -68,88 +223,14 @@ function DashboardPage() {
       <div>
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="text-sm text-[var(--color-muted-foreground)]">
-          Real-time overview of your business.
+          What needs attention across all {data.sites.length} sites.
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          icon={ShoppingCart}
-          title="Open orders"
-          value={String(data.openOrdersCount)}
-          description={`${formatMoney(data.openOrdersValue)} in value`}
-        />
-        <KpiCard
-          icon={Warehouse}
-          title="Stock value"
-          value={formatMoney(data.stockValue)}
-          description="Across all warehouses"
-        />
-        <KpiCard
-          icon={CircleDollarSign}
-          title="Unpaid invoices"
-          value={formatMoney(data.unpaidInvoicesTotal)}
-          description="Customer debtors"
-        />
-        <KpiCard
-          icon={Package}
-          title="Unpaid bills"
-          value={formatMoney(data.unpaidBillsTotal)}
-          description="Supplier creditors"
-        />
+      <SessionsTile data={data} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <StockTile data={data} />
+        <ReorderTile data={data} />
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent orders</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {data.recentOrders.length === 0 ? (
-            <p className="p-6 text-sm text-[var(--color-muted-foreground)]">No orders yet.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
-                <tr>
-                  <th className="px-4 py-2 text-left font-medium">Order #</th>
-                  <th className="px-4 py-2 text-left font-medium">Customer</th>
-                  <th className="px-4 py-2 text-left font-medium">Date</th>
-                  <th className="px-4 py-2 text-left font-medium">Status</th>
-                  <th className="px-4 py-2 text-right font-medium">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.recentOrders.map((o) => {
-                  const meta = ORDER_STATUSES.find((s) => s.value === o.status);
-                  return (
-                    <tr key={o.id} className="border-b border-[var(--color-border)] last:border-b-0">
-                      <td className="px-4 py-2">
-                        <Link
-                          to="/orders/$id"
-                          params={{ id: o.id }}
-                          className="text-[var(--color-primary)] hover:underline"
-                        >
-                          {o.orderNumber}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2">{o.customerName ?? o.customerId.slice(0, 8)}</td>
-                      <td className="px-4 py-2">{formatDate(o.orderDate)}</td>
-                      <td className="px-4 py-2">
-                        <Badge
-                          variant={(meta?.color ?? 'outline') as 'default' | 'secondary' | 'destructive' | 'outline'}
-                        >
-                          {meta?.label ?? o.status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        {formatMoney(o.total, o.currencyCode)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

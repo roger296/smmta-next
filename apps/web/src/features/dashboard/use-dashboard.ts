@@ -1,64 +1,56 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch, type PaginatedResult } from '@/lib/api-client';
-import type { Invoice, Order, SupplierInvoice, StockReportRow } from '@/lib/api-types';
+import { apiFetch } from '@/lib/api-client';
 
-export interface DashboardKpis {
-  openOrdersCount: number;
-  openOrdersValue: number;
-  stockValue: number;
-  unpaidInvoicesTotal: number;
-  unpaidBillsTotal: number;
-  recentOrders: Order[];
+export interface DashboardSite {
+  id: string;
+  name: string;
+  slug: string | null;
+  currencyCode: string;
 }
 
-/** Aggregates several endpoints into a single dashboard summary. */
-export function useDashboardKpis() {
-  return useQuery<DashboardKpis>({
-    queryKey: ['dashboard'],
-    queryFn: async () => {
-      // Run in parallel
-      const [openOrders, invoices, bills, stock] = await Promise.all([
-        apiFetch<PaginatedResult<Order>>('/orders', {
-          searchParams: { pageSize: 20 },
-        }),
-        apiFetch<PaginatedResult<Invoice>>('/invoices', {
-          searchParams: { pageSize: 100, status: 'ISSUED' },
-        }).catch(() => ({ data: [], total: 0, page: 1, pageSize: 100, totalPages: 0 })),
-        apiFetch<PaginatedResult<SupplierInvoice>>('/supplier-invoices', {
-          searchParams: { pageSize: 100 },
-        }).catch(() => ({ data: [], total: 0, page: 1, pageSize: 100, totalPages: 0 })),
-        apiFetch<StockReportRow[]>('/stock-items/report').catch(() => []),
-      ]);
+export interface SessionRow {
+  siteId: string;
+  sessions: number;
+  filed: number;
+  missing: number;
+  missingSessionIds: string[];
+}
 
-      const openStatuses = new Set([
-        'DRAFT',
-        'CONFIRMED',
-        'ALLOCATED',
-        'PARTIALLY_ALLOCATED',
-        'BACK_ORDERED',
-        'READY_TO_SHIP',
-        'PARTIALLY_SHIPPED',
-      ]);
-      const open = openOrders.data.filter((o) => openStatuses.has(o.status));
-      const openOrdersValue = open.reduce((s, o) => s + Number(o.total), 0);
+export interface StockRow {
+  siteId: string;
+  value: number;
+  currencyCode: string;
+  linesTracked: number;
+}
 
-      const stockValue = stock.reduce((s, r) => s + Number(r.totalValue), 0);
-      const unpaidInvoicesTotal = invoices.data.reduce(
-        (s, i) => s + Number(i.outstandingAmount),
-        0,
-      );
-      const unpaidBillsTotal = bills.data
-        .filter((b) => b.status !== 'PAID' && b.status !== 'VOIDED')
-        .reduce((s, b) => s + Number(b.outstandingAmount), 0);
+export interface ReorderRow {
+  siteId: string;
+  belowReorderPoint: number;
+  openProposals: number;
+  topItems: Array<{ productId: string; name: string; onHand: number; reorderPoint: number | null }>;
+}
 
-      return {
-        openOrdersCount: open.length,
-        openOrdersValue,
-        stockValue,
-        unpaidInvoicesTotal,
-        unpaidBillsTotal,
-        recentOrders: openOrders.data.slice(0, 10),
-      };
-    },
+export interface DashboardOverview {
+  date: string;
+  sites: DashboardSite[];
+  sessions: { available: boolean; reason?: string; rows: SessionRow[] };
+  stock: { available: boolean; reason?: string; rows: StockRow[]; total: number };
+  reorder: { available: boolean; reason?: string; rows: ReorderRow[] };
+}
+
+/**
+ * One call for the whole landing page.
+ *
+ * The previous version fanned out to four endpoints and aggregated in the
+ * browser, with a catch on only three of them — so one unconfigured
+ * integration produced "Failed to load dashboard data" and nothing else. The
+ * API now answers in a single shape where each section reports its own
+ * availability, so a section that can't answer degrades on its own.
+ */
+export function useDashboardOverview() {
+  return useQuery<DashboardOverview>({
+    queryKey: ['dashboard', 'overview'],
+    queryFn: () => apiFetch<DashboardOverview>('/dashboard/overview'),
+    staleTime: 60_000,
   });
 }

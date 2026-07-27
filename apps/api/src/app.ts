@@ -15,6 +15,7 @@ import { customerRoutes } from './modules/customers/customer.routes.js';
 import { orderRoutes } from './modules/orders/order.routes.js';
 import { integrationRoutes } from './modules/orders/integration.routes.js';
 import { apiKeyAdminRoutes } from './modules/admin/api-keys.routes.js';
+import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { channelRoutes } from './modules/channels/channel.routes.js';
 import { siteRoutes } from './modules/sites/site.routes.js';
@@ -98,6 +99,9 @@ export async function buildApp() {
 
   // Admin: service API key management (Prompt 2 of buldmeawebstore.md).
   await app.register(apiKeyAdminRoutes, { prefix: '/api/v1' });
+
+  // Auto-Stock: the operator landing page (all sites at a glance).
+  await app.register(dashboardRoutes, { prefix: '/api/v1' });
 
   // Auth: email/password login. Issues the same JWT shape every other
   // route already consumes; only the issuance path is new.
