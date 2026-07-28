@@ -110,6 +110,12 @@ export const updateProductSchema = createProductSchema.partial();
 
 export const productQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
+  /** Repeatable — ?itemKind=INGREDIENT&itemKind=PACKAGING. Normalised to an
+   *  array so a single value and a list behave the same. */
+  itemKind: z
+    .union([z.enum(['MERCH', 'RETAIL', 'INGREDIENT', 'PACKAGING']), z.array(z.enum(['MERCH', 'RETAIL', 'INGREDIENT', 'PACKAGING']))])
+    .optional()
+    .transform((v) => (v == null ? undefined : Array.isArray(v) ? v : [v])),
   categoryId: z.string().uuid().optional(),
   manufacturerId: z.string().uuid().optional(),
   productType: z.enum(['PHYSICAL', 'SERVICE']).optional(),

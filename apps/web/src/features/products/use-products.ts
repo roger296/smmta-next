@@ -7,6 +7,7 @@ export interface ProductListQuery {
   page?: number;
   pageSize?: number;
   search?: string;
+  itemKind?: Array<'MERCH' | 'RETAIL' | 'INGREDIENT' | 'PACKAGING'>;
   categoryId?: string;
   manufacturerId?: string;
   productType?: 'PHYSICAL' | 'SERVICE';

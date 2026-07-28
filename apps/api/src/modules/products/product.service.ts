@@ -1,4 +1,4 @@
-import { eq, and, ilike, isNull, sql, count } from 'drizzle-orm';
+import { and, count, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
   products,
@@ -32,7 +32,7 @@ export class ProductService {
   // ----------------------------------------------------------------
 
   async list(companyId: string, query: ProductQueryInput) {
-    const { page, pageSize, search, categoryId, manufacturerId, productType } = query;
+    const { page, pageSize, search, categoryId, manufacturerId, productType, itemKind } = query;
     const offset = paginationOffset(page, pageSize);
 
     const conditions = [
@@ -47,6 +47,10 @@ export class ProductService {
     }
     if (manufacturerId) conditions.push(eq(products.manufacturerId, manufacturerId));
     if (productType) conditions.push(eq(products.productType, productType));
+    // Recipes consume ingredients and packaging, never retail stock or
+    // cleaning supplies — the picker asks for the kinds it can legitimately
+    // offer rather than filtering a page after the fact and coming up short.
+    if (itemKind?.length) conditions.push(inArray(products.itemKind, itemKind));
 
     const where = and(...conditions);
 

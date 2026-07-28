@@ -17,7 +17,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/lib/format';
 import { useSites } from '@/features/sites/use-sites';
-import { useProductsList } from '@/features/products/use-products';
+import { ProductPicker } from '@/components/ui/product-picker';
 import {
   useRecipes,
   useBakes,
@@ -38,18 +38,9 @@ function RecipesPage() {
   const { data: recipes, isLoading } = useRecipes();
   const { data: bakes } = useBakes();
   const { data: sites } = useSites();
-  // Ingredient / packaging products are what recipes consume.
-  const { data: productPage } = useProductsList({ pageSize: 500 });
   const create = useCreateRecipe();
   const { toast } = useToast();
 
-  const ingredients = React.useMemo(
-    () =>
-      (productPage?.data ?? []).filter(
-        (p) => p.itemKind === 'INGREDIENT' || p.itemKind === 'PACKAGING',
-      ),
-    [productPage],
-  );
   const siteName = React.useCallback(
     (id: string | null) => (id ? sites?.find((s) => s.id === id)?.name ?? id.slice(0, 8) : 'Global'),
     [sites],
@@ -149,18 +140,11 @@ function RecipesPage() {
             {lines.map((line, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="flex-1">
-                  <Select value={line.productId} onValueChange={(v) => setLine(i, { productId: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pick an ingredient…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ingredients.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name} ({p.stockUom})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ProductPicker
+                    value={line.productId}
+                    onChange={(v) => setLine(i, { productId: v })}
+                    itemKind={['INGREDIENT', 'PACKAGING']}
+                  />
                 </div>
                 <Input
                   type="number"
