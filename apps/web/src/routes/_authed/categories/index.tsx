@@ -32,14 +32,8 @@ function CategoriesPage() {
       <div>
         <h1 className="text-2xl font-semibold">Categories</h1>
         <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-          The Clothes Shop's two-tier taxonomy. Product counts reflect
-          everything currently assigned. To rename, reorder, hide, or
-          add categories, edit{' '}
-          <code className="font-mono text-xs">apps/api/src/modules/catalogue/taxonomy.ts</code>{' '}
-          and redeploy. To change which products land where, edit{' '}
-          <code className="font-mono text-xs">apps/api/src/modules/catalogue/category-mapping.ts</code>{' '}
-          and re-run{' '}
-          <code className="font-mono text-xs">npm run assign-categories -w @smmta/api</code>.
+          Stock uses a two-tier taxonomy. Product counts reflect everything
+          currently assigned.
         </p>
       </div>
 

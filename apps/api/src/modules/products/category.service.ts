@@ -138,23 +138,37 @@ export class CategoryService {
       where: and(eq(categories.companyId, companyId), isNull(categories.deletedAt)),
       orderBy: (c, { asc }) => [asc(c.sortOrder), asc(c.name)],
     });
-    const counts = await this.db
-      .select({
-        categoryId: products.categoryId,
-        n: sql<number>`count(*)::int`,
-      })
-      .from(products)
-      .where(
-        and(
-          eq(products.companyId, companyId),
-          isNull(products.deletedAt),
-        ),
-      )
-      .groupBy(products.categoryId);
-    const countMap = new Map<string, number>();
-    for (const r of counts) {
-      if (r.categoryId) countMap.set(r.categoryId, Number(r.n));
+    // A product reaches a category two ways: the single `category_id` FK, and
+    // the product_category_mappings join table. The stock-take sheet uses the
+    // JOIN TABLE, because 27 products are counted in two places at once and one
+    // FK can only name one of them — so counting the FK alone reported 0 for
+    // every category while 386 count lines were mapped.
+    //
+    // Counted as DISTINCT products per category so a product linked both ways
+    // isn't counted twice.
+    const [direct, mapped] = await Promise.all([
+      this.db
+        .select({ categoryId: products.categoryId, productId: products.id })
+        .from(products)
+        .where(and(eq(products.companyId, companyId), isNull(products.deletedAt))),
+      this.db
+        .select({
+          categoryId: productCategoryMappings.categoryId,
+          productId: productCategoryMappings.productId,
+        })
+        .from(productCategoryMappings)
+        .innerJoin(products, eq(productCategoryMappings.productId, products.id))
+        .where(and(eq(products.companyId, companyId), isNull(products.deletedAt))),
+    ]);
+    const perCategory = new Map<string, Set<string>>();
+    for (const r of [...direct, ...mapped]) {
+      if (!r.categoryId) continue;
+      const set = perCategory.get(r.categoryId) ?? new Set<string>();
+      set.add(r.productId);
+      perCategory.set(r.categoryId, set);
     }
+    const countMap = new Map<string, number>();
+    for (const [id, set] of perCategory) countMap.set(id, set.size);
     const tops = allCats.filter((c) => c.parentId === null);
     return tops.map((top) => {
       const children = allCats
