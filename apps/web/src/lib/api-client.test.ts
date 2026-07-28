@@ -130,6 +130,42 @@ describe('apiFetch', () => {
     expect(url).not.toContain('empty=');
   });
 
+  it('repeats the key for an array rather than comma-joining it', async () => {
+    // String(['INGREDIENT','PACKAGING']) is "INGREDIENT,PACKAGING" — one value
+    // that an enum-validated parameter rejects. The request 400s, the caller
+    // renders an empty list, and the screen reads "no matches" as though the
+    // catalogue were empty. That is how the ingredient search silently found
+    // nothing while the products sat right there.
+    let url = '';
+    server.use(
+      http.get(`${API}/search`, ({ request }) => {
+        url = request.url;
+        return HttpResponse.json({ success: true, data: null });
+      }),
+    );
+    await apiFetch('/search', {
+      searchParams: { itemKind: ['INGREDIENT', 'PACKAGING'], q: 'flour' },
+    });
+    const params = new URL(url).searchParams;
+    expect(params.getAll('itemKind')).toEqual(['INGREDIENT', 'PACKAGING']);
+    expect(params.get('itemKind')).not.toBe('INGREDIENT,PACKAGING');
+    expect(params.get('q')).toBe('flour');
+  });
+
+  it('skips empty entries inside an array, and an array that is entirely empty', async () => {
+    let url = '';
+    server.use(
+      http.get(`${API}/search`, ({ request }) => {
+        url = request.url;
+        return HttpResponse.json({ success: true, data: null });
+      }),
+    );
+    await apiFetch('/search', { searchParams: { a: ['X', '', undefined], b: [] } });
+    const params = new URL(url).searchParams;
+    expect(params.getAll('a')).toEqual(['X']);
+    expect(params.has('b')).toBe(false);
+  });
+
   it('does NOT throw when VITE_API_BASE_URL is a relative path like /api/v1', async () => {
     // Simulates production build where API_BASE_URL is relative — the URL constructor
     // would otherwise throw "Invalid URL". Regression test for the bug hit on first deploy.

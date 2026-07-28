@@ -108,14 +108,27 @@ export const updateProductGroupSchema = createProductGroupSchema.partial();
 
 export const updateProductSchema = createProductSchema.partial();
 
+const ITEM_KINDS = ['MERCH', 'RETAIL', 'INGREDIENT', 'PACKAGING'] as const;
+
 export const productQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
   /** Repeatable — ?itemKind=INGREDIENT&itemKind=PACKAGING. Normalised to an
    *  array so a single value and a list behave the same. */
   itemKind: z
-    .union([z.enum(['MERCH', 'RETAIL', 'INGREDIENT', 'PACKAGING']), z.array(z.enum(['MERCH', 'RETAIL', 'INGREDIENT', 'PACKAGING']))])
+    .union([z.string(), z.array(z.string())])
     .optional()
-    .transform((v) => (v == null ? undefined : Array.isArray(v) ? v : [v])),
+    // Accept ?k=a&k=b, a single value, OR a comma-joined "a,b". Being liberal
+    // here matters: the strict version rejected the comma form with a 400 that
+    // the UI rendered as "no matches", which reads as an empty catalogue
+    // rather than a broken request.
+    .transform((v) => {
+      if (v == null) return undefined;
+      const parts = (Array.isArray(v) ? v : [v]).flatMap((x) => String(x).split(','));
+      const valid = parts
+        .map((x) => x.trim().toUpperCase())
+        .filter((x) => ITEM_KINDS.includes(x as (typeof ITEM_KINDS)[number]));
+      return valid.length ? (valid as Array<(typeof ITEM_KINDS)[number]>) : undefined;
+    }),
   categoryId: z.string().uuid().optional(),
   manufacturerId: z.string().uuid().optional(),
   productType: z.enum(['PHYSICAL', 'SERVICE']).optional(),

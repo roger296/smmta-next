@@ -35,9 +35,11 @@ export interface PaginatedResult<T> {
   totalPages: number;
 }
 
+type SearchParamValue = string | number | boolean | undefined | null;
+
 interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
-  searchParams?: Record<string, string | number | boolean | undefined | null>;
+  searchParams?: Record<string, SearchParamValue | SearchParamValue[]>;
 }
 
 function buildUrl(path: string, searchParams?: ApiFetchOptions['searchParams']): string {
@@ -57,6 +59,18 @@ function buildUrl(path: string, searchParams?: ApiFetchOptions['searchParams']):
   if (searchParams) {
     for (const [key, value] of Object.entries(searchParams)) {
       if (value === undefined || value === null || value === '') continue;
+      // An array must become REPEATED keys — ?k=a&k=b. String(['a','b']) is
+      // "a,b", a single value that no enum-validated parameter will accept, so
+      // the request 400s and the caller sees an empty result rather than an
+      // error. That is exactly how the ingredient search silently found
+      // nothing: itemKind arrived as "INGREDIENT,PACKAGING".
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          if (v === undefined || v === null || v === '') continue;
+          url.searchParams.append(key, String(v));
+        }
+        continue;
+      }
       url.searchParams.set(key, String(value));
     }
   }
