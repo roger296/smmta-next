@@ -1,11 +1,15 @@
 import { and, count, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
-  products,
+  productCategoryMappings,
   productGroups,
   productImages,
-  productCategoryMappings,
+  products,
+  recipeLines,
+  recipes,
+  sites,
   stockItems,
+  stockLevels,
 } from '../../db/schema/index.js';
 import type {
   CreateProductInput,
@@ -24,6 +28,56 @@ import { paginationOffset, paginationMeta } from '../../shared/utils/pagination.
  *
  * Source: Libraries/DSB.Service/Products/ProductServices.cs
  */
+/**
+ * Why a product cannot be deleted, with enough detail to act on.
+ *
+ * A bare "cannot delete, product is in use" makes the user hunt through five
+ * sites and every recipe to find out why. This carries the actual sites and
+ * quantities, and the actual recipes, so the message can say where to go.
+ */
+export class ProductInUseError extends Error {
+  constructor(
+    readonly productName: string,
+    readonly stock: Array<{ siteName: string; onHand: string; stockUom: string }>,
+    readonly recipeUses: Array<{ recipeId: string; bake: string; siteName: string; version: number }>,
+  ) {
+    super(ProductInUseError.describe(productName, stock, recipeUses));
+    this.name = 'ProductInUseError';
+  }
+
+  static describe(
+    productName: string,
+    stock: Array<{ siteName: string; onHand: string; stockUom: string }>,
+    recipeUses: Array<{ recipeId: string; bake: string; siteName: string; version: number }>,
+  ): string {
+    const parts: string[] = [];
+    if (stock.length) {
+      const where = stock
+        .map((s) => `${s.siteName} (${Number(s.onHand)} ${s.stockUom})`)
+        .join(', ');
+      parts.push(
+        `it still has stock at ${stock.length === 1 ? '' : `${stock.length} sites: `}${where}`,
+      );
+    }
+    if (recipeUses.length) {
+      const where = recipeUses
+        .map((r) => `${r.bake} (${r.siteName}, v${r.version})`)
+        .join(', ');
+      parts.push(
+        `it is an ingredient in ${recipeUses.length === 1 ? '' : `${recipeUses.length} recipes: `}${where}`,
+      );
+    }
+    const why = parts.join(', and ');
+    const fix = [
+      stock.length ? 'adjust the stock to zero' : null,
+      recipeUses.length ? 'remove it from those recipes' : null,
+    ]
+      .filter(Boolean)
+      .join(' and ');
+    return `“${productName}” cannot be deleted because ${why}. To delete it, ${fix} first.`;
+  }
+}
+
 export class ProductService {
   private db = getDb();
 
@@ -330,7 +384,83 @@ export class ProductService {
   // Soft Delete
   // ----------------------------------------------------------------
 
+  /**
+   * Soft-delete a product, unless something still depends on it.
+   *
+   * Two blocks, both learned the hard way. Deleting a product that a recipe
+   * uses leaves that recipe silently expecting less — a bake form that asks
+   * for nothing, and a materials cost that quietly drops. Deleting one that
+   * still has stock strands the count: the ledger keeps a balance for an item
+   * that no longer appears anywhere to be counted or reconciled.
+   *
+   * @throws ProductInUseError naming the sites and recipes involved.
+   */
   async delete(id: string, companyId: string): Promise<boolean> {
+    const product = await this.db.query.products.findFirst({
+      where: and(eq(products.id, id), eq(products.companyId, companyId), isNull(products.deletedAt)),
+      columns: { id: true, name: true },
+    });
+    if (!product) return false;
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    const [levels, siteRows, uses] = await Promise.all([
+      this.db
+        .select({
+          siteId: stockLevels.siteId,
+          onHand: stockLevels.onHand,
+        })
+        .from(stockLevels)
+        .where(and(eq(stockLevels.companyId, companyId), eq(stockLevels.productId, id))),
+      this.db.query.sites.findMany({ where: eq(sites.companyId, companyId) }),
+      this.db
+        .select({
+          recipeId: recipes.id,
+          bake: recipes.bake,
+          siteId: recipes.siteId,
+          version: recipes.version,
+          effectiveTo: recipes.effectiveTo,
+        })
+        .from(recipeLines)
+        .innerJoin(recipes, eq(recipeLines.recipeId, recipes.id))
+        .where(and(eq(recipeLines.companyId, companyId), eq(recipeLines.productId, id))),
+    ]);
+
+    const siteName = (siteId: string | null) =>
+      siteId ? (siteRows.find((s) => s.id === siteId)?.name ?? siteId.slice(0, 8)) : 'Global';
+
+    // Any non-zero balance counts — a negative one is a discrepancy that still
+    // needs resolving, not a reason to let the product vanish.
+    const stock = levels
+      .filter((l) => Number(l.onHand) !== 0)
+      .map((l) => ({
+        siteName: siteName(l.siteId),
+        onHand: String(l.onHand),
+        stockUom: '',
+      }));
+
+    // An expired recipe version is history and should not block; one that is
+    // still in force, or starts later, would break.
+    const active = uses.filter((u) => !u.effectiveTo || u.effectiveTo >= today);
+    const recipeUses = active.map((u) => ({
+      recipeId: u.recipeId,
+      bake: u.bake,
+      siteName: siteName(u.siteId),
+      version: u.version,
+    }));
+
+    if (stock.length > 0 || recipeUses.length > 0) {
+      const uom = await this.db.query.products.findFirst({
+        where: eq(products.id, id),
+        columns: { stockUom: true },
+      });
+      throw new ProductInUseError(
+        product.name,
+        stock.map((s) => ({ ...s, stockUom: uom?.stockUom ?? '' })),
+        recipeUses,
+      );
+    }
+
     const result = await this.db
       .update(products)
       .set({ deletedAt: new Date(), updatedAt: new Date() })

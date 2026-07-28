@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,7 +17,7 @@ import {
   useUpdateProduct,
 } from '@/features/products/use-products';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Trash2 } from 'lucide-react';
 
 export const Route = createFileRoute('/_authed/products/$id')({
   component: ProductDetailPage,
@@ -30,6 +31,11 @@ function ProductDetailPage() {
   const updateMutation = useUpdateProduct();
   const deleteMutation = useDeleteProduct();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  // A refusal-to-delete is long ("still has stock at 3 sites: … and is an
+  // ingredient in 2 recipes: …") and actionable. A toast shows it for four
+  // seconds and then takes it away, which is the opposite of helpful, so it
+  // gets a place on the page until the user has dealt with it.
+  const [blockedBy, setBlockedBy] = React.useState<string | null>(null);
 
   if (isLoading) return <Skeleton className="h-96 w-full" />;
   if (isError || !data) {
@@ -70,6 +76,27 @@ function ProductDetailPage() {
           Delete
         </Button>
       </div>
+
+      {blockedBy && (
+        <Card className="border-[var(--color-destructive)]">
+          <CardContent className="flex items-start gap-3 p-4" role="alert">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[var(--color-destructive)]" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">This product cannot be deleted yet</p>
+              <p className="text-sm text-[var(--color-muted-foreground)]">{blockedBy}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setBlockedBy(null)}
+              aria-label="Dismiss"
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="general">
         <TabsList>
@@ -164,6 +191,13 @@ function ProductDetailPage() {
             toast({ title: 'Product deleted' });
             navigate({ to: '/products' });
           } catch (err) {
+            // 409 = still in use. Not an error the user can retry past; it is
+            // a list of things to go and do first.
+            if (err instanceof ApiError && err.status === 409) {
+              setConfirmDelete(false);
+              setBlockedBy(err.message);
+              return;
+            }
             toast({
               variant: 'destructive',
               title: 'Delete failed',

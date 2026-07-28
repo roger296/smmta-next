@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
-import { ProductService, ProductValidationError } from './product.service.js';
+import { ProductInUseError, ProductService, ProductValidationError } from './product.service.js';
 import {
   createProductSchema,
   updateProductSchema,
@@ -67,9 +67,24 @@ export async function productRoutes(app: FastifyInstance) {
   app.delete('/products/:id', async (request, reply) => {
     const user = getAuthUser(request);
     const { id } = request.params as { id: string };
-    const deleted = await productService.delete(id, user.companyId);
-    if (!deleted) return reply.status(404).send({ success: false, error: 'Product not found' });
-    return { success: true, message: 'Product deleted' };
+    try {
+      const deleted = await productService.delete(id, user.companyId);
+      if (!deleted) return reply.status(404).send({ success: false, error: 'Product not found' });
+      return { success: true, message: 'Product deleted' };
+    } catch (err) {
+      // 409, not 500: the request was well-formed and the server is fine — the
+      // product is simply still in use. The detail rides along so the UI can
+      // show where the stock is and which recipes use it, rather than making
+      // someone check five sites and every recipe by hand.
+      if (err instanceof ProductInUseError) {
+        return reply.status(409).send({
+          success: false,
+          error: err.message,
+          details: { stock: err.stock, recipes: err.recipeUses },
+        });
+      }
+      throw err;
+    }
   });
 
   // ── GET /products/:id/stock ───────────────────────────────────
