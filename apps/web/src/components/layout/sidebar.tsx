@@ -102,12 +102,13 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
     <aside
       aria-label="Main navigation"
       className={cn(
-        'flex w-60 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-card)]',
+        'flex w-60 shrink-0 flex-col bg-[var(--color-shell)] text-[var(--color-shell-foreground)]',
         alwaysShow ? 'block w-full border-r-0' : 'hidden md:flex',
       )}
     >
-      <div className="flex h-14 shrink-0 items-center border-b border-[var(--color-border)] px-4">
-        <span className="text-base font-semibold">Auto-Stock</span>
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--color-shell-border)] px-4">
+        <img src="/logos/big-bakes.png" alt="" aria-hidden className="h-7 w-auto" />
+        <span className="text-base font-semibold tracking-tight text-white">Auto-Stock</span>
       </div>
 
       {/* Only the list scrolls, so the sister-app buttons stay put. */}
@@ -120,9 +121,11 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
               to={item.to}
               className={cn(
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                // Salmon for the current page: the pin colour is the one thing
+                // that reliably wins against a navy ground.
                 active === item.to
-                  ? 'bg-[var(--color-accent)] text-[var(--color-accent-foreground)] font-medium'
-                  : 'text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-foreground)]',
+                  ? 'bg-[var(--color-shell-active)] text-[var(--color-shell-active-foreground)] font-semibold'
+                  : 'text-[var(--color-shell-muted)] hover:bg-[var(--color-shell-hover)] hover:text-white',
               )}
             >
               <Icon className="h-4 w-4" />
@@ -132,8 +135,8 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
         })}
       </nav>
 
-      <div className="shrink-0 border-t border-[var(--color-border)] p-2">
-        <p className="px-3 pb-1 text-xs font-medium text-[var(--color-muted-foreground)]">
+      <div className="shrink-0 border-t border-[var(--color-shell-border)] p-2">
+        <p className="px-3 pb-1 text-xs font-medium text-[var(--color-shell-muted)]">
           Other apps
         </p>
         <div className="flex flex-col gap-2">
@@ -145,7 +148,7 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
               rel="noopener noreferrer"
               // min-h-14 keeps these comfortably tappable on a shared iPad —
               // they're the one thing here people reach for with a full hand.
-              className="flex min-h-14 items-center gap-3 rounded-md border border-[var(--color-border)] px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-foreground)]"
+              className="flex min-h-14 items-center gap-3 rounded-md border border-[var(--color-shell-border)] px-3 py-2 text-sm font-medium text-[var(--color-shell-foreground)] transition-colors hover:bg-[var(--color-shell-hover)] hover:text-white"
             >
               <img src={app.logo} alt="" aria-hidden className="h-8 w-8 shrink-0 object-contain" />
               <span>{app.label}</span>
