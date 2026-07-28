@@ -42,7 +42,19 @@ export const sessionConsumption = pgTable(
     /** The cake baked this session (free-form menu item) — what the recipe
      *  expected was computed against. */
     bake: varchar('bake', { length: 200 }),
-    /** Covers (guest count) this session — for per-cover food-cost metrics. */
+    /**
+     * ⚠️ THIS IS A TABLE COUNT, not a guest count, despite the name.
+     *
+     * Guests at Big Bakes bake in teams, so ingredient use is driven by how
+     * many TABLES ran, not how many people attended. The session leader types
+     * it on the first page of the consumption form; nothing polls it from
+     * BumbleBee.
+     *
+     * The column keeps its original name because the whole chain — service
+     * input, API payload, expected-consumption maths, reports — already calls
+     * it `covers`, and a partial rename would leave the two meanings mixed.
+     * Recipes are now expressed per table to match.
+     */
     covers: integer('covers').notNull().default(0),
     /** Bumped on each amend; drives the per-version movement idempotency key. */
     version: integer('version').notNull().default(0),

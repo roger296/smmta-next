@@ -15,6 +15,12 @@ import { products, recipeLines, recipes } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import type { Recipe, RecipeLine } from './recipe.service.js';
 
+/**
+ * NOTE ON UNITS: `covers` throughout this module is the number of TABLES the
+ * session ran, entered by the session leader. Teams bake together, so tables
+ * drive ingredient use rather than head count, and recipe quantities are
+ * expressed per table. The name is historical.
+ */
 export interface ExpectedLine {
   productId: string;
   /**

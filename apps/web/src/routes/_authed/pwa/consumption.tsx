@@ -53,6 +53,10 @@ function ConsumptionScreen() {
   const [sessionId, setSessionId] = React.useState('');
   const [sessionDate, setSessionDate] = React.useState(today());
   const [bake, setBake] = React.useState('');
+  // The session leader types this. It is the number of TABLES, not guests:
+  // teams bake together, so tables drive ingredient use. It travels to the API
+  // as `covers` because that is the field name the whole chain already uses —
+  // see the note on session_consumption.covers.
   const [covers, setCovers] = React.useState(0);
   const [bakerName, setBakerName] = React.useState('');
   const [lines, setLines] = React.useState<FormLine[]>([]);
@@ -140,7 +144,7 @@ function ConsumptionScreen() {
             </div>
 
             <div className="field">
-              <label>Covers (guests)</label>
+              <label>Tables</label>
               <button className="input" style={{ textAlign: 'left', fontWeight: 700 }} onClick={() => setCoversKeypad(true)}>
                 {covers > 0 ? covers : 'Tap to enter'}
               </button>
@@ -173,7 +177,7 @@ function ConsumptionScreen() {
 
         {coversKeypad && (
           <KeypadSheet
-            title="Covers (guests)"
+            title="Tables"
             initial={covers}
             allowDecimal={false}
             onCancel={() => setCoversKeypad(false)}
@@ -199,7 +203,7 @@ function ConsumptionScreen() {
         sub={bake || undefined}
         onBack={() => setLoaded(false)}
         right={<SyncPill state={submit.isPending ? 'syncing' : 'synced'} />}
-        stat={`${lines.length} ingredients · ${covers} covers · ${changed} adjusted`}
+        stat={`${lines.length} ingredients · ${covers} tables · ${changed} adjusted`}
       />
       <div className="scroll">
         {lines.length === 0 && <div className="empty">No ingredients for that recipe.</div>}
