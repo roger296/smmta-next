@@ -55,7 +55,16 @@ export async function buildApp() {
   });
 
   // Plugins
-  await app.register(cors, { origin: true });
+  // `methods` MUST be listed. @fastify/cors defaults to the three "simple"
+  // methods (GET, HEAD, POST), so every PUT, PATCH and DELETE — 46 routes —
+  // failed its preflight and never left the browser. The symptom is a bare
+  // "Failed to fetch" with no server log, because the real request is never
+  // sent: editing a product, deleting anything, saving a reorder level.
+  await app.register(cors, {
+    origin: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['content-type', 'authorization', 'x-stocktake-code'],
+  });
   await app.register(jwt, { secret: env.JWT_SECRET });
 
   await app.register(swagger, {
