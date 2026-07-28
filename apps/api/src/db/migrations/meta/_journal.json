@@ -281,6 +281,13 @@
       "when": 1785143759695,
       "tag": "0039_recipe_line_variants",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1785143759696,
+      "tag": "0040_session_table_split",
+      "breakpoints": true
     }
   ]
 }

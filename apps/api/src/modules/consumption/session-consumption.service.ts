@@ -82,7 +82,10 @@ export interface SubmitInput {
   /** The cake baked this session + the covers (guest count), to compute
    *  expected consumption = recipe(bake) × covers. */
   bake?: string | null;
+  /** TOTAL tables. */
   covers?: number;
+  glutenFreeTables?: number;
+  veganTables?: number;
   lines: SubmitLineInput[];
   notes?: string | null;
   /** Offline idempotency key — a replay with the same key is a no-op. */
@@ -128,6 +131,8 @@ export class SessionConsumptionService {
           bake: input.bake,
           siteId: input.siteId,
           covers: input.covers,
+          glutenFreeTables: input.glutenFreeTables,
+          veganTables: input.veganTables,
           onDate: input.sessionDate,
           companyId,
         })
@@ -147,6 +152,8 @@ export class SessionConsumptionService {
           sessionDate: input.sessionDate,
           bake: input.bake ?? existing.bake,
           covers: totalCovers || existing.covers,
+          glutenFreeTables: input.glutenFreeTables ?? existing.glutenFreeTables,
+          veganTables: input.veganTables ?? existing.veganTables,
           version,
           clientKey: input.clientKey ?? existing.clientKey,
           notes: input.notes ?? existing.notes,
@@ -168,6 +175,8 @@ export class SessionConsumptionService {
           bakerRef: input.bakerRef ?? null,
           bake: input.bake ?? null,
           covers: totalCovers,
+          glutenFreeTables: input.glutenFreeTables ?? 0,
+          veganTables: input.veganTables ?? 0,
           version,
           clientKey: input.clientKey ?? null,
           notes: input.notes ?? null,

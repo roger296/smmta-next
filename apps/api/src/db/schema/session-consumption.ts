@@ -56,6 +56,10 @@ export const sessionConsumption = pgTable(
      * Recipes are now expressed per table to match.
      */
     covers: integer('covers').notNull().default(0),
+    /** How many of those tables baked the gluten-free version. */
+    glutenFreeTables: integer('gluten_free_tables').notNull().default(0),
+    /** How many baked the vegan version. Regular = covers − these two. */
+    veganTables: integer('vegan_tables').notNull().default(0),
     /** Bumped on each amend; drives the per-version movement idempotency key. */
     version: integer('version').notNull().default(0),
     /** Last offline idempotency key applied — a replay with the same key is a

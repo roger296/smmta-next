@@ -26,6 +26,9 @@ interface FormLine {
   name: string;
   stockUom: string;
   expectedQty: number;
+  /** One table's worth, straight from the recipe — what Table+ / Table− step
+   *  by. Distinct from expectedQty, which is this times the table count. */
+  qtyPerTable: number;
   actualQty: number;
   /** What's left, when this line is in REMAINING mode. The server derives the
    *  usage from stock on hand — the form never guesses it, because the opening
@@ -35,6 +38,10 @@ interface FormLine {
   wastageQty: number;
   wastageReason: string;
 }
+
+/** Quantities are stored to 2dp; repeatedly adding a fractional per-table
+ *  amount otherwise drifts into 0.7500000000000001. */
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const WASTE_REASONS = ['Spillage', 'Burnt', 'Dropped', 'Over-portioned', 'Off / expired'];
 
@@ -53,26 +60,35 @@ function ConsumptionScreen() {
   const [sessionId, setSessionId] = React.useState('');
   const [sessionDate, setSessionDate] = React.useState(today());
   const [bake, setBake] = React.useState('');
-  // The session leader types this. It is the number of TABLES, not guests:
-  // teams bake together, so tables drive ingredient use. It travels to the API
-  // as `covers` because that is the field name the whole chain already uses —
-  // see the note on session_consumption.covers.
-  const [covers, setCovers] = React.useState(0);
+  // Three table counts, typed by the session leader. Teams bake together, so
+  // tables drive ingredient use rather than head count.
+  //
+  // Regular starts NULL, not 0: a zero would be a legitimate answer that
+  // happens to look like an unanswered question, and the form would happily
+  // proceed having been told nothing. The diet counts DO start at 0, because
+  // "none today" is the ordinary case and making someone confirm it every
+  // session is friction for nothing.
+  const [regularTables, setRegularTables] = React.useState<number | null>(null);
+  const [gfTables, setGfTables] = React.useState(0);
+  const [veganTables, setVeganTables] = React.useState(0);
+  const covers = (regularTables ?? 0) + gfTables + veganTables;
   const [bakerName, setBakerName] = React.useState('');
   const [lines, setLines] = React.useState<FormLine[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   // sheets
-  const [coversKeypad, setCoversKeypad] = React.useState(false);
+  const [tableKeypad, setTableKeypad] = React.useState<'regular' | 'gf' | 'vegan' | null>(null);
   const [actualTarget, setActualTarget] = React.useState<number | null>(null);
   const [wasteTarget, setWasteTarget] = React.useState<number | null>(null);
 
   const loadExpected = async () => {
-    if (!selectedSiteId || !bake.trim() || covers <= 0) return;
+    if (!selectedSiteId || !bake.trim() || regularTables === null || covers <= 0) return;
     const rows = await expected.mutateAsync({
       siteId: selectedSiteId,
       onDate: sessionDate,
       bake: bake.trim(),
       covers,
+      glutenFreeTables: gfTables,
+      veganTables,
     });
     setLines(
       rows.map((r) => ({
@@ -80,6 +96,7 @@ function ConsumptionScreen() {
         name: r.productName,
         stockUom: r.stockUom,
         expectedQty: r.expectedQty,
+        qtyPerTable: r.qtyPerCover,
         actualQty: r.expectedQty, // pre-filled with expected; baker edits
         remainingQty: 0,
         entryMode: 'CONSUMED' as EntryMode,
@@ -106,6 +123,8 @@ function ConsumptionScreen() {
       bakerName: bakerName.trim(),
       bake: bake.trim(),
       covers,
+      glutenFreeTables: gfTables,
+      veganTables,
       lines: lines.map((l) => ({
         productId: l.productId,
         entryMode: l.entryMode,
@@ -119,7 +138,9 @@ function ConsumptionScreen() {
     setLines([]);
     setLoaded(false);
     setSessionId('');
-    setCovers(0);
+    setRegularTables(null);
+    setGfTables(0);
+    setVeganTables(0);
   };
 
   // ── Setup screen ──────────────────────────────────────────
@@ -144,9 +165,35 @@ function ConsumptionScreen() {
             </div>
 
             <div className="field">
-              <label>Tables</label>
-              <button className="input" style={{ textAlign: 'left', fontWeight: 700 }} onClick={() => setCoversKeypad(true)}>
-                {covers > 0 ? covers : 'Tap to enter'}
+              <label>Number of Regular Tables</label>
+              <button
+                className="input"
+                style={{ textAlign: 'left', fontWeight: 700 }}
+                onClick={() => setTableKeypad('regular')}
+              >
+                {regularTables !== null ? regularTables : 'Tap to enter'}
+              </button>
+            </div>
+
+            <div className="field">
+              <label>Number of Gluten Free Tables</label>
+              <button
+                className="input"
+                style={{ textAlign: 'left', fontWeight: 700 }}
+                onClick={() => setTableKeypad('gf')}
+              >
+                {gfTables}
+              </button>
+            </div>
+
+            <div className="field">
+              <label>Number of Vegan Tables</label>
+              <button
+                className="input"
+                style={{ textAlign: 'left', fontWeight: 700 }}
+                onClick={() => setTableKeypad('vegan')}
+              >
+                {veganTables}
               </button>
             </div>
 
@@ -167,7 +214,13 @@ function ConsumptionScreen() {
 
             <BigButton
               variant="solid"
-              disabled={!selectedSiteId || !bake.trim() || covers <= 0 || expected.isPending}
+              disabled={
+                !selectedSiteId ||
+                !bake.trim() ||
+                regularTables === null ||
+                covers <= 0 ||
+                expected.isPending
+              }
               onClick={() => void loadExpected()}
             >
               {expected.isPending ? 'Loading…' : 'Load ingredients →'}
@@ -175,15 +228,30 @@ function ConsumptionScreen() {
           </div>
         </div>
 
-        {coversKeypad && (
+        {tableKeypad && (
           <KeypadSheet
-            title="Tables"
-            initial={covers}
+            title={
+              tableKeypad === 'regular'
+                ? 'Number of Regular Tables'
+                : tableKeypad === 'gf'
+                  ? 'Number of Gluten Free Tables'
+                  : 'Number of Vegan Tables'
+            }
+            initial={
+              tableKeypad === 'regular'
+                ? (regularTables ?? 0)
+                : tableKeypad === 'gf'
+                  ? gfTables
+                  : veganTables
+            }
             allowDecimal={false}
-            onCancel={() => setCoversKeypad(false)}
+            onCancel={() => setTableKeypad(null)}
             onConfirm={(v) => {
-              setCovers(Math.round(v));
-              setCoversKeypad(false);
+              const n = Math.max(0, Math.round(v));
+              if (tableKeypad === 'regular') setRegularTables(n);
+              else if (tableKeypad === 'gf') setGfTables(n);
+              else setVeganTables(n);
+              setTableKeypad(null);
             }}
           />
         )}
@@ -203,7 +271,7 @@ function ConsumptionScreen() {
         sub={bake || undefined}
         onBack={() => setLoaded(false)}
         right={<SyncPill state={submit.isPending ? 'syncing' : 'synced'} />}
-        stat={`${lines.length} ingredients · ${covers} tables · ${changed} adjusted`}
+        stat={`${lines.length} ingredients · ${covers} tables${gfTables || veganTables ? ` (${gfTables} GF, ${veganTables} vegan)` : ''} · ${changed} adjusted`}
       />
       <div className="scroll">
         {lines.length === 0 && <div className="empty">No ingredients for that recipe.</div>}
@@ -257,6 +325,33 @@ function ConsumptionScreen() {
                   {qty}
                 </button>
                 <button className="step" aria-label="Increase" onClick={() => bump(1)}>+</button>
+                {/* A whole table's worth in one press. Bakers think in tables,
+                    not in kilograms, so stepping by 1 kg to correct one table
+                    of flour is arithmetic they should not have to do. */}
+                <button
+                  className="step"
+                  aria-label={`Remove one table of ${l.name}`}
+                  disabled={l.qtyPerTable <= 0}
+                  onClick={() =>
+                    setLine(i, remaining
+                      ? { remainingQty: Math.max(0, round2(l.remainingQty + l.qtyPerTable)) }
+                      : { actualQty: Math.max(0, round2(l.actualQty - l.qtyPerTable)) })
+                  }
+                >
+                  Table−
+                </button>
+                <button
+                  className="step"
+                  aria-label={`Add one table of ${l.name}`}
+                  disabled={l.qtyPerTable <= 0}
+                  onClick={() =>
+                    setLine(i, remaining
+                      ? { remainingQty: Math.max(0, round2(l.remainingQty - l.qtyPerTable)) }
+                      : { actualQty: round2(l.actualQty + l.qtyPerTable) })
+                  }
+                >
+                  Table+
+                </button>
                 <button className={`zero${l.wastageQty > 0 ? ' on' : ''}`} aria-label="Wastage" onClick={() => setWasteTarget(i)}>⚠</button>
               </div>
             </div>

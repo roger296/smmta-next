@@ -47,7 +47,15 @@ export function useExpectedConsumption() {
   return useMutation<
     ExpectedLine[],
     Error,
-    { siteId: string; onDate: string; bake: string; covers: number }
+    {
+      siteId: string;
+      onDate: string;
+      bake: string;
+      /** TOTAL tables. */
+      covers: number;
+      glutenFreeTables?: number;
+      veganTables?: number;
+    }
   >({
     mutationFn: (input) => apiFetch<ExpectedLine[]>('/recipes/expected', { method: 'POST', body: input }),
   });

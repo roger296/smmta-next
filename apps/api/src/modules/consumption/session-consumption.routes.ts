@@ -25,6 +25,9 @@ import { getSingletonCompanyId } from '../../shared/auth/company.js';
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD');
 
 const submitSchema = z.object({
+  /** How the session's tables split. `covers` is the TOTAL. */
+  glutenFreeTables: z.coerce.number().int().min(0).optional(),
+  veganTables: z.coerce.number().int().min(0).optional(),
   sessionId: z.string().min(1).max(200),
   siteId: z.string().uuid(),
   sessionDate: dateSchema,

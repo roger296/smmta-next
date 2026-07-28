@@ -96,11 +96,31 @@ export class ExpectedConsumptionService {
   }
 
   /** Expected consumption per ingredient for one session = recipe(cake) × covers. */
+  /**
+   * What a session is expected to consume, given how its tables split.
+   *
+   * Every table bakes the cake, so the base recipe applies to ALL of them —
+   * `covers` is the total table count. A gluten-free or vegan table then
+   * deviates: some base ingredients come out, some substitutes go in.
+   *
+   *   expected(product) = base × totalTables
+   *                     − base × glutenFreeTables   (if in GF_REMOVE)
+   *                     − base × veganTables        (if in VEGAN_REMOVE)
+   *                     + gfAdd × glutenFreeTables
+   *                     + veganAdd × veganTables
+   *
+   * The reduction uses the BASE quantity, not the removal line's, because a
+   * removal line carries no quantity — taking an ingredient out means taking
+   * out however much that table would have used.
+   */
   async expectedForSession(input: {
     bake: string;
     siteId: string;
+    /** TOTAL tables — regular + gluten-free + vegan. */
     covers: number;
     onDate: string;
+    glutenFreeTables?: number;
+    veganTables?: number;
     companyId?: string;
   }): Promise<ExpectedLine[]> {
     const found = await this.getEffectiveRecipe(input);
@@ -122,23 +142,68 @@ export class ExpectedConsumptionService {
               eq(products.companyId, input.companyId ?? getSingletonCompanyId()),
               inArray(
                 products.id,
-                baseLines.map((l) => l.productId),
+                // ALL lines, not just base: a gluten-free substitute appears
+                // in the output too, and without its name it would render as
+                // "Unknown product" on the bake form.
+                found.lines.map((l) => l.productId),
               ),
             ),
           )
       ).map((r) => [r.id, r.name]),
     );
 
-    return baseLines.map((l) => {
-      const qtyPerCover = Number(l.qtyPerCover);
-      const expectedQty = round4(qtyPerCover * input.covers);
+    const gfTables = Math.max(0, input.glutenFreeTables ?? 0);
+    const veganTables = Math.max(0, input.veganTables ?? 0);
+
+    // Accumulate by product: a substitute may be something the base recipe
+    // already uses, in which case the quantities add rather than making a
+    // second line for the same ingredient.
+    const totals = new Map<string, { qtyPerCover: number; expectedQty: number; line: (typeof baseLines)[number] }>();
+    const add = (line: (typeof found.lines)[number], qty: number, perTable: number) => {
+      const existing = totals.get(line.productId);
+      if (existing) {
+        existing.expectedQty += qty;
+        existing.qtyPerCover += perTable;
+        return;
+      }
+      totals.set(line.productId, { qtyPerCover: perTable, expectedQty: qty, line });
+    };
+
+    for (const l of baseLines) add(l, Number(l.qtyPerCover) * input.covers, Number(l.qtyPerCover));
+
+    // Removals: the diet's tables do not use this ingredient at all.
+    for (const l of found.lines) {
+      const variant = l.variant ?? 'BASE';
+      const tables = variant === 'GF_REMOVE' ? gfTables : variant === 'VEGAN_REMOVE' ? veganTables : 0;
+      if (tables === 0) continue;
+      const base = totals.get(l.productId);
+      // Nothing to reduce if the "removed" ingredient is not in the base
+      // recipe — that is a recipe-authoring mistake, not a reason to go
+      // negative.
+      if (!base) continue;
+      base.expectedQty -= base.qtyPerCover * tables;
+    }
+
+    // Substitutes.
+    for (const l of found.lines) {
+      const variant = l.variant ?? 'BASE';
+      const tables = variant === 'GF_ADD' ? gfTables : variant === 'VEGAN_ADD' ? veganTables : 0;
+      if (tables === 0) continue;
+      add(l, Number(l.qtyPerCover) * tables, Number(l.qtyPerCover));
+    }
+
+    return [...totals.values()].map(({ line: l, expectedQty: rawExpected, qtyPerCover }) => {
+      // Floating-point subtraction can leave -0.0000000001; clamp so a fully
+      // substituted ingredient reads as 0 rather than a negative expectation.
+      const expectedQty = round4(Math.max(0, rawExpected));
       const unitCost = l.unitCost != null ? Number(l.unitCost) : null;
       return {
         productId: l.productId,
         // A recipe line can outlive its product; say so rather than print a
         // hex fragment nobody can act on.
         productName: names.get(l.productId) ?? 'Unknown product',
-        qtyPerCover,
+        // One table's worth — what the Table+ / Table− buttons step by.
+        qtyPerCover: round4(qtyPerCover),
         expectedQty,
         stockUom: l.stockUom,
         unitCost,

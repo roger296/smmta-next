@@ -64,6 +64,9 @@ const effectiveQuerySchema = z.object({
 });
 
 const expectedSchema = z.object({
+  /** Tables on the gluten-free / vegan variants. `covers` is the TOTAL. */
+  glutenFreeTables: z.coerce.number().int().min(0).optional(),
+  veganTables: z.coerce.number().int().min(0).optional(),
   bake: bakeSchema,
   siteId: z.string().uuid(),
   onDate: dateSchema,

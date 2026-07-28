@@ -104,7 +104,10 @@ export interface ConsumptionSubmitDraft {
   sessionDate: string;
   bakerName: string;
   bake?: string | null;
+  /** TOTAL tables. */
   covers?: number;
+  glutenFreeTables?: number;
+  veganTables?: number;
   lines: ConsumptionLineDraft[];
   notes?: string | null;
 }
