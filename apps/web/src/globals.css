@@ -1,8 +1,8 @@
 @import 'tailwindcss';
 
 /*
- * Big Bakes palette, sampled from the rolling-pin mark: navy ground, salmon
- * pin, teal B.
+ * Big Bakes palette, sampled from the rolling-pin mark itself: navy ground
+ * #2b313d, salmon pin #e4875c, teal B #3e8798.
  *
  * The content area stays light on purpose — these are dense data tables and
  * stock figures, and they are far easier to read on white. The brand lives in
@@ -12,11 +12,11 @@
  */
 @theme {
   /* ── brand ─────────────────────────────────────────────────────────── */
-  --color-brand-navy: hsl(220 20% 22%);
-  --color-brand-navy-soft: hsl(220 18% 29%);
-  --color-brand-teal: hsl(194 46% 44%);
-  --color-brand-teal-bright: hsl(194 50% 52%);
-  --color-brand-salmon: hsl(19 78% 66%);
+  --color-brand-navy: hsl(220 17% 20%);
+  --color-brand-navy-soft: hsl(220 16% 27%);
+  --color-brand-teal: hsl(191 42% 42%);
+  --color-brand-teal-bright: hsl(191 46% 50%);
+  --color-brand-salmon: hsl(19 72% 63%);
   --color-brand-salmon-soft: hsl(19 80% 92%);
 
   --color-background: hsl(220 20% 97%);
@@ -26,32 +26,32 @@
   --color-popover: hsl(0 0% 100%);
   --color-popover-foreground: hsl(220 20% 14%);
   /* Teal is the action colour — buttons, links, focus rings. */
-  --color-primary: hsl(194 46% 44%);
+  --color-primary: hsl(191 42% 42%);
   --color-primary-foreground: hsl(0 0% 100%);
   --color-secondary: hsl(220 16% 94%);
   --color-secondary-foreground: hsl(220 20% 20%);
   --color-muted: hsl(220 16% 95%);
   --color-muted-foreground: hsl(220 10% 42%);
-  --color-accent: hsl(194 40% 94%);
-  --color-accent-foreground: hsl(194 60% 22%);
+  --color-accent: hsl(191 38% 93%);
+  --color-accent-foreground: hsl(191 55% 22%);
   --color-destructive: hsl(0 72.2% 50.6%);
   --color-destructive-foreground: hsl(0 0% 98%);
   --color-border: hsl(220 14% 88%);
   --color-input: hsl(220 14% 88%);
-  --color-ring: hsl(194 46% 44%);
+  --color-ring: hsl(191 42% 42%);
 
   /* ── the dark frame ────────────────────────────────────────────────── */
   /* Own tokens rather than reusing --color-card: the sidebar and header go
      dark while content cards stay white, so they cannot share a token. */
-  --color-shell: hsl(220 20% 22%);
+  --color-shell: hsl(220 17% 20%);
   --color-shell-foreground: hsl(220 16% 88%);
   --color-shell-muted: hsl(220 12% 66%);
-  --color-shell-border: hsl(220 18% 30%);
-  --color-shell-hover: hsl(220 18% 28%);
+  --color-shell-border: hsl(220 16% 29%);
+  --color-shell-hover: hsl(220 16% 27%);
   /* Salmon marks the current page — the one place the pin colour earns its
      keep, because it has to win against a navy ground. */
-  --color-shell-active: hsl(19 78% 66%);
-  --color-shell-active-foreground: hsl(220 25% 15%);
+  --color-shell-active: hsl(19 72% 63%);
+  --color-shell-active-foreground: hsl(220 22% 14%);
 
   --radius: 0.5rem;
 }
