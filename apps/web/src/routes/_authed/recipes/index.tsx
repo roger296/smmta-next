@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { BookOpen, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,7 +25,7 @@ import {
   type Recipe,
 } from '@/features/recipes/use-recipes';
 
-export const Route = createFileRoute('/_authed/recipes')({
+export const Route = createFileRoute('/_authed/recipes/')({
   component: RecipesPage,
 });
 
@@ -212,8 +212,22 @@ function RecipesPage() {
               </thead>
               <tbody>
                 {recipes.map((r: Recipe) => (
-                  <tr key={r.id} className="border-b border-[var(--color-border)] last:border-0">
-                    <td className="px-4 py-3 font-medium">{r.bake}</td>
+                  <tr
+                    key={r.id}
+                    className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-muted)]"
+                  >
+                    <td className="px-4 py-3 font-medium">
+                      {/* The whole row reads as clickable on hover, but the link
+                          sits on the name so it is reachable by keyboard and
+                          announces what it opens. */}
+                      <Link
+                        to="/recipes/$id"
+                        params={{ id: r.id }}
+                        className="text-[var(--color-primary)] hover:underline"
+                      >
+                        {r.bake}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3">
                       {r.siteId ? siteName(r.siteId) : <span className="text-[var(--color-muted-foreground)]">Global</span>}
                     </td>

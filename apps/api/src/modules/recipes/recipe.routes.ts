@@ -40,6 +40,13 @@ const createSchema = z.object({
     .max(500),
 });
 
+/** An amendment. bake/siteId/version are the version's identity and are not
+ *  editable — superseding a recipe means adding a version, not renaming one. */
+const updateSchema = createSchema
+  .omit({ bake: true, siteId: true })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
+
 const listQuerySchema = z.object({
   bake: bakeSchema.optional(),
   siteId: z.string().uuid().optional(),
@@ -99,6 +106,21 @@ export async function recipeRoutes(app: FastifyInstance) {
     const data = await recipes.get(id);
     if (!data) return reply.status(404).send({ success: false, error: 'Recipe not found' });
     return { success: true, data };
+  });
+
+  app.put('/recipes/:id', async (request, reply) => {
+    const { id } = idParamSchema.parse(request.params);
+    const body = updateSchema.parse(request.body);
+    const result = await recipes.update(id, body);
+    if (!result) return reply.status(404).send({ success: false, error: 'Recipe not found' });
+    return { success: true, data: result };
+  });
+
+  app.delete('/recipes/:id', async (request, reply) => {
+    const { id } = idParamSchema.parse(request.params);
+    const removed = await recipes.remove(id);
+    if (!removed) return reply.status(404).send({ success: false, error: 'Recipe not found' });
+    return { success: true, data: { id } };
   });
 
   app.post('/recipes', async (request, reply) => {

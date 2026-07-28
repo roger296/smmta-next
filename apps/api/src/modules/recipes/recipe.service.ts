@@ -38,6 +38,20 @@ export interface CreateRecipeInput {
   companyId?: string;
 }
 
+/**
+ * An amendment to an existing version. `bake`, `siteId` and `version` are
+ * absent on purpose — they identify the version, and superseding a recipe
+ * means adding a new one rather than renaming this.
+ */
+export interface UpdateRecipeInput {
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  name?: string | null;
+  notes?: string | null;
+  /** When given, REPLACES the ingredient list wholesale. */
+  lines?: RecipeLineInput[];
+}
+
 export class RecipeService {
   private db = getDb();
 
@@ -115,6 +129,67 @@ export class RecipeService {
       lines.push(created!);
     }
     return { recipe: recipe!, lines };
+  }
+
+  /**
+   * Amend a recipe version in place.
+   *
+   * Safe to do, and worth saying why: `session_consumption_lines.expected_qty`
+   * is SNAPSHOTTED at submit, so already-filed sessions keep the numbers they
+   * were judged against. Editing changes what future sessions expect, not what
+   * past ones were measured by.
+   *
+   * `bake`, `site` and `version` are deliberately NOT editable — they are the
+   * version's identity, and the unique index is built on them. Superseding a
+   * recipe means adding a version, not renaming one.
+   */
+  async update(
+    id: string,
+    input: UpdateRecipeInput,
+    companyId = getSingletonCompanyId(),
+  ): Promise<{ recipe: Recipe; lines: RecipeLine[] } | null> {
+    const existing = await this.get(id, companyId);
+    if (!existing) return null;
+
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.effectiveFrom !== undefined) patch.effectiveFrom = input.effectiveFrom;
+    if (input.effectiveTo !== undefined) patch.effectiveTo = input.effectiveTo ?? null;
+    if (input.name !== undefined) patch.name = input.name ?? null;
+    if (input.notes !== undefined) patch.notes = input.notes ?? null;
+    await this.db.update(recipes).set(patch).where(eq(recipes.id, id));
+
+    if (input.lines) {
+      // Replace wholesale rather than diff: a recipe is a short list, and a
+      // partial update would leave removed ingredients silently consuming
+      // stock on the next session.
+      await this.db.delete(recipeLines).where(eq(recipeLines.recipeId, id));
+      for (const line of input.lines) {
+        const seed = await this.seedFromProduct(line.productId, companyId);
+        await this.db.insert(recipeLines).values({
+          companyId,
+          recipeId: id,
+          productId: line.productId,
+          qtyPerCover: String(line.qtyPerCover),
+          stockUom: line.stockUom ?? seed.stockUom,
+          unitCost: line.unitCost != null ? String(line.unitCost) : seed.unitCost,
+        });
+      }
+    }
+    return this.get(id, companyId);
+  }
+
+  /**
+   * Remove a recipe version. Its lines go with it via the cascade.
+   *
+   * Filed sessions are unaffected — they snapshotted their expected
+   * quantities — so this removes a definition, not any history.
+   */
+  async remove(id: string, companyId = getSingletonCompanyId()): Promise<boolean> {
+    const existing = await this.get(id, companyId);
+    if (!existing) return false;
+    await this.db.delete(recipeLines).where(eq(recipeLines.recipeId, id));
+    await this.db.delete(recipes).where(eq(recipes.id, id));
+    return true;
   }
 
   async get(id: string, companyId = getSingletonCompanyId()): Promise<{ recipe: Recipe; lines: RecipeLine[] } | null> {

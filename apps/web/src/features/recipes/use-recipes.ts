@@ -76,3 +76,38 @@ export function useCreateRecipe() {
     onSuccess: () => qc.invalidateQueries({ queryKey: recipeKeys.all }),
   });
 }
+
+/** An amendment. bake/site/version identify the version and are not editable —
+ *  superseding a recipe means adding a version, not renaming one. */
+export interface UpdateRecipeInput {
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  name?: string | null;
+  notes?: string | null;
+  /** When given, REPLACES the ingredient list wholesale. */
+  lines?: Array<{ productId: string; qtyPerCover: number }>;
+}
+
+export function useUpdateRecipe() {
+  const qc = useQueryClient();
+  return useMutation<
+    { recipe: Recipe; lines: RecipeLine[] },
+    Error,
+    { id: string; input: UpdateRecipeInput }
+  >({
+    mutationFn: ({ id, input }) =>
+      apiFetch<{ recipe: Recipe; lines: RecipeLine[] }>(`/recipes/${id}`, {
+        method: 'PUT',
+        body: input,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: recipeKeys.all }),
+  });
+}
+
+export function useDeleteRecipe() {
+  const qc = useQueryClient();
+  return useMutation<{ id: string }, Error, string>({
+    mutationFn: (id) => apiFetch<{ id: string }>(`/recipes/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: recipeKeys.all }),
+  });
+}
