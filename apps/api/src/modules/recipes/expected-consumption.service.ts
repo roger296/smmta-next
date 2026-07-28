@@ -100,6 +100,12 @@ export class ExpectedConsumptionService {
     const found = await this.getEffectiveRecipe(input);
     if (!found) return [];
 
+    // BASE only. The GF/vegan lists describe what CHANGES for a guest on that
+    // diet; counting them here would add the gluten-free flour to every
+    // session on top of the ordinary flour, and quietly inflate both the
+    // expected consumption and the materials cost.
+    const baseLines = found.lines.filter((l) => (l.variant ?? 'BASE') === 'BASE');
+
     const names = new Map<string, string>(
       (
         await this.db
@@ -110,14 +116,14 @@ export class ExpectedConsumptionService {
               eq(products.companyId, input.companyId ?? getSingletonCompanyId()),
               inArray(
                 products.id,
-                found.lines.map((l) => l.productId),
+                baseLines.map((l) => l.productId),
               ),
             ),
           )
       ).map((r) => [r.id, r.name]),
     );
 
-    return found.lines.map((l) => {
+    return baseLines.map((l) => {
       const qtyPerCover = Number(l.qtyPerCover);
       const expectedQty = round4(qtyPerCover * input.covers);
       const unitCost = l.unitCost != null ? Number(l.unitCost) : null;

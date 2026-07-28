@@ -10,6 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProductPicker } from '@/components/ui/product-picker';
 import {
+  DietaryVariants,
+  dietaryLinesToPayload,
+  emptyDietaryLines,
+  type DietaryLines,
+} from '@/features/recipes/dietary-variants';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -31,6 +37,8 @@ export const Route = createFileRoute('/_authed/recipes/$id')({
 interface DraftLine {
   productId: string;
   qtyPerCover: string;
+  /** So the removal lists can name the ingredient rather than show its id. */
+  label?: string;
 }
 
 function RecipeDetailPage() {
@@ -46,6 +54,7 @@ function RecipeDetailPage() {
   const [effectiveTo, setEffectiveTo] = React.useState('');
   const [notes, setNotes] = React.useState('');
   const [lines, setLines] = React.useState<DraftLine[]>([]);
+  const [dietary, setDietary] = React.useState<DietaryLines>(emptyDietaryLines);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   // Seed the form once the record lands. Keyed on the record so navigating
@@ -55,9 +64,24 @@ function RecipeDetailPage() {
     setEffectiveFrom(data.recipe.effectiveFrom ?? '');
     setEffectiveTo(data.recipe.effectiveTo ?? '');
     setNotes(data.recipe.notes ?? '');
+    // Split the stored lines back into the base recipe and the four variant
+    // lists. A line with no variant is BASE — every line predating this
+    // feature is one.
+    const isBase = (v?: string | null) => (v ?? 'BASE') === 'BASE';
     setLines(
-      data.lines.map((l) => ({ productId: l.productId, qtyPerCover: String(l.qtyPerCover) })),
+      data.lines
+        .filter((l) => isBase(l.variant))
+        .map((l) => ({ productId: l.productId, qtyPerCover: String(l.qtyPerCover) })),
     );
+    const grouped = emptyDietaryLines();
+    for (const l of data.lines) {
+      if (isBase(l.variant)) continue;
+      const key = l.variant as keyof DietaryLines;
+      if (grouped[key]) {
+        grouped[key].push({ productId: l.productId, qtyPerCover: String(l.qtyPerCover) });
+      }
+    }
+    setDietary(grouped);
   }, [data]);
 
   const setLine = (i: number, patch: Partial<DraftLine>) =>
@@ -79,10 +103,14 @@ function RecipeDetailPage() {
           effectiveFrom,
           effectiveTo: effectiveTo || null,
           notes: notes || null,
-          lines: validLines.map((l) => ({
-            productId: l.productId,
-            qtyPerCover: Number(l.qtyPerCover),
-          })),
+          lines: [
+            ...validLines.map((l) => ({
+              productId: l.productId,
+              qtyPerCover: Number(l.qtyPerCover),
+              variant: 'BASE' as const,
+            })),
+            ...dietaryLinesToPayload(dietary),
+          ],
         },
       });
       toast({ title: 'Recipe updated' });
@@ -181,7 +209,7 @@ function RecipeDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Ingredients (quantity per cover)</CardTitle>
+          <CardTitle className="text-base">Ingredients (quantity per table)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {lines.map((line, i) => (
@@ -189,7 +217,9 @@ function RecipeDetailPage() {
               <div className="flex-1">
                 <ProductPicker
                   value={line.productId}
-                  onChange={(v) => setLine(i, { productId: v })}
+                  onChange={(v, p) =>
+                    setLine(i, { productId: v, label: p ? `${p.name} (${p.stockUom})` : undefined })
+                  }
                   itemKind={['INGREDIENT', 'PACKAGING']}
                 />
               </div>
@@ -198,7 +228,7 @@ function RecipeDetailPage() {
                 min="0"
                 step="any"
                 className="w-32"
-                placeholder="qty / cover"
+                placeholder="qty / table"
                 value={line.qtyPerCover}
                 onChange={(e) => setLine(i, { qtyPerCover: e.target.value })}
               />
@@ -223,6 +253,14 @@ function RecipeDetailPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <DietaryVariants
+        value={dietary}
+        base={lines
+          .filter((l) => l.productId)
+          .map((l) => ({ productId: l.productId, label: l.label ?? l.productId.slice(0, 8) }))}
+        onChange={setDietary}
+      />
 
       <Card>
         <CardHeader>

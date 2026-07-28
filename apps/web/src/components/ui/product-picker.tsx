@@ -16,9 +16,18 @@ import { Check, ChevronDown, Loader2, X } from 'lucide-react';
  * outgrown by the catalogue the way a fixed page size can — which is exactly
  * how the head-baker form quietly broke when the catalogue passed 500.
  */
+export interface PickedProduct {
+  id: string;
+  name: string;
+  stockUom: string;
+}
+
 export interface ProductPickerProps {
   value: string;
-  onChange: (productId: string) => void;
+  /** Receives the product, not just its id — a caller that needs to LABEL the
+   *  selection elsewhere would otherwise have to look the name up again, and
+   *  the obvious fallback for a failed lookup is to print the id. */
+  onChange: (productId: string, product?: PickedProduct) => void;
   placeholder?: string;
   /** Rendered when nothing is selected and the field is untouched. */
   id?: string;
@@ -82,8 +91,8 @@ export function ProductPicker({
 
   React.useEffect(() => setHighlight(0), [debounced]);
 
-  const choose = (productId: string) => {
-    onChange(productId);
+  const choose = (productId: string, product?: PickedProduct) => {
+    onChange(productId, product);
     setOpen(false);
     setTerm('');
   };
@@ -182,7 +191,7 @@ export function ProductPicker({
                     : 'hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-foreground)]',
                 )}
                 onMouseEnter={() => setHighlight(i)}
-                onClick={() => choose(p.id)}
+                onClick={() => choose(p.id, p)}
               >
                 <span className="truncate">
                   {p.name}{' '}

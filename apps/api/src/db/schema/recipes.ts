@@ -68,6 +68,20 @@ export const recipeLines = pgTable(
     recipeId: uuid('recipe_id').notNull().references(() => recipes.id, { onDelete: 'cascade' }),
     /** An INGREDIENT / PACKAGING product consumed by this experience. */
     productId: uuid('product_id').notNull().references(() => products.id),
+    /**
+     * Which list this line belongs to.
+     *
+     *   BASE          the recipe as normally baked
+     *   GF_REMOVE     taken out to make the gluten-free version
+     *   GF_ADD        put in instead
+     *   VEGAN_REMOVE  taken out to make the vegan version
+     *   VEGAN_ADD     put in instead
+     *
+     * A *_REMOVE line names a product that is in BASE, so the same product
+     * legitimately appears twice on one recipe — which is why the unique index
+     * below includes the variant.
+     */
+    variant: varchar('variant', { length: 16 }).notNull().default('BASE'),
     /** Quantity consumed per cover, in `stockUom`. */
     qtyPerCover: numeric('qty_per_cover', { precision: 18, scale: 4 }).notNull(),
     /** Snapshot of the product's stock_uom the qty is expressed in. */
@@ -78,9 +92,12 @@ export const recipeLines = pgTable(
     ...auditTimestamps,
   },
   (t) => ({
-    recipeLinesRecipeProductUnq: uniqueIndex('recipe_lines_recipe_product_unq').on(
+    // (recipe, product) alone would reject a GF_REMOVE line for a product
+    // already in BASE — which is exactly what a removal IS.
+    recipeLinesRecipeProductUnq: uniqueIndex('recipe_lines_recipe_product_variant_unq').on(
       t.recipeId,
       t.productId,
+      t.variant,
     ),
   }),
 );

@@ -18,6 +18,9 @@ export interface RecipeLine {
   id: string;
   recipeId: string;
   productId: string;
+  /** BASE, or one of the gluten-free / vegan lists. Absent on lines written
+   *  before dietary variants existed — treat that as BASE. */
+  variant?: 'BASE' | 'GF_REMOVE' | 'GF_ADD' | 'VEGAN_REMOVE' | 'VEGAN_ADD';
   qtyPerCover: string;
   stockUom: string;
   unitCost: string | null;
@@ -25,6 +28,7 @@ export interface RecipeLine {
 
 export interface RecipeLineInput {
   productId: string;
+  variant?: 'BASE' | 'GF_REMOVE' | 'GF_ADD' | 'VEGAN_REMOVE' | 'VEGAN_ADD';
   qtyPerCover: number;
   stockUom?: string;
   unitCost?: number | null;
@@ -85,7 +89,7 @@ export interface UpdateRecipeInput {
   name?: string | null;
   notes?: string | null;
   /** When given, REPLACES the ingredient list wholesale. */
-  lines?: Array<{ productId: string; qtyPerCover: number }>;
+  lines?: Array<{ productId: string; qtyPerCover: number; variant?: string }>;
 }
 
 export function useUpdateRecipe() {

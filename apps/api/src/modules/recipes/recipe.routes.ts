@@ -31,7 +31,12 @@ const createSchema = z.object({
     .array(
       z.object({
         productId: z.string().uuid(),
-        qtyPerCover: z.coerce.number().positive(),
+        variant: z
+          .enum(['BASE', 'GF_REMOVE', 'GF_ADD', 'VEGAN_REMOVE', 'VEGAN_ADD'])
+          .optional(),
+        // Zero is valid for a removal line, where the quantity carries no
+        // meaning — the whole ingredient comes out.
+        qtyPerCover: z.coerce.number().min(0),
         stockUom: z.string().max(20).optional(),
         unitCost: z.coerce.number().min(0).nullable().optional(),
       }),

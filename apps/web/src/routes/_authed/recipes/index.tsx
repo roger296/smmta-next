@@ -19,6 +19,12 @@ import { formatDate } from '@/lib/format';
 import { useSites } from '@/features/sites/use-sites';
 import { ProductPicker } from '@/components/ui/product-picker';
 import {
+  DietaryVariants,
+  dietaryLinesToPayload,
+  emptyDietaryLines,
+  type DietaryLines,
+} from '@/features/recipes/dietary-variants';
+import {
   useRecipes,
   useBakes,
   useCreateRecipe,
@@ -32,6 +38,9 @@ export const Route = createFileRoute('/_authed/recipes/')({
 interface DraftLine {
   productId: string;
   qtyPerCover: string;
+  /** Kept so the "remove for…" lists can name the ingredient. Without it they
+   *  would have nothing but the id to show. */
+  label?: string;
 }
 
 function RecipesPage() {
@@ -51,6 +60,7 @@ function RecipesPage() {
   const [effectiveFrom, setEffectiveFrom] = React.useState<string>('');
   const [effectiveTo, setEffectiveTo] = React.useState<string>('');
   const [lines, setLines] = React.useState<DraftLine[]>([{ productId: '', qtyPerCover: '' }]);
+  const [dietary, setDietary] = React.useState<DietaryLines>(emptyDietaryLines);
 
   const setLine = (i: number, patch: Partial<DraftLine>) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -67,10 +77,18 @@ function RecipesPage() {
         siteId: scope === 'GLOBAL' ? null : scope,
         effectiveFrom,
         effectiveTo: effectiveTo || null,
-        lines: validLines.map((l) => ({ productId: l.productId, qtyPerCover: Number(l.qtyPerCover) })),
+        lines: [
+          ...validLines.map((l) => ({
+            productId: l.productId,
+            qtyPerCover: Number(l.qtyPerCover),
+            variant: 'BASE' as const,
+          })),
+          ...dietaryLinesToPayload(dietary),
+        ],
       });
       toast({ title: `Recipe saved — ${bake.trim()} (${siteName(scope === 'GLOBAL' ? null : scope)})` });
       setLines([{ productId: '', qtyPerCover: '' }]);
+      setDietary(emptyDietaryLines());
       setEffectiveTo('');
     } catch (err) {
       toast({ variant: 'destructive', title: 'Could not save recipe', description: String(err) });
@@ -82,7 +100,8 @@ function RecipesPage() {
       <div>
         <h1 className="text-2xl font-semibold">Recipes</h1>
         <p className="text-sm text-[var(--color-muted-foreground)]">
-          What each cake consumes per cover (per guest). Recipes are keyed by the cake, not the
+          What each cake consumes Per Table. Guests bake in teams, so it is the number of tables
+          that drives ingredient use, not the head count. Recipes are keyed by the cake, not the
           experience package — Classic / Sweeter / Ultimate are price tiers, not recipes. Versioned
           and date-effective; a per-site recipe overrides the global one (e.g. Dallas in imperial
           units). Expected consumption = recipe × covers.
@@ -136,13 +155,15 @@ function RecipesPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Ingredients (quantity per cover)</Label>
+            <Label>Ingredients (quantity per table)</Label>
             {lines.map((line, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="flex-1">
                   <ProductPicker
                     value={line.productId}
-                    onChange={(v) => setLine(i, { productId: v })}
+                    onChange={(v, p) =>
+                      setLine(i, { productId: v, label: p ? `${p.name} (${p.stockUom})` : undefined })
+                    }
                     itemKind={['INGREDIENT', 'PACKAGING']}
                   />
                 </div>
@@ -151,7 +172,7 @@ function RecipesPage() {
                   min="0"
                   step="any"
                   className="w-32"
-                  placeholder="qty / cover"
+                  placeholder="qty / table"
                   value={line.qtyPerCover}
                   onChange={(e) => setLine(i, { qtyPerCover: e.target.value })}
                 />
@@ -171,6 +192,15 @@ function RecipesPage() {
               Add ingredient
             </Button>
           </div>
+
+          <DietaryVariants
+            value={dietary}
+            base={validLines.map((l) => ({
+              productId: l.productId,
+              label: l.label ?? 'Unnamed ingredient',
+            }))}
+            onChange={setDietary}
+          />
 
           <div className="flex justify-end">
             <Button onClick={submit} disabled={!canSubmit}>

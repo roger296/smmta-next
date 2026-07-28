@@ -18,12 +18,33 @@ export type RecipeLine = typeof recipeLines.$inferSelect;
 
 export interface RecipeLineInput {
   productId: string;
+  /**
+   * Which list this line belongs to. Defaults to BASE so every existing
+   * caller keeps working.
+   *
+   * A *_REMOVE line takes an ingredient OUT of the standard recipe for that
+   * diet, so its quantity carries no meaning and is stored as 0 — the whole
+   * ingredient goes.
+   */
+  variant?: RecipeLineVariant;
   qtyPerCover: number | string;
   /** Optional — defaults to the product's stock_uom. */
   stockUom?: string;
   /** Optional — defaults to the product's expected_next_cost (BumbleBee cost). */
   unitCost?: number | string | null;
 }
+
+export const RECIPE_LINE_VARIANTS = [
+  'BASE',
+  'GF_REMOVE',
+  'GF_ADD',
+  'VEGAN_REMOVE',
+  'VEGAN_ADD',
+] as const;
+export type RecipeLineVariant = (typeof RECIPE_LINE_VARIANTS)[number];
+
+/** The variants that take an ingredient out rather than adding one. */
+export const REMOVAL_VARIANTS: readonly RecipeLineVariant[] = ['GF_REMOVE', 'VEGAN_REMOVE'];
 
 export interface CreateRecipeInput {
   /** The cake this recipe makes (e.g. "Victoria Sponge"). */
@@ -113,17 +134,20 @@ export class RecipeService {
     const lines: RecipeLine[] = [];
     for (const line of input.lines) {
       const seed = await this.seedFromProduct(line.productId, companyId);
-      const unitCost =
-        line.unitCost != null ? String(line.unitCost) : seed.unitCost;
+      const variant = line.variant ?? 'BASE';
       const [created] = await this.db
         .insert(recipeLines)
         .values({
           companyId,
           recipeId: recipe!.id,
           productId: line.productId,
-          qtyPerCover: String(line.qtyPerCover),
+          variant,
+          // A removal takes the whole ingredient out, so its quantity is
+          // meaningless — stored as 0 rather than left to whatever the form
+          // happened to send.
+          qtyPerCover: REMOVAL_VARIANTS.includes(variant) ? '0' : String(line.qtyPerCover),
           stockUom: line.stockUom ?? seed.stockUom,
-          unitCost,
+          unitCost: line.unitCost != null ? String(line.unitCost) : seed.unitCost,
         })
         .returning();
       lines.push(created!);
@@ -165,11 +189,13 @@ export class RecipeService {
       await this.db.delete(recipeLines).where(eq(recipeLines.recipeId, id));
       for (const line of input.lines) {
         const seed = await this.seedFromProduct(line.productId, companyId);
+        const variant = line.variant ?? 'BASE';
         await this.db.insert(recipeLines).values({
           companyId,
           recipeId: id,
           productId: line.productId,
-          qtyPerCover: String(line.qtyPerCover),
+          variant,
+          qtyPerCover: REMOVAL_VARIANTS.includes(variant) ? '0' : String(line.qtyPerCover),
           stockUom: line.stockUom ?? seed.stockUom,
           unitCost: line.unitCost != null ? String(line.unitCost) : seed.unitCost,
         });
