@@ -311,6 +311,14 @@ function ConsumptionScreen() {
                 </button>
                 <div className="hint book">
                   Expected {l.expectedQty} {l.stockUom}
+                  {/* What one table costs, so the Table+/− steps are legible
+                      and a baker can sanity-check the total in their head. */}
+                  {l.qtyPerTable > 0 && (
+                    <span className="perTable">
+                      {' · '}
+                      {l.qtyPerTable} {l.stockUom} per table
+                    </span>
+                  )}
                   {!remaining && variance !== 0 && <span className="badge warn" style={{ marginLeft: 6 }}>Δ {variance > 0 ? '+' : ''}{variance}</span>}
                   {l.wastageQty > 0 && <span className="badge" style={{ marginLeft: 6 }}>waste {l.wastageQty}{l.wastageReason ? ` · ${l.wastageReason}` : ''}</span>}
                 </div>
@@ -329,7 +337,7 @@ function ConsumptionScreen() {
                     not in kilograms, so stepping by 1 kg to correct one table
                     of flour is arithmetic they should not have to do. */}
                 <button
-                  className="step"
+                  className="step-table"
                   aria-label={`Remove one table of ${l.name}`}
                   disabled={l.qtyPerTable <= 0}
                   onClick={() =>
@@ -340,8 +348,13 @@ function ConsumptionScreen() {
                 >
                   Table−
                 </button>
+                {/* What a press is worth, at a glance. Read-only — the count
+                    is set on the first page. */}
+                <span className="table-count" aria-hidden>
+                  {covers}
+                </span>
                 <button
-                  className="step"
+                  className="step-table"
                   aria-label={`Add one table of ${l.name}`}
                   disabled={l.qtyPerTable <= 0}
                   onClick={() =>

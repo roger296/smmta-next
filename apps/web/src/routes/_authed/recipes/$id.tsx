@@ -71,7 +71,13 @@ function RecipeDetailPage() {
     setLines(
       data.lines
         .filter((l) => isBase(l.variant))
-        .map((l) => ({ productId: l.productId, qtyPerCover: String(l.qtyPerCover) })),
+        .map((l) => ({
+          productId: l.productId,
+          qtyPerCover: String(l.qtyPerCover),
+          label: l.productName
+            ? `${l.productName} (${l.productStockUom ?? l.stockUom})`
+            : undefined,
+        })),
     );
     const grouped = emptyDietaryLines();
     for (const l of data.lines) {
@@ -258,7 +264,10 @@ function RecipeDetailPage() {
         value={dietary}
         base={lines
           .filter((l) => l.productId)
-          .map((l) => ({ productId: l.productId, label: l.label ?? l.productId.slice(0, 8) }))}
+          // No id fallback: an 8-character hex fragment is not a label a human
+          // can act on, and printing one is how this bug looked in the first
+          // place. The server supplies the name.
+          .map((l) => ({ productId: l.productId, label: l.label ?? 'Unnamed ingredient' }))}
         onChange={setDietary}
       />
 

@@ -21,6 +21,9 @@ export interface RecipeLine {
   /** BASE, or one of the gluten-free / vegan lists. Absent on lines written
    *  before dietary variants existed — treat that as BASE. */
   variant?: 'BASE' | 'GF_REMOVE' | 'GF_ADD' | 'VEGAN_REMOVE' | 'VEGAN_ADD';
+  /** Resolved server-side. Without it the editor can only show an id. */
+  productName?: string;
+  productStockUom?: string;
   qtyPerCover: string;
   stockUom: string;
   unitCost: string | null;

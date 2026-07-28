@@ -8,7 +8,7 @@
  * BumbleBee cost (`expected_next_cost`) and its `stockUom`, unless the caller
  * supplies them. The admin Recipes page drives these.
  */
-import { and, asc, desc, eq, isNull, max } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, max } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { products, recipeLines, recipes } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
@@ -71,6 +71,12 @@ export interface UpdateRecipeInput {
   notes?: string | null;
   /** When given, REPLACES the ingredient list wholesale. */
   lines?: RecipeLineInput[];
+}
+
+/** A recipe line with its product resolved — what the editor actually needs. */
+export interface RecipeLineWithProduct extends RecipeLine {
+  productName: string;
+  productStockUom: string;
 }
 
 export class RecipeService {
@@ -218,7 +224,18 @@ export class RecipeService {
     return true;
   }
 
-  async get(id: string, companyId = getSingletonCompanyId()): Promise<{ recipe: Recipe; lines: RecipeLine[] } | null> {
+  /**
+   * A recipe and its lines, each line carrying its product's NAME.
+   *
+   * Resolved here rather than in the browser. The editor lists ingredients in
+   * a "remove for gluten free" dropdown, and without a name the only thing it
+   * can show is a fragment of the id — which is exactly what it did, and is
+   * useless to whoever is editing the recipe.
+   */
+  async get(
+    id: string,
+    companyId = getSingletonCompanyId(),
+  ): Promise<{ recipe: Recipe; lines: RecipeLineWithProduct[] } | null> {
     const recipe = await this.db.query.recipes.findFirst({
       where: and(eq(recipes.id, id), eq(recipes.companyId, companyId)),
     });
@@ -228,7 +245,34 @@ export class RecipeService {
       .from(recipeLines)
       .where(eq(recipeLines.recipeId, id))
       .orderBy(asc(recipeLines.createdAt));
-    return { recipe, lines };
+    return { recipe, lines: await this.withProductNames(lines, companyId) };
+  }
+
+  /** Attach product names to lines in one query rather than N. */
+  private async withProductNames(
+    lines: RecipeLine[],
+    companyId: string,
+  ): Promise<RecipeLineWithProduct[]> {
+    if (lines.length === 0) return [];
+    const rows = await this.db
+      .select({ id: products.id, name: products.name, stockUom: products.stockUom })
+      .from(products)
+      .where(
+        and(
+          eq(products.companyId, companyId),
+          inArray(
+            products.id,
+            lines.map((l) => l.productId),
+          ),
+        ),
+      );
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return lines.map((l) => ({
+      ...l,
+      // A recipe can outlive its ingredient. Say so rather than print an id.
+      productName: byId.get(l.productId)?.name ?? 'Deleted product',
+      productStockUom: byId.get(l.productId)?.stockUom ?? l.stockUom,
+    }));
   }
 
   /** All recipes (newest first), optionally filtered by cake / site. */
