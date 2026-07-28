@@ -64,8 +64,12 @@ export function ProductPicker({
   // The selected product is usually NOT in the current search results — the
   // whole point is that the list is a short, filtered window. Fetch it by id
   // rather than hoping it happens to be on screen.
-  const { data: selectedById } = useProduct(value || undefined);
+  const { data: selectedById, isError: selectedMissing } = useProduct(value || undefined);
   const selected = results.find((p) => p.id === value) ?? selectedById;
+  // A recipe can outlive an ingredient someone deleted from the catalogue.
+  // Left alone the field renders blank and the line looks like an empty row
+  // nobody filled in — say what happened instead.
+  const orphaned = !!value && !selected && selectedMissing;
 
   React.useEffect(() => {
     if (!open) return;
@@ -113,8 +117,17 @@ export function ProductPicker({
           aria-autocomplete="list"
           // Showing the selection as the placeholder means the field reads as
           // chosen while still being immediately typeable to change it.
-          placeholder={selected ? `${selected.name} (${selected.stockUom})` : placeholder}
-          className={cn(selected && !term && 'placeholder:text-[var(--color-foreground)]')}
+          placeholder={
+            selected
+              ? `${selected.name} (${selected.stockUom})`
+              : orphaned
+                ? 'Deleted product — pick a replacement'
+                : placeholder
+          }
+          className={cn(
+            selected && !term && 'placeholder:text-[var(--color-foreground)]',
+            orphaned && 'border-[var(--color-destructive)] placeholder:text-[var(--color-destructive)]',
+          )}
           value={term}
           onChange={(e) => {
             setTerm(e.target.value);
