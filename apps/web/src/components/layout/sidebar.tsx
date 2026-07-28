@@ -2,16 +2,11 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
-  Users,
-  ShoppingCart,
-  FileText,
   Package,
   Warehouse,
   Truck,
   Receipt,
   Settings,
-  Layers,
-  Boxes,
   FolderTree,
   MapPin,
   PackageSearch,
@@ -25,7 +20,7 @@ import {
   ChefHat,
   ClipboardList,
   BarChart3,
-  Images,
+  FileText,
 } from 'lucide-react';
 
 interface NavItem {
@@ -34,13 +29,18 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const NAV_ITEMS: NavItem[] = [
+/**
+ * Big Bakes runs the stock half of this app only.
+ *
+ * The fork arrived with an e-commerce back office attached — Customers,
+ * Orders, Invoices, Product groups (variant grouping), Gallery (image
+ * captures, P23 groundwork that was never built) and Integrations. Those
+ * routes still exist and still work; they are simply not in the nav, because
+ * a menu of things nobody here will ever click is a menu people stop reading.
+ */
+export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
-  { label: 'Customers', to: '/customers', icon: Users },
-  { label: 'Orders', to: '/orders', icon: ShoppingCart },
-  { label: 'Invoices', to: '/invoices', icon: FileText },
   { label: 'Products', to: '/products', icon: Package },
-  { label: 'Product groups', to: '/product-groups', icon: Boxes },
   { label: 'Categories', to: '/categories', icon: FolderTree },
   { label: 'Sites', to: '/sites', icon: MapPin },
   { label: 'Stock by site', to: '/stock/by-site', icon: PackageSearch },
@@ -52,16 +52,43 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Recipes', to: '/recipes', icon: BookOpen },
   { label: 'Consumption', to: '/consumption', icon: ClipboardList },
   { label: 'Reports', to: '/reports', icon: BarChart3 },
-  { label: 'Gallery', to: '/gallery', icon: Images },
   { label: 'Square mapping', to: '/square', icon: SquareIcon },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },
   { label: 'Supplier Invoices', to: '/supplier-invoices', icon: FileText },
-  { label: 'Integrations', to: '/integrations', icon: Layers },
   { label: 'Xero accounts', to: '/xero-accounts', icon: Banknote },
   { label: 'Settings', to: '/settings', icon: Settings },
 ];
+
+/** The other two Big Bakes apps. Pinned to the bottom because they're a way
+ *  *out* of this app, not a page within it. */
+const SISTER_APPS = [
+  {
+    label: 'BumbleBee',
+    href: 'https://bumblebee.starship.thebigbakes.com',
+    logo: '/logos/bumblebee.png',
+  },
+  {
+    label: 'TheHippo',
+    href: 'https://hippo.starship.thebigbakes.com',
+    logo: '/logos/hippo.png',
+  },
+];
+
+/**
+ * Which nav entry is highlighted.
+ *
+ * Longest match wins. A plain `startsWith` lit up BOTH "Stock" and "Stock by
+ * site" on /stock/by-site, because /stock is a prefix of it — two highlighted
+ * rows and no way to tell where you actually are.
+ */
+export function activePath(pathname: string, items: NavItem[]): string | null {
+  if (pathname === '/') return '/';
+  return items
+    .filter((i) => i.to !== '/' && (pathname === i.to || pathname.startsWith(`${i.to}/`)))
+    .sort((a, b) => b.to.length - a.to.length)[0]?.to ?? null;
+}
 
 interface SidebarProps {
   /** When true, always show (used inside mobile Sheet). */
@@ -70,20 +97,22 @@ interface SidebarProps {
 
 export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
   const { location } = useRouterState();
+  const active = activePath(location.pathname, NAV_ITEMS);
   return (
     <aside
       aria-label="Main navigation"
       className={cn(
-        'w-60 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-card)]',
-        alwaysShow ? 'block w-full border-r-0' : 'hidden md:block',
+        'flex w-60 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-card)]',
+        alwaysShow ? 'block w-full border-r-0' : 'hidden md:flex',
       )}
     >
-      <div className="flex h-14 items-center border-b border-[var(--color-border)] px-4">
+      <div className="flex h-14 shrink-0 items-center border-b border-[var(--color-border)] px-4">
         <span className="text-base font-semibold">Auto-Stock</span>
       </div>
-      <nav className="flex flex-col gap-1 p-2">
+
+      {/* Only the list scrolls, so the sister-app buttons stay put. */}
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
         {NAV_ITEMS.map((item) => {
-          const active = item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to);
           const Icon = item.icon;
           return (
             <Link
@@ -91,7 +120,7 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
               to={item.to}
               className={cn(
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                active
+                active === item.to
                   ? 'bg-[var(--color-accent)] text-[var(--color-accent-foreground)] font-medium'
                   : 'text-[var(--color-muted-foreground)] hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-foreground)]',
               )}
@@ -102,6 +131,28 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
           );
         })}
       </nav>
+
+      <div className="shrink-0 border-t border-[var(--color-border)] p-2">
+        <p className="px-3 pb-1 text-xs font-medium text-[var(--color-muted-foreground)]">
+          Other apps
+        </p>
+        <div className="flex flex-col gap-2">
+          {SISTER_APPS.map((app) => (
+            <a
+              key={app.href}
+              href={app.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              // min-h-14 keeps these comfortably tappable on a shared iPad —
+              // they're the one thing here people reach for with a full hand.
+              className="flex min-h-14 items-center gap-3 rounded-md border border-[var(--color-border)] px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--color-accent)] hover:text-[var(--color-accent-foreground)]"
+            >
+              <img src={app.logo} alt="" aria-hidden className="h-8 w-8 shrink-0 object-contain" />
+              <span>{app.label}</span>
+            </a>
+          ))}
+        </div>
+      </div>
     </aside>
   );
 }
