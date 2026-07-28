@@ -1,0 +1,164 @@
+sku,name,slug,stock_uom,category_hint
+10IN-CAKE-BRDS,"10"" Cake Cards & Boards",10in-cake-brds,each,packaging
+10IN-RND-CARD,"10"" Round Cake Cards",10in-rnd-card,each,packaging
+10IN-SQR-CARD,"10"" Square Cake Cards",10in-sqr-card,each,packaging
+12IN-CLER-PIPE,"12"" Clear Piping Bags",12in-cler-pipe,each,equipment
+21IN-PIPE-BAGS,"21"" Piping Bags",21in-pipe-bags,each,equipment
+3PLY-FACE-MASK,3-Ply Face Masks,3ply-face-mask,each,equipment
+4CUP-CARY-TRAY,4-Cup Carry Trays,4cup-cary-tray,each,packaging
+6IN-PARC-CIRC,"6"" Parchment Circles",6in-parc-circ,each,equipment
+7UP-ZERO-CANS,7up Zero Cans,7up-zero-cans,each,drink
+8IN-CAKE-CARD,"8"" Cake Cards",8in-cake-card,each,packaging
+8IN-PARC-CIRC,"8"" Parchment Circles",8in-parc-circ,each,equipment
+A4COL-PAPR-LBLU,A4 Coloured Paper (Light Blue),a4col-papr-lblu,pack,equipment
+ALPR-FRUT-YOGH,Alpro Fruit Yoghurt,alpr-frut-yogh,kg,ingredient
+ANTI-HAND-WASH,Antibacterial Hand Wash,anti-hand-wash,l,cleaning
+ANTI-SPNG-SCOU,Antibacterial Sponge Scourers,anti-spng-scou,each,cleaning
+APPL-CIDR-VINE,Apple Cider Vinegar,appl-cidr-vine,l,ingredient
+ARIE-LAUN-POWD,Ariel Laundry Powder,arie-laun-powd,kg,cleaning
+ARIE-WASH-PODS,Ariel Washing Pods,arie-wash-pods,each,cleaning
+BABY-PLUM-TOMA,Baby Plum Tomatoes,baby-plum-toma,kg,ingredient
+BACA-CART-ORO,Bacardi Carta Oro,baca-cart-oro,l,drink
+BAKE-ALMD-FLAV,Almond Flavouring,bake-almd-flav,l,ingredient
+BAKE-CAKE-DOWL,Cake Dowels,bake-cake-dowl,each,equipment
+BAKE-CHOC-CAKE,Chocolate Cake,bake-choc-cake,cake,ingredient
+BAKE-CHOC-MUFF,Chocolate Muffins,bake-choc-muff,each,ingredient
+BAKE-GRAN-SUGR,Granulated Sugar,bake-gran-sugr,kg,ingredient
+BAKE-GRND-ALMD,Ground Almonds,bake-grnd-almd,kg,ingredient
+BAKE-MINI-MUFF,Mini Muffins,bake-mini-muff,each,ingredient
+BAKE-PARC-ROLL,Baking Parchment Roll,bake-parc-roll,each,equipment
+BAKE-PUFF-RICE,Puffed Rice,bake-puff-rice,kg,ingredient
+BAKE-WHIT-ICNG,White Icing,bake-whit-icng,kg,ingredient
+BAKE-YEAS-DRY,Yeast,bake-yeas-dry,kg,ingredient
+BEER-ALSK-CIDR,Alska Cider,beer-alsk-cidr,l,drink
+BEET-LABN-NUTS,"Beetroot, Labneh & Candied Nuts",beet-labn-nuts,kg,ingredient
+BIOD-BIN-LINR,Biodegradable Bin Liners,biod-bin-linr,each,cleaning
+BLAK-BIRO-PENS,Black Biro Pens,blak-biro-pens,each,equipment
+BLAK-EDIB-MARK,Black Edible Markers,blak-edib-mark,each,equipment
+BLAK-FACE-MASK,Black Face Masks,blak-face-mask,each,equipment
+BLAK-PAPR-STRW,Black Paper Straws,blak-papr-strw,each,equipment
+BLAK-PEPR-SACH,Black Pepper Sachets,blak-pepr-sach,each,ingredient
+BLAK-REFU-SACK,Black Refuse Sacks,blak-refu-sack,each,cleaning
+BLUE-CENT-ROLL,Blue Centrefeed Rolls,blue-cent-roll,each,cleaning
+BLUE-MICR-CLTH,Blue Microfibre Cloths,blue-micr-clth,each,cleaning
+BLUE-RASP-BONB,Blue Raspberry Bon Bons,blue-rasp-bonb,kg,ingredient
+BLUE-STRP-STRW,Blue Striped Paper Straws,blue-strp-strw,each,equipment
+BLUE-STRW-BERY,Blueberries & Strawberries,blue-strw-bery,kg,ingredient
+BLUE-VINY-GLVL,Blue Vinyl Gloves - Large,blue-viny-glvl,box,equipment
+BLUE-VINY-GLVM,Blue Vinyl Gloves - Medium,blue-viny-glvm,box,equipment
+BOLD-LAUN-POWD,Bold Laundry Powder,bold-laun-powd,kg,cleaning
+BROM-HAND-RDBL,Broom Handles - Red & Blue,brom-hand-rdbl,each,cleaning
+BROM-HAND-YELW,Broom Handle - Yellow,brom-hand-yelw,each,cleaning
+BUMB-CREM-LIQR,Bumbu Cream Liqueur,bumb-crem-liqr,l,drink
+CADB-HOT-CHOC,Cadbury Hot Chocolate,cadb-hot-choc,kg,Ingredient
+CADB-MINI-EGGS,Cadbury Mini Eggs,cadb-mini-eggs,kg,ingredient
+CADB-MINI-ROLL,Cadbury Mini Rolls,cadb-mini-roll,each,ingredient
+CAKE-BROW-NIES,Brownies,cake-brow-nies,each,ingredient
+CAPT-MORG-GOLD,Captain Morgan Spiced Gold,capt-morg-gold,l,drink
+CARE-HAND-WASH,Carex Hand Wash,care-hand-wash,each,cleaning
+CARP-SPOT-CLNR,Carpet Spot Cleaner,carp-spot-clnr,each,cleaning
+CAZC-HONY-TEQU,Cazcabel Honey Tequila,cazc-hony-tequ,l,ingredient
+CHAS-RHUB-GIN,Chase Rhubarb & Apple Gin,chas-rhub-gin,l,drink
+CHEE-BLUE-STIL,Blue Stilton,chee-blue-stil,kg,ingredient
+CHEE-BRIE-SOFT,Brie,chee-brie-soft,kg,ingredient
+CHEE-STIL-TON,Stilton,chee-stil-ton,kg,ingredient
+CHEE-UNSP-ONE,Cheese (unspecified),chee-unsp-one,kg,ingredient
+CHEE-UNSP-TWO,Cheese (unspecified 2),chee-unsp-two,kg,ingredient
+CHOC-UNSP-ONE,Chocolate (unspecified),choc-unsp-one,kg,ingredient
+CLEN-AIR-FRSH,Air Freshener,clen-air-frsh,each,cleaning
+CLEN-DISH-DETG,Dishwasher Detergent,clen-dish-detg,l,cleaning
+CLEN-DISH-SALT,Dishwasher Salt,clen-dish-salt,kg,cleaning
+CLEN-DUST-MOP,Dust Mop,clen-dust-mop,each,cleaning
+CLEN-EXTN-DUST,Extendable Duster,clen-extn-dust,each,cleaning
+CLEN-FLOR-CLNR,Floor Cleaner,clen-flor-clnr,l,cleaning
+CLEN-KITC-DEGR,Kitchen Degreaser,clen-kitc-degr,each,cleaning
+CLEN-LAUN-SOFT,Laundry Softener,clen-laun-soft,l,cleaning
+CLEN-MICR-CLTH,Microfibre Cloths,clen-micr-clth,each,cleaning
+CLEN-OVEN-CLNR,Oven Cleaner,clen-oven-clnr,l,cleaning
+CLEN-PINE-DISF,Pine Disinfectant,clen-pine-disf,l,cleaning
+CLEN-PROB-WIPE,Probe Wipes,clen-prob-wipe,each,cleaning
+CLEN-RINS-AID,Rinse Aid,clen-rins-aid,l,cleaning
+CLEN-SOFT-BROM,Soft Broom - Yellow,clen-soft-brom,each,cleaning
+CLEN-THIK-BLCH,Thick Bleach,clen-thik-blch,l,cleaning
+CLEN-TOIL-CLNR,Toilet Cleaner,clen-toil-clnr,l,cleaning
+CLEN-TOIL-ROLL,Toilet Roll,clen-toil-roll,each,cleaning
+CLEN-WASH-LIQD,Washing Up Liquid,clen-wash-liqd,l,cleaning
+COCK-CANS-VAR1,Cocktail Cans (variety 1 - check flavour),cock-cans-var1,each,drink
+COCK-CANS-VAR2,Cocktail Cans (variety 2 - check flavour),cock-cans-var2,each,drink
+COND-BISC-SPRD,Biscoff Spread,cond-bisc-sprd,kg,ingredient
+COND-SALT-SACH,Salt Sachets,cond-salt-sach,pack,ingredient
+COPE-APPL-JUIC,Copella Apple Juice,cope-appl-juic,l,drink
+CORN-VANL-ICEC,Cornish Vanilla Ice Cream,corn-vanl-icec,l,ingredient
+CUST-MADE-APRN,Custom-Made Aprons,cust-made-aprn,each,equipment
+D10-SANI-KIT,D10 Sanitiser Bottle Kit,d10-sani-kit,each,cleaning
+DAIR-GARL-BUTR,Garlic Butter,dair-garl-butr,kg,ingredient
+DAIR-SALT-BUTR,Salted Butter,dair-salt-butr,kg,ingredient
+DARY-FREE-CHAI,Dairy-Free Chai Latte,dary-free-chai,kg,drink
+DEME-SUGR-STIK,Demerara Sugar Sticks,deme-sugr-stik,each,ingredient
+FOOD-CHEE-SELN,Cheese Selection,food-chee-seln,kg,ingredient
+FOOD-FREN-CHEE,French Cheese,food-fren-chee,kg,ingredient
+FOUR-CHEE-QUIC,Four Cheese Quiche,four-chee-quic,kg,ingredient
+GEL-FOOD-COLR,Gel Food Colouring,gel-food-colr,kg,ingredient
+GLAS-STEL-CLNR,Glass & Stainless Steel Cleaner,glas-stel-clnr,each,cleaning
+GLUT-FREE-PITA,Gluten-Free Pitta Bread,glut-free-pita,kg,ingredient
+GRAT-MILD-CHEE,Grated Mild White Cheese,grat-mild-chee,kg,ingredient
+HENR-HOOV-BAGS,Henry Hoover Bags,henr-hoov-bags,each,cleaning
+INDR-BROM-LONG,Indoor Broom (Long Handle),indr-brom-long,each,cleaning
+JUIC-APPL-RASP,Apple & Raspberry,juic-appl-rasp,l,drink
+KIND-BUEN-3PK,Kinder Bueno (3 Pack),kind-buen-3pk,each,ingredient
+LACT-FREE-CHED,Lactose-Free Cheddar,lact-free-ched,kg,ingredient
+LEEK-EMME-QUIC,Leek & Emmental Quiche,leek-emme-quic,kg,ingredient
+LIQD-EGG-2CHK,Liquid Egg White (Two Chicks),liqd-egg-2chk,l,ingredient
+MINI-CAKE-BITE,Mini Cake Bites,mini-cake-bite,each,ingredient
+MINI-PKWH-MARS,Mini Pink & White Marshmallows,mini-pkwh-mars,kg,ingredient
+MINI-VEG-SPRL,Mini Vegetable Spring Rolls,mini-veg-sprl,each,ingredient
+MINI-VIEN-MIX,Mini Viennoiserie Mix,mini-vien-mix,each,ingredient
+MULT-PAPR-STRW,Multicoloured Paper Straws,mult-papr-strw,each,packaging
+NBIO-LAUN-DETG,Non-Bio Laundry Detergent,nbio-laun-detg,l,cleaning
+NUTS-PIST-KERN,Pistachio Kernels,nuts-pist-kern,kg,ingredient
+PACK-ALUM-FOIL,Aluminium Foil,pack-alum-foil,each,equipment
+PACK-CLNG-FILM,Cling Film,pack-clng-film,each,equipment
+PAPR-PORT-POTS,Paper Portion Pots (1oz & 2oz),papr-port-pots,each,equipment
+PEAC-BRID-APRN,Peach Bride Tribe Apron,peac-brid-aprn,each,equipment
+PKWH-2PLY-ROLL,Pink & White 2-Ply Rolls,pkwh-2ply-roll,roll (each?),equipment
+PPE-DISH-APRN,Dishwasher Apron,ppe-dish-aprn,each,equipment
+PPE-HAIR-BAND,Hair Bands,ppe-hair-band,each,other
+PPE-HAIR-NETS,Hair Nets,ppe-hair-nets,pack,other
+PPE-WATR-APRN,Waterproof Aprons,ppe-watr-aprn,each,equipment
+PREP-FOOD-LABL,Prepped Food Labels,prep-food-labl,roll,packaging
+PRNT-RIBN-SP700,Printer Ribbons (SP700),prnt-ribn-sp700,each,equipment
+PROD-BLUE-BERY,Blueberries,prod-blue-bery,kg,ingredient
+PROD-CARR-HOUM,Carrot & Houmous,prod-carr-houm,each,ingredient
+PROD-CHER-TOMA,Cherry Tomatoes,prod-cher-toma,kg,ingredient
+RANB-BELT-CABL,Rainbow Belts & Cables Sweets,ranb-belt-cabl,kg,ingredient
+SAUC-POTS-4OZ,Sauce Pots with Lids (4oz),sauc-pots-4oz,each,packaging
+SAVR-ROST-BITE,Rosti Bites,savr-rost-bite,kg,ingredient
+SEA-SALT-CRYS,Sea Salt Crystals,sea-salt-crys,kg,ingredient
+SKYR-NATL-YOGH,Skyr Natural Yoghurt,skyr-natl-yogh,kg,ingredient
+SLIC-JALA-PEPP,Sliced Jalapeño Peppers,slic-jala-pepp,kg,ingredient
+SNAC-HAND-CRSP,Hand-Cooked Crisps,snac-hand-crsp,each,ingredient
+SOFT-BOTL-WATR,Bottled Water,soft-botl-watr,l,drink
+SOFT-BUXT-WATR,Buxton Water,soft-buxt-watr,l,drink
+SOFT-COCO-BAY,Cocobay Cans,soft-coco-bay,each,drink
+SOFT-COKE-CANS,Coca-Cola Cans,soft-coke-cans,each,drink
+SOFT-ELDR-CORD,Elderflower Cordial,soft-eldr-cord,l,drink
+SOYA-VANL-YOGH,Soya Vanilla Yoghurt,soya-vanl-yogh,kg,ingredient
+SPRK-4CEL-SET,Sprinkles - 4 Cell Set,sprk-4cel-set,kg,ingredient
+SQZY-CLER-HONY,Squeezy Clear Honey,sqzy-cler-hony,kg,ingredient
+STAT-A4LAM-POUC,A4 Laminating Pouches,stat-a4lam-pouc,pack,equipment
+STAT-A4PLA-WALL,A4 Plastic Wallets,stat-a4pla-wall,pack,ingredient
+STAT-A4PRN-PAPR,A4 Printer Paper,stat-a4prn-papr,pack,equipment
+STAT-STIK-NOTE,Sticky Notes,stat-stik-note,pad,equipment
+STAT-TILL-ROLL,Till Rolls,stat-till-roll,roll,equipment
+STRP-SWET-BAGS,Striped Sweet Bags,strp-swet-bags,each,packaging
+SURG-FACE-MASK,Surgical Face Masks,surg-face-mask,each,equipment
+SWET-CADB-TWRL,Cadbury Twirl,swet-cadb-twrl,each,ingredient
+TOMA-CHEE-QUIC,Tomato & Cheese Quiche,toma-chee-quic,kg,ingredient
+TOMA-CHEE-SLAB,Tomato & Cheese Quiche Slabs,toma-chee-slab,kg,ingredient
+TRIO-CHEE-BORD,Trio Cheeseboard,trio-chee-bord,kg,ingredient
+UHT-SKIM-MILK,UHT Skimmed Milk,uht-skim-milk,l,ingredient
+VEGN-CARA-BISC,Vegan Caramelised Biscuit Cake,vegn-cara-bisc,cake,ingredient
+WHIT-BRID-APRN,White Bride Apron,whit-brid-aprn,each,equipment
+WHIT-NAPK-16IN,"White Napkins (16"")",whit-napk-16in,pack,equipment
+WHIT-SUGR-STIK,White Sugar Sticks,whit-sugr-stik,each,ingredient
+WHIT-WINE-VINE,White Wine Vinegar,whit-wine-vine,l,ingredient

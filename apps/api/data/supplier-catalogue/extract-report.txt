@@ -1,0 +1,10 @@
+source            : C:\Users\roger\Product Search - CleverDeals\Docapole\Rogers Copy of Rebecca Prospective SKUs for stock system.xlsx
+sheet             : Main List
+rows read         : 997
+suppliers         : 29
+mappings          : 677
+  no pack size    : 370  (engine falls back to 1 — safer than a guess)
+  placeholder GBP0.10 price : 171  (find later: cost_gbp = 0.10)
+  placeholder NOSKU code   : 98  (not orderable until filled in)
+new products      : 163  (priced but never on the count list)
+skipped rows      : 0
