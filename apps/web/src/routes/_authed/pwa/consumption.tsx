@@ -2,7 +2,6 @@ import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
-import { useProductsList } from '@/features/products/use-products';
 import { useBakes } from '@/features/recipes/use-recipes';
 import { useExpectedConsumption } from '@/features/consumption/use-consumption';
 import { useSubmitConsumption } from '@/features/pwa/use-pwa-jobs';
@@ -46,16 +45,10 @@ function today(): string {
 function ConsumptionScreen() {
   const navigate = useNavigate();
   const { selectedSite, selectedSiteId } = useSiteContext();
-  const { data: productPage } = useProductsList({ pageSize: 500 });
   const { data: bakes } = useBakes();
   const expected = useExpectedConsumption();
   const submit = useSubmitConsumption();
   const { toast } = useToast();
-
-  const productName = React.useCallback(
-    (id: string) => (productPage?.data ?? []).find((p) => p.id === id)?.name ?? id.slice(0, 8),
-    [productPage],
-  );
 
   const [sessionId, setSessionId] = React.useState('');
   const [sessionDate, setSessionDate] = React.useState(today());
@@ -80,7 +73,7 @@ function ConsumptionScreen() {
     setLines(
       rows.map((r) => ({
         productId: r.productId,
-        name: productName(r.productId),
+        name: r.productName,
         stockUom: r.stockUom,
         expectedQty: r.expectedQty,
         actualQty: r.expectedQty, // pre-filled with expected; baker edits

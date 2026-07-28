@@ -17,6 +17,16 @@ import type { Recipe, RecipeLine } from './recipe.service.js';
 
 export interface ExpectedLine {
   productId: string;
+  /**
+   * The product's name, resolved server-side.
+   *
+   * The head-baker form used to look this up in the browser from a single
+   * 500-row page of products, falling back to the first 8 characters of the
+   * id. That quietly broke the moment the catalogue passed 500 products: the
+   * form showed bakers a row of hex codes and asked them how much they'd used.
+   * The server already has the product joined — it should just say.
+   */
+  productName: string;
   qtyPerCover: number;
   expectedQty: number;
   stockUom: string;
@@ -89,12 +99,33 @@ export class ExpectedConsumptionService {
   }): Promise<ExpectedLine[]> {
     const found = await this.getEffectiveRecipe(input);
     if (!found) return [];
+
+    const names = new Map<string, string>(
+      (
+        await this.db
+          .select({ id: products.id, name: products.name })
+          .from(products)
+          .where(
+            and(
+              eq(products.companyId, input.companyId ?? getSingletonCompanyId()),
+              inArray(
+                products.id,
+                found.lines.map((l) => l.productId),
+              ),
+            ),
+          )
+      ).map((r) => [r.id, r.name]),
+    );
+
     return found.lines.map((l) => {
       const qtyPerCover = Number(l.qtyPerCover);
       const expectedQty = round4(qtyPerCover * input.covers);
       const unitCost = l.unitCost != null ? Number(l.unitCost) : null;
       return {
         productId: l.productId,
+        // A recipe line can outlive its product; say so rather than print a
+        // hex fragment nobody can act on.
+        productName: names.get(l.productId) ?? 'Unknown product',
         qtyPerCover,
         expectedQty,
         stockUom: l.stockUom,

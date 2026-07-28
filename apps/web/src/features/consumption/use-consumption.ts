@@ -3,6 +3,7 @@ import { apiFetch } from '@/lib/api-client';
 
 export interface ExpectedLine {
   productId: string;
+  productName: string;
   qtyPerCover: number;
   expectedQty: number;
   stockUom: string;
