@@ -1,6 +1,6 @@
 {
-  "name": "Auto-Stock (Big Bakes)",
-  "short_name": "Auto-Stock",
+  "name": "Big Bakes Stock",
+  "short_name": "Stock",
   "description": "Big Bakes stock control — goods-in, stock-takes and the head-baker form on the iPad.",
   "start_url": "/",
   "scope": "/",

@@ -61,7 +61,7 @@ function PinLoginPage() {
     <TouchScreen>
       <div className="scroll" style={{ display: 'flex', alignItems: 'center' }}>
         <div className="center">
-          <h1 style={{ textAlign: 'center' }}>Auto-Stock</h1>
+          <h1 style={{ textAlign: 'center' }}>Big Bakes Stock</h1>
           <p className="lede" style={{ textAlign: 'center' }}>Enter your PIN to sign in on this device.</p>
 
           <div

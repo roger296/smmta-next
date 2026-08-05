@@ -110,7 +110,7 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
         {/* 3:1 lockup — at h-8 that is ~96px, which leaves room for the app
             name in a 240px rail without either being cramped. */}
         <img src="/logos/big-bakes.png" alt="Big Bakes" className="h-8 w-auto" />
-        <span className="text-sm font-semibold tracking-tight text-white">Auto-Stock</span>
+        <span className="text-sm font-semibold tracking-tight text-white">Big Bakes Stock</span>
       </div>
 
       {/* Only the list scrolls, so the sister-app buttons stay put. */}
