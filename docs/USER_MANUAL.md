@@ -1,8 +1,8 @@
-# Auto-Stock — User Manual
+# Big Bakes Stock — User Manual
 
 **For head bakers and venue teams taking part in live testing.**
 
-Auto-Stock is Big Bakes' stock-control system. It keeps track of what
+Big Bakes Stock is our stock-control system. It keeps track of what
 ingredients each venue has, what arrives from suppliers, and what gets used in
 each baking session — so we can see food cost, wastage and what needs
 reordering, per site, without anyone counting things twice on paper.
@@ -23,7 +23,7 @@ back to.
 | iPad sign-in page | `https://stock.thebigbakes.com/pin-login` |
 | Desktop sign-in page | `https://stock.thebigbakes.com/login` |
 
-Auto-Stock runs in a web browser — there's no app to install. On the venue
+Big Bakes Stock runs in a web browser — there's no app to install. On the venue
 iPad, open Safari and go to the iPad sign-in page above. Tap the **Share**
 button, then **Add to Home Screen**, so it opens full-screen like an app.
 
@@ -83,7 +83,7 @@ kitchen.
 
 ## 3. Set your site — do this first, once per iPad
 
-**This is the single most important step in the manual.** Auto-Stock files
+**This is the single most important step in the manual.** Big Bakes Stock files
 everything you enter against whichever site the device is set to. It does not
 work this out from your PIN. Get it wrong and your counts land on another
 venue's books.
