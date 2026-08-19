@@ -1643,3 +1643,42 @@ surfaced by running the full Playwright suite with the API reachable):
   last-registered handler wins — and answers 404 for an unknown code.
 - The booking confirmation assertion still expected `= 100000 g`. The C-1 pack
   work made that line read `= 100 kg`, which is the point of it.
+
+## F14 — Navigation context and transitions
+
+Closes **B-7** ("Page transitions feel quite abrupt; retaining a collapsible
+side menu might improve navigation confidence and confirm the active page").
+
+F5 moved the venue screens out from under the desktop admin chrome, which
+fixed B-1…B-4 and removed the only thing on screen that said where you were.
+This puts navigational context back on the venue's own terms.
+
+**Venue screens** — `components/touch/venue-nav.tsx`: a persistent 132px rail
+at ≥900px (iPad landscape and up) and a labelled "☰ Menu" button opening a
+drawer below that. Home plus the three jobs plus Sign out; every target ≥56px.
+The current job carries a salmon ground, a bold label, `aria-current="page"`
+and the words "You are here". `TouchTopbar` picks the Menu button up from
+context, so the PIN screen — outside the venue layout — offers no navigation
+to someone who has not signed in.
+
+**Desktop** — the sidebar collapses to a 64px icon rail and back, persisted in
+`localStorage` and restored on reload. `activePath` is untouched (its tests
+stay green); nav rows gained `aria-current="page"`, and the header gained a
+breadcrumb line deriving its section label from the same `activePath`, so the
+crumb and the highlight cannot disagree.
+
+**Transitions** — a 140ms cross-fade on route change in both layouts, plus a
+route-level pending skeleton at `defaultPendingMs: 150` /
+`defaultPendingMinMs: 300` so a slow screen shows shape rather than a blank
+flash. `usePrefersReducedMotion` omits the animating class outright for anyone
+who has asked for reduced motion; the CSS media query stays as a backstop.
+
+**Tests** — 11 unit tests (collapse persistence including a throwing
+`localStorage`, breadcrumb/highlight agreement, `activeJob`, reduced-motion in
+both directions and with no `matchMedia` at all); 8 Playwright specs × 3
+projects covering rail-vs-drawer by viewport, the rail not overlapping the
+screen it navigates, target sizes, navigation moving the mark, the drawer
+closing behind a navigation, the PIN screen offering nothing, sidebar collapse
+surviving a reload, and the breadcrumb. `pwa-entry` was scoped to `.venue-jobs`
+— the rail now carries the same three job names, so an unscoped by-name query
+is ambiguous by design.

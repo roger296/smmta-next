@@ -6,6 +6,7 @@
  * full-screen over the admin chrome.
  */
 import * as React from 'react';
+import { useVenueNav } from './venue-nav';
 import { useNumericEntry } from './use-numeric-entry';
 import './pwa-touch.css';
 
@@ -197,10 +198,19 @@ export function TouchTopbar({
   const venueLabel = venue ?? 'No venue set';
   const venueClass = `venue-chip${venueBound ? '' : ' warn'}`;
   const venueTitle = venueBound ? undefined : 'Not set for this device — tap to choose';
+  // Null outside the venue layout — the PIN screen must not offer navigation
+  // to someone who has not signed in. Null too when the rail is persistent:
+  // the jobs are already on screen (B-7).
+  const nav = useVenueNav();
 
   return (
     <div className="topbar">
       <div className="topbar-row">
+        {nav && !nav.isRail && (
+          <button type="button" className="venue-menu" onClick={nav.open} aria-label="Open menu">
+            <span aria-hidden>☰</span> Menu
+          </button>
+        )}
         {onBack && (
           <button className="backbtn" onClick={onBack} aria-label="Back">‹</button>
         )}

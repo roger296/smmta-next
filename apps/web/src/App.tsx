@@ -5,8 +5,22 @@ import { routeTree } from './routeTree.gen';
 import { createQueryClient } from './lib/query-client';
 import { ToastContextProvider } from './hooks/use-toast';
 import { PwaQueueSync } from './features/pwa/use-pwa-jobs';
+import { RoutePending } from './components/layout/route-pending';
 
-const router = createRouter({ routeTree });
+const router = createRouter({
+  routeTree,
+  /*
+   * A slow screen shows a skeleton rather than a blank flash (B-7).
+   *
+   * `defaultPendingMs: 150` keeps it off the fast paths — a skeleton that
+   * appears and vanishes inside a frame is its own kind of abrupt. Once shown
+   * it stays for at least 300ms, so it reads as "loading" rather than a
+   * flicker.
+   */
+  defaultPendingComponent: RoutePending,
+  defaultPendingMs: 150,
+  defaultPendingMinMs: 300,
+});
 
 declare module '@tanstack/react-router' {
   interface Register {

@@ -1,5 +1,7 @@
+import * as React from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
+import { readSidebarCollapsed, writeSidebarCollapsed } from '@/lib/sidebar-state';
 import {
   LayoutDashboard,
   Package,
@@ -8,6 +10,8 @@ import {
   Receipt,
   Settings,
   FolderTree,
+  PanelLeftClose,
+  PanelLeftOpen,
   MapPin,
   PackageSearch,
   Banknote,
@@ -98,22 +102,66 @@ interface SidebarProps {
   alwaysShow?: boolean;
 }
 
+/**
+ * The collapse preference, read once on mount and written on every toggle
+ * (Aug-2026, B-7). Inside the mobile Sheet the sidebar is never collapsed —
+ * a drawer you opened deliberately should not be an icon rail.
+ */
+export function useSidebarCollapsed(enabled: boolean): [boolean, () => void] {
+  const [collapsed, setCollapsed] = React.useState(() => enabled && readSidebarCollapsed());
+  const toggle = React.useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      writeSidebarCollapsed(next);
+      return next;
+    });
+  }, []);
+  return [enabled && collapsed, toggle];
+}
+
 export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
   const { location } = useRouterState();
   const active = activePath(location.pathname, NAV_ITEMS);
+  const [collapsed, toggleCollapsed] = useSidebarCollapsed(!alwaysShow);
   return (
     <aside
       aria-label="Main navigation"
+      data-collapsed={collapsed ? 'true' : 'false'}
       className={cn(
-        'flex w-60 shrink-0 flex-col bg-[var(--color-shell)] text-[var(--color-shell-foreground)]',
+        'flex shrink-0 flex-col bg-[var(--color-shell)] text-[var(--color-shell-foreground)] transition-[width] duration-150 motion-reduce:transition-none',
+        collapsed ? 'w-16' : 'w-60',
         alwaysShow ? 'block w-full border-r-0' : 'hidden md:flex',
       )}
     >
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-[var(--color-shell-border)] px-4">
+      <div
+        className={cn(
+          'flex h-14 shrink-0 items-center gap-2 border-b border-[var(--color-shell-border)]',
+          collapsed ? 'justify-center px-1' : 'px-4',
+        )}
+      >
         {/* 3:1 lockup — at h-8 that is ~96px, which leaves room for the app
             name in a 240px rail without either being cramped. */}
-        <img src="/logos/big-bakes.png" alt="Big Bakes" className="h-8 w-auto" />
-        <span className="text-sm font-semibold tracking-tight text-white">Big Bakes Stock</span>
+        {!collapsed && <img src="/logos/big-bakes.png" alt="Big Bakes" className="h-8 w-auto" />}
+        {!collapsed && (
+          <span className="text-sm font-semibold tracking-tight text-white">Big Bakes Stock</span>
+        )}
+        {!alwaysShow && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+            title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+            // 46px minimum — the same target size the venue screens use, since
+            // this shell is also opened on a tablet.
+            className={cn(
+              'ml-auto flex h-[46px] min-w-[46px] items-center justify-center rounded-md text-[var(--color-shell-muted)] hover:bg-[var(--color-shell-hover)] hover:text-white',
+              collapsed && 'ml-0',
+            )}
+          >
+            {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+          </button>
+        )}
       </div>
 
       {/* Only the list scrolls, so the sister-app buttons stay put. */}
@@ -124,8 +172,15 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
             <Link
               key={item.to}
               to={item.to}
+              // The current page announces itself to assistive tech too, not
+              // only in salmon — "confirm the active page" (B-7) is the whole
+              // request, and colour alone does not confirm it to everyone.
+              aria-current={active === item.to ? 'page' : undefined}
+              title={collapsed ? item.label : undefined}
+              aria-label={collapsed ? item.label : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                'flex items-center rounded-md py-2 text-sm transition-colors',
+                collapsed ? 'justify-center px-2' : 'gap-3 px-3',
                 // Salmon for the current page: the pin colour is the one thing
                 // that reliably wins against a navy ground.
                 active === item.to
@@ -133,17 +188,19 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
                   : 'text-[var(--color-shell-muted)] hover:bg-[var(--color-shell-hover)] hover:text-white',
               )}
             >
-              <Icon className="h-4 w-4" />
-              {item.label}
+              <Icon className="h-4 w-4 shrink-0" />
+              {!collapsed && item.label}
             </Link>
           );
         })}
       </nav>
 
       <div className="shrink-0 border-t border-[var(--color-shell-border)] p-2">
-        <p className="px-3 pb-1 text-xs font-medium text-[var(--color-shell-muted)]">
-          Other apps
-        </p>
+        {!collapsed && (
+          <p className="px-3 pb-1 text-xs font-medium text-[var(--color-shell-muted)]">
+            Other apps
+          </p>
+        )}
         <div className="flex flex-col gap-2">
           {SISTER_APPS.map((app) => (
             <a
@@ -151,12 +208,17 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
               href={app.href}
               target="_blank"
               rel="noopener noreferrer"
+              title={collapsed ? app.label : undefined}
+              aria-label={collapsed ? app.label : undefined}
               // min-h-14 keeps these comfortably tappable on a shared iPad —
               // they're the one thing here people reach for with a full hand.
-              className="flex min-h-14 items-center gap-3 rounded-md border border-[var(--color-shell-border)] px-3 py-2 text-sm font-medium text-[var(--color-shell-foreground)] transition-colors hover:bg-[var(--color-shell-hover)] hover:text-white"
+              className={cn(
+                'flex min-h-14 items-center rounded-md border border-[var(--color-shell-border)] py-2 text-sm font-medium text-[var(--color-shell-foreground)] transition-colors hover:bg-[var(--color-shell-hover)] hover:text-white',
+                collapsed ? 'justify-center px-2' : 'gap-3 px-3',
+              )}
             >
               <img src={app.logo} alt="" aria-hidden className="h-8 w-8 shrink-0 object-contain" />
-              <span>{app.label}</span>
+              {!collapsed && <span>{app.label}</span>}
             </a>
           ))}
         </div>

@@ -66,3 +66,21 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/*
+ * Route cross-fade (Aug-2026 feedback set, B-7).
+ *
+ * "Page transitions feel quite abrupt." `RouteFade` omits this class outright
+ * under `prefers-reduced-motion`; the media query below is the belt to that
+ * braces, for anything that applies the class without asking.
+ */
+@keyframes route-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.route-fade {
+  animation: route-fade-in 140ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-fade { animation: none; }
+}

@@ -2,6 +2,8 @@ import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { SiteProvider } from '@/features/sites/site-context';
 import { TouchViewportLock } from '@/components/touch/touch-viewport-lock';
+import { VenueNav } from '@/components/touch/venue-nav';
+import { TouchRouteFade } from '@/components/touch/touch-route-fade';
 import { isAuthenticated } from '@/lib/auth';
 
 /**
@@ -50,9 +52,17 @@ function TouchLayout() {
       {/* Body scroll lock + visual-viewport tracking, mounted once for the
           whole layout rather than per screen. */}
       <TouchViewportLock />
-      <ErrorBoundary>
-        <Outlet />
-      </ErrorBoundary>
+      {/* Navigational context for the venue screens (B-7): a persistent rail
+          in landscape, a labelled Menu button + drawer in portrait. Wraps the
+          Outlet so `TouchTopbar` can find it through context on every screen
+          without each screen having to wire it up. */}
+      <VenueNav>
+        <ErrorBoundary>
+          <TouchRouteFade>
+            <Outlet />
+          </TouchRouteFade>
+        </ErrorBoundary>
+      </VenueNav>
     </SiteProvider>
   );
 }

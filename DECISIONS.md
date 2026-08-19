@@ -821,3 +821,37 @@ judgement call so the fix run never blocked.
   importer writes under the singleton company, so a fixture named like a cake
   would be indistinguishable from the menu in a product list sorted by name —
   which is the F-4 failure mode all over again.
+
+## F14 — Navigation context and transitions (Aug-2026)
+
+- **The venue rail lives outside `.touch-app`, and indents it.** `.touch-app`
+  is `position: fixed; inset: 0` — the shell that fixed B-1 — so a flex sibling
+  inside the layout would be painted over. The rail is a fixed `<nav>` at a
+  higher z-index and the overlay's `left` is shifted by a
+  `venue-rail-open` class on `<html>`. A class rather than a global custom
+  property because `/pin-login` is a `.touch-app` screen that is **not** inside
+  the venue layout and must not be indented by a rail it never renders.
+- **The Menu button comes from context, not from each screen.** `TouchTopbar`
+  reads `useVenueNav()`, which is null outside the venue layout. Five screens
+  get the button without five edits, and the PIN screen — where nobody has
+  signed in yet — is offered no navigation at all.
+- **Rail at ≥900px, drawer below.** An iPad in landscape has the width; in
+  portrait it does not, and a 132px rail would take a sixth of the glass from
+  a screen whose whole problem was things being cut off.
+- **The current job is marked three ways** — salmon ground, bold label, and
+  `aria-current="page"` plus a literal "You are here". "Confirm the active
+  page" is the request, and colour alone confirms it to nobody using a screen
+  reader. The desktop nav gained `aria-current` for the same reason.
+- **`prefers-reduced-motion` omits the class rather than overriding it.** The
+  CSS media query is kept as a backstop, but the decision is made in a hook so
+  it is testable and so no animation is started and then cancelled.
+- **`sectionLabel` reuses `activePath`.** A breadcrumb derived independently
+  could disagree with the highlighted nav row — on `/stock/by-site`, where
+  `/stock` is a prefix, that is exactly the confusion B-7 complains about.
+- **Collapse state in `localStorage`, defaulting to expanded.** It is a
+  property of this browser, not of the account. When `localStorage` throws
+  (private-mode Safari) the answer is "expanded": a nav nobody can read is
+  worse than one that forgets a preference.
+- **A route-pending skeleton at 150ms / 300ms minimum.** Below 150ms a
+  skeleton that appears and vanishes inside a frame is its own kind of abrupt;
+  once shown, 300ms keeps it from flickering.

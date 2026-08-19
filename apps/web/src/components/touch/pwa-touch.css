@@ -441,3 +441,109 @@ body.touch-layout-active { overflow: hidden; overscroll-behavior: none; }
   font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums;
 }
 .touch-app .notice .linklike { margin-left: 8px; }
+
+/* ── Venue navigation (Aug-2026 feedback set, B-7) ─────────────
+ *
+ * "Retaining a collapsible side menu might improve navigation confidence and
+ * confirm the active page."
+ *
+ * A persistent rail in landscape (≥900px, which is an iPad landscape and up),
+ * a drawer behind a labelled Menu button in portrait. Every target ≥ 46px.
+ * The rail is a sibling of `.touch-app` — the overlay is `position: fixed`, so
+ * the shift is done by indenting the overlay, not by flex.
+ */
+:root { --venue-rail-width: 132px; }
+
+.venue-rail-open .touch-app { left: var(--venue-rail-width); }
+
+.venue-rail {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: var(--venue-rail-width);
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: calc(env(safe-area-inset-top) + 10px) 8px 12px;
+  background: #1f2a37;
+  color: #f4f5f7;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow-y: auto;
+}
+.venue-rail-brand {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #97a2b0; padding: 4px 8px 8px;
+}
+.venue-rail-spacer { flex: 1; }
+
+.venue-nav-item {
+  display: flex; flex-direction: column; gap: 2px;
+  min-height: 56px; padding: 10px 10px;
+  border: none; border-radius: 10px; text-align: left;
+  background: transparent; color: #cdd3db;
+  font-family: inherit; font-size: 15px; font-weight: 600;
+}
+.venue-nav-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+/* Salmon for the current job — the same pin colour the desktop shell uses, so
+   the two navs mean the same thing by the same signal. */
+.venue-nav-item.current { background: #e8865c; color: #1f2a37; font-weight: 800; }
+.venue-nav-item.signout { color: #f0b4ac; }
+.venue-nav-label { font-size: 15px; }
+.venue-nav-hint { font-size: 12px; font-weight: 500; opacity: 0.8; }
+/* Words, not only colour: "confirm the active page" has to work for someone
+   who cannot see the salmon. */
+.venue-nav-here {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* The Menu button, rendered into the topbar by `TouchTopbar` when the venue
+   layout is present and the rail is not. Labelled, never a bare hamburger. */
+.touch-app .venue-menu {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 46px; min-width: 46px; padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 8px;
+  background: transparent; color: var(--bar-ink);
+  font-size: 14px; font-weight: 700;
+}
+.touch-app .venue-menu:hover { background: rgba(255, 255, 255, 0.1); }
+
+.venue-drawer-scrim {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(15, 20, 28, 0.5);
+}
+.venue-drawer {
+  position: fixed; left: 0; top: 0; bottom: 0; z-index: 61;
+  width: min(320px, 86vw);
+  display: flex; flex-direction: column; gap: 6px;
+  padding: calc(env(safe-area-inset-top) + 10px) 10px 14px;
+  background: #1f2a37; color: #f4f5f7;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow-y: auto;
+  animation: venue-drawer-in 160ms ease-out both;
+}
+.venue-drawer.no-motion { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .venue-drawer { animation: none; }
+}
+@keyframes venue-drawer-in {
+  from { transform: translateX(-12px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.venue-drawer-head { display: flex; align-items: center; justify-content: space-between; }
+.venue-drawer-close {
+  min-height: 46px; min-width: 46px;
+  border: none; background: transparent; color: #cdd3db; font-size: 28px; line-height: 1;
+}
+
+/* Route cross-fade for the venue screens (B-7). `display: contents` so the
+   wrapper adds no box of its own — `.touch-app` is fixed and would ignore it
+   anyway, so the animation is applied to the overlay itself instead. */
+.touch-route { display: contents; }
+.touch-route-fade > .touch-app { animation: touch-route-in 140ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .touch-route-fade > .touch-app { animation: none; }
+}
+@keyframes touch-route-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

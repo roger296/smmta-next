@@ -53,9 +53,12 @@ test.describe('venue home', () => {
     await page.goto('/venue');
 
     await expect(page.locator('.touch-app')).toBeVisible();
-    await expect(page.getByRole('button', { name: /Goods In/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /End of Bake/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Stock Take/ })).toBeVisible();
+    // Scoped to the tile grid: since F14 the venue rail carries the same three
+    // job names, so an unscoped by-name query is ambiguous by design.
+    const tiles = page.locator('.venue-jobs');
+    await expect(tiles.getByRole('button', { name: /Goods In/ })).toBeVisible();
+    await expect(tiles.getByRole('button', { name: /End of Bake/ })).toBeVisible();
+    await expect(tiles.getByRole('button', { name: /Stock Take/ })).toBeVisible();
     // And it names the venue, like every other venue screen (B-5).
     await expect(page.locator('.touch-app .venue-chip')).toHaveText(/London South/);
     // No desktop chrome.
@@ -66,7 +69,7 @@ test.describe('venue home', () => {
     await authenticatePage(page);
     await stubSites(page);
     await page.goto('/venue');
-    await page.getByRole('button', { name: /Goods In/ }).click();
+    await page.locator('.venue-jobs').getByRole('button', { name: /Goods In/ }).click();
     await expect(page).toHaveURL(/\/pwa\/goods-in$/);
   });
 });
