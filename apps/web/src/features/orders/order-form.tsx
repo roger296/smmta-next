@@ -19,6 +19,7 @@ import { useProductsList } from '../products/use-products';
 import { useWarehouses } from '../reference/use-reference';
 import { formatMoney } from '@/lib/format';
 import { Plus, Trash2 } from 'lucide-react';
+import { MAX_PAGE_SIZE } from '@/lib/api-client';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -65,7 +66,9 @@ interface Props {
 
 export function OrderForm({ defaultValues, onSubmit, submitLabel = 'Create order', onCancel }: Props) {
   const { data: customers } = useCustomersList({ pageSize: 200 });
-  const { data: products } = useProductsList({ pageSize: 500 });
+  // MAX_PAGE_SIZE, not 500: above the API's cap the request 400s outright
+  // rather than returning a short page (defect D-1).
+  const { data: products } = useProductsList({ pageSize: MAX_PAGE_SIZE });
   const { data: warehouses } = useWarehouses();
 
   const {

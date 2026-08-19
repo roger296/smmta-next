@@ -39,7 +39,7 @@ function setupStubs() {
         ],
         total: 1,
         page: 1,
-        pageSize: 500,
+        pageSize: 250,
         totalPages: 1,
       }),
     ),

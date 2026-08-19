@@ -1,4 +1,3 @@
-// @ts-expect-error - Node built-in, available at runtime in Playwright environment
 import { execSync } from 'node:child_process';
 import type { Page } from '@playwright/test';
 

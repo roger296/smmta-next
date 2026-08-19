@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch, type PaginatedResult } from '@/lib/api-client';
+import { apiFetch, MAX_PAGE_SIZE, type PaginatedResult } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
 import { bucketCount } from '@/lib/uom';
@@ -28,9 +28,22 @@ export const Route = createFileRoute('/_authed/pwa/stock-take')({
   component: StockTakeScreen,
 });
 
+/**
+ * A take line as the server now returns it (defect D-1b).
+ *
+ * The identity fields come down WITH the line, so the count screen never needs
+ * a second request to name its own rows. `useProductMap` below stays only as a
+ * supplementary lookup for anything the line doesn't carry — it is no longer
+ * load-bearing, which is the whole point: on 12 Aug it 400d and took every row
+ * label down with it.
+ */
 interface TakeLine {
   productId: string;
   bookQty: string;
+  productName?: string | null;
+  stockCode?: string | null;
+  stockUom?: string | null;
+  itemKind?: string | null;
 }
 
 const SCOPES: Array<{ value: string; label: string }> = [
@@ -39,15 +52,73 @@ const SCOPES: Array<{ value: string; label: string }> = [
   { value: 'CATEGORY', label: 'Category' },
 ];
 
+/**
+ * Supplementary product lookup. Two things changed after 12 Aug:
+ *
+ *  - it asks for `MAX_PAGE_SIZE`, not 500. Above the cap the request 400s
+ *    outright rather than returning a short page (defect D-1);
+ *  - it **pages to completion** instead of assuming one page covers the
+ *    catalogue. A venue with more than 250 stocked lines was silently seeing
+ *    a partial map even when the request succeeded.
+ *
+ * It is no longer load-bearing — the row label comes off the line — so a
+ * failure here degrades the screen rather than emptying it.
+ */
 function useProductMap() {
   return useQuery<Map<string, Product>>({
     queryKey: ['pwa-product-map'],
     queryFn: async () => {
-      const res = await apiFetch<PaginatedResult<Product>>('/products', { searchParams: { pageSize: 500 } });
-      const rows = Array.isArray(res) ? (res as Product[]) : res.data;
-      return new Map(rows.map((p) => [p.id, p]));
+      const all: Product[] = [];
+      let page = 1;
+      // A hard stop, so a server that keeps reporting more pages than it
+      // serves cannot spin the venue iPad forever.
+      const MAX_PAGES = 40;
+      for (; page <= MAX_PAGES; page += 1) {
+        const res = await apiFetch<PaginatedResult<Product>>('/products', {
+          searchParams: { page, pageSize: MAX_PAGE_SIZE },
+        });
+        const rows = Array.isArray(res) ? (res as Product[]) : res.data;
+        all.push(...rows);
+        const totalPages = Array.isArray(res) ? 1 : res.totalPages;
+        if (rows.length === 0 || page >= (totalPages || 1)) break;
+      }
+      return new Map(all.map((p) => [p.id, p]));
     },
+    // A missing name is now cosmetic, so don't hammer a failing endpoint from
+    // a venue iPad on bad wifi.
+    retry: 1,
   });
+}
+
+/**
+ * What to call this row. The line's own `productName` wins; the product map is
+ * a fallback; and when neither knows, we say so **legibly** —
+ * "Unknown product (ING-ICING)" — never a bare hex fragment, which is what a
+ * counter was handed on 12 Aug (defect D-1).
+ */
+export function takeLineLabel(line: TakeLine, mapped?: Product): string {
+  const name = line.productName ?? mapped?.name;
+  if (name) return name;
+  const ref = line.stockCode ?? mapped?.stockCode ?? line.productId.slice(0, 8);
+  return `Unknown product (${ref})`;
+}
+
+/** True when the row has no real identity — drives the warn dot. */
+export function isUnidentified(line: TakeLine, mapped?: Product): boolean {
+  return !(line.productName ?? mapped?.name);
+}
+
+/** Search matches the name AND the stock code (defect D-3). */
+export function matchesSearch(line: TakeLine, mapped: Product | undefined, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [
+    line.productName ?? mapped?.name ?? '',
+    line.stockCode ?? mapped?.stockCode ?? '',
+  ]
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(q);
 }
 
 /** Exported so the component tests can render the screen without a router. */
@@ -97,8 +168,13 @@ export function StockTakeScreen() {
     const counted = lines
       .filter((l) => counts[l.productId] !== undefined)
       .map((l) => {
-        const uom = productMap?.get(l.productId)?.stockUom ?? 'each';
-        return { productId: l.productId, countedQty: bucketCount(counts[l.productId], uom) };
+        const uom = l.stockUom ?? productMap?.get(l.productId)?.stockUom ?? 'each';
+        // `0` = no bucketing. Rounding a count to a quantum is only ever right
+        // when the quantum is configured per product IN that product's own
+        // stock unit; the blanket default rounded a 4 kg count of icing sugar
+        // to 0 (defect D-2). F4 removes the default outright and adds the
+        // per-product `countQuantum` this will read.
+        return { productId: l.productId, countedQty: bucketCount(counts[l.productId], uom, 0) };
       });
     if (counted.length === 0) return;
     setError(null);
@@ -178,15 +254,13 @@ export function StockTakeScreen() {
   // ── Count screen ──────────────────────────────────────────
   const countedTotal = lines.filter((l) => counts[l.productId] !== undefined).length;
   const pct = lines.length === 0 ? 0 : Math.round((countedTotal / lines.length) * 100);
-  const q = search.trim().toLowerCase();
   const visible = lines.filter((l) => {
-    const p = productMap?.get(l.productId);
-    const name = p?.name ?? l.productId;
-    if (q && !name.toLowerCase().includes(q)) return false;
+    if (!matchesSearch(l, productMap?.get(l.productId), search)) return false;
     if (filter === 'todo' && counts[l.productId] !== undefined) return false;
     return true;
   });
   const target = typeTarget ? productMap?.get(typeTarget) : undefined;
+  const targetLine = typeTarget ? lines.find((l) => l.productId === typeTarget) : undefined;
 
   return (
     <TouchScreen>
@@ -209,19 +283,20 @@ export function StockTakeScreen() {
         {lines.length > 0 && visible.length === 0 && <div className="empty">Nothing matches.</div>}
         {visible.map((l) => {
           const p = productMap?.get(l.productId);
-          const uom = p?.stockUom ?? '';
+          const uom = l.stockUom ?? p?.stockUom ?? '';
           const book = Number(l.bookQty);
           const counted = counts[l.productId] !== undefined;
           const qty = counts[l.productId] ?? 0;
           const variance = counted ? Math.round((qty - book) * 100) / 100 : null;
+          const unknown = isUnidentified(l, p);
           return (
             <CountRow
               key={l.productId}
-              name={p?.name ?? l.productId.slice(0, 8)}
-              hint={<>Book: {book} {uom}</>}
+              name={takeLineLabel(l, p)}
+              hint={<>Book: {book} {uom}{l.stockCode ? ` · ${l.stockCode}` : ''}</>}
               counted={counted}
               qty={qty}
-              status={!counted ? 'todo' : variance === 0 ? 'done' : 'warn'}
+              status={unknown ? 'warn' : !counted ? 'todo' : variance === 0 ? 'done' : 'warn'}
               badge={
                 variance !== null && variance !== 0 ? (
                   <span className="badge warn">Δ {variance > 0 ? '+' : ''}{variance}</span>
@@ -245,7 +320,11 @@ export function StockTakeScreen() {
 
       {typeTarget && (
         <KeypadSheet
-          title={target?.name ?? 'Enter count'}
+          title={
+            targetLine
+              ? takeLineLabel(targetLine, target)
+              : (target?.name ?? 'Enter count')
+          }
           initial={counts[typeTarget] ?? 0}
           onCancel={() => setTypeTarget(null)}
           onConfirm={(v) => {

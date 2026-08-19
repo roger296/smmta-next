@@ -19,6 +19,7 @@ import { useProductsList } from '../products/use-products';
 import { useWarehouses } from '../reference/use-reference';
 import { formatMoney } from '@/lib/format';
 import { Plus, Trash2 } from 'lucide-react';
+import { MAX_PAGE_SIZE } from '@/lib/api-client';
 
 export const poFormSchema = z.object({
   supplierId: z.string().uuid('Select a supplier'),
@@ -60,7 +61,8 @@ interface Props {
 
 export function POForm({ defaultValues, onSubmit, submitLabel = 'Create PO', onCancel }: Props) {
   const { data: suppliers } = useSuppliersList({ pageSize: 200 });
-  const { data: products } = useProductsList({ pageSize: 500 });
+  // MAX_PAGE_SIZE, not 500 — above the cap the request 400s (defect D-1).
+  const { data: products } = useProductsList({ pageSize: MAX_PAGE_SIZE });
   const { data: warehouses } = useWarehouses();
 
   const {

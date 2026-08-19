@@ -517,3 +517,36 @@ judgement call so the fix run never blocked.
   descriptors ask for WebKit, which cannot be installed in this environment.
   This narrows what the projects prove — metrics, not engine — and that is
   already recorded in the Playwright config header and F1's note.
+
+## F3 — stock-take identity
+
+- **The line carries its own identity; the product map is now optional.** The
+  prompt frames D-1 as a paging bug, and the paging *is* fixed — but the deeper
+  fault is that a count sheet needed a second network request to name its own
+  rows. Any failure of that request took the whole screen down. The join makes
+  the row self-describing, so the map can fail without consequence.
+- **LEFT join, not inner.** `stock_take_lines.product_id` has an FK today, so a
+  genuinely orphaned line cannot exist and `productName: null` is unreachable.
+  The join is a LEFT join anyway: an inner join would make a future FK
+  relaxation *silently drop rows from a count sheet*, which is a worse failure
+  than an ugly label. The test asserts the no-drop property rather than
+  pretending to orphan a row the database will not let us orphan.
+- **F3 does NOT ship red waiting for F4 — it disables bucketing at the call
+  site instead.** The prompt asks for F3's tests to fail until F4 lands, so the
+  pair cannot be separated. That would mean committing a red tree, which the
+  execution protocol forbids, and — worse — it would mean a commit exists in
+  which D-1's mask is gone and counts are being silently destroyed. Passing an
+  explicit `0` quantum at the count call site achieves the same safety property
+  with no red commit and no window of destruction. F4 still lands immediately
+  after and does the real job: removing the blanket default entirely so **no**
+  call site can inherit it, and adding the per-product `countQuantum`.
+- **The page-size guard is a source-text scan, not a runtime check.** A runtime
+  assertion only fires on a code path a test happens to exercise; the venue hit
+  this on a screen with no test at all. Scanning the tree catches the ones
+  nobody thought to test — as it did immediately, finding three more.
+- **`"node"` added to the web tsconfig `types`.** The guard test reads the
+  source tree, so it needs Node's fs types. The alternative (an
+  `@ts-expect-error` per import, the existing local convention in
+  `e2e/helpers/auth.ts`) types those calls as `any`, which is worse in a test
+  whose whole job is to be trustworthy. Adding the types introduced no new
+  errors anywhere else.

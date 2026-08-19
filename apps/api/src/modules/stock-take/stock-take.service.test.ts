@@ -86,6 +86,44 @@ describe('open', () => {
     const flourLine = lines.find((l) => l.productId === flourId)!;
     expect(Number(flourLine.bookQty)).toBe(5000);
   });
+
+  // ── D-1b: the count screen must not need a second request to name a row ──
+  it('D-1b: returns product identity ON each line', async () => {
+    await setLevel(flourId, 5000);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    const line = lines.find((l) => l.productId === flourId)!;
+    expect(line.productName).toBe('ST Flour');
+    expect(line.stockUom).toBe('g');
+    expect(line.itemKind).toBe('INGREDIENT');
+    expect(line).toHaveProperty('stockCode');
+  });
+
+  it('D-1b: GET also carries the identity, so a resumed take is legible too', async () => {
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    const got = await svc.get(take.id, COMPANY);
+    expect(got!.lines[0]!.productName).toBe('ST Flour');
+  });
+
+  it('D-1b: the join never drops a line — every stock_take_line comes back', async () => {
+    // `stock_take_lines.product_id` has an FK to `products`, so a genuinely
+    // orphaned line cannot exist today. The join is nevertheless a LEFT join
+    // and the mapper coalesces to null, so if that FK is ever relaxed a
+    // nameless line degrades to "Unknown product" on the count sheet rather
+    // than vanishing from it. This asserts the no-drop half, which is the
+    // half a wrong (inner) join would break.
+    await setLevel(flourId, 5000);
+    await setLevel(sugarId, 3000);
+    const { take, lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+
+    const rows = await getDb()
+      .select({ id: stockTakeLines.id })
+      .from(stockTakeLines)
+      .where(eq(stockTakeLines.stockTakeId, take.id));
+
+    expect(lines).toHaveLength(rows.length);
+    expect(lines.every((l) => l.productName !== undefined)).toBe(true);
+  });
 });
 
 describe('counts + approval', () => {

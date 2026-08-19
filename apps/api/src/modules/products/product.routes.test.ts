@@ -112,6 +112,32 @@ describe('GET /api/v1/products — returns storefront fields', () => {
     expect(typeof black?.sortOrderInGroup).toBe('number');
   });
 
+  // ── D-1: the cap that made every stock-take row unreadable on 12 Aug ─────
+  it('D-1: GET /products?pageSize=500 is a 400 naming the cap, not a short page', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/products',
+      headers: { authorization: `Bearer ${token}` },
+      query: { pageSize: '500' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { success: boolean; error: string; details?: Array<{ message: string }> };
+    expect(body.success).toBe(false);
+    expect(JSON.stringify(body)).toContain('250');
+  });
+
+  it('D-1: GET /products?pageSize=250 succeeds — the cap itself is allowed', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/products',
+      headers: { authorization: `Bearer ${token}` },
+      query: { pageSize: '250' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { pageSize: number }).pageSize).toBe(250);
+  });
+
   it('rejects unauthenticated requests', async () => {
     const res = await app.inject({
       method: 'GET',

@@ -19,6 +19,7 @@ import { useProductsList } from '@/features/products/use-products';
 import { useWarehouses } from '@/features/reference/use-reference';
 import { useAdjustStock } from '@/features/stock/use-stock';
 import { useToast } from '@/hooks/use-toast';
+import { MAX_PAGE_SIZE } from '@/lib/api-client';
 
 export const Route = createFileRoute('/_authed/stock/adjust')({
   component: StockAdjustPage,
@@ -39,7 +40,8 @@ type FormOutput = z.output<typeof schema>;
 function StockAdjustPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: products } = useProductsList({ pageSize: 500 });
+  // MAX_PAGE_SIZE, not 500 — above the cap the request 400s (defect D-1).
+  const { data: products } = useProductsList({ pageSize: MAX_PAGE_SIZE });
   const { data: warehouses } = useWarehouses();
   const mutation = useAdjustStock();
 

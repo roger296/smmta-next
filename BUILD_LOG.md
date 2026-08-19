@@ -906,3 +906,67 @@ managed browser as normal. Locally the specs run with
 
 Also: `vite.config.ts` gained `routeFileIgnorePattern` so a test colocated with
 a route file stops warning the route generator on every boot.
+
+## F3 — Stock-take shows product names, not UUID fragments (D-1, D-1b, D-3) (2026-08-19)
+
+The tester could not log a single count because every row read as a raw
+alphanumeric string.
+
+**The chain:** `useProductMap` requested `/products?pageSize=500`;
+`paginationSchema` caps `pageSize` at 250, so the request **400d**, `apiFetch`
+threw, the query errored, `productMap` was `undefined`, and the row fell back to
+`l.productId.slice(0, 8)`.
+
+**Server-side, the real fix (D-1b).** `POST /stock-takes` (and `GET
+/stock-takes/:id`) now return `productName`, `stockCode`, `stockUom` and
+`itemKind` on every line, via a new `linesWithProduct()`. The count screen
+should not need a second, larger, fallible request to know what it is asking
+someone to count. Deliberately a **LEFT** join with null-coalescing, so if the
+`stock_take_lines → products` FK is ever relaxed a nameless line degrades to
+"Unknown product" rather than vanishing from the count sheet.
+
+**Client.** `TakeLine` carries the identity and the row renders from it.
+`useProductMap` survives only as a supplementary lookup and is no longer
+load-bearing: it asks for `MAX_PAGE_SIZE`, **pages through to completion**
+(a venue with more than 250 stocked lines was seeing a partial map even when
+the request succeeded), retries once rather than hammering a failing endpoint
+from a venue iPad, and a failure now degrades the screen instead of emptying it.
+A line with no name renders `Unknown product (<stockCode>)` with a `warn` dot —
+never a bare hex fragment.
+
+**Search (D-3)** matches name **and** `stockCode`. The "N of M counted" stat is
+computed from the lines and the counts alone, so it never depended on the map.
+
+**Guarding the class of bug.** `MAX_PAGE_SIZE` is exported from the API's
+pagination module (with the cap named in the Zod message) and mirrored in
+`apps/web/src/lib/api-client.ts`. A new `page-size-guard.test.ts` walks every
+file under `apps/web/src` and fails on any `pageSize` literal above it.
+
+**It immediately found three more live instances of the same latent 400** —
+`features/orders/order-form.tsx`, `features/purchasing/po-form.tsx` and
+`routes/_authed/stock/adjust.tsx` all requested `pageSize: 500`. All three are
+fixed. That is the guard earning its place on the day it was written.
+
+**Bucketing is explicitly disabled at the count call site** pending F4. The
+stock-take now passes `bucketCount(qty, uom, 0)` — `0` means no bucketing — so
+removing D-1's mask does **not** start destroying counts. See DECISIONS for why
+this deviates from the prompt's "F3 is red until F4 lands".
+
+**Tests** (red-to-green verified: reverting only `stock-take.tsx` fails 4 of the
+new web tests):
+- API: opening a take returns lines carrying `productName` / `stockUom` /
+  `itemKind`; `GET` carries it too so a resumed take is legible; the join never
+  drops a line.
+- API: `GET /products?pageSize=500` → 400 with the cap in the body;
+  `pageSize=250` → 200. Plus schema-level tests on the cap itself.
+- Web: the count screen renders names with the product map **deliberately
+  returning 500**; no row label matches `/^[0-9a-f]{8}$/`; a nameless line reads
+  "Unknown product (ING-MYSTERY)"; search matches stock code and name; the
+  counted stat works without the map.
+- Web: `page-size-guard.test.ts` — the cross-cutting guard.
+- Playwright (iPad): the first row's label is a real product name; search finds
+  a row by its stock code.
+
+`apps/web/tsconfig.json` gained `"node"` to its `types` (the guard test reads
+the source tree). That let the now-redundant `@ts-expect-error` in
+`e2e/helpers/auth.ts` go.

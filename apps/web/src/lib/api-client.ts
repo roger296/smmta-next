@@ -4,6 +4,17 @@ export const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
   'http://localhost:8080/api/v1';
 
+/**
+ * Mirror of the API's `MAX_PAGE_SIZE` (`apps/api/src/shared/utils/pagination.ts`).
+ *
+ * Asking for more than this does not truncate — it **400s**, and on 12 Aug that
+ * was invisible: the stock-take screen asked for twice the cap, the product
+ * lookup errored, and every row on the count sheet rendered as a hex fragment
+ * (defect D-1). `page-size-guard.test.ts` fails the build if any request in
+ * `apps/web/src` exceeds it, so the two can't drift apart again silently.
+ */
+export const MAX_PAGE_SIZE = 250;
+
 export class ApiError extends Error {
   public readonly status: number;
   public readonly details?: unknown;

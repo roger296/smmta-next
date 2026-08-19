@@ -23,6 +23,23 @@ export type StockTake = typeof stockTakes.$inferSelect;
 export type StockTakeLine = typeof stockTakeLines.$inferSelect;
 export type StockTakeScope = 'FULL' | 'CATEGORY' | 'ZONE' | 'ITEM' | 'CYCLE';
 
+/**
+ * A take line WITH the product identity the counter needs (defect D-1b).
+ *
+ * Opening a take used to return bare `stock_take_lines` rows — `productId` and
+ * `bookQty` and nothing else — so the count screen had to make a second,
+ * larger, fallible request just to learn what it was asking someone to count.
+ * On 12 Aug that request 400d and every row rendered as an eight-character hex
+ * fragment; not a single count could be logged. The screen should never have
+ * needed a second request to name its own rows.
+ */
+export interface StockTakeLineWithProduct extends StockTakeLine {
+  productName: string | null;
+  stockCode: string | null;
+  stockUom: string | null;
+  itemKind: string | null;
+}
+
 export class StockTakeService {
   private db = getDb();
   private levels = new StockLevelService();
@@ -33,7 +50,7 @@ export class StockTakeService {
     scope: StockTakeScope;
     scopeRef?: string | null;
     companyId?: string;
-  }): Promise<{ take: StockTake; lines: StockTakeLine[] }> {
+  }): Promise<{ take: StockTake; lines: StockTakeLineWithProduct[] }> {
     const companyId = input.companyId ?? getSingletonCompanyId();
 
     const where = [eq(stockLevels.companyId, companyId), eq(stockLevels.siteId, input.siteId)];
@@ -59,15 +76,16 @@ export class StockTakeService {
       })
       .returning();
 
-    const lines: StockTakeLine[] = [];
     for (const row of inScope) {
-      const [line] = await this.db
+      await this.db
         .insert(stockTakeLines)
-        .values({ stockTakeId: take!.id, productId: row.productId, bookQty: row.onHand })
-        .returning();
-      lines.push(line!);
+        .values({ stockTakeId: take!.id, productId: row.productId, bookQty: row.onHand });
     }
-    return { take: take!, lines };
+    // Re-read through the join so the caller gets the identity in one round
+    // trip. A LEFT join, not an inner one: a line whose product was later
+    // deleted must still come back (with nulls) rather than vanishing from the
+    // count sheet or throwing.
+    return { take: take!, lines: await this.linesWithProduct(take!.id) };
   }
 
   /** Record a single count. Offline-idempotent on `countIdempotencyKey`. */
@@ -178,16 +196,38 @@ export class StockTakeService {
     return updated ?? null;
   }
 
-  async get(id: string, companyId = getSingletonCompanyId()): Promise<{ take: StockTake; lines: StockTakeLine[] } | null> {
+  /** Take lines joined to their product identity. See StockTakeLineWithProduct. */
+  async linesWithProduct(stockTakeId: string): Promise<StockTakeLineWithProduct[]> {
+    const rows = await this.db
+      .select({
+        line: stockTakeLines,
+        productName: products.name,
+        stockCode: products.stockCode,
+        stockUom: products.stockUom,
+        itemKind: products.itemKind,
+      })
+      .from(stockTakeLines)
+      .leftJoin(products, eq(products.id, stockTakeLines.productId))
+      .where(eq(stockTakeLines.stockTakeId, stockTakeId));
+
+    return rows.map((r) => ({
+      ...r.line,
+      productName: r.productName ?? null,
+      stockCode: r.stockCode ?? null,
+      stockUom: r.stockUom ?? null,
+      itemKind: r.itemKind ?? null,
+    }));
+  }
+
+  async get(
+    id: string,
+    companyId = getSingletonCompanyId(),
+  ): Promise<{ take: StockTake; lines: StockTakeLineWithProduct[] } | null> {
     const take = await this.db.query.stockTakes.findFirst({
       where: and(eq(stockTakes.id, id), eq(stockTakes.companyId, companyId)),
     });
     if (!take) return null;
-    const lines = await this.db
-      .select()
-      .from(stockTakeLines)
-      .where(eq(stockTakeLines.stockTakeId, id));
-    return { take, lines };
+    return { take, lines: await this.linesWithProduct(id) };
   }
 
   async list(filter: { siteId?: string; status?: string; companyId?: string } = {}): Promise<StockTake[]> {
