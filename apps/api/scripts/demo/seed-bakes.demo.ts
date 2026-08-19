@@ -1,20 +1,33 @@
 /**
- * Seed the Big Bakes cake menu + recipes (demo data).
+ * DEMO cake menu + recipes — **not the Big Bakes offering** (Aug-2026, F-4).
  *
- *   DATABASE_URL=... npx tsx apps/api/scripts/seed-bakes.ts
+ *   DATABASE_URL=... npx tsx apps/api/scripts/demo/seed-bakes.demo.ts
  *
- * Creates the shared ingredient products and a global recipe for each cake
- * (Burger Cake, Victoria Sponge, Coffee & Walnut Delight, Battenburg). A recipe
- * is keyed by the CAKE, not the experience package — quantities are per cover
- * (per guest, who bakes one cake). Idempotent: re-running tops up nothing it
- * already created. Ingredient lists from standard British recipes.
+ * "Displayed recipes are not part of our offering of course."
+ *
+ * These four cakes (Victoria Sponge, Coffee & Walnut Delight, Battenburg,
+ * Burger Cake) were invented to have *something* on screen during the build.
+ * They reached a live venue test, where a baker was asked to record a bake of
+ * a cake Big Bakes does not sell. Worse, every line here is `BASE`, so the
+ * GF / vegan variant machinery had nothing to act on and selecting either
+ * silently produced the standard ingredient list (F-5).
+ *
+ * **The real menu is imported, not seeded** —
+ * `npx tsx apps/api/scripts/import-recipes.ts` and `docs/RECIPE_IMPORT.md`.
+ * This file survives only for local development and demos, and it now refuses
+ * to run anywhere it could be mistaken for real data:
+ *
+ *   - never with `NODE_ENV=production`;
+ *   - never against a database that already holds non-demo recipes.
+ *
+ * `scripts/purge-demo-bakes.ts` removes what it created.
  */
 import 'dotenv/config';
 import { and, eq } from 'drizzle-orm';
-import { closeDatabase, getDb } from '../src/config/database.js';
-import { products } from '../src/db/schema/index.js';
-import { getSingletonCompanyId } from '../src/shared/auth/company.js';
-import { RecipeService } from '../src/modules/recipes/recipe.service.js';
+import { closeDatabase, getDb } from '../../src/config/database.js';
+import { products } from '../../src/db/schema/index.js';
+import { getSingletonCompanyId } from '../../src/shared/auth/company.js';
+import { RecipeService } from '../../src/modules/recipes/recipe.service.js';
 
 const COMPANY = getSingletonCompanyId();
 
@@ -87,16 +100,50 @@ async function findOrCreateIngredient(slug: string): Promise<string> {
   return row!.id;
 }
 
+/** The four invented cakes, so the purge and the guard both know them. */
+export const DEMO_BAKES = Object.keys(RECIPES);
+
+/** The ingredient slugs this seed introduces. */
+export const DEMO_INGREDIENT_SLUGS = Object.keys(INGREDIENTS);
+
+/**
+ * Refuse to run where the data could be mistaken for the real menu.
+ *
+ * Returns a reason to refuse, or null to proceed.
+ */
+export async function refusalReason(): Promise<string | null> {
+  if (process.env.NODE_ENV === 'production') {
+    return 'NODE_ENV=production. The real menu is imported (see docs/RECIPE_IMPORT.md), never seeded.';
+  }
+  const existing = await new RecipeService().list({ companyId: COMPANY });
+  const real = existing.filter((r) => !DEMO_BAKES.includes(r.bake));
+  if (real.length > 0) {
+    const names = [...new Set(real.map((r) => r.bake))].slice(0, 5).join(', ');
+    return `this database already holds ${real.length} non-demo recipe(s) (${names}). Adding invented cakes beside a real menu is how the 12 Aug test ended up asking a baker to bake a Burger Cake.`;
+  }
+  return null;
+}
+
 async function main(): Promise<void> {
+  const refusal = await refusalReason();
+  if (refusal) {
+    console.error(`[seed-bakes.demo] REFUSED — ${refusal}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.warn(
+    '[seed-bakes.demo] Seeding DEMO cakes. These are not the Big Bakes menu; ' +
+      'import the real one with scripts/import-recipes.ts.',
+  );
   const recipes = new RecipeService();
   const ids = new Map<string, string>();
   for (const slug of Object.keys(INGREDIENTS)) ids.set(slug, await findOrCreateIngredient(slug));
-  console.log(`[seed-bakes] ${ids.size} ingredient products ready`);
+  console.log(`[seed-bakes.demo] ${ids.size} ingredient products ready`);
 
   for (const [bake, lines] of Object.entries(RECIPES)) {
     const already = await recipes.list({ bake, companyId: COMPANY });
     if (already.length) {
-      console.log(`[seed-bakes] ${bake} — recipe already exists, skipped`);
+      console.log(`[seed-bakes.demo] ${bake} — recipe already exists, skipped`);
       continue;
     }
     await recipes.create({
@@ -105,16 +152,16 @@ async function main(): Promise<void> {
       lines: lines.map(([slug, qty]) => ({ productId: ids.get(slug)!, qtyPerCover: qty })),
       companyId: COMPANY,
     });
-    console.log(`[seed-bakes] ${bake} — recipe created (${lines.length} ingredients)`);
+    console.log(`[seed-bakes.demo] ${bake} — recipe created (${lines.length} ingredients)`);
   }
 }
 
-const isCliEntry = process.argv[1]?.endsWith('seed-bakes.ts') ?? false;
+const isCliEntry = process.argv[1]?.endsWith('seed-bakes.demo.ts') ?? false;
 if (isCliEntry) {
   main()
-    .then(() => console.log('[seed-bakes] done'))
+    .then(() => console.log('[seed-bakes.demo] done'))
     .catch((err) => {
-      console.error('[seed-bakes] FAILED:', err);
+      console.error('[seed-bakes.demo] FAILED:', err);
       process.exitCode = 1;
     })
     .finally(() => void closeDatabase());

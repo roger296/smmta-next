@@ -1,0 +1,11 @@
+bake,effective_from,site_slug,variant,ingredient_slug,qty_per_table,unit_cost
+ZZ Test Fixture Cake,2026-01-01,,BASE,zz-test-flour,400,0.000713
+ZZ Test Fixture Cake,2026-01-01,,BASE,zz-test-butter,300,0.00582
+ZZ Test Fixture Cake,2026-01-01,,BASE,zz-test-egg,6,0.24
+ZZ Test Fixture Cake,2026-01-01,,BASE,zz-test-marzipan,250,0.0061
+ZZ Test Fixture Cake,2026-01-01,,GF_REMOVE,zz-test-flour,,
+ZZ Test Fixture Cake,2026-01-01,,GF_ADD,zz-test-gf-flour,420,0.003233
+ZZ Test Fixture Cake,2026-01-01,,VEGAN_REMOVE,zz-test-butter,,
+ZZ Test Fixture Cake,2026-01-01,,VEGAN_REMOVE,zz-test-egg,,
+ZZ Test Fixture Cake,2026-01-01,,VEGAN_ADD,zz-test-vegan-block,300,0.0063
+ZZ Test Fixture Cake,2026-01-01,,VEGAN_ADD,zz-test-aquafaba,180,0.00225

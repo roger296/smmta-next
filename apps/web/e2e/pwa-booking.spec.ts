@@ -5,7 +5,7 @@
  * role-based permission locks."
  */
 import { expect, test } from '@playwright/test';
-import { gotoVenueScreen, stubSites, TEST_VENUE } from './helpers/touch';
+import { gotoVenueScreen, stubProducts, stubSites, TEST_VENUE } from './helpers/touch';
 
 const ICING = {
   id: 'prod-icing',
@@ -33,13 +33,7 @@ const RECEIPT = {
 
 test.describe('goods-in: confirm the venue, then undo', () => {
   test('E-5/E-3: the sheet names the venue, and the undo bar reverses it', async ({ page }) => {
-    await page.route('**/api/v1/products**', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: [ICING], total: 1, page: 1, pageSize: 50, totalPages: 1 }),
-      }),
-    );
+    await stubProducts(page, [ICING]);
     await page.route('**/api/v1/goods-in', (route) =>
       route.fulfill({
         status: 201,
@@ -72,7 +66,9 @@ test.describe('goods-in: confirm the venue, then undo', () => {
     // E-5: the confirmation restates the destination, large.
     await expect(page.getByText('Book this delivery in?')).toBeVisible();
     await expect(page.locator('.confirm-venue-name')).toHaveText(TEST_VENUE.name);
-    await expect(page.locator('.confirm-line-qty')).toHaveText('4 × 25 kg sack = 100000 g');
+    // Human units, not stock units (C-1): 100 kg, never "100000 g". The whole
+    // point of the pack work was that a delivery note reads in packs and kilos.
+    await expect(page.locator('.confirm-line-qty')).toHaveText('4 × 25 kg sack = 100 kg');
 
     await page.getByRole('button', { name: /confirm and book in/i }).click();
 
@@ -88,13 +84,7 @@ test.describe('goods-in: confirm the venue, then undo', () => {
 
   test('E-5: cancelling the confirmation books nothing and keeps the lines', async ({ page }) => {
     let posted = false;
-    await page.route('**/api/v1/products**', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: [ICING], total: 1, page: 1, pageSize: 50, totalPages: 1 }),
-      }),
-    );
+    await stubProducts(page, [ICING]);
     await page.route('**/api/v1/goods-in', (route) => {
       posted = true;
       route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ success: true, data: RECEIPT }) });

@@ -21,6 +21,16 @@ import type { Recipe, RecipeLine } from './recipe.service.js';
  * drive ingredient use rather than head count, and recipe quantities are
  * expressed per table. The name is historical.
  */
+/**
+ * A named reason a bake cannot be filed (Aug-2026 feedback set, F-5 / F-6).
+ * The bake screen renders these as a blocking notice rather than presenting an
+ * empty ingredient list that looks like a valid answer.
+ */
+export interface ExpectedBlocker {
+  kind: 'NO_RECIPE' | 'NO_GF_VARIANT' | 'NO_VEGAN_VARIANT' | 'NO_INGREDIENTS';
+  message: string;
+}
+
 export interface ExpectedLine {
   productId: string;
   /**
@@ -113,6 +123,91 @@ export class ExpectedConsumptionService {
    * removal line carries no quantity — taking an ingredient out means taking
    * out however much that table would have used.
    */
+  /**
+   * Expected consumption PLUS the reasons a bake cannot be filed (Aug-2026
+   * feedback set, F-5 / F-6).
+   *
+   * "Selecting Vegan or GF options for Battenburg failed to generate required
+   *  ingredients." — the variant machinery is correct, but every seeded line
+   *  was BASE, so selecting GF silently returned the standard recipe.
+   * "No bake logs were submitted due to incorrect recipe data." — a missing
+   *  recipe produced an empty list and a transient toast.
+   *
+   * Both surfaced as *nothing happening*. This returns the same lines plus
+   * named blockers, so the screen can refuse rather than present an empty form
+   * that looks like a valid answer.
+   */
+  async expectedForSessionWithCoverage(input: {
+    bake: string;
+    siteId: string;
+    covers: number;
+    onDate: string;
+    glutenFreeTables?: number;
+    veganTables?: number;
+    companyId?: string;
+  }): Promise<{ lines: ExpectedLine[]; blockers: ExpectedBlocker[] }> {
+    const found = await this.getEffectiveRecipe(input);
+    const blockers: ExpectedBlocker[] = [];
+
+    if (!found) {
+      return {
+        lines: [],
+        blockers: [
+          {
+            kind: 'NO_RECIPE',
+            message: `No recipe for "${input.bake}" on ${input.onDate} at this site. A bake cannot be filed against a recipe that does not exist.`,
+          },
+        ],
+      };
+    }
+
+    const variants = new Set(found.lines.map((l) => l.variant ?? 'BASE'));
+    const gfTables = Math.max(0, input.glutenFreeTables ?? 0);
+    const veganTables = Math.max(0, input.veganTables ?? 0);
+
+    // F-5: tables booked for a diet the recipe has nothing to say about. The
+    // old behaviour returned base-only and looked like it had worked.
+    if (gfTables > 0 && !variants.has('GF_REMOVE') && !variants.has('GF_ADD')) {
+      blockers.push({
+        kind: 'NO_GF_VARIANT',
+        message: `"${input.bake}" has no gluten-free recipe, so ${gfTables} gluten-free table(s) would silently get the standard ingredients. Ask head office for the GF variation.`,
+      });
+    }
+    if (veganTables > 0 && !variants.has('VEGAN_REMOVE') && !variants.has('VEGAN_ADD')) {
+      blockers.push({
+        kind: 'NO_VEGAN_VARIANT',
+        message: `"${input.bake}" has no vegan recipe, so ${veganTables} vegan table(s) would silently get the standard ingredients. Ask head office for the vegan variation.`,
+      });
+    }
+
+    const lines = await this.expectedForSession(input);
+    if (lines.length === 0) {
+      blockers.push({
+        kind: 'NO_INGREDIENTS',
+        message: `The recipe for "${input.bake}" produced no ingredients. A bake with an empty ingredient list cannot be filed.`,
+      });
+    }
+
+    return { lines, blockers };
+  }
+
+  /** Which diets this bake actually has a recipe for (F-5's UI half). */
+  async dietaryCoverage(input: {
+    bake: string;
+    siteId: string;
+    onDate: string;
+    companyId?: string;
+  }): Promise<{ hasRecipe: boolean; glutenFree: boolean; vegan: boolean }> {
+    const found = await this.getEffectiveRecipe(input);
+    if (!found) return { hasRecipe: false, glutenFree: false, vegan: false };
+    const variants = new Set(found.lines.map((l) => l.variant ?? 'BASE'));
+    return {
+      hasRecipe: true,
+      glutenFree: variants.has('GF_REMOVE') || variants.has('GF_ADD'),
+      vegan: variants.has('VEGAN_REMOVE') || variants.has('VEGAN_ADD'),
+    };
+  }
+
   async expectedForSession(input: {
     bake: string;
     siteId: string;

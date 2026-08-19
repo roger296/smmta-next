@@ -42,22 +42,54 @@ export interface AwaitingSession {
   covers: number;
 }
 
+/**
+ * A named reason a bake cannot be filed (Aug-2026 feedback, F-5 / F-6).
+ * "No bake logs were submitted due to incorrect recipe data" — the old screen
+ * showed a transient toast and an empty list, which reads as "nothing to do".
+ */
+export interface ExpectedBlocker {
+  kind: 'NO_RECIPE' | 'NO_GF_VARIANT' | 'NO_VEGAN_VARIANT' | 'NO_INGREDIENTS';
+  message: string;
+}
+
+export interface ExpectedResult {
+  lines: ExpectedLine[];
+  blockers: ExpectedBlocker[];
+}
+
+export interface ExpectedInput {
+  siteId: string;
+  onDate: string;
+  bake: string;
+  /** TOTAL tables. */
+  covers: number;
+  glutenFreeTables?: number;
+  veganTables?: number;
+}
+
 /** Compute expected consumption for a session = recipe(cake) × covers. */
 export function useExpectedConsumption() {
-  return useMutation<
-    ExpectedLine[],
-    Error,
-    {
-      siteId: string;
-      onDate: string;
-      bake: string;
-      /** TOTAL tables. */
-      covers: number;
-      glutenFreeTables?: number;
-      veganTables?: number;
-    }
-  >({
-    mutationFn: (input) => apiFetch<ExpectedLine[]>('/recipes/expected', { method: 'POST', body: input }),
+  return useMutation<ExpectedResult, Error, ExpectedInput>({
+    mutationFn: (input) =>
+      apiFetch<ExpectedResult>('/recipes/expected', { method: 'POST', body: input }),
+  });
+}
+
+/** Which diets a cake has a recipe for, so the setup screen can say so (F-5). */
+export interface DietaryCoverage {
+  hasRecipe: boolean;
+  glutenFree: boolean;
+  vegan: boolean;
+}
+
+export function useDietaryCoverage(input: { siteId?: string; bake?: string; onDate?: string }) {
+  return useQuery<DietaryCoverage>({
+    queryKey: ['recipes', 'coverage', input.siteId, input.bake, input.onDate],
+    queryFn: () =>
+      apiFetch<DietaryCoverage>('/recipes/coverage', {
+        searchParams: { siteId: input.siteId, bake: input.bake, onDate: input.onDate },
+      }),
+    enabled: !!input.siteId && !!input.bake && !!input.onDate,
   });
 }
 

@@ -6,7 +6,7 @@
  * 12 Aug session got wrong.
  */
 import { expect, test } from '@playwright/test';
-import { gotoVenueScreen } from './helpers/touch';
+import { gotoVenueScreen, stubProducts } from './helpers/touch';
 
 const PRODUCT = {
   id: 'prod-icing',
@@ -22,13 +22,7 @@ const PRODUCT = {
 
 test.describe('goods-in rejection keeps the work on screen', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/v1/products**', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: [PRODUCT], total: 1, page: 1, pageSize: 50, totalPages: 1 }),
-      }),
-    );
+    await stubProducts(page, [PRODUCT]);
     // `/sites` is a plain (non-paginated) list — the envelope must not carry
     // total/page, or apiFetch unwraps it as a PaginatedResult and `sites` is
     // an object, not an array.

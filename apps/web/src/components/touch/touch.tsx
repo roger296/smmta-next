@@ -136,6 +136,41 @@ export function ErrorBanner({
   );
 }
 
+/**
+ * A refusal, not a warning (Aug-2026 feedback, F-6).
+ *
+ * "No bake logs were submitted due to incorrect recipe data." The screen used
+ * to show a transient toast and an empty ingredient list, which reads as
+ * "nothing to record today". This states what is wrong, names the cake / date
+ * / venue it is wrong for, and says plainly that the bake cannot be filed —
+ * so a baker escalates instead of shrugging.
+ *
+ * Deliberately not dismissible: dismissing it would restore exactly the
+ * silent-empty-form state the defect describes.
+ */
+export function BlockingNotice({
+  title, reasons, detail, children,
+}: {
+  title: React.ReactNode;
+  reasons: readonly { kind: string; message: string }[];
+  detail?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="notice block" role="alert" aria-live="assertive">
+      <strong>{title}</strong>
+      {detail != null && <div className="notice-detail">{detail}</div>}
+      <ul className="notice-reasons">
+        {reasons.map((r) => (
+          <li key={r.kind + r.message}>{r.message}</li>
+        ))}
+      </ul>
+      <p className="notice-verdict">This bake cannot be submitted.</p>
+      {children}
+    </div>
+  );
+}
+
 export function TouchTopbar({
   title, sub, venue, venueBound = true, onVenueClick, onBack, right, stat, progress,
 }: {

@@ -6,7 +6,8 @@
  *   GET  /api/v1/recipes/effective       — the recipe effective for (cake, site, date)
  *   GET  /api/v1/recipes/:id             — recipe + lines
  *   POST /api/v1/recipes                 — create a new version with lines
- *   POST /api/v1/recipes/expected        — expected consumption for a session
+ *   POST /api/v1/recipes/expected        — expected consumption + blockers for a session
+ *   GET  /api/v1/recipes/coverage        — which diets a cake has a recipe for
  *
  * JWT-gated. A recipe is keyed by the **cake** (`bake`, free-form), not an
  * experience package tier. The admin Recipes page drives these.
@@ -105,7 +106,22 @@ export async function recipeRoutes(app: FastifyInstance) {
         .status(400)
         .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
     }
-    const data = await expected.expectedForSession(parsed.data);
+    // Aug-2026 feedback (F-6): the response carries the *reasons* a bake
+    // cannot be filed alongside the lines. An empty list used to be
+    // indistinguishable from "this cake has no recipe", and bakers filed
+    // nothing at all rather than being told why.
+    const data = await expected.expectedForSessionWithCoverage(parsed.data);
+    return { success: true, data };
+  });
+
+  app.get('/recipes/coverage', async (request, reply) => {
+    const parsed = effectiveQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply
+        .status(400)
+        .send({ success: false, error: 'Invalid query', issues: parsed.error.issues });
+    }
+    const data = await expected.dietaryCoverage(parsed.data);
     return { success: true, data };
   });
 

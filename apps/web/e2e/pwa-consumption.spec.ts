@@ -21,6 +21,16 @@ const RECIPE_LINES = [
 ];
 
 async function stubRecipe(page: import('@playwright/test').Page) {
+  await page.route('**/api/v1/recipes/coverage', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: { hasRecipe: true, glutenFree: true, vegan: true },
+      }),
+    }),
+  );
   await page.route('**/api/v1/recipes/bakes', (route) =>
     route.fulfill({
       status: 200,
@@ -32,7 +42,9 @@ async function stubRecipe(page: import('@playwright/test').Page) {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: RECIPE_LINES }),
+      // F-6: the endpoint returns lines PLUS the reasons a bake cannot be
+      // filed, so an empty list is never mistaken for "nothing to record".
+      body: JSON.stringify({ success: true, data: { lines: RECIPE_LINES, blockers: [] } }),
     }),
   );
 }

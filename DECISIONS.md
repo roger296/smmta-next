@@ -779,3 +779,45 @@ judgement call so the fix run never blocked.
   task 5.
 - **The reducers live outside the component.** These were arithmetic bugs; a
   pure module lets the regression be a table rather than a click-through.
+
+## F13 — Recipe importer, dietary variants, demo seed retired (Aug-2026)
+
+- **Recipes are imported, not seeded** (locked decision 8). The four demo cakes
+  reached a live venue test, where a baker was asked to record a bake of a cake
+  Big Bakes does not sell. The seed moved to `scripts/demo/seed-bakes.demo.ts`
+  and now refuses to run with `NODE_ENV=production` **or** against a database
+  that already holds non-demo recipes. `docs/RECIPE_IMPORT.md` is the operator
+  path; `scripts/import-recipes.ts` is the tool.
+- **Any problem fails the WHOLE import.** Skip-the-bad-row would leave a
+  half-imported menu, and every validation rule describes something that
+  becomes invisible once it is in the database — which is exactly how F-5
+  survived to a live test. The report names file, row (as a person counts them,
+  header = 1), rule and problem; a dry run produces the identical report.
+- **The purge keeps anything real.** `scripts/purge-demo-bakes.ts` deletes the
+  demo recipes and their ingredient products, but an ingredient with stock
+  movements, a stock level, consumption history, or a line in a non-demo
+  recipe is **reported and kept**. A demo name on a product does not make the
+  ledger behind it demo data; destroying somebody's real count to tidy up a
+  seed would be a far worse outcome than an untidy product list.
+- **`POST /recipes/expected` now returns `{ lines, blockers }`,** not a bare
+  array. Default — confirm with owners. The old shape could not distinguish
+  "this recipe has no ingredients" from "there is no recipe", and the screen
+  rendered both as an empty list under a toast that vanished. Only one caller
+  existed, so the breaking change was cheap and the alternative (a second
+  endpoint the screen might forget to call) reproduces the defect by omission.
+- **The refusal is not dismissible.** `BlockingNotice` has no dismiss control:
+  dismissing it would restore exactly the silent-empty-form state F-6
+  describes. It names the cake, the date and the venue, lists each blocker, and
+  ends with "This bake cannot be submitted."
+- **A diet with no variant recipe disables its table field** rather than
+  accepting a number. Accepting one produced the standard ingredient list and
+  looked like it had worked — F-5 exactly. A count left over from a cake that
+  *did* have the variant is zeroed when the cake changes, so a disabled,
+  invisible number can never be submitted.
+- **`GET /recipes/coverage` is a separate read** rather than a field on the
+  bakes list. Coverage is per `(bake, site, date)` — an effective recipe, not a
+  property of the cake name — so it cannot be answered by the menu endpoint.
+- **The test fixture is namespaced `ZZ Test Fixture Cake` / `zz-test-*`.** The
+  importer writes under the singleton company, so a fixture named like a cake
+  would be indistinguishable from the menu in a product list sorted by name —
+  which is the F-4 failure mode all over again.

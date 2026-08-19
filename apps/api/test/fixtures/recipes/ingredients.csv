@@ -1,0 +1,8 @@
+slug,name,stock_uom,purchase_uom,purchase_to_stock_factor,pack_description,expected_next_cost,barcode,count_quantum
+zz-test-flour,ZZ Test Plain Flour,g,sack,16000,16 kg sack,11.4,,
+zz-test-gf-flour,ZZ Test Gluten-Free Flour Blend,g,bag,1500,1.5 kg bag,4.85,,
+zz-test-butter,ZZ Test Unsalted Butter,g,case,10000,10 kg case,58.2,,
+zz-test-vegan-block,ZZ Test Vegan Baking Block,g,case,5000,5 kg case,31.5,,
+zz-test-egg,ZZ Test Free-Range Egg,each,tray,30,tray of 30,0.24,,30
+zz-test-aquafaba,ZZ Test Aquafaba,ml,tin,400,400 ml tin,0.9,,
+zz-test-marzipan,ZZ Test Marzipan,g,block,1000,1 kg block,6.1,,

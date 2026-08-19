@@ -3,7 +3,11 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
 import { useBakes } from '@/features/recipes/use-recipes';
-import { useExpectedConsumption } from '@/features/consumption/use-consumption';
+import {
+  useDietaryCoverage,
+  useExpectedConsumption,
+  type ExpectedBlocker,
+} from '@/features/consumption/use-consumption';
 import { useSubmitConsumption } from '@/features/pwa/use-pwa-jobs';
 import {
   benchesFor,
@@ -28,6 +32,7 @@ import {
   BigButton,
   ActionBar,
   ErrorBanner,
+  BlockingNotice,
   NumericKeypad,
   DiscardGuardSheet,
   selectOnFocus,
@@ -78,6 +83,23 @@ export function ConsumptionScreen() {
   const [veganTables, setVeganTables] = React.useState(0);
   const covers = (regularTables ?? 0) + gfTables + veganTables;
   const [bakerName, setBakerName] = React.useState('');
+  // F-5: what the cake actually has a recipe for. Asked as soon as a cake is
+  // picked, so the diet fields can refuse a number that would do nothing.
+  const coverage = useDietaryCoverage({
+    siteId: selectedSiteId ?? undefined,
+    bake: bake.trim() || undefined,
+    onDate: sessionDate,
+  });
+  const gfUnavailable = coverage.data ? !coverage.data.glutenFree : false;
+  const veganUnavailable = coverage.data ? !coverage.data.vegan : false;
+  // A count left over from a cake that DID have the variant must not survive a
+  // change of cake — it would be disabled, invisible, and still submitted.
+  React.useEffect(() => {
+    if (gfUnavailable) setGfTables(0);
+  }, [gfUnavailable]);
+  React.useEffect(() => {
+    if (veganUnavailable) setVeganTables(0);
+  }, [veganUnavailable]);
   const [lines, setLines] = React.useState<FormLine[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   // sheets
@@ -85,15 +107,19 @@ export function ConsumptionScreen() {
   const [actualTarget, setActualTarget] = React.useState<number | null>(null);
   const [wasteTarget, setWasteTarget] = React.useState<number | null>(null);
   const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
+  // F-6: named reasons the bake cannot be filed. Held in state (not a toast)
+  // because the whole defect was that the refusal did not persist on screen.
+  const [blockers, setBlockers] = React.useState<ExpectedBlocker[]>([]);
   // A-5: an edited ingredient list must not disappear on a stray Back.
   const [confirmExit, setConfirmExit] = React.useState(false);
 
   const loadExpected = async () => {
     if (!selectedSiteId || !bake.trim() || regularTables === null || covers <= 0) return;
     setError(null);
-    let rows;
+    setBlockers([]);
+    let result;
     try {
-      rows = await expected.mutateAsync({
+      result = await expected.mutateAsync({
         siteId: selectedSiteId,
         onDate: sessionDate,
         bake: bake.trim(),
@@ -108,6 +134,15 @@ export function ConsumptionScreen() {
       });
       return;
     }
+    // F-6: refuse loudly and stay on the setup screen. Continuing into an
+    // empty ingredient list is what let a whole evening's bakes go unrecorded.
+    if (result.blockers.length > 0) {
+      setBlockers(result.blockers);
+      setLines([]);
+      setLoaded(false);
+      return;
+    }
+    const rows = result.lines;
     setLines(
       rows.map((r) => ({
         productId: r.productId,
@@ -126,7 +161,6 @@ export function ConsumptionScreen() {
       })),
     );
     setLoaded(true);
-    if (rows.length === 0) toast({ title: 'No recipe found for that cake / date' });
   };
 
   const setLine = (i: number, patch: Partial<FormLine>) =>
@@ -205,6 +239,17 @@ export function ConsumptionScreen() {
         />
         <div className="scroll">
           {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
+          {blockers.length > 0 && (
+            <BlockingNotice
+              title="This bake cannot be recorded"
+              detail={`${bake.trim() || 'No cake selected'} · ${sessionDate} · ${selectedSite?.name ?? 'no venue'}`}
+              reasons={blockers}
+            >
+              <p style={{ margin: '8px 0 0', fontSize: 14 }}>
+                Tell your site manager or head office — do not file a blank bake.
+              </p>
+            </BlockingNotice>
+          )}
           <div className="center">
             <h1>{selectedSite?.name ?? 'Select a site'}</h1>
             <p className="lede">Pick the cake and how many guests baked it, then confirm what was actually used.</p>
@@ -242,10 +287,18 @@ export function ConsumptionScreen() {
                 className="input"
                 style={{ textAlign: 'left', fontWeight: 700 }}
                 aria-labelledby="lbl-gf-tables"
+                disabled={gfUnavailable}
                 onClick={() => setTableKeypad('gf')}
               >
                 {gfTables}
               </button>
+              {/* F-5: accepting a number here when no GF variation exists
+                  produced the standard recipe and looked like it had worked. */}
+              {gfUnavailable && (
+                <p className="field-note blocked">
+                  No gluten-free recipe for this cake — ask head office.
+                </p>
+              )}
             </div>
 
             <div className="field">
@@ -256,10 +309,16 @@ export function ConsumptionScreen() {
                 className="input"
                 style={{ textAlign: 'left', fontWeight: 700 }}
                 aria-labelledby="lbl-vegan-tables"
+                disabled={veganUnavailable}
                 onClick={() => setTableKeypad('vegan')}
               >
                 {veganTables}
               </button>
+              {veganUnavailable && (
+                <p className="field-note blocked">
+                  No vegan recipe for this cake — ask head office.
+                </p>
+              )}
             </div>
 
             <div className="field">

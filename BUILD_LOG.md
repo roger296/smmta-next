@@ -1580,3 +1580,66 @@ so nothing tied them to their controls — the same gap as F9 found on goods-in.
 And `gotoVenueScreen` no longer stubs `/sites` over a spec's own fixture
 (Playwright's last-registered route wins, which silently overrode the bench
 fixture).
+
+## F13 — Recipe importer, dietary variants, demo seed retired
+
+Closes **F-4** ("Displayed recipes are not part of our offering of course"),
+**F-5** ("Selecting Vegan or GF options for Battenburg failed to generate
+required ingredients") and **F-6** ("No bake logs were submitted due to
+incorrect recipe data").
+
+The three are one defect wearing three hats: the menu was invented, every
+seeded recipe line was `BASE` so the variant machinery had nothing to act on,
+and when the machinery produced nothing the screen showed an empty list under a
+toast. Each failure presented to a baker as *nothing happening*.
+
+**Import, not seed.**
+
+- `src/modules/recipes/recipe-import.ts` — the pure half: two CSV schemas,
+  per-row parsing, and fifteen validation rules. `crossValidate` carries the
+  ones that catch F-5: `base-required`, `remove-not-in-base`,
+  `gf-offered-without-variant`, `vegan-offered-without-variant`,
+  `unknown-ingredient`, `duplicate-effective-from`.
+- `scripts/import-recipes.ts` — reads the files, upserts ingredient products
+  (including the purchase side: `purchase_uom`, `purchase_to_stock_factor`,
+  `pack_description`, and `count_quantum` where **blank means no rounding, and
+  `0` is rejected**), and writes recipe versions idempotently by
+  `(bake, site, effective_from)`. Any problem fails the whole import.
+- `scripts/demo/seed-bakes.demo.ts` — the old seed, moved and gated. Refuses on
+  `NODE_ENV=production` and refuses once real recipes exist.
+- `scripts/purge-demo-bakes.ts` — removes the four demo cakes, keeping any
+  ingredient something real points at, with the reason.
+- `docs/RECIPE_IMPORT.md` — both schemas, every rule, and a worked Battenburg
+  example with GF and vegan variants and the arithmetic for a 7/2/1 session.
+- `npm run import:recipes` / `npm run purge:demo-bakes`.
+
+**Fail loudly on the iPad.**
+
+- `expectedForSessionWithCoverage()` returns `{ lines, blockers }` with named
+  `NO_RECIPE` / `NO_GF_VARIANT` / `NO_VEGAN_VARIANT` / `NO_INGREDIENTS`
+  blockers; `dietaryCoverage()` answers what a cake has a recipe for.
+  `POST /recipes/expected` returns the pair; `GET /recipes/coverage` is new.
+- `BlockingNotice` (touch layer) — non-dismissible, names cake + date + venue,
+  lists the blockers, ends "This bake cannot be submitted." The End of Bake
+  screen stays on setup rather than advancing into an empty ingredient list.
+- The GF / vegan table fields are **disabled** for a cake with no such variant,
+  with "No gluten-free recipe for this cake — ask head office."
+
+**Tests** — 23 validation-rule unit tests; 8 importer integration tests against
+real Postgres (whole-menu import, variants land, purchase columns round-trip,
+idempotence, `--dry-run` writes nothing, a bad row writes nothing at all, GF
+arithmetic differs, blockers named); 4 purge tests (an ingredient with stock
+movements is kept); 3 demo-seed refusal tests; 7 web component tests for the
+blocking notice and the disabled diet fields.
+
+**Two stale e2e specs repaired on the way through** (pre-existing on the branch,
+surfaced by running the full Playwright suite with the API reachable):
+
+- `pwa-booking` / `pwa-submit` stubbed `**/api/v1/products**`, which also
+  matches `/products/by-code/:code`. The paginated envelope made
+  `apiFetch<Product>` unwrap to a `PaginatedResult`, so the screen added a
+  nameless line and the spec waited for a product that never rendered. New
+  `stubProducts()` helper registers the exact route second — Playwright's
+  last-registered handler wins — and answers 404 for an unknown code.
+- The booking confirmation assertion still expected `= 100000 g`. The C-1 pack
+  work made that line read `= 100 kg`, which is the point of it.

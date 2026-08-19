@@ -237,6 +237,15 @@
 .touch-app .syncpill.offline { background: rgba(255, 255, 255, 0.16); color: #ffc9c2; }
 .touch-app .notice { background: var(--accent-soft); color: #14387a; padding: 12px 14px; border-radius: var(--t-radius); font-size: 14px; margin: 14px 16px; }
 .touch-app .notice.warn { background: var(--warn-soft); color: #7a4e08; }
+.touch-app .notice.block { background: var(--danger-soft); color: #7a1d14; border: 2px solid var(--danger); }
+.touch-app .notice.block strong { display: block; font-size: 17px; margin-bottom: 6px; }
+.touch-app .notice.block .notice-detail { font-size: 14px; margin-bottom: 8px; }
+.touch-app .notice.block .notice-reasons { margin: 0 0 8px; padding-left: 20px; }
+.touch-app .notice.block .notice-reasons li { margin-bottom: 4px; }
+.touch-app .notice.block .notice-verdict { margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; font-size: 13px; }
+.touch-app .field .field-note { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.touch-app .field .field-note.blocked { color: #7a1d14; font-weight: 600; }
+.touch-app .input:disabled { opacity: 0.55; }
 .touch-app .empty { text-align: center; color: var(--muted); padding: 48px 24px; font-size: 15px; }
 
 /* ── Consumption entry mode ────────────────────────────────────────────────

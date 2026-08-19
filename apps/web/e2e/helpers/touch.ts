@@ -88,6 +88,54 @@ export async function stubSites(
 }
 
 /**
+ * Stub the product lookups a Goods In spec needs.
+ *
+ * `GET /products/by-code/:code` answers with ONE product, not a page. A single
+ * `**\/api/v1/products**` route also matches `/products/by-code/…`, and the
+ * paginated envelope it returns makes `apiFetch<Product>` unwrap to a
+ * `PaginatedResult` — so the screen adds a line with no name and the spec
+ * looks for a product that was never rendered. Register the exact route
+ * second: Playwright's LAST-registered handler wins.
+ */
+export async function stubProducts(
+  page: Page,
+  products: Array<Record<string, unknown>>,
+): Promise<void> {
+  await page.route('**/api/v1/products**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: products,
+        total: products.length,
+        page: 1,
+        pageSize: 50,
+        totalPages: 1,
+      }),
+    }),
+  );
+  await page.route('**/api/v1/products/by-code/**', (route) => {
+    const code = decodeURIComponent(route.request().url().split('/by-code/')[1] ?? '');
+    const match = products.find(
+      (p) => p.barcode === code || p.stockCode === code || p.ean === code,
+    );
+    if (!match) {
+      return route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: false, error: 'No product carries that code' }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: match }),
+    });
+  });
+}
+
+/**
  * Land straight on a venue screen with a token already in localStorage.
  *
  * `stubSites` is only applied when the caller has not already stubbed `/sites`
