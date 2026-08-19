@@ -288,6 +288,13 @@
       "when": 1785143759696,
       "tag": "0040_session_table_split",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787158840716,
+      "tag": "0041_product_count_quantum",
+      "breakpoints": true
     }
   ]
 }

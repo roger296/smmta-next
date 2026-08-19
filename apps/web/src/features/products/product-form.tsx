@@ -51,6 +51,16 @@ export const productFormSchema = z.object({
     (v) => (v === '' || v === undefined ? undefined : v),
     z.coerce.number().positive().optional(),
   ),
+  /**
+   * Counting quantum, in this product's own stock unit. Blank ⇒ null ⇒ counts
+   * are submitted exactly as entered. Only fill this in where the venue
+   * genuinely counts in a fixed increment — a blanket quantum turned a 4 kg
+   * count into 0 (defect D-2).
+   */
+  countQuantum: z.preprocess(
+    (v) => (v === '' || v === undefined || v === null ? null : v),
+    z.coerce.number().positive().nullable(),
+  ),
 });
 
 export type ProductFormValues = z.input<typeof productFormSchema>;
@@ -282,6 +292,19 @@ export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onC
                 step="any"
                 {...register('purchaseToStockFactor')}
                 placeholder="1000"
+              />
+            </Field>
+            <Field
+              id="p-countQuantum"
+              label="Count quantum (optional)"
+              hint="Round stock-take counts of this product to the nearest N stock units. Leave blank to record counts exactly as entered — that is almost always right."
+              error={errors.countQuantum?.message}
+            >
+              <Input
+                type="number"
+                step="any"
+                {...register('countQuantum')}
+                placeholder="none"
               />
             </Field>
           </div>

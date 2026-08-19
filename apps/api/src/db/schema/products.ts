@@ -109,6 +109,17 @@ export const products = pgTable(
     purchasePackSize: decimal('purchase_pack_size', { precision: 18, scale: 3 }).notNull().default('1'),
     /** stock_uom per 1 purchase_uom (e.g. 1 bag = 1000 g ⇒ 1000). */
     purchaseToStockFactor: decimal('purchase_to_stock_factor', { precision: 18, scale: 4 }).notNull().default('1'),
+    /**
+     * Optional counting quantum, expressed **in this product's own stock UoM**
+     * (spec §A6; Aug-2026 feedback D-2).
+     *
+     * NULL — the default, and the only safe default — means **no bucketing**:
+     * the counted figure is submitted exactly as entered. Set it only where a
+     * venue genuinely counts in a fixed increment (a 100 g scoop of flour, a
+     * 6-pack of a drink). A blanket quantum is catastrophic across mixed units:
+     * rounding to "the nearest 100" turns a 4 kg count of icing sugar into 0.
+     */
+    countQuantum: decimal('count_quantum', { precision: 18, scale: 4 }),
     // ------------------------------------------------------------------
     oldId: oldId(),
     ...auditTimestamps,

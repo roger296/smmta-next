@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch, MAX_PAGE_SIZE, type PaginatedResult } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
-import { bucketCount } from '@/lib/uom';
+import { bucketCount, bucketNote } from '@/lib/uom';
 import {
   useOpenStockTake,
   useRecordStockTakeCounts,
@@ -44,6 +44,9 @@ interface TakeLine {
   stockCode?: string | null;
   stockUom?: string | null;
   itemKind?: string | null;
+  /** Per-product counting quantum in the product's own stock UoM. null (the
+   *  normal case) means the count is submitted exactly as entered — see D-2. */
+  countQuantum?: string | null;
 }
 
 const SCOPES: Array<{ value: string; label: string }> = [
@@ -108,6 +111,13 @@ export function isUnidentified(line: TakeLine, mapped?: Product): boolean {
   return !(line.productName ?? mapped?.name);
 }
 
+/** The product's configured counting quantum, or null for "do not bucket". */
+export function quantumOf(line: TakeLine): number | null {
+  if (line.countQuantum == null) return null;
+  const n = Number(line.countQuantum);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** Search matches the name AND the stock code (defect D-3). */
 export function matchesSearch(line: TakeLine, mapped: Product | undefined, query: string): boolean {
   const q = query.trim().toLowerCase();
@@ -169,12 +179,13 @@ export function StockTakeScreen() {
       .filter((l) => counts[l.productId] !== undefined)
       .map((l) => {
         const uom = l.stockUom ?? productMap?.get(l.productId)?.stockUom ?? 'each';
-        // `0` = no bucketing. Rounding a count to a quantum is only ever right
-        // when the quantum is configured per product IN that product's own
-        // stock unit; the blanket default rounded a 4 kg count of icing sugar
-        // to 0 (defect D-2). F4 removes the default outright and adds the
-        // per-product `countQuantum` this will read.
-        return { productId: l.productId, countedQty: bucketCount(counts[l.productId], uom, 0) };
+        // The quantum is the product's own configured one, or nothing at all.
+        // `bucketCount` has no default — a blanket 100 rounded a 4 kg count of
+        // icing sugar to 0 and a 250 g count to 300 (defect D-2).
+        return {
+          productId: l.productId,
+          countedQty: bucketCount(counts[l.productId], uom, quantumOf(l)),
+        };
       });
     if (counted.length === 0) return;
     setError(null);
@@ -289,11 +300,20 @@ export function StockTakeScreen() {
           const qty = counts[l.productId] ?? 0;
           const variance = counted ? Math.round((qty - book) * 100) / 100 : null;
           const unknown = isUnidentified(l, p);
+          const note = bucketNote(quantumOf(l), uom);
           return (
             <CountRow
               key={l.productId}
               name={takeLineLabel(l, p)}
-              hint={<>Book: {book} {uom}{l.stockCode ? ` · ${l.stockCode}` : ''}</>}
+              hint={
+                <>
+                  Book: {book} {uom}{l.stockCode ? ` · ${l.stockCode}` : ''}
+                  {/* If a count IS bucketed, say so on the row — a counter
+                      should see what happened to their number here, not
+                      discover it later on the variance report. */}
+                  {note && <span className="badge" style={{ marginLeft: 6 }}>{note}</span>}
+                </>
+              }
               counted={counted}
               qty={qty}
               status={unknown ? 'warn' : !counted ? 'todo' : variance === 0 ? 'done' : 'warn'}

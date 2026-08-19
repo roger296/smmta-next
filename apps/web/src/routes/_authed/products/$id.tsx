@@ -143,6 +143,7 @@ function ProductDetailPage() {
                   purchaseToStockFactor: data.purchaseToStockFactor
                     ? Number(data.purchaseToStockFactor)
                     : undefined,
+                  countQuantum: data.countQuantum ? Number(data.countQuantum) : null,
                 }}
                 submitLabel="Save changes"
                 onSubmit={async (v) => {

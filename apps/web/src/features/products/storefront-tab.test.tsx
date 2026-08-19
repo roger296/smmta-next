@@ -97,6 +97,7 @@ const baseProduct: Product = {
   purchaseUom: null,
   purchasePackSize: '1',
   purchaseToStockFactor: '1',
+  countQuantum: null,
 };
 
 function setupHandlers() {

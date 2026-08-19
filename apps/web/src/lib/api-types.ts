@@ -226,6 +226,9 @@ export interface Product {
   purchaseUom: string | null;
   purchasePackSize: string;
   purchaseToStockFactor: string;
+  /** Counting quantum in the product's own stock UoM. null = do not bucket
+   *  stock-take counts of this product (defect D-2). */
+  countQuantum: string | null;
 }
 
 export interface ProductGroup {

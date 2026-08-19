@@ -55,6 +55,13 @@ export const autoStockProductFieldsSchema = z.object({
   purchaseUom: z.string().max(20).nullable().optional(),
   purchasePackSize: z.coerce.number().positive().optional(),
   purchaseToStockFactor: z.coerce.number().positive().optional(),
+  /**
+   * Counting quantum, in this product's own stock UoM. `null` (the default)
+   * means do NOT bucket counts of this product — see defect D-2, where a
+   * blanket quantum of 100 turned a 4 kg count into 0. Must be > 0 when set;
+   * "no bucketing" is spelled null, never 0.
+   */
+  countQuantum: z.coerce.number().positive().nullable().optional(),
 });
 
 export const createProductSchema = z.object({

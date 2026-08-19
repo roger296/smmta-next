@@ -277,6 +277,9 @@ export class ProductService {
         ...(input.purchaseToStockFactor !== undefined
           ? { purchaseToStockFactor: input.purchaseToStockFactor.toString() }
           : {}),
+        // NULL means "do not bucket counts of this product" — the safe
+        // default, and the only one (defect D-2).
+        countQuantum: input.countQuantum != null ? input.countQuantum.toString() : null,
       })
       .returning();
 
@@ -370,6 +373,8 @@ export class ProductService {
     if (input.purchasePackSize !== undefined) updateData.purchasePackSize = input.purchasePackSize.toString();
     if (input.purchaseToStockFactor !== undefined)
       updateData.purchaseToStockFactor = input.purchaseToStockFactor.toString();
+    if (input.countQuantum !== undefined)
+      updateData.countQuantum = input.countQuantum != null ? input.countQuantum.toString() : null;
 
     const [updated] = await this.db
       .update(products)

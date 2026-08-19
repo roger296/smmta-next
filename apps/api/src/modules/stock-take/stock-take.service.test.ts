@@ -159,6 +159,60 @@ describe('counts + approval', () => {
   });
 });
 
+// ── D-2: counts must not be silently destroyed, and a zeroed line is loud ───
+describe('count fidelity and variance warnings (D-2)', () => {
+  it('D-2: approving trues the ledger to the SUBMITTED figure, exactly', async () => {
+    // 4 kg, in the product's own stock unit. The whole point of D-2 is that
+    // this number survives the round trip unrounded.
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4 }]);
+    await svc.approve(take.id, COMPANY);
+    expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(4);
+  });
+
+  it('D-2: a 0 count against a non-zero book figure raises a warning', async () => {
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 0 }]);
+
+    const warnings = await svc.varianceWarnings(take.id);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.kind).toBe('COUNTED_TO_ZERO');
+    expect(warnings[0]!.productName).toBe('ST Flour');
+    expect(warnings[0]!.bookQty).toBe(5000);
+    expect(warnings[0]!.message).toMatch(/counted as 0/i);
+  });
+
+  it('a 0 count against a 0 book figure is unremarkable — no warning', async () => {
+    await setLevel(flourId, 0);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 0 }]);
+    expect(await svc.varianceWarnings(take.id)).toHaveLength(0);
+  });
+
+  it('an uncounted line raises no warning — it has not been answered yet', async () => {
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    expect(await svc.varianceWarnings(take.id)).toHaveLength(0);
+  });
+
+  it('the take line carries the per-product count quantum (null by default)', async () => {
+    await setLevel(flourId, 5000);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    expect(lines[0]!.countQuantum).toBeNull();
+  });
+
+  it('a configured quantum reaches the line', async () => {
+    const db = getDb();
+    await db.update(products).set({ countQuantum: '100.0000' }).where(eq(products.id, flourId));
+    await setLevel(flourId, 5000);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    expect(Number(lines.find((l) => l.productId === flourId)!.countQuantum)).toBe(100);
+    await db.update(products).set({ countQuantum: null }).where(eq(products.id, flourId));
+  });
+});
+
 describe('partial scope', () => {
   it('an ITEM-scope take only touches the in-scope product', async () => {
     await setLevel(flourId, 5000);

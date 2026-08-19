@@ -38,6 +38,27 @@ export interface StockTakeLineWithProduct extends StockTakeLine {
   stockCode: string | null;
   stockUom: string | null;
   itemKind: string | null;
+  /** Per-product counting quantum, in the product's own stock UoM. NULL = do
+   *  not bucket this count (the only safe default — see defect D-2). */
+  countQuantum: string | null;
+}
+
+/**
+ * A count that is legal but worth a second look before the ledger is trued up
+ * to it (Aug-2026 feedback, defect D-2).
+ *
+ * `countedQty: z.coerce.number().min(0)` accepts 0 without complaint, and
+ * approval writes that 0 straight into the ledger. When D-2 was rounding 4 kg
+ * counts down to zero, nothing anywhere said a word. A zeroed line against a
+ * non-zero book figure is now called out by name.
+ */
+export interface StockTakeWarning {
+  productId: string;
+  productName: string | null;
+  kind: 'COUNTED_TO_ZERO';
+  bookQty: number;
+  countedQty: number;
+  message: string;
 }
 
 export class StockTakeService {
@@ -205,6 +226,7 @@ export class StockTakeService {
         stockCode: products.stockCode,
         stockUom: products.stockUom,
         itemKind: products.itemKind,
+        countQuantum: products.countQuantum,
       })
       .from(stockTakeLines)
       .leftJoin(products, eq(products.id, stockTakeLines.productId))
@@ -216,6 +238,7 @@ export class StockTakeService {
       stockCode: r.stockCode ?? null,
       stockUom: r.stockUom ?? null,
       itemKind: r.itemKind ?? null,
+      countQuantum: r.countQuantum ?? null,
     }));
   }
 
@@ -228,6 +251,33 @@ export class StockTakeService {
     });
     if (!take) return null;
     return { take, lines: await this.linesWithProduct(id) };
+  }
+
+  /**
+   * Lines whose count deserves a look before approval. Today that is exactly
+   * one shape: counted to zero against a non-zero book figure. It is a
+   * *warning*, not a block — a genuinely empty shelf is a real answer, and
+   * refusing it would be worse than flagging it.
+   */
+  async varianceWarnings(stockTakeId: string): Promise<StockTakeWarning[]> {
+    const lines = await this.linesWithProduct(stockTakeId);
+    const warnings: StockTakeWarning[] = [];
+    for (const line of lines) {
+      if (line.countedQty == null) continue;
+      const counted = Number(line.countedQty);
+      const book = Number(line.bookQty);
+      if (counted === 0 && book !== 0) {
+        warnings.push({
+          productId: line.productId,
+          productName: line.productName,
+          kind: 'COUNTED_TO_ZERO',
+          bookQty: book,
+          countedQty: counted,
+          message: `${line.productName ?? line.productId} counted as 0 against a book figure of ${book}. Approving will write off the difference.`,
+        });
+      }
+    }
+    return warnings;
   }
 
   async list(filter: { siteId?: string; status?: string; companyId?: string } = {}): Promise<StockTake[]> {

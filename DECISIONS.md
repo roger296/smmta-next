@@ -550,3 +550,26 @@ judgement call so the fix run never blocked.
   `e2e/helpers/auth.ts`) types those calls as `any`, which is worse in a test
   whose whole job is to be trustworthy. Adding the types introduced no new
   errors anywhere else.
+
+## F4 — count bucketing
+
+- **No default quantum, not even a "safe" one.** A default of 1 or 0 would
+  still leave `bucketCount(qty, uom)` looking like a complete call at every
+  site. Removing the parameter's default makes the omission explicit at the
+  call site, which is where the D-2 bug actually lived.
+- **NULL, not 0, for "do not bucket".** `count_quantum` is nullable with a
+  CHECK of `IS NULL OR > 0`. Zero would conflate "nobody has thought about this
+  product" with "this product is deliberately counted whole" — and the first of
+  those is a thing the F9 "needs setup" report should be able to find.
+- **A zeroed count warns, it does not block.** An empty shelf is a legitimate
+  answer and refusing it would push people to type 1. But it should never pass
+  *unremarked*, because that silence is how a destroyed count becomes a
+  permanent ledger write-off.
+- **Warnings are read before approval, not after.** Approval trues the ledger
+  up, at which point the variance is zero and the warning has nothing to point
+  at. The route captures them first.
+- **0041's SQL was trimmed to the new column.** The generated diff re-emitted
+  three already-applied changes because 0038/0039/0040 were hand-authored
+  without snapshots; re-running their un-guarded `ADD COLUMN`s would fail. The
+  generated snapshot is kept deliberately — it re-syncs the chain so the next
+  `db:generate` produces a correct diff instead of the same stale one.

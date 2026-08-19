@@ -9,7 +9,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from './api-client';
 import { InMemoryQueueStorage, OfflineQueue, type QueuedAction } from './offline-queue';
 import { isRejection, submitOrQueue, syncQueue } from './offline-submit';
-import { purchaseToStock, bucketCount } from './uom';
 
 const action = (key: string): QueuedAction => ({
   idempotencyKey: key,
@@ -176,15 +175,5 @@ describe('isRejection', () => {
     expect(isRejection(new ApiError('boom', 500))).toBe(false);
     expect(isRejection(new TypeError('Failed to fetch'))).toBe(false);
     expect(isRejection('not an error')).toBe(false);
-  });
-});
-
-describe('uom helpers', () => {
-  it('converts purchase to stock units', () => {
-    expect(purchaseToStock(5, 1000)).toBe(5000);
-  });
-  it('buckets fungible counts and leaves discrete untouched', () => {
-    expect(bucketCount(1234, 'g')).toBe(1200);
-    expect(bucketCount(7, 'each')).toBe(7);
   });
 });

@@ -65,7 +65,9 @@ export async function stockTakeRoutes(app: FastifyInstance) {
     const { id } = idParamSchema.parse(request.params);
     const data = await service.get(id);
     if (!data) return reply.status(404).send({ success: false, error: 'Stock-take not found' });
-    return { success: true, data };
+    // Warnings travel with the take so the count screen can show them BEFORE
+    // someone approves a write-off (defect D-2).
+    return { success: true, data: { ...data, warnings: await service.varianceWarnings(id) } };
   });
 
   app.post('/stock-takes/:id/counts', async (request, reply) => {
@@ -82,8 +84,11 @@ export async function stockTakeRoutes(app: FastifyInstance) {
 
   app.post('/stock-takes/:id/approve', async (request, reply) => {
     const { id } = idParamSchema.parse(request.params);
+    // Read the warnings BEFORE approving — approval trues the ledger up, after
+    // which the variance is zero and the warning has nothing left to point at.
+    const warnings = await service.varianceWarnings(id);
     const data = await service.approve(id);
     if (!data) return reply.status(404).send({ success: false, error: 'Stock-take not found' });
-    return { success: true, data };
+    return { success: true, data, warnings };
   });
 }

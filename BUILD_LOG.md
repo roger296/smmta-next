@@ -970,3 +970,66 @@ new web tests):
 `apps/web/tsconfig.json` gained `"node"` to its `types` (the guard test reads
 the source tree). That let the now-redundant `@ts-expect-error` in
 `e2e/helpers/auth.ts` go.
+
+## F4 — Stop rounding counts to the nearest 100 (D-2) (2026-08-19)
+
+`bucketCount` defaulted `quantum = 100`, so every non-discrete count was
+silently rounded to the nearest 100 **stock units**. A 4 kg count of icing
+sugar submitted as **0**; a 250 g count as 300. On approval the ledger is
+trued up to the destroyed figure, so the loss is permanent and invisible.
+
+This was masked in production by D-1 — with no product map the UoM fell back to
+`each`, which is discrete and never bucketed. F3 removed that mask, which is
+why the pair are inseparable. (F3 shipped with bucketing explicitly disabled at
+the call site rather than red, so no commit ever destroyed a count — see
+DECISIONS.)
+
+**The blanket default is gone.** `bucketCount(qty, uom, quantum?)` returns
+`qty` unchanged when the quantum is null/undefined/≤0 **or** the UoM is
+discrete. There is no default value at all, so no call site can inherit
+bucketing by accident.
+
+**Per-product quantum.** New nullable `products.count_quantum`
+(`numeric(18,4)`, migration `0041_product_count_quantum`) with a CHECK that it
+is either NULL or > 0 — "no bucketing" is spelled NULL, never 0, so "nobody has
+configured this" and "counted whole deliberately" stay distinguishable. It is
+admin-editable on the product page (with a hint saying blank is almost always
+right), carried through `createProductSchema` / `updateProductSchema`, and
+returned on every stock-take line so the count screen reads the product's own
+setting.
+
+**Bucketing is now visible.** A row with an active quantum renders
+"rounded to nearest 100 g" beside its book figure, so a counter sees what
+happened to their number instead of discovering it on the variance report.
+
+**A zeroed count is no longer silent.** `countedQty: z.coerce.number().min(0)`
+accepts 0 without complaint and approval writes it straight to the ledger — the
+exact path by which D-2's destroyed counts would have been made permanent. New
+`varianceWarnings()` flags any line counted 0 against a non-zero book figure;
+`GET /stock-takes/:id` carries the warnings, and `POST /:id/approve` reads them
+**before** truing up (afterwards the variance is zero and there is nothing left
+to point at). It is a warning, not a block — a genuinely empty shelf is a real
+answer.
+
+**Migration note.** `db:generate` also re-emitted the recipe-line, entry-mode
+and table-split changes, because the hand-authored 0038/0039/0040 never
+regenerated a snapshot. Those are already applied and their un-guarded
+`ADD COLUMN`s would fail, so `0041`'s SQL was trimmed to the new column alone
+(with the reason recorded in the migration itself). The generated **snapshot**
+is kept, which re-syncs the chain so the next `db:generate` diffs from truth.
+
+**Tests** (red-to-green verified: restoring the `= 100` default fails 5 of them):
+- Unit: `bucketCount(4, 'kg')` → `4`; `bucketCount(250, 'g')` → `250`;
+  `bucketCount(4, 'each')` → `4`; `bucketCount(0.5, 'kg')` → `0.5`;
+  `bucketCount(250, 'g', 100)` → `300` (explicit opt-in only); undefined / null
+  / 0 / negative all mean "do not bucket"; a discrete UoM is never bucketed even
+  with a quantum configured. Plus `bucketNote`.
+- **Named regression:** `stock-take-bucketing.test.tsx` — a 4 kg count submits
+  `countedQty: 4` end to end through `useRecordStockTakeCounts`, asserted on a
+  spy over the real request body. Also: a product WITH a quantum is still
+  bucketed (opt-in works), and a bucketed row says so on screen.
+- API: approving trues the ledger to the submitted figure exactly; a 0 count
+  against a non-zero book raises a `COUNTED_TO_ZERO` warning naming the product;
+  0-against-0 and uncounted lines raise nothing; the quantum reaches the line.
+- API schema: `count_quantum` defaults NULL on every row; stores at 4dp;
+  rejects 0 and negatives.

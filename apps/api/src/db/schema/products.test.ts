@@ -125,3 +125,58 @@ describe('schema constraints — products.group_id FK to product_groups', () => 
     ).resolves.not.toThrow();
   });
 });
+
+// ── D-2: products.count_quantum (Aug-2026 feedback set) ─────────────────────
+describe('products.count_quantum', () => {
+  beforeEach(async () => {
+    const db = getDb();
+    await db.delete(products).where(eq(products.companyId, TEST_COMPANY));
+  });
+
+  it('defaults to NULL — meaning "do not bucket counts of this product"', async () => {
+    const db = getDb();
+    const [p] = await db
+      .insert(products)
+      .values({ companyId: TEST_COMPANY, name: 'Quantum default', slug: 'quantum-default' })
+      .returning();
+    // The migration adds the column to EVERY existing row as NULL, so no
+    // product anywhere silently starts rounding its counts.
+    expect(p!.countQuantum).toBeNull();
+  });
+
+  it('stores a positive quantum at 4dp', async () => {
+    const db = getDb();
+    const [p] = await db
+      .insert(products)
+      .values({
+        companyId: TEST_COMPANY,
+        name: 'Scooped flour',
+        slug: 'scooped-flour',
+        stockUom: 'g',
+        countQuantum: '100.0000',
+      })
+      .returning();
+    expect(Number(p!.countQuantum)).toBe(100);
+  });
+
+  it('rejects a zero or negative quantum — "no bucketing" is spelled NULL', async () => {
+    const db = getDb();
+    await expect(
+      db.insert(products).values({
+        companyId: TEST_COMPANY,
+        name: 'Zero quantum',
+        slug: 'zero-quantum',
+        countQuantum: '0',
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(products).values({
+        companyId: TEST_COMPANY,
+        name: 'Negative quantum',
+        slug: 'negative-quantum',
+        countQuantum: '-5',
+      }),
+    ).rejects.toThrow();
+  });
+});
