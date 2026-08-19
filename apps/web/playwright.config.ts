@@ -15,6 +15,14 @@ import { defineConfig, devices } from '@playwright/test';
  * retest script (docs/RETEST_2026-08-12.md, F15) remains the final check on a
  * real iPad.
  */
+/**
+ * Escape hatch for sandboxes / CI images that ship a Chromium build Playwright
+ * did not download itself (the versions have to match exactly otherwise).
+ * Unset in normal use, where Playwright's own managed browser is used.
+ */
+const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
+const launchOptions = chromiumExecutable ? { executablePath: chromiumExecutable } : undefined;
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -32,15 +40,19 @@ export default defineConfig({
       // Was `chromium`; renamed to `desktop` now that there are three
       // projects and "which browser" is no longer the distinguishing axis.
       name: 'desktop',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], launchOptions },
     },
     {
+      // The iPad descriptors default to WebKit; no WebKit binary is available
+      // here (and WebKit-on-Linux is not iOS Safari either), so the device
+      // METRICS are what these projects contribute — viewport, DPR, touch,
+      // mobile UA — driven by Chromium. See the header note.
       name: 'ipad-portrait',
-      use: { ...devices['iPad Pro 11'] },
+      use: { ...devices['iPad Pro 11'], browserName: 'chromium', defaultBrowserType: 'chromium', launchOptions },
     },
     {
       name: 'ipad-landscape',
-      use: { ...devices['iPad Pro 11 landscape'] },
+      use: { ...devices['iPad Pro 11 landscape'], browserName: 'chromium', defaultBrowserType: 'chromium', launchOptions },
     },
   ],
   webServer: process.env.E2E_NO_WEBSERVER

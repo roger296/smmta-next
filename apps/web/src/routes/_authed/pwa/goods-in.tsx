@@ -6,6 +6,7 @@ import { resolveBarcodeToProduct } from '@/lib/barcode';
 import { purchaseToStock } from '@/lib/uom';
 import { useReceiveGoodsIn } from '@/features/pwa/use-pwa-jobs';
 import type { Product } from '@/lib/api-types';
+import { PwaSyncPill } from '@/features/pwa/queue-status';
 import {
   TouchScreen,
   TouchTopbar,
@@ -13,7 +14,7 @@ import {
   BottomSheet,
   BigButton,
   ActionBar,
-  SyncPill,
+  ErrorBanner,
 } from '@/components/touch/touch';
 
 export const Route = createFileRoute('/_authed/pwa/goods-in')({
@@ -28,7 +29,8 @@ interface Line {
   useBy: string;
 }
 
-function GoodsInScreen() {
+/** Exported so the component tests can render the screen without a router. */
+export function GoodsInScreen() {
   const navigate = useNavigate();
   const { selectedSite, selectedSiteId } = useSiteContext();
   const receive = useReceiveGoodsIn();
@@ -37,15 +39,30 @@ function GoodsInScreen() {
   const [lines, setLines] = React.useState<Line[]>([]);
   const [qtyTarget, setQtyTarget] = React.useState<number | null>(null);
   const [detailsTarget, setDetailsTarget] = React.useState<number | null>(null);
+  // A rejection is shown in the screen and stays there until dismissed — a
+  // toast vanishes while the user is still looking at the shelf (defect A-1).
+  const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
 
   const addByCode = async () => {
     if (!code.trim()) return;
-    const product = await resolveBarcodeToProduct(code.trim());
-    if (!product) {
-      toast({ variant: 'destructive', title: `No product for "${code}"` });
+    // Defect A-6: a lookup that threw used to do nothing at all — no product
+    // added, no error, the code still sitting in the box.
+    let product: Product | null = null;
+    try {
+      product = await resolveBarcodeToProduct(code.trim());
+    } catch (err) {
+      setError({
+        title: 'Could not look that code up',
+        message: err instanceof Error ? err.message : 'The search request failed. Check the connection and try again.',
+      });
       return;
     }
-    setLines((ls) => [...ls, { product, qtyPurchase: 1, unitCost: Number(product.expectedNextCost) || 0, batchCode: '', useBy: '' }]);
+    if (!product) {
+      setError({ title: `No product for "${code}"`, message: 'Check the code, or search by name.' });
+      return;
+    }
+    setError(null);
+    setLines((ls) => [...ls, { product: product!, qtyPurchase: 1, unitCost: Number(product!.expectedNextCost) || 0, batchCode: '', useBy: '' }]);
     setCode('');
   };
 
@@ -55,15 +72,37 @@ function GoodsInScreen() {
 
   const submit = async () => {
     if (!selectedSiteId || lines.length === 0) return;
-    const res = await receive.mutateAsync({
-      siteId: selectedSiteId,
-      lines: lines.map((l) => ({
-        productId: l.product.id,
-        qtyPurchase: l.qtyPurchase,
-        unitCost: l.unitCost,
-        ...(l.product.requireBatchNumber ? { batchCode: l.batchCode, useBy: l.useBy || null } : {}),
-      })),
-    });
+    setError(null);
+    let res;
+    try {
+      res = await receive.mutateAsync({
+        siteId: selectedSiteId,
+        lines: lines.map((l) => ({
+          productId: l.product.id,
+          qtyPurchase: l.qtyPurchase,
+          unitCost: l.unitCost,
+          ...(l.product.requireBatchNumber ? { batchCode: l.batchCode, useBy: l.useBy || null } : {}),
+        })),
+      });
+    } catch (err) {
+      // submitOrQueue only throws on something it could not classify at all.
+      setError({
+        title: 'Not booked in',
+        message: err instanceof Error ? err.message : 'Something went wrong. Your lines are still here.',
+      });
+      return;
+    }
+
+    if (res.status === 'rejected') {
+      // The server refused this. It will refuse it again, so nothing is
+      // queued — and the lines stay on screen so the user can fix them.
+      setError({
+        title: 'Not booked in — the server refused this delivery',
+        message: res.error?.message ?? 'The delivery was rejected. Your lines are still here.',
+      });
+      return;
+    }
+
     toast({ title: res.status === 'sent' ? 'Booked in' : 'Saved offline — will sync' });
     setLines([]);
   };
@@ -76,7 +115,7 @@ function GoodsInScreen() {
       <TouchTopbar
         title={`Goods in — ${selectedSite?.name ?? '…'}`}
         onBack={() => void navigate({ to: '/' })}
-        right={<SyncPill state={receive.isPending ? 'syncing' : 'synced'} />}
+        right={<PwaSyncPill />}
         stat={lines.length > 0 ? `${lines.length} line${lines.length === 1 ? '' : 's'} to book in` : undefined}
       />
 
@@ -96,6 +135,9 @@ function GoodsInScreen() {
       </div>
 
       <div className="scroll">
+        {error && (
+          <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />
+        )}
         {lines.length === 0 && <div className="empty">Scan or type a product code to start booking stock in.</div>}
         {lines.map((l, i) => {
           const factor = Number(l.product.purchaseToStockFactor) || 1;

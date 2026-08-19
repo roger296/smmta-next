@@ -490,3 +490,30 @@ judgement call so the fix run never blocked.
 - **`chromium` → `desktop`.** With three projects, "which browser" stopped being
   the distinguishing axis. Nothing in CI referenced `--project=chromium`
   (`.github/workflows/e2e.yml` drives `apps/store`, a dormant app).
+
+## F2 — truthful submit
+
+- **408 and 429 queue, despite being 4xx.** The rule is "will a retry ever
+  succeed?", not "is the status code in the 400s". A timeout and a rate-limit
+  are the server saying *not now*, not *not ever*, so they belong with the 5xx.
+- **A rejection is never queued, even though queuing looks kinder.** Holding a
+  payload the server has already refused produces a queue that can never drain,
+  a pill that never clears, and — worst — a venue that believes the work landed.
+  The entry stays on screen instead, with the server's own words.
+- **Dead-letter rather than retry forever.** Five attempts, then the action
+  moves to a list a human can see. Retrying indefinitely hides a permanent
+  failure behind an ever-growing pending count.
+- **`PwaQueueSync` lives in `App.tsx` for now, not in a venue screen.** The
+  queue is process-global and a baker may reconnect on any page, so per-screen
+  mounting would miss replays. F5 moves it into the `_touch` layout, which is
+  its proper home once one exists.
+- **Overlapping flushes are suppressed.** `online` and `visibilitychange` can
+  fire within a frame of each other when an iPad wakes on venue wifi; two
+  concurrent flushes would send the same action twice and race the removals.
+- **Screen components are exported.** `GoodsInScreen` / `StockTakeScreen` /
+  `ConsumptionScreen` are now exported alongside their `Route` so component
+  tests can render them without standing up a router. The routes are unchanged.
+- **`browserName: 'chromium'` is pinned on the iPad projects.** Without it the
+  descriptors ask for WebKit, which cannot be installed in this environment.
+  This narrows what the projects prove — metrics, not engine — and that is
+  already recorded in the Playwright config header and F1's note.

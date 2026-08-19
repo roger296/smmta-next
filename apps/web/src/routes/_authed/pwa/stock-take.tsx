@@ -11,6 +11,7 @@ import {
   useApproveStockTake,
 } from '@/features/pwa/use-pwa-jobs';
 import type { Product } from '@/lib/api-types';
+import { PwaSyncPill } from '@/features/pwa/queue-status';
 import {
   TouchScreen,
   TouchTopbar,
@@ -20,7 +21,7 @@ import {
   KeypadSheet,
   BigButton,
   ActionBar,
-  SyncPill,
+  ErrorBanner,
 } from '@/components/touch/touch';
 
 export const Route = createFileRoute('/_authed/pwa/stock-take')({
@@ -49,7 +50,8 @@ function useProductMap() {
   });
 }
 
-function StockTakeScreen() {
+/** Exported so the component tests can render the screen without a router. */
+export function StockTakeScreen() {
   const navigate = useNavigate();
   const { selectedSite, selectedSiteId } = useSiteContext();
   const { data: productMap } = useProductMap();
@@ -65,10 +67,21 @@ function StockTakeScreen() {
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<'all' | 'todo'>('all');
   const [typeTarget, setTypeTarget] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
 
   const startCount = async () => {
     if (!selectedSiteId) return;
-    const res = await open.mutateAsync({ siteId: selectedSiteId, scope });
+    setError(null);
+    let res;
+    try {
+      res = await open.mutateAsync({ siteId: selectedSiteId, scope });
+    } catch (err) {
+      setError({
+        title: 'Could not open a stock-take',
+        message: err instanceof Error ? err.message : 'The request failed. Try again.',
+      });
+      return;
+    }
     setTakeId(res.data.take.id);
     setLines((res.data.lines as TakeLine[]) ?? []);
     setCounts({});
@@ -88,13 +101,41 @@ function StockTakeScreen() {
         return { productId: l.productId, countedQty: bucketCount(counts[l.productId], uom) };
       });
     if (counted.length === 0) return;
-    const res = await record.mutateAsync({ stockTakeId: takeId, counts: counted });
+    setError(null);
+    let res;
+    try {
+      res = await record.mutateAsync({ stockTakeId: takeId, counts: counted });
+    } catch (err) {
+      setError({
+        title: 'Counts not saved',
+        message: err instanceof Error ? err.message : 'Something went wrong. Your counts are still here.',
+      });
+      return;
+    }
+    if (res.status === 'rejected') {
+      // Refused by the server, so nothing was queued and nothing is cleared:
+      // the counts stay on screen (defect A-1).
+      setError({
+        title: 'Counts not saved — the server refused them',
+        message: res.error?.message ?? 'The counts were rejected. They are still on this screen.',
+      });
+      return;
+    }
     toast({ title: res.status === 'sent' ? 'Counts saved' : 'Saved offline — will sync' });
   };
 
   const approveTake = async () => {
     if (!takeId) return;
-    await approve.mutateAsync(takeId);
+    setError(null);
+    try {
+      await approve.mutateAsync(takeId);
+    } catch (err) {
+      setError({
+        title: 'Not approved',
+        message: err instanceof Error ? err.message : 'The approval failed. Your counts are still here.',
+      });
+      return;
+    }
     toast({ title: 'Stock-take approved — ledger trued up' });
     setTakeId(null);
     setLines([]);
@@ -107,6 +148,7 @@ function StockTakeScreen() {
       <TouchScreen>
         <TouchTopbar title="Stock-take" onBack={() => void navigate({ to: '/' })} />
         <div className="scroll">
+          {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
           <div className="center">
             <h1>{selectedSite?.name ?? 'Select a site'}</h1>
             <p className="lede">Count stock against the book figure. Variance is trued up on approval.</p>
@@ -152,7 +194,7 @@ function StockTakeScreen() {
         title={selectedSite?.name ?? 'Stock-take'}
         sub={scope === 'FULL' ? 'Full' : scope === 'CYCLE' ? 'Cycle' : 'Category'}
         onBack={() => setTakeId(null)}
-        right={<SyncPill state={record.isPending ? 'syncing' : 'synced'} />}
+        right={<PwaSyncPill />}
         stat={`${countedTotal} / ${lines.length} counted`}
         progress={pct}
       />
@@ -162,6 +204,7 @@ function StockTakeScreen() {
       </TouchToolbar>
 
       <div className="scroll">
+        {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
         {lines.length === 0 && <div className="empty">No stock lines in scope.</div>}
         {lines.length > 0 && visible.length === 0 && <div className="empty">Nothing matches.</div>}
         {visible.map((l) => {

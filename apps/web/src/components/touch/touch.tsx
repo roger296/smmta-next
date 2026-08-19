@@ -24,14 +24,65 @@ export function TouchScreen({ children }: { children: React.ReactNode }) {
   return <div className="touch-app">{children}</div>;
 }
 
-export function SyncPill({ state }: { state: SyncState }) {
+/**
+ * The sync pill. Presentational only — see `PwaSyncPill`
+ * (features/pwa/queue-status.tsx) for the wired version that reads real queue
+ * depth. Driving this from a mutation's `isPending` was defect A-3: the
+ * `pending` and `offline` branches below were unreachable, so a queue holding
+ * unsent counts still read "All saved".
+ *
+ * `count` is rendered when there is queued work, because "Pending" alone does
+ * not answer the question a baker actually has, which is *how much*.
+ */
+export function SyncPill({
+  state, count = 0, onClick,
+}: {
+  state: SyncState;
+  count?: number;
+  onClick?: () => void;
+}) {
   const label =
     state === 'synced' ? 'All saved'
     : state === 'syncing' ? 'Saving…'
-    : state === 'offline' ? 'Offline — saved'
-    : 'Pending';
+    : state === 'offline' ? (count > 0 ? `Offline — ${count} waiting` : 'Offline')
+    : count > 0 ? `Pending ${count}` : 'Pending';
   const cls = state === 'synced' || state === 'syncing' ? 'ok' : state === 'offline' ? 'offline' : 'pending';
-  return <span className={`syncpill ${cls}`}>{label}</span>;
+  if (!onClick) return <span className={`syncpill ${cls}`}>{label}</span>;
+  return (
+    <button type="button" className={`syncpill ${cls}`} onClick={onClick} aria-label={`Sync status: ${label}. Open the queue.`}>
+      {label}
+    </button>
+  );
+}
+
+/**
+ * A persistent, dismissible in-screen error. Deliberately NOT a corner toast:
+ * on 12 Aug a rejected submission produced a toast that vanished while the
+ * baker was still looking at the shelf, so the failure was never seen. This
+ * sits in the flow of the screen and stays until dismissed.
+ */
+export function ErrorBanner({
+  title, message, onDismiss, children,
+}: {
+  title?: React.ReactNode;
+  message: React.ReactNode;
+  onDismiss?: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="notice warn notice-error" role="alert">
+      <div className="notice-body">
+        {title != null && <strong>{title}</strong>}
+        <div>{message}</div>
+        {children}
+      </div>
+      {onDismiss && (
+        <button type="button" className="notice-dismiss" onClick={onDismiss} aria-label="Dismiss">
+          ×
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function TouchTopbar({

@@ -827,3 +827,82 @@ touched by this fix set.
 
 Gates: `npm run build` green, `npm run typecheck` green, API Vitest 576 passed,
 web Vitest 128 passed, Playwright discovers all three projects.
+
+## F2 — Tell the truth about saved work (A-1 … A-6) (2026-08-19)
+
+The single most important fix in this set. A rejected submission was reported
+to the venue as "Saved offline — will sync", and the offline queue was never
+replayed. Bakers were told their work was saved when it had been discarded.
+
+**`lib/offline-submit.ts`** — the bare `catch {}` is gone. `SubmitOutcome` is
+now `'sent' | 'queued' | 'rejected'`, classified on one question: *will
+retrying this ever succeed?*
+
+| Failure | Outcome | Why |
+|---|---|---|
+| `TypeError` from `fetch`, or `navigator.onLine === false` | `queued` | The payload never reached the server |
+| HTTP 4xx (not 408/429) | **`rejected`, NOT enqueued** | The server looked at the payload and refused it; it will refuse it identically every time |
+| HTTP 5xx, 408, 429 | `queued` with `attempts` + `lastError` | The server is unwell, not the payload |
+
+**`lib/offline-queue.ts`** — `QueuedAction` gains `attempts`, `lastError`,
+`lastTriedAt` and a `label`. `subscribe()` lets the UI observe depth. On flush,
+an action that fails `DEFAULT_MAX_ATTEMPTS` (5) times moves to a **dead-letter**
+list instead of retrying for ever, and `revive()` / `discard()` let a human act
+on it. A queue that never gives up is indistinguishable from one that never runs.
+
+**`features/pwa/use-pwa-jobs.ts`** —
+- `usePwaQueueState()` → `{ pending, deadLettered, isFlushing, isOnline, lastSyncedAt }`.
+- `PwaQueueSync` — mount-once wiring that calls the flush on app boot, on
+  `window` `online`, and on `visibilitychange` back to visible (an iPad waking
+  from standby often fires only the latter). **`flushPwaQueue` previously had
+  zero call sites — that was defect A-2.** Mounted in `App.tsx` for now; F5
+  gives it a home in the `_touch` layout. `flushPwaQueueOnce` guards against
+  overlapping runs, which would otherwise double-send when `online` and
+  `visibilitychange` land in the same frame.
+- `ConsumptionLineDraft` now declares `entryMode` and `remainingQty` (defect
+  F-8) so the client type matches what `POST /session-consumption` validates.
+
+**All three venue screens** — every `mutateAsync` is inside a `try/catch`. On
+`'rejected'` they show a **persistent, dismissible in-screen `ErrorBanner`**
+(`.notice.warn`, `role="alert"`) quoting the server's own message and **leave
+the user's entries on screen**. The form clears only on `'sent'` or `'queued'`.
+`addByCode` in goods-in catches lookup failures and surfaces them (A-6) —
+previously a thrown lookup did nothing at all.
+
+**`SyncPill`** is driven by real queue depth via the new `PwaSyncPill`, not by
+`mutation.isPending` (A-3). Its `pending` / `offline` branches were dead code;
+they are live now and carry a count, because "Pending" alone does not answer
+the question a baker has, which is *how much*. Tapping it opens a **queue
+drawer** listing pending and dead-lettered actions with their error, "retry
+now", and a "discard" that requires confirmation (A-4).
+
+**Tests** (red-to-green verified: reverting only `offline-submit.ts` fails 7 of
+them):
+- `offline-submit.test.ts` — 400/403/404/409/422 reject and do **not** enqueue;
+  500 enqueues with an attempt stamp; 408/429 enqueue despite being 4xx;
+  `TypeError` enqueues; an offline navigator enqueues without attempting a
+  send; dead-lettering after N attempts; revive; discard; subscriber notify.
+- `use-pwa-jobs.test.tsx` — flush fires on boot, on `online`, and on
+  `visibilitychange`; no flush attempt while offline; queue depth and dead
+  letters propagate to `usePwaQueueState`.
+- `queue-status.test.tsx` — the pill reads "All saved" only when genuinely
+  empty, shows a count when not, shows offline; the drawer lists queued work
+  with its error; discard needs confirming.
+- `pwa-submit.test.tsx` (component) — goods-in and stock-take, given a mocked
+  400, show the banner, retain their entries, queue nothing and show no success
+  message; given a network failure, show "saved offline" **and** leave a pending
+  action behind.
+- `e2e/pwa-submit.spec.ts` (both iPad projects) — stub a 400, submit goods-in,
+  assert the banner and that the line is still on screen.
+
+**Environment note:** the iPad device descriptors default to WebKit, and no
+WebKit binary can be installed here (the download fails). The iPad projects now
+pin `browserName: 'chromium'` — the device *metrics* are what they contribute.
+The image also ships a Chromium build (1194) older than the one Playwright
+1.59.1 manages (1217), so the config reads an optional
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE` env var; unset, Playwright uses its own
+managed browser as normal. Locally the specs run with
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium`.
+
+Also: `vite.config.ts` gained `routeFileIgnorePattern` so a test colocated with
+a route file stops warning the route generator on every boot.

@@ -5,6 +5,7 @@ import { useSiteContext } from '@/features/sites/site-context';
 import { useBakes } from '@/features/recipes/use-recipes';
 import { useExpectedConsumption } from '@/features/consumption/use-consumption';
 import { useSubmitConsumption } from '@/features/pwa/use-pwa-jobs';
+import { PwaSyncPill } from '@/features/pwa/queue-status';
 import {
   TouchScreen,
   TouchTopbar,
@@ -12,7 +13,7 @@ import {
   BottomSheet,
   BigButton,
   ActionBar,
-  SyncPill,
+  ErrorBanner,
 } from '@/components/touch/touch';
 
 export const Route = createFileRoute('/_authed/pwa/consumption')({
@@ -49,7 +50,8 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function ConsumptionScreen() {
+/** Exported so the component tests can render the screen without a router. */
+export function ConsumptionScreen() {
   const navigate = useNavigate();
   const { selectedSite, selectedSiteId } = useSiteContext();
   const { data: bakes } = useBakes();
@@ -79,17 +81,28 @@ function ConsumptionScreen() {
   const [tableKeypad, setTableKeypad] = React.useState<'regular' | 'gf' | 'vegan' | null>(null);
   const [actualTarget, setActualTarget] = React.useState<number | null>(null);
   const [wasteTarget, setWasteTarget] = React.useState<number | null>(null);
+  const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
 
   const loadExpected = async () => {
     if (!selectedSiteId || !bake.trim() || regularTables === null || covers <= 0) return;
-    const rows = await expected.mutateAsync({
-      siteId: selectedSiteId,
-      onDate: sessionDate,
-      bake: bake.trim(),
-      covers,
-      glutenFreeTables: gfTables,
-      veganTables,
-    });
+    setError(null);
+    let rows;
+    try {
+      rows = await expected.mutateAsync({
+        siteId: selectedSiteId,
+        onDate: sessionDate,
+        bake: bake.trim(),
+        covers,
+        glutenFreeTables: gfTables,
+        veganTables,
+      });
+    } catch (err) {
+      setError({
+        title: 'Could not load the recipe',
+        message: err instanceof Error ? err.message : 'The request failed. Try again.',
+      });
+      return;
+    }
     setLines(
       rows.map((r) => ({
         productId: r.productId,
@@ -116,24 +129,42 @@ function ConsumptionScreen() {
 
   const doSubmit = async () => {
     if (!selectedSiteId) return;
-    const res = await submit.mutateAsync({
-      sessionId: sessionId.trim(),
-      siteId: selectedSiteId,
-      sessionDate,
-      bakerName: bakerName.trim(),
-      bake: bake.trim(),
-      covers,
-      glutenFreeTables: gfTables,
-      veganTables,
-      lines: lines.map((l) => ({
-        productId: l.productId,
-        entryMode: l.entryMode,
-        actualQty: l.actualQty,
-        remainingQty: l.remainingQty,
-        wastageQty: l.wastageQty || undefined,
-        wastageReason: l.wastageReason || null,
-      })),
-    });
+    setError(null);
+    let res;
+    try {
+      res = await submit.mutateAsync({
+        sessionId: sessionId.trim(),
+        siteId: selectedSiteId,
+        sessionDate,
+        bakerName: bakerName.trim(),
+        bake: bake.trim(),
+        covers,
+        glutenFreeTables: gfTables,
+        veganTables,
+        lines: lines.map((l) => ({
+          productId: l.productId,
+          entryMode: l.entryMode,
+          actualQty: l.actualQty,
+          remainingQty: l.remainingQty,
+          wastageQty: l.wastageQty || undefined,
+          wastageReason: l.wastageReason || null,
+        })),
+      });
+    } catch (err) {
+      setError({
+        title: 'Not submitted',
+        message: err instanceof Error ? err.message : 'Something went wrong. Your entries are still here.',
+      });
+      return;
+    }
+    if (res.status === 'rejected') {
+      // Refused, not queued — the ingredient list stays exactly as entered.
+      setError({
+        title: 'Not submitted — the server refused this bake',
+        message: res.error?.message ?? 'The bake was rejected. Your entries are still on this screen.',
+      });
+      return;
+    }
     toast({ title: res.status === 'sent' ? 'Consumption recorded' : 'Saved offline — will sync' });
     setLines([]);
     setLoaded(false);
@@ -149,6 +180,7 @@ function ConsumptionScreen() {
       <TouchScreen>
         <TouchTopbar title="End of bake" onBack={() => void navigate({ to: '/' })} />
         <div className="scroll">
+          {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
           <div className="center">
             <h1>{selectedSite?.name ?? 'Select a site'}</h1>
             <p className="lede">Pick the cake and how many guests baked it, then confirm what was actually used.</p>
@@ -270,10 +302,11 @@ function ConsumptionScreen() {
         title={selectedSite?.name ?? 'End of bake'}
         sub={bake || undefined}
         onBack={() => setLoaded(false)}
-        right={<SyncPill state={submit.isPending ? 'syncing' : 'synced'} />}
+        right={<PwaSyncPill />}
         stat={`${lines.length} ingredients · ${covers} tables${gfTables || veganTables ? ` (${gfTables} GF, ${veganTables} vegan)` : ''} · ${changed} adjusted`}
       />
       <div className="scroll">
+        {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
         {lines.length === 0 && <div className="empty">No ingredients for that recipe.</div>}
         {lines.map((l, i) => {
           const remaining = l.entryMode === 'REMAINING';
