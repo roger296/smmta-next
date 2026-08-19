@@ -27,6 +27,8 @@ const svc = new GoodsInService();
 const levels = new StockLevelService();
 let siteId: string;
 let flourId: string;
+let sackId: string;
+let perGramId: string;
 
 async function clearTx(): Promise<void> {
   const db = getDb();
@@ -62,6 +64,38 @@ beforeAll(async () => {
     })
     .returning();
   flourId = p!.id;
+  // Two more, for the F9 purchase-unit and cost-precision specs.
+  const [sack] = await db
+    .insert(products)
+    .values({
+      companyId: COMPANY,
+      name: 'GI Icing sugar',
+      slug: 'gi-icing-sugar',
+      itemKind: 'INGREDIENT',
+      stockUom: 'g',
+      purchaseUom: 'sack',
+      packDescription: '25 kg sack',
+      purchaseToStockFactor: '25000', // 1 sack = 25 kg
+      expectedNextCost: '30.000000',
+    })
+    .returning();
+  sackId = sack!.id;
+  const [perGram] = await db
+    .insert(products)
+    .values({
+      companyId: COMPANY,
+      name: 'GI Per-gram sugar',
+      slug: 'gi-per-gram-sugar',
+      itemKind: 'INGREDIENT',
+      stockUom: 'g',
+      purchaseUom: 'g',
+      purchaseToStockFactor: '1',
+      // £0.0012/g. Under numeric(18,2) this stored as 0.00, so every line
+      // value computed from it was zero — the tester's "£0.00".
+      expectedNextCost: '0.001200',
+    })
+    .returning();
+  perGramId = perGram!.id;
   const [s] = await db
     .insert(sites)
     .values({ companyId: COMPANY, slug: 'gi-site', name: 'GI Site', canonicalName: 'GI Site' })
@@ -164,6 +198,40 @@ describe('GoodsInService.receive', () => {
 
     // On-hand reflects a single application (2 bags × 1000 g).
     expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(2000);
+  });
+});
+
+// ── C-1/C-4: purchase units and full-precision cost (Aug-2026) ──────────────
+describe('purchase→stock conversion at venue scale', () => {
+  it('C-1: 4 × 25 kg sack books 100000 stock units', async () => {
+    const res = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-sack-1',
+      lines: [{ productId: sackId, qtyPurchase: 4, unitCost: 30 }],
+      companyId: COMPANY,
+    });
+
+    // The exact 12 Aug delivery. Under the un-set purchase model this booked 4.
+    expect(Number(await levels.getOnHand(sackId, siteId, COMPANY))).toBe(100_000);
+    expect(Number(res.lines[0]!.qtyStock)).toBe(100_000);
+    expect(Number(res.lines[0]!.lineValue)).toBe(120);
+  });
+
+  it('C-4: a line value uses the FULL-PRECISION cost, not a 2dp rounding', async () => {
+    const stored = await getDb().query.products.findFirst({ where: eq(products.id, perGramId) });
+    expect(Number(stored!.expectedNextCost)).toBeCloseTo(0.0012, 6);
+
+    // Booking 100 kg of it, with no explicit unitCost, must default from the
+    // product's own price rather than from a rounded zero.
+    const res = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-per-gram-1',
+      lines: [{ productId: perGramId, qtyPurchase: 100_000 }],
+      companyId: COMPANY,
+    });
+
+    expect(Number(res.lines[0]!.unitCost)).toBeCloseTo(0.0012, 6);
+    expect(Number(res.lines[0]!.lineValue)).toBeCloseTo(120, 2);
   });
 });
 

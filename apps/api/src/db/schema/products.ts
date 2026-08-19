@@ -22,7 +22,16 @@ export const products = pgTable(
     manufacturerId: uuid('manufacturer_id').references(() => manufacturers.id),
     manufacturerPartNumber: varchar('manufacturer_part_number', { length: 100 }),
     description: text('description'),
-    expectedNextCost: decimal('expected_next_cost', { precision: 18, scale: 2 }).default('0'),
+    /**
+     * What the next unit is expected to cost, **per purchase unit**.
+     *
+     * `numeric(18,6)`, not `(18,2)` (Aug-2026 feedback, defect C-4; locked
+     * decision 4). Ingredients are genuinely priced in fractions of a penny
+     * per gram — icing sugar at ~£0.0012/g — and 2dp rounded every one of them
+     * to `0.00`, so every venue cost read as £0.00. Recipe `unit_cost` is
+     * already `numeric(18,4)`; the two disagreed, and this was the shallower.
+     */
+    expectedNextCost: decimal('expected_next_cost', { precision: 18, scale: 6 }).default('0'),
     minSellingPrice: decimal('min_selling_price', { precision: 18, scale: 2 }),
     maxSellingPrice: decimal('max_selling_price', { precision: 18, scale: 2 }),
     ean: varchar('ean', { length: 50 }),
@@ -107,6 +116,15 @@ export const products = pgTable(
     purchaseUom: varchar('purchase_uom', { length: 20 }),
     /** How many purchase units make up an order line item (e.g. a case of 6). */
     purchasePackSize: decimal('purchase_pack_size', { precision: 18, scale: 3 }).notNull().default('1'),
+    /**
+     * How the purchase unit reads to a human — "25 kg sack", "case of 6 ×
+     * 1.6 kg" (Aug-2026 feedback, defects C-1/C-2).
+     *
+     * `purchaseUom` alone is a token ("sack"); this is the phrase a baker
+     * checking a delivery note recognises. Free text on purpose: the shapes
+     * suppliers actually ship in do not enumerate.
+     */
+    packDescription: varchar('pack_description', { length: 120 }),
     /** stock_uom per 1 purchase_uom (e.g. 1 bag = 1000 g ⇒ 1000). */
     purchaseToStockFactor: decimal('purchase_to_stock_factor', { precision: 18, scale: 4 }).notNull().default('1'),
     /**

@@ -686,3 +686,27 @@ judgement call so the fix run never blocked.
 - **The miss sheet adds the line as well as attaching the code.** Making
   someone search, attach, then search again would be the same dead end with an
   extra step.
+
+## F9 — purchase units, packs and cost precision
+
+- **6dp, not 4dp, for `expected_next_cost`.** Recipe `unit_cost` is 4dp and
+  matching it would have been defensible, but a per-gram purchase price has one
+  more order of magnitude to give than a per-portion recipe cost. 6dp costs
+  nothing and removes the question.
+- **Auto-scaling g→kg is DISPLAY ONLY.** Everything stored, sent and reconciled
+  stays in the stock UoM. A conversion that reached the request would be a new
+  and worse version of C-1.
+- **`describePackLine` refuses to complete the phrase without a purchase unit.**
+  There is no honest resolved figure, and "= 4 g" is precisely what the tester
+  was shown. Saying "no purchase unit set" is less tidy and much more true.
+- **`packDescription` is free text.** The shapes suppliers ship in do not
+  enumerate — "case of 6 × 1.6 kg" is not a UoM, it is a sentence.
+- **A 1:1 factor is a WARNING, not an error.** A product genuinely bought by
+  the gram is legitimate. The needs-setup report and the form both say so
+  rather than refusing to save.
+- **The blocked-line guard blocks the whole booking, not just the line.** A
+  half-booked delivery is harder to reason about than one that did not go
+  through, and the fix (set a purchase unit) takes a minute.
+- **The needs-setup payload is `{ rows, summary }` inside `data`.** The
+  envelope's sibling keys are reserved for pagination and `apiFetch` unwraps
+  `data`, so a top-level `summary` would have been silently dropped.

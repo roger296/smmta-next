@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
 import { hasRole } from '../../shared/middleware/require-role.js';
 import { ProductInUseError, ProductService, ProductValidationError } from './product.service.js';
+import { NeedsSetupService } from './needs-setup.service.js';
 import { z } from 'zod';
 import {
   createProductSchema,
@@ -11,6 +12,7 @@ import {
 } from './product.schema.js';
 
 const productService = new ProductService();
+const needsSetupService = new NeedsSetupService();
 
 const attachBarcodeSchema = z.object({
   barcode: z.string().trim().min(1).max(64),
@@ -26,6 +28,20 @@ export async function productRoutes(app: FastifyInstance) {
     const query = productQuerySchema.parse(request.query);
     const result = await productService.list(user.companyId, query);
     return { success: true, ...result };
+  });
+
+  // ── GET /products/needs-setup ─────────────────────────────────
+  // Every stocked product not ready for a venue to receive (C-1/C-2/C-4).
+  // Registered before /products/:id so the static segment is unambiguous.
+  app.get('/products/needs-setup', async (request) => {
+    const user = getAuthUser(request);
+    const [rows, summary] = await Promise.all([
+      needsSetupService.list(user.companyId),
+      needsSetupService.summary(user.companyId),
+    ]);
+    // `{ rows, summary }` inside `data`, not alongside it: the envelope's
+    // sibling keys are reserved for pagination, and `apiFetch` unwraps `data`.
+    return { success: true, data: { rows, summary } };
   });
 
   // ── GET /products/by-code/:code ───────────────────────────────

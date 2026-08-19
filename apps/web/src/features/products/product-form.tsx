@@ -43,6 +43,8 @@ export const productFormSchema = z.object({
   referenceImageUrl: z.string().url().max(500).optional().or(z.literal('')),
   stockUom: z.string().max(20).optional().or(z.literal('')),
   purchaseUom: z.string().max(20).optional().or(z.literal('')),
+  /** "25 kg sack", "case of 6 × 1.6 kg" — how the pack reads to a human. */
+  packDescription: z.string().max(120).optional().or(z.literal('')),
   purchasePackSize: z.preprocess(
     (v) => (v === '' || v === undefined ? undefined : v),
     z.coerce.number().positive().optional(),
@@ -61,7 +63,29 @@ export const productFormSchema = z.object({
     (v) => (v === '' || v === undefined || v === null ? null : v),
     z.coerce.number().positive().nullable(),
   ),
-});
+})
+  /**
+   * A purchase unit with a factor of 1 on a fungible product is the C-1 shape
+   * exactly: icing sugar stocked in `g` with `purchaseToStockFactor` '1', so a
+   * 25 kg sack rendered "= 1 g". It is *possible* (something genuinely bought
+   * by the gram) but overwhelmingly it means the factor was never filled in,
+   * so it has to be said out loud rather than saved silently.
+   */
+  .superRefine((values, ctx) => {
+    const stockUom = (values.stockUom ?? '').trim().toLowerCase();
+    const discrete = DISCRETE_UOMS.includes(stockUom);
+    const factor = Number(values.purchaseToStockFactor ?? 1);
+    if (!discrete && values.purchaseUom && factor === 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['purchaseToStockFactor'],
+        message: `1 ${values.purchaseUom} = 1 ${values.stockUom || 'stock unit'}? Set how many ${values.stockUom || 'stock units'} are in one ${values.purchaseUom}, or clear the purchase unit.`,
+      });
+    }
+  });
+
+/** Discrete (whole units, e.g. `each`) vs fungible (bulk, e.g. grams). */
+const DISCRETE_UOMS = ['each', 'ea', 'unit', 'units', 'item', 'items', 'pcs', 'piece'];
 
 export type ProductFormValues = z.input<typeof productFormSchema>;
 export type ProductFormOutput = z.output<typeof productFormSchema>;
@@ -95,9 +119,7 @@ export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onC
     },
   });
 
-  // Discrete (whole units, e.g. `each`) vs fungible (bulk, e.g. grams).
   // Fungible products show the purchase→stock conversion fields.
-  const DISCRETE_UOMS = ['each', 'ea', 'unit', 'units', 'item', 'items', 'pcs', 'piece'];
   const stockUomVal = watch('stockUom');
   const isFungible = !!stockUomVal && !DISCRETE_UOMS.includes(stockUomVal.toLowerCase());
 
@@ -277,7 +299,15 @@ export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onC
               <Input {...register('stockUom')} placeholder="g" />
             </Field>
             <Field id="p-purchaseUom" label="Purchase unit" error={errors.purchaseUom?.message}>
-              <Input {...register('purchaseUom')} placeholder="bag" />
+              <Input {...register('purchaseUom')} placeholder="sack" />
+            </Field>
+            <Field
+              id="p-packDescription"
+              label="Pack description"
+              hint='How the pack reads on a delivery note — "25 kg sack", "case of 6 × 1.6 kg". The venue screens show this, not the bare unit.'
+              error={errors.packDescription?.message}
+            >
+              <Input {...register('packDescription')} placeholder="25 kg sack" />
             </Field>
             <Field id="p-packSize" label="Pack size" error={errors.purchasePackSize?.message}>
               <Input type="number" step="any" {...register('purchasePackSize')} placeholder="1" />

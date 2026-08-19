@@ -133,8 +133,12 @@ describe('E-5: confirm the destination before booking', () => {
 
     await user.click(screen.getByRole('button', { name: /book in 1 line/i }));
 
-    // "4 × 25 kg sack = 100000 g" — quantity, pack, and the resolved stock qty.
-    expect(await screen.findByText(/4 × 25 kg sack = 100000 g/)).toBeInTheDocument();
+    // "4 × 25 kg sack = 100 kg" — quantity, pack, and the resolved amount in
+    // the unit a person uses (F9 auto-scales g→kg for DISPLAY only; the
+    // booking is still sent in the stock UoM). Scoped to the sheet: the same
+    // phrasing is deliberately on the row too, so both read alike.
+    await screen.findByText('Book this delivery in?');
+    expect(document.querySelector('.confirm-line-qty')).toHaveTextContent('4 × 25 kg sack = 100 kg');
   });
 
   it('cancel returns with the entries intact', async () => {

@@ -21,6 +21,7 @@ import {
   ClipboardList,
   BarChart3,
   FileText,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface NavItem {
@@ -41,6 +42,8 @@ interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
   { label: 'Products', to: '/products', icon: Package },
+  // The list to work to zero before a venue test (Aug-2026, C-1/C-2/C-4).
+  { label: 'Needs setup', to: '/products/needs-setup', icon: AlertTriangle },
   { label: 'Categories', to: '/categories', icon: FolderTree },
   { label: 'Sites', to: '/sites', icon: MapPin },
   { label: 'Stock by site', to: '/stock/by-site', icon: PackageSearch },

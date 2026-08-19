@@ -342,6 +342,7 @@ export class ProductService {
         imageCaptureStore: input.imageCaptureStore ?? null,
         ...(input.stockUom !== undefined ? { stockUom: input.stockUom } : {}),
         purchaseUom: input.purchaseUom ?? null,
+        packDescription: input.packDescription ?? null,
         ...(input.purchasePackSize !== undefined
           ? { purchasePackSize: input.purchasePackSize.toString() }
           : {}),
@@ -441,6 +442,7 @@ export class ProductService {
     if (input.imageCaptureStore !== undefined) updateData.imageCaptureStore = input.imageCaptureStore;
     if (input.stockUom !== undefined) updateData.stockUom = input.stockUom;
     if (input.purchaseUom !== undefined) updateData.purchaseUom = input.purchaseUom;
+    if (input.packDescription !== undefined) updateData.packDescription = input.packDescription;
     if (input.purchasePackSize !== undefined) updateData.purchasePackSize = input.purchasePackSize.toString();
     if (input.purchaseToStockFactor !== undefined)
       updateData.purchaseToStockFactor = input.purchaseToStockFactor.toString();

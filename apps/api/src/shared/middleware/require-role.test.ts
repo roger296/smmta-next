@@ -235,6 +235,21 @@ describe('E-4: role matrix over the guarded routes', () => {
     expect(res.json().error).toMatch(/site manager/i);
   });
 
+  it('PUT /products/:id — a head_baker CAN edit a product without touching the cost', async () => {
+    // The guard is on the field, not the route: gating the whole route would
+    // block work the role should do, to protect one field. (It also proves
+    // `.partial()` does not apply createProductSchema's cost default, which
+    // would 403 every ordinary edit.)
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/products/${productId}`,
+      headers: auth(pinToken(['head_baker'], londonSouthId)),
+      payload: { packDescription: '25 kg sack' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.packDescription).toBe('25 kg sack');
+  });
+
   it('PUT /products/:id — a site_manager can', async () => {
     const res = await app.inject({
       method: 'PUT',

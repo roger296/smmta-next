@@ -1336,3 +1336,78 @@ barcode matched nothing. The same gap explains the Skittles report.
 The existing A-6 spec asserted the old dead-end toast; it now asserts the
 sheet, keeping A-6's actual property (the failure is surfaced rather than
 silently doing nothing) with the better behaviour.
+
+## F9 — Purchase units, pack sizes and cost precision (C-1, C-2, C-4, C-5, C-6) (2026-08-19)
+
+"Icing sugar displayed an incorrect default unit quantity of 1kg"; "Skittles
+displayed an incorrect base unit, preventing the 1.6kg bags from being added";
+"Request to add base-unit increment buttons".
+
+**The root cause is data, and the app never said so.** Ingredients were seeded
+with `stockUom: 'g'`, `purchaseUom` NULL and `purchaseToStockFactor` `'1'`, so
+goods-in rendered a 25 kg sack literally as `= 1 g · £0.00/unit`. A product
+with no purchase model is **indistinguishable** from one genuinely bought in
+single grams — which is why nothing flagged it.
+
+- **Cost precision (C-4).** `products.expected_next_cost` widens from
+  `numeric(18,2)` to `numeric(18,6)` (migration `0043`, locked decision 4).
+  Icing sugar is ~£0.0012/g; 2dp rounded every such price to `0.00` at rest, so
+  every venue cost read £0.00 and every line value from it was zero. Recipe
+  `unit_cost` was already `numeric(18,4)` — the two disagreed and this was the
+  shallower. The widening is lossless; precision already destroyed at write
+  time cannot be recovered, which is what the needs-setup report is for.
+  Display was fixed too: `formatMoney` shows 2dp for ordinary amounts and up to
+  6 decimals for sub-penny ones, and the cost input's step is `any` rather than
+  `0.01` (which made those prices impossible to *enter* as well as to store).
+- **Purchase-unit fields.** `packDescription` (free text — "25 kg sack", "case
+  of 6 × 1.6 kg") joins `purchaseUom` and `purchaseToStockFactor` on the
+  product admin page. A `superRefine` refuses to save a fungible product with a
+  purchase unit and a factor of exactly 1 without saying so, because that
+  combination *is* C-1.
+- **The "needs setup" report** — `GET /products/needs-setup` and an admin page
+  (Products → Needs setup) listing every stocked product a venue cannot receive
+  correctly: no purchase UoM, a 1:1 factor on a non-`each` stock UoM, a zero
+  cost, or no pack description. Worst first, each finding naming what is wrong
+  and what to do. This is the list to work to zero **before** the next venue
+  test rather than discovering it on a pallet.
+- **The line reads in the unit a human uses (C-1/C-2).** `4 × 25 kg sack =
+  100 kg` — quantity, pack description, and the resolved stock quantity
+  auto-scaled g→kg / ml→L **for display only** (storage and the request stay in
+  the stock UoM). The cost shows per pack *and* per stock unit.
+- **Base-unit increment buttons (C-6)** beside the existing ±, stepping by one
+  purchase unit and labelled with it — `+1 sack`, not `+1` — reusing the End of
+  Bake `.step-table` sizing.
+- **Unit-cost defaulting and write-back (C-5).** The "Set £" sheet defaults from
+  `expectedNextCost` at full precision and can now **save a new expected cost
+  back to the product** — the thing the tester could not reach. `site_manager`+
+  only (E-4); hidden entirely for a head baker.
+- **Blocked-line guard.** A product with no purchase unit cannot be booked: the
+  row shows "no purchase unit — set one to book this in" and the Book button
+  reads "N lines need a purchase unit" and is disabled. Silence here is exactly
+  what produced the 1 g booking.
+
+**Tests:**
+- API: a £0.0012 cost round-trips at 6dp (was `0.00`); an ordinary 2dp price is
+  unchanged by the widening; `setupIssuesFor` rule-by-rule, including that a
+  1:1 factor on a **discrete** product is correct and must not be flagged; the
+  report finds exactly the mis-configured fixtures and not the ready one, names
+  each issue, orders worst-first, and summarises by kind.
+- API: goods-in with `qtyPurchase: 4` and factor 25000 books **100000** stock
+  units with a line value of £120; a line value defaulting from a £0.0012/g
+  product uses the full-precision cost, not a rounded zero.
+- Web unit: `describePackLine` renders `4 × 25 kg sack = 100 kg` and
+  `4 × 1.6 kg bag = 6.4 kg`, and **refuses to complete the phrase** with no
+  purchase unit (printing "= 4 g" is the 12 Aug lie); `formatStockQty` scaling;
+  `formatMoney(0.0012)` is `£0.0012`, not `£0.00`; `needsPurchaseUnit`;
+  `packStepLabel`.
+- Web component: the line does not read "= 1 g"; the cost shows per pack and
+  per gram; a blocked line shows the blocked state and disables the booking;
+  `+1 sack` steps a whole pack and never below zero; the cost write-back posts
+  the new price; a head baker never sees it.
+- Playwright (both viewports): **book 4 × 25 kg icing sugar and 4 × 1.6 kg
+  Skittles end to end**, asserting the request body carries `qtyPurchase: 4`
+  for each — the 12 Aug delivery, booked correctly.
+
+Also fixed while here: the labels in the goods-in details sheet had no `for`
+attribute, so they were tied to nothing for a screen reader (and for any
+by-label query).

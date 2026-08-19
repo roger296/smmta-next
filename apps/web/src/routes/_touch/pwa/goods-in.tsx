@@ -4,8 +4,15 @@ import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
 import { useRoles } from '@/features/auth/use-roles';
 import { attachBarcodeToProduct, productBarcodeLookup, resolveBarcodeToProduct } from '@/lib/barcode';
-import { purchaseToStock } from '@/lib/uom';
+import {
+  costPerStockUnit,
+  describePackLine,
+  formatMoney,
+  needsPurchaseUnit,
+  packStepLabel,
+} from '@/lib/pack';
 import { useReceiveGoodsIn, useReverseGoodsIn } from '@/features/pwa/use-pwa-jobs';
+import { updateExpectedCost } from '@/features/products/update-cost';
 import type { Product } from '@/lib/api-types';
 import { PwaSyncPill } from '@/features/pwa/queue-status';
 import {
@@ -42,6 +49,9 @@ export function GoodsInScreen() {
   // step (E-5) is their safeguard, and a site manager can still void it.
   const { can } = useRoles();
   const mayReverse = can(['site_manager']);
+  // Editing a cost is site_manager+ server-side too (E-4); hiding it here
+  // keeps a head baker out of a control they would only be refused.
+  const mayEditCost = can(['site_manager']);
   const { toast } = useToast();
   const [code, setCode] = React.useState('');
   const [lines, setLines] = React.useState<Line[]>([]);
@@ -170,6 +180,10 @@ export function GoodsInScreen() {
     setError(null);
   };
 
+  // A line with no purchase unit cannot produce a defensible stock figure, so
+  // it blocks the whole booking rather than quietly booking "1 g" (C-1).
+  const blockedLines = lines.filter((l) => needsPurchaseUnit(l.product));
+
   const qt = qtyTarget !== null ? lines[qtyTarget] : undefined;
   const dt = detailsTarget !== null ? lines[detailsTarget] : undefined;
 
@@ -208,15 +222,35 @@ export function GoodsInScreen() {
         )}
         {lines.length === 0 && <div className="empty">Scan or type a product code to start booking stock in.</div>}
         {lines.map((l, i) => {
-          const factor = Number(l.product.purchaseToStockFactor) || 1;
           const needBatch = l.product.requireBatchNumber && !l.batchCode;
+          // A product with no purchase unit cannot be booked (C-1). Silence
+          // here is what produced the 1 g booking: a 25 kg sack and a product
+          // genuinely bought by the gram look identical without it.
+          const blocked = needsPurchaseUnit(l.product);
+          const status = blocked || needBatch ? 'warn' : 'done';
           return (
             <div className="row" key={`${l.product.id}-${i}`}>
-              <div className={`status status-${needBatch ? 'warn' : 'done'}`} aria-hidden="true">{needBatch ? '!' : '●'}</div>
+              <div className={`status status-${status}`} aria-hidden="true">{status === 'warn' ? '!' : '●'}</div>
               <div className="meta">
                 <div className="name">{l.product.name}</div>
                 <div className="hint">
-                  = {purchaseToStock(l.qtyPurchase, factor)} {l.product.stockUom} · £{l.unitCost.toFixed(2)}/{l.product.purchaseUom ?? 'unit'}
+                  {/* "4 × 25 kg sack = 100 kg" — quantity, pack, and the
+                      resolved amount in a unit a person uses (C-1/C-2). */}
+                  {describePackLine(l.qtyPurchase, l.product)}
+                  {' · '}
+                  {formatMoney(l.unitCost)}/{l.product.purchaseUom ?? 'unit'}
+                  {!blocked && (
+                    <span className="perStock">
+                      {' ('}
+                      {formatMoney(costPerStockUnit(l.unitCost, l.product))}/{l.product.stockUom}
+                      {')'}
+                    </span>
+                  )}
+                  {blocked && (
+                    <span className="badge warn" style={{ marginLeft: 6 }}>
+                      no purchase unit — set one to book this in
+                    </span>
+                  )}
                   {l.product.requireBatchNumber && (
                     <span className={`badge${needBatch ? ' warn' : ''}`} style={{ marginLeft: 6 }}>
                       {l.batchCode ? `batch ${l.batchCode}` : 'batch needed'}
@@ -228,6 +262,26 @@ export function GoodsInScreen() {
                 <button className="step" aria-label="Decrease" onClick={() => update(i, { qtyPurchase: Math.max(0, Math.round((l.qtyPurchase - 1) * 100) / 100) })}>−</button>
                 <button className="qty-value" aria-label="Type received quantity" onClick={() => setQtyTarget(i)}>{l.qtyPurchase}</button>
                 <button className="step" aria-label="Increase" onClick={() => update(i, { qtyPurchase: Math.round((l.qtyPurchase + 1) * 100) / 100 })}>+</button>
+                {/* Base-unit increment buttons (C-6): "auto-filling to 25kg and
+                    adding +25kg per click". They step by ONE PURCHASE UNIT and
+                    are labelled with it, so the press means what it says. Same
+                    .step-table sizing as the End of Bake table buttons. */}
+                <button
+                  className="step-table"
+                  aria-label={`Remove one ${l.product.purchaseUom ?? 'pack'} of ${l.product.name}`}
+                  disabled={blocked}
+                  onClick={() => update(i, { qtyPurchase: Math.max(0, Math.round((l.qtyPurchase - 1) * 100) / 100) })}
+                >
+                  {packStepLabel(l.product, '−')}
+                </button>
+                <button
+                  className="step-table"
+                  aria-label={`Add one ${l.product.purchaseUom ?? 'pack'} of ${l.product.name}`}
+                  disabled={blocked}
+                  onClick={() => update(i, { qtyPurchase: Math.round((l.qtyPurchase + 1) * 100) / 100 })}
+                >
+                  {packStepLabel(l.product, '+')}
+                </button>
                 <button className="zero" aria-label="Cost & batch details" onClick={() => setDetailsTarget(i)}>£</button>
               </div>
             </div>
@@ -247,8 +301,16 @@ export function GoodsInScreen() {
       )}
 
       <ActionBar>
-        <BigButton variant="ok" disabled={lines.length === 0 || receive.isPending} onClick={() => setConfirming(true)}>
-          {receive.isPending ? 'Booking in…' : `Book in ${lines.length} line${lines.length === 1 ? '' : 's'}`}
+        <BigButton
+          variant="ok"
+          disabled={lines.length === 0 || blockedLines.length > 0 || receive.isPending}
+          onClick={() => setConfirming(true)}
+        >
+          {receive.isPending
+            ? 'Booking in…'
+            : blockedLines.length > 0
+              ? `${blockedLines.length} line${blockedLines.length === 1 ? '' : 's'} need a purchase unit`
+              : `Book in ${lines.length} line${lines.length === 1 ? '' : 's'}`}
         </BigButton>
       </ActionBar>
 
@@ -290,6 +352,19 @@ export function GoodsInScreen() {
       {dt && detailsTarget !== null && (
         <DetailsSheet
           line={dt}
+          mayEditCost={mayEditCost}
+          onSaveDefaultCost={async (cost) => {
+            try {
+              const updated = await updateExpectedCost(dt.product.id, cost);
+              update(detailsTarget, { product: updated, unitCost: cost });
+              toast({ title: 'Expected cost saved' });
+            } catch (err) {
+              setError({
+                title: 'Could not save that cost',
+                message: err instanceof Error ? err.message : 'The update was refused.',
+              });
+            }
+          }}
           onCancel={() => setDetailsTarget(null)}
           onRemove={() => {
             removeLine(detailsTarget);
@@ -306,31 +381,75 @@ export function GoodsInScreen() {
 }
 
 function DetailsSheet({
-  line, onCancel, onRemove, onSave,
+  line, onCancel, onRemove, onSave, onSaveDefaultCost, mayEditCost,
 }: {
   line: Line;
   onCancel: () => void;
   onRemove: () => void;
   onSave: (patch: Partial<Line>) => void;
+  onSaveDefaultCost: (cost: number) => Promise<void>;
+  mayEditCost: boolean;
 }) {
   const [unitCost, setUnitCost] = React.useState(String(line.unitCost));
   const [batchCode, setBatchCode] = React.useState(line.batchCode);
   const [useBy, setUseBy] = React.useState(line.useBy);
+  const [savingDefault, setSavingDefault] = React.useState(false);
+  const parsedCost = Number(unitCost) || 0;
+
   return (
     <BottomSheet title={line.product.name} onClose={onCancel}>
       <div className="field">
-        <label>Unit cost (£ per {line.product.purchaseUom ?? 'unit'})</label>
-        <input className="input" type="number" inputMode="decimal" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
+        {/* Associated by id — the label was floating free, so a screen reader
+            (and every by-label query) could not tie it to the input. */}
+        <label htmlFor="gi-unit-cost">Unit cost (£ per {line.product.purchaseUom ?? 'unit'})</label>
+        {/* `any` step, not 0.01 (defect C-4): an ingredient priced per gram is
+            genuinely a fraction of a penny, and a 2dp step made those prices
+            impossible to enter as well as impossible to store. */}
+        <input
+          id="gi-unit-cost"
+          className="input"
+          type="number"
+          step="any"
+          inputMode="decimal"
+          value={unitCost}
+          onChange={(e) => setUnitCost(e.target.value)}
+        />
+        <p className="hint" style={{ marginTop: 6 }}>
+          {formatMoney(parsedCost)} per {line.product.purchaseUom ?? 'unit'}
+          {' · '}
+          {formatMoney(costPerStockUnit(parsedCost, line.product))} per {line.product.stockUom}
+        </p>
       </div>
+
+      {/* C-5: "Set £" could not write a price back, which is what the tester
+          could not reach. site_manager+ only — a cost moves money (E-4). */}
+      {mayEditCost && (
+        <div className="field">
+          <BigButton
+            variant="outline"
+            disabled={savingDefault || !(parsedCost > 0)}
+            onClick={async () => {
+              setSavingDefault(true);
+              try {
+                await onSaveDefaultCost(parsedCost);
+              } finally {
+                setSavingDefault(false);
+              }
+            }}
+          >
+            {savingDefault ? 'Saving…' : 'Also save as this product\u2019s expected cost'}
+          </BigButton>
+        </div>
+      )}
       {line.product.requireBatchNumber && (
         <>
           <div className="field">
-            <label>Batch code</label>
-            <input className="input" value={batchCode} onChange={(e) => setBatchCode(e.target.value)} placeholder="e.g. M-2026-06" autoCapitalize="characters" />
+            <label htmlFor="gi-batch-code">Batch code</label>
+            <input id="gi-batch-code" className="input" value={batchCode} onChange={(e) => setBatchCode(e.target.value)} placeholder="e.g. M-2026-06" autoCapitalize="characters" />
           </div>
           <div className="field">
-            <label>Use by</label>
-            <input className="input" type="date" value={useBy} onChange={(e) => setUseBy(e.target.value)} />
+            <label htmlFor="gi-use-by">Use by</label>
+            <input id="gi-use-by" className="input" type="date" value={useBy} onChange={(e) => setUseBy(e.target.value)} />
           </div>
         </>
       )}
@@ -393,10 +512,7 @@ export function ConfirmBookingSheet({
 
 /** "4 × 25 kg sack = 100 kg" — the line as a human checks it. */
 export function describeLine(line: Line): string {
-  const factor = Number(line.product.purchaseToStockFactor) || 1;
-  const stockQty = purchaseToStock(line.qtyPurchase, factor);
-  const pack = line.product.purchaseUom ?? 'unit';
-  return `${line.qtyPurchase} × ${pack} = ${stockQty} ${line.product.stockUom}`;
+  return describePackLine(line.qtyPurchase, line.product);
 }
 
 /**

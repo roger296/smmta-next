@@ -226,6 +226,8 @@ export interface Product {
   purchaseUom: string | null;
   purchasePackSize: string;
   purchaseToStockFactor: string;
+  /** How the pack reads to a human — "25 kg sack" (defect C-1). */
+  packDescription: string | null;
   /** Counting quantum in the product's own stock UoM. null = do not bucket
    *  stock-take counts of this product (defect D-2). */
   countQuantum: string | null;

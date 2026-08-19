@@ -53,6 +53,7 @@ import { Route as AuthedRecipesIdRouteImport } from './routes/_authed/recipes/$i
 import { Route as AuthedPurchaseOrdersNewRouteImport } from './routes/_authed/purchase-orders/new'
 import { Route as AuthedPurchaseOrdersIdRouteImport } from './routes/_authed/purchase-orders/$id'
 import { Route as AuthedProductsNewRouteImport } from './routes/_authed/products/new'
+import { Route as AuthedProductsNeedsSetupRouteImport } from './routes/_authed/products/needs-setup'
 import { Route as AuthedProductsIdRouteImport } from './routes/_authed/products/$id'
 import { Route as AuthedProductGroupsNewRouteImport } from './routes/_authed/product-groups/new'
 import { Route as AuthedProductGroupsIdRouteImport } from './routes/_authed/product-groups/$id'
@@ -288,6 +289,12 @@ const AuthedProductsNewRoute = AuthedProductsNewRouteImport.update({
   path: '/products/new',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedProductsNeedsSetupRoute =
+  AuthedProductsNeedsSetupRouteImport.update({
+    id: '/products/needs-setup',
+    path: '/products/needs-setup',
+    getParentRoute: () => AuthedRouteRoute,
+  } as any)
 const AuthedProductsIdRoute = AuthedProductsIdRouteImport.update({
   id: '/products/$id',
   path: '/products/$id',
@@ -368,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/product-groups/$id': typeof AuthedProductGroupsIdRoute
   '/product-groups/new': typeof AuthedProductGroupsNewRoute
   '/products/$id': typeof AuthedProductsIdRoute
+  '/products/needs-setup': typeof AuthedProductsNeedsSetupRoute
   '/products/new': typeof AuthedProductsNewRoute
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
@@ -423,6 +431,7 @@ export interface FileRoutesByTo {
   '/product-groups/$id': typeof AuthedProductGroupsIdRoute
   '/product-groups/new': typeof AuthedProductGroupsNewRoute
   '/products/$id': typeof AuthedProductsIdRoute
+  '/products/needs-setup': typeof AuthedProductsNeedsSetupRoute
   '/products/new': typeof AuthedProductsNewRoute
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
@@ -481,6 +490,7 @@ export interface FileRoutesById {
   '/_authed/product-groups/$id': typeof AuthedProductGroupsIdRoute
   '/_authed/product-groups/new': typeof AuthedProductGroupsNewRoute
   '/_authed/products/$id': typeof AuthedProductsIdRoute
+  '/_authed/products/needs-setup': typeof AuthedProductsNeedsSetupRoute
   '/_authed/products/new': typeof AuthedProductsNewRoute
   '/_authed/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/_authed/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
@@ -538,6 +548,7 @@ export interface FileRouteTypes {
     | '/product-groups/$id'
     | '/product-groups/new'
     | '/products/$id'
+    | '/products/needs-setup'
     | '/products/new'
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
@@ -593,6 +604,7 @@ export interface FileRouteTypes {
     | '/product-groups/$id'
     | '/product-groups/new'
     | '/products/$id'
+    | '/products/needs-setup'
     | '/products/new'
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
@@ -650,6 +662,7 @@ export interface FileRouteTypes {
     | '/_authed/product-groups/$id'
     | '/_authed/product-groups/new'
     | '/_authed/products/$id'
+    | '/_authed/products/needs-setup'
     | '/_authed/products/new'
     | '/_authed/purchase-orders/$id'
     | '/_authed/purchase-orders/new'
@@ -1001,6 +1014,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedProductsNewRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/products/needs-setup': {
+      id: '/_authed/products/needs-setup'
+      path: '/products/needs-setup'
+      fullPath: '/products/needs-setup'
+      preLoaderRoute: typeof AuthedProductsNeedsSetupRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
     '/_authed/products/$id': {
       id: '/_authed/products/$id'
       path: '/products/$id'
@@ -1100,6 +1120,7 @@ interface AuthedRouteRouteChildren {
   AuthedProductGroupsIdRoute: typeof AuthedProductGroupsIdRoute
   AuthedProductGroupsNewRoute: typeof AuthedProductGroupsNewRoute
   AuthedProductsIdRoute: typeof AuthedProductsIdRoute
+  AuthedProductsNeedsSetupRoute: typeof AuthedProductsNeedsSetupRoute
   AuthedProductsNewRoute: typeof AuthedProductsNewRoute
   AuthedPurchaseOrdersIdRoute: typeof AuthedPurchaseOrdersIdRoute
   AuthedPurchaseOrdersNewRoute: typeof AuthedPurchaseOrdersNewRoute
@@ -1149,6 +1170,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedProductGroupsIdRoute: AuthedProductGroupsIdRoute,
   AuthedProductGroupsNewRoute: AuthedProductGroupsNewRoute,
   AuthedProductsIdRoute: AuthedProductsIdRoute,
+  AuthedProductsNeedsSetupRoute: AuthedProductsNeedsSetupRoute,
   AuthedProductsNewRoute: AuthedProductsNewRoute,
   AuthedPurchaseOrdersIdRoute: AuthedPurchaseOrdersIdRoute,
   AuthedPurchaseOrdersNewRoute: AuthedPurchaseOrdersNewRoute,

@@ -53,6 +53,8 @@ export const autoStockProductFieldsSchema = z.object({
   imageCaptureStore: z.string().max(200).nullable().optional(),
   stockUom: z.string().min(1).max(20).optional(),
   purchaseUom: z.string().max(20).nullable().optional(),
+  /** "25 kg sack", "case of 6 × 1.6 kg" — how the pack reads to a human. */
+  packDescription: z.string().max(120).nullable().optional(),
   purchasePackSize: z.coerce.number().positive().optional(),
   purchaseToStockFactor: z.coerce.number().positive().optional(),
   /**
@@ -70,6 +72,8 @@ export const createProductSchema = z.object({
   manufacturerId: z.string().uuid().optional(),
   manufacturerPartNumber: z.string().max(100).optional(),
   description: z.string().optional(),
+  // 6dp, matching the widened column (defect C-4). An ingredient priced per
+  // gram is genuinely a fraction of a penny; 2dp rounded it to zero.
   expectedNextCost: z.coerce.number().min(0).default(0),
   minSellingPrice: z.coerce.number().min(0).optional(),
   maxSellingPrice: z.coerce.number().min(0).optional(),

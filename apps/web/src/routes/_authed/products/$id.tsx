@@ -139,6 +139,7 @@ function ProductDetailPage() {
                   referenceImageUrl: data.referenceImageUrl ?? '',
                   stockUom: data.stockUom ?? '',
                   purchaseUom: data.purchaseUom ?? '',
+                  packDescription: data.packDescription ?? '',
                   purchasePackSize: data.purchasePackSize ? Number(data.purchasePackSize) : undefined,
                   purchaseToStockFactor: data.purchaseToStockFactor
                     ? Number(data.purchaseToStockFactor)
