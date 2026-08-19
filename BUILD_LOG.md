@@ -755,3 +755,75 @@ build green; verified visually in the preview at iPad size.
 `infra/nginx/stocktake.conf.template` (static dist + `/api` proxy, no-cache on
 `sw.js`); target host `stocktake.starship.thebigbakes.com`. The VPS deploy
 itself is the remaining step.
+
+---
+
+# August 2026 feedback fix set (F1 … F15)
+
+Closing out the 12 Aug 2026 South London live test (iPad + laptop). The raw
+feedback and the traced defect register (A-1 … F-8) are in
+`docs/FEEDBACK_2026-08-12.md`; F15 closes out against that checklist.
+
+## F1 — Baseline, defect register in-repo, and the iPad repro harness (2026-08-19)
+
+**Baseline on the untouched `autostock` tree** (commit `d40761d`, Node v22.22.2,
+npm 10.9.7, Postgres 16.13 on `127.0.0.1:5435`):
+
+| Check | Result |
+|---|---|
+| `npm run build` (`@smmta/shared-types`, `@smmta/api`, `@smmta/web`) | **green** |
+| `npm run typecheck` | **1 failed** — `@smmta/api`, see below |
+| API Vitest (`DATABASE_URL=…5435/smmta_next`) | **1 failed / 575 passed (576)** — see below |
+| Web Vitest | **green — 128 passed (21 files)** |
+
+**Two pre-existing reds, fixed here and nothing else.**
+
+`npm run typecheck -w @smmta/api` failed with
+`scripts/seed-count-categories.ts(35,68): error TS2823: Import attributes are
+only supported when the '--module' option is set to …`. The script imports the
+count sheet with `with { type: 'json' }`, which this workspace's `module:
+"Node16"` rejects — `tsx` runs it happily, which is how it landed. It reads the
+same file with `readFileSync` now; no behaviour change, and no repo-wide
+`module` bump (that would have a far wider blast radius than "fix only what is
+red"). `apps/api`'s **build** was always green because `tsconfig.json` includes
+only `src`; only `tsconfig.test.json` covers `scripts`.
+
+`src/pwa-assets.test.ts > ships a valid web manifest` asserted
+`m.name).toMatch(/Auto-Stock/)`, but commit `d40761d` ("call the app Big Bakes
+Stock on screen") renamed the manifest to `Big Bakes Stock`. The test was stale,
+not the manifest — the assertion now matches `/Big Bakes Stock/`. No product
+code changed.
+
+**Dormant storefronts do not build in this environment.** `@smmta/store` and
+`@smmta/store-clothes` fail their `next build` fetching Google Fonts through the
+sandbox's TLS-inspecting proxy (`SELF_SIGNED_CERT_IN_CHAIN`). Both are dormant
+for Auto-Stock (CLAUDE.md §"What's dormant" — not built, not deployed), so the
+baseline and every subsequent gate build `--filter=@smmta/api --filter=@smmta/web`.
+This is an environment limitation, not a defect, and no storefront file is
+touched by this fix set.
+
+**Built in F1:**
+
+- `docs/FEEDBACK_2026-08-12.md` — verbatim tester feedback + the full A-1 … F-8
+  register with the traced root cause for each.
+- `apps/web/playwright.config.ts` — three projects: `desktop` (was `chromium`),
+  `ipad-portrait` (`devices['iPad Pro 11']`) and `ipad-landscape`
+  (`devices['iPad Pro 11 landscape']`). Both descriptor names were confirmed
+  present in the installed Playwright 1.59.1 device list, so no substitution was
+  needed. `workers: 1` and the existing `webServer` wiring are unchanged.
+  **Honest limitation, recorded in the config header:** Playwright drives
+  Chromium, not WebKit-on-iOS, so these projects catch layout / focus / hit-test
+  regressions but NOT iOS Safari's own keyboard and visual-viewport behaviour.
+  No WebKit browser binary is available in this environment, so no `webkit`
+  project was added; F15's manual retest script stays the final check on a real
+  iPad.
+- `apps/web/e2e/helpers/touch.ts` — PIN sign-in (stubbing `POST /auth/pin-login`
+  where no live API is available), per-screen navigation, and the two assertions
+  the 12 Aug failure needs: `expectTopbarVisible` (the topbar's bounding box sits
+  fully inside the viewport) and `expectFirstBodyControlHittable`.
+- `apps/web/e2e/pwa-layout.spec.ts` — 30 `test.fixme()` specs (3 screens × 2
+  orientations × B-1/B-4/B-5, plus B-2). Verified they report as **skipped
+  (expected failures)**, not errors. F5 unfixmes them.
+
+Gates: `npm run build` green, `npm run typecheck` green, API Vitest 576 passed,
+web Vitest 128 passed, Playwright discovers all three projects.

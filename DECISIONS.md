@@ -419,3 +419,74 @@ packages bake the same cake.
 - **0 is a real count.** "Counted" is its own flag on each line, never derived
   from quantity > 0 — so a tapped "0" is recorded and shows as done, and the
   "not counted" filter stays accurate.
+
+---
+
+# August 2026 feedback fix set (F1 … F15)
+
+## Locked decisions (Roger, 19 Aug 2026)
+
+Recorded here verbatim as **defaults — confirm with owners**. Each resolved a
+judgement call so the fix run never blocked.
+
+1. **Venue screens get their own layout.** `/pwa/*` and `/pin-login` move out
+   from under the desktop admin chrome into a dedicated `_touch` layout route.
+   They stop being an overlay drawn on top of a page nobody can see. The desktop
+   admin SPA is untouched.
+2. **The app never claims work is saved when it is not.** A transport failure
+   queues and says so. An HTTP 4xx/5xx is a *rejection* — surfaced as an error,
+   the entry stays on screen, never silently queued.
+3. **Stock UoM stays as authored** (`g`, `ml`, `each`) — recipes are written in
+   grams and that is correct. What was missing is the **purchase** side:
+   purchase UoM, pack size and a conversion factor, plus display in the unit a
+   human uses (a 25 kg sack reads as "1 × 25 kg sack = 25,000 g", never "1 g").
+4. **Money precision:** `products.expected_next_cost` widens to
+   `numeric(18,6)` to match how ingredients are actually priced (£0.0012/g).
+   Everything downstream already carries 4dp.
+5. **Role split (default):** `head_baker` may record goods-in, counts and
+   consumption. `site_manager` additionally may approve a stock-take,
+   void/reverse a goods-in receipt, and edit costs. `admin` may do everything.
+   Enforced server-side, reflected in the UI.
+6. **Undo, not edit.** A mis-booking is corrected by a **reversing receipt** (a
+   new, audited, ledger-balancing movement), never by mutating history. A
+   90-second in-app undo window issues that reversal; after it lapses a site
+   manager can still void from the admin.
+7. **Site comes from the device.** The site bound to the PIN wins and is shown,
+   large, on every venue screen. A user may still switch site, but switching is
+   explicit and the booking confirmation restates the destination.
+8. **Recipe data is imported, not seeded.** The four demo cakes go. A CSV
+   importer plus a validation report takes their place. Until real data lands,
+   the bake screen must fail loudly and legibly ("no recipe for that cake on
+   that date"), never silently produce an empty ingredient list.
+9. **Enhancement requests are in scope in this pass** (undo window, role
+   permissions, benches display, live table count, collapsible navigation,
+   base-unit increment buttons), sequenced after the defect they sit next to.
+10. **Test depth is full:** Vitest unit + API integration against the real local
+    Postgres, plus Playwright at iPad viewports in **both** orientations. Every
+    defect ID gets a named regression test.
+
+## F1 — baseline and harness
+
+- **The one red baseline test was the test, not the code.**
+  `pwa-assets.test.ts` still asserted the manifest name matched `/Auto-Stock/`
+  after `d40761d` renamed it to "Big Bakes Stock". Fixed the assertion; no
+  product code touched.
+- **The red typecheck was fixed in the script, not in `tsconfig.base.json`.**
+  `scripts/seed-count-categories.ts` used an import attribute
+  (`with { type: 'json' }`) that `module: "Node16"` rejects. Bumping the whole
+  monorepo to `NodeNext` would fix it and change resolution semantics for every
+  workspace — far beyond "fix only what is red". The script does a `readFileSync`
+  + `JSON.parse` of the same file instead.
+- **The dormant storefronts are excluded from the build gate.** `@smmta/store`
+  and `@smmta/store-clothes` cannot `next build` in this environment (Google
+  Fonts fetch through a TLS-inspecting proxy). They are dormant for Auto-Stock
+  by CLAUDE.md, so the gate is `--filter=@smmta/api --filter=@smmta/web`. No
+  storefront file is modified by this fix set.
+- **No WebKit Playwright project.** The prompt asks for one "where available";
+  no WebKit binary is installed here. Chromium-at-iPad-metrics catches layout,
+  focus and hit-test regressions; it does not model iOS Safari's keyboard or
+  visual viewport. That limitation is stated in the Playwright config header,
+  and the manual retest script (F15) remains the final check on real hardware.
+- **`chromium` → `desktop`.** With three projects, "which browser" stopped being
+  the distinguishing axis. Nothing in CI referenced `--project=chromium`
+  (`.github/workflows/e2e.yml` drives `apps/store`, a dormant app).

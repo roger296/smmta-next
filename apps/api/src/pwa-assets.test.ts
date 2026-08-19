@@ -21,7 +21,7 @@ describe('PWA shell assets', () => {
       display: string;
       icons: Array<{ sizes: string }>;
     };
-    expect(m.name).toMatch(/Auto-Stock/);
+    expect(m.name).toMatch(/Big Bakes Stock/);
     expect(m.start_url).toBe('/');
     expect(m.display).toBe('standalone');
     expect(m.icons.some((i) => i.sizes === '512x512')).toBe(true);
