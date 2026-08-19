@@ -24,7 +24,7 @@ import {
   ErrorBanner,
 } from '@/components/touch/touch';
 
-export const Route = createFileRoute('/_authed/pwa/stock-take')({
+export const Route = createFileRoute('/_touch/pwa/stock-take')({
   component: StockTakeScreen,
 });
 
@@ -233,7 +233,11 @@ export function StockTakeScreen() {
   if (!takeId) {
     return (
       <TouchScreen>
-        <TouchTopbar title="Stock-take" onBack={() => void navigate({ to: '/' })} />
+        <TouchTopbar
+          title="Stock-take"
+          venue={selectedSite?.name ?? null}
+          onBack={() => void navigate({ to: '/' })}
+        />
         <div className="scroll">
           {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
           <div className="center">
@@ -276,7 +280,8 @@ export function StockTakeScreen() {
   return (
     <TouchScreen>
       <TouchTopbar
-        title={selectedSite?.name ?? 'Stock-take'}
+        title="Stock-take"
+        venue={selectedSite?.name ?? null}
         sub={scope === 'FULL' ? 'Full' : scope === 'CYCLE' ? 'Cycle' : 'Category'}
         onBack={() => setTakeId(null)}
         right={<PwaSyncPill />}

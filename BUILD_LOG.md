@@ -1033,3 +1033,106 @@ is kept, which re-syncs the chain so the next `db:generate` diffs from truth.
   0-against-0 and uncounted lines raise nothing; the quantum reaches the line.
 - API schema: `count_quantum` defaults NULL on every row; stores at 4dp;
   rejects 0 and negatives.
+
+## F5 — Venue screens out of the admin chrome, pinned to the visual viewport (B-1 … B-6) (2026-08-19)
+
+The single most disruptive iPad symptom: "screen formatting cuts off the top of
+the page rendering any initial line inputs invisible and uneditable", in both
+orientations.
+
+**The chain.** `.touch-app` is `position: fixed; inset: 0`, rendered *inside*
+the `_authed` desktop shell (a `min-h-screen` flex layout with a sidebar, a
+header and `<main className="flex-1 overflow-auto p-6">`). Nothing in
+`apps/web/src` referenced `window.visualViewport`, nothing locked background
+scroll, sizing was `100vh` not `dvh`, and `goods-in.tsx` had `autoFocus` on the
+barcode input. So on iPad the keyboard opened on load, iOS shrank the visual
+viewport, and Safari scrolled the fixed overlay off the top of the glass with
+no way back. (Confirmed *not* a transformed-ancestor problem — no
+`transform`/`filter`/`contain`/`will-change` ancestor exists.)
+
+**New `_touch` layout route** (`routes/_touch/route.tsx`) — the same auth guard
+as `_authed` but redirecting to `/pin-login`, the same `SiteProvider`, and
+nothing else. `/pwa/goods-in`, `/pwa/stock-take` and `/pwa/consumption` moved
+under it; the **URLs are unchanged** (the layout is pathless), so `NAV_ITEMS`
+and every existing link still work. The desktop admin SPA is untouched.
+
+**Sized to the real viewport.** `.touch-app` now layers `100vh` → `100dvh` →
+`var(--tvv-height)`, with `transform: translateY(var(--tvv-offset))`. The
+`--tvv-*` variables come from the new `use-visual-viewport.ts` hook
+(subscribing to `visualViewport` `resize` **and** `scroll`, plus window
+`resize`/`orientationchange`), published by `TouchViewportLock`, which also
+takes the body scroll lock (`overflow: hidden`, `position: fixed`,
+`overscroll-behavior: none`) and restores it on unmount. Where `visualViewport`
+is absent the hook reports `supported: false` and the vars are *removed* rather
+than set to a guess, so the stylesheet's own `dvh` fallback wins.
+
+**`autoFocus` removed** from the goods-in barcode input (B-2), replaced with a
+"Scan or type a code" affordance. On a shared venue iPad the keyboard should
+open when someone taps the field, not on arrival.
+
+**Focused controls stay in view** — `focusin` inside `.touch-app` scrolls the
+target with `scrollIntoView({ block: 'nearest' })`, scoped to the `.scroll`
+container and deferred a frame (at `focusin` iOS has not resized yet). Never a
+document-level scroll: that is precisely what dragged the shell off the glass.
+
+**Venue name on every screen (B-5).** `TouchTopbar`'s `venue` prop is
+**required, not optional** — it was optional before, and the two screens that
+silently omitted it are exactly the two the tester reported. Making it required
+turned the defect into five compile errors. A `--bar-venue` token gives the chip
+white-on-accent, and an unbound site renders the `warn` variant reading "not set
+for this device". `/pin-login` shows the device's bound venue too, from the new
+`device-site.ts` store (which also lays the groundwork for E-1 in F7).
+
+**Desktop contrast (B-6).** `SiteSwitcher` now sets
+`text-[var(--color-foreground)]` explicitly. It sat in the navy header, so it
+inherited `--color-shell-foreground` — a pale grey meant for a dark ground — on
+the trigger's near-white background: **1.6:1**, on the one control that says
+where stock is being booked. It is ~13:1 now.
+
+**A second contrast bug, found by writing the test.** The venue chip's `warn`
+variant initially reused `--warn` (`#b9770b`), which is tuned for dark text on
+a pale badge — white on it is **3.7:1**, under AA. A darkened
+`--bar-venue-warn` (`#95500a`, 6.1:1) replaces it, and the test asserts both
+that the new token passes *and* that the old one does not, so it cannot quietly
+come back.
+
+**Tests:**
+- Playwright, **both iPad orientations**, all three screens: B-1 (topbar fully
+  inside the viewport and the first body control hit-testable, before and after
+  focusing an input), B-4 (no sidebar, no header, no padded main, and
+  `body { overflow: hidden }`), B-5 (the chip shows the real venue *name*, not
+  a placeholder). Plus B-2, and pin-login's bound / unbound venue states.
+- **`B-1 MECHANISM`** — the important one. Chromium has no soft keyboard, so
+  merely focusing an input does not shrink the visual viewport, and the plain
+  B-1 specs pass on the broken tree too. This spec installs a stub
+  `window.visualViewport` reporting a shrunken, offset viewport — what iOS
+  actually does — and asserts the shell tracks it. It **fails** against the
+  pre-F5 tree.
+- Unit: `use-visual-viewport` follows resize and scroll, no-ops safely when the
+  API is absent, unsubscribes on unmount; `applyVisualViewportVars` publishes
+  and (when unsupported) *removes* the vars.
+- Unit: contrast on both the site switcher and the venue chip, computed from
+  the tokens themselves.
+- The F1 layout specs are unfixmed. Red-to-green verified: **9 of 12 fail**
+  against the pre-F5 tree (the three that pass are the plain B-1 specs, for the
+  no-soft-keyboard reason above — which is why the MECHANISM spec exists).
+- The existing desktop suite stays green, confirming the admin pages are
+  unchanged.
+
+**Two more pre-existing reds, found because F1 made Playwright a gate.**
+`e2e/login.spec.ts` was written against a login page that took a **pasted
+JWT**; the app replaced that with real `POST /auth/login` credentials some time
+ago, and all three specs failed on the untouched `autostock` branch (verified by
+checking the branch out and running them). Rewritten against the actual email +
+password form. Separately, both `login.spec.ts` and F1's own B-4 assertion
+looked for `getByRole('navigation', …)`, but the sidebar is an `<aside>` —
+role `complementary`. The B-4 assertion was therefore passing vacuously;
+corrected, and it still passes for the right reason now. `customers-empty.spec`
+needs a running API and passes once one is up.
+
+**One deliberate deviation.** F2's note said F5 would move `PwaQueueSync` into
+the `_touch` layout. It stays at the app root instead: a device may regain
+connectivity on any page, including `/pin-login` before anyone has signed back
+in, and scoping the replayer to the venue layout would leave unsent work
+waiting for someone to navigate back to a venue screen — a smaller version of
+A-2 itself.

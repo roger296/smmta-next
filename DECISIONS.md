@@ -573,3 +573,32 @@ judgement call so the fix run never blocked.
   without snapshots; re-running their un-guarded `ADD COLUMN`s would fail. The
   generated snapshot is kept deliberately — it re-syncs the chain so the next
   `db:generate` produces a correct diff instead of the same stale one.
+
+## F5 — touch shell layout
+
+- **`TouchTopbar.venue` is required, not optional.** It was optional, and the
+  two screens that omitted it are exactly the two the tester reported as
+  missing the venue name. Making it required converted a silent omission into
+  five compile errors. `null` is accepted for "still loading" — but there is no
+  spelling that omits the question.
+- **Three layered heights, not one.** `100vh` → `100dvh` → `var(--tvv-height)`.
+  `dvh` handles browser chrome but **not** the keyboard, which is the actual
+  B-1 failure; only the visual viewport does. The cascade means an old browser
+  degrades to something sane instead of to zero height.
+- **When `visualViewport` is unavailable the vars are removed, not zeroed.**
+  Setting `--tvv-height: 0px` would collapse the shell. Removing it hands over
+  to the stylesheet's own fallback, which is the correct degraded behaviour.
+- **`scrollIntoView` is scoped to `.scroll` and deferred a frame.** A
+  document-level scroll is what moved the fixed shell off the glass in the
+  first place; and at `focusin` iOS has not resized the visual viewport yet, so
+  scrolling synchronously aims at pre-keyboard geometry.
+- **A new `--bar-venue-warn` token rather than reusing `--warn`.** The badge
+  amber is chosen for dark text on a pale ground; white on it is 3.7:1. Reusing
+  it for the "not set for this device" chip would have reintroduced B-6's exact
+  failure mode on the control that names the venue.
+- **`PwaQueueSync` stays at the app root** (superseding F2's note). See the
+  comment in `_touch/route.tsx`: a device can reconnect on any page, and
+  scoping the replayer to the venue layout recreates a smaller A-2.
+- **The venue-screen URLs did not change.** `_touch` is a pathless layout, so
+  `/pwa/*` still resolves — no redirect, no stale bookmark on a venue iPad, and
+  `NAV_ITEMS` needed no edit.

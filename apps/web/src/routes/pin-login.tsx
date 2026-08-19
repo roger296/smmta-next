@@ -2,6 +2,7 @@ import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { setToken } from '@/lib/auth';
 import { API_BASE_URL } from '@/lib/api-client';
+import { getDeviceSite, setDeviceSite } from '@/features/sites/device-site';
 import { TouchScreen, BigButton } from '@/components/touch/touch';
 
 export const Route = createFileRoute('/pin-login')({
@@ -10,7 +11,10 @@ export const Route = createFileRoute('/pin-login')({
 
 interface PinResponse {
   success: boolean;
-  data?: { token: string; user: { label: string; roles: string[]; siteId: string | null } };
+  data?: {
+    token: string;
+    user: { label: string; roles: string[]; siteId: string | null; siteName?: string | null };
+  };
   error?: string;
 }
 
@@ -21,6 +25,11 @@ function PinLoginPage() {
   const [pin, setPin] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  // What this iPad was bound to last time somebody signed in. Shown before
+  // sign-in so the device's identity is visible from the lock screen onwards
+  // (defect B-5) — and so a device set up for the wrong venue is obvious
+  // before anyone books 100 kg to it (E-1).
+  const [deviceSite] = React.useState(() => getDeviceSite());
 
   const press = (k: string) => {
     setError(null);
@@ -49,6 +58,13 @@ function PinLoginPage() {
         return;
       }
       setToken(body.data.token);
+      // Keep the site the PIN is scoped to. Discarding it is defect E-1.
+      setDeviceSite({
+        siteId: body.data.user.siteId,
+        siteName: body.data.user.siteName ?? null,
+        label: body.data.user.label,
+        roles: body.data.user.roles,
+      });
       navigate({ to: '/' });
     } catch {
       setError('Could not reach the server.');
@@ -62,6 +78,11 @@ function PinLoginPage() {
       <div className="scroll" style={{ display: 'flex', alignItems: 'center' }}>
         <div className="center">
           <h1 style={{ textAlign: 'center' }}>Big Bakes Stock</h1>
+          <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            <span className={`venue-chip${deviceSite?.siteName ? '' : ' warn'}`}>
+              {deviceSite?.siteName ?? 'Venue not set for this device'}
+            </span>
+          </div>
           <p className="lede" style={{ textAlign: 'center' }}>Enter your PIN to sign in on this device.</p>
 
           <div

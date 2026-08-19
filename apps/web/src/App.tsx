@@ -23,10 +23,13 @@ export function App() {
         {/*
           Replays the venue offline queue on boot / `online` / tab-visible.
           Defect A-2: `flushPwaQueue` had no production call site at all, so
-          work captured offline sat in localStorage for ever. Mounted at the
-          app root (not per-screen) because the queue is process-global and a
-          baker may reconnect on any page. F5 moves this to the `_touch`
-          layout once the venue screens have one.
+          work captured offline sat in localStorage for ever.
+
+          Mounted at the app root, and staying there. The queue is
+          process-global and a device may regain connectivity on any page —
+          including /pin-login, before anyone has signed back in. Scoping this
+          to the `_touch` layout would leave unsent work waiting until someone
+          navigated back to a venue screen.
         */}
         <PwaQueueSync />
         <RouterProvider router={router} />

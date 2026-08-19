@@ -17,7 +17,7 @@ import {
   ErrorBanner,
 } from '@/components/touch/touch';
 
-export const Route = createFileRoute('/_authed/pwa/goods-in')({
+export const Route = createFileRoute('/_touch/pwa/goods-in')({
   component: GoodsInScreen,
 });
 
@@ -113,21 +113,25 @@ export function GoodsInScreen() {
   return (
     <TouchScreen>
       <TouchTopbar
-        title={`Goods in — ${selectedSite?.name ?? '…'}`}
+        title="Goods in"
+        venue={selectedSite?.name ?? null}
         onBack={() => void navigate({ to: '/' })}
         right={<PwaSyncPill />}
         stat={lines.length > 0 ? `${lines.length} line${lines.length === 1 ? '' : 's'} to book in` : undefined}
       />
 
       <div className="toolbar">
+        {/* No autoFocus (defect B-2). On a shared venue iPad the keyboard must
+            open when someone taps the field, not when the page loads — an
+            unbidden keyboard shrinks the visual viewport on arrival and takes
+            the top of the screen with it. */}
         <input
           className="search"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void addByCode()}
-          placeholder="Scan / enter barcode or name"
+          placeholder="Scan or type a code"
           aria-label="Product code"
-          autoFocus
           autoCapitalize="none"
           autoCorrect="off"
         />

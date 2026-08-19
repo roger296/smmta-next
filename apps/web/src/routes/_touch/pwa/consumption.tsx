@@ -16,7 +16,7 @@ import {
   ErrorBanner,
 } from '@/components/touch/touch';
 
-export const Route = createFileRoute('/_authed/pwa/consumption')({
+export const Route = createFileRoute('/_touch/pwa/consumption')({
   component: ConsumptionScreen,
 });
 
@@ -178,7 +178,11 @@ export function ConsumptionScreen() {
   if (!loaded) {
     return (
       <TouchScreen>
-        <TouchTopbar title="End of bake" onBack={() => void navigate({ to: '/' })} />
+        <TouchTopbar
+          title="End of bake"
+          venue={selectedSite?.name ?? null}
+          onBack={() => void navigate({ to: '/' })}
+        />
         <div className="scroll">
           {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
           <div className="center">
@@ -299,7 +303,8 @@ export function ConsumptionScreen() {
   return (
     <TouchScreen>
       <TouchTopbar
-        title={selectedSite?.name ?? 'End of bake'}
+        title="End of bake"
+        venue={selectedSite?.name ?? null}
         sub={bake || undefined}
         onBack={() => setLoaded(false)}
         right={<PwaSyncPill />}

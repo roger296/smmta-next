@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TestManualRouteImport } from './routes/test-manual'
 import { Route as PinLoginRouteImport } from './routes/pin-login'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as TouchRouteRouteImport } from './routes/_touch/route'
 import { Route as AuthedRouteRouteImport } from './routes/_authed/route'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedXeroAccountsRouteImport } from './routes/_authed/xero-accounts'
@@ -35,6 +36,9 @@ import { Route as AuthedInvoicesIndexRouteImport } from './routes/_authed/invoic
 import { Route as AuthedIntegrationsIndexRouteImport } from './routes/_authed/integrations/index'
 import { Route as AuthedCustomersIndexRouteImport } from './routes/_authed/customers/index'
 import { Route as AuthedCategoriesIndexRouteImport } from './routes/_authed/categories/index'
+import { Route as TouchPwaStockTakeRouteImport } from './routes/_touch/pwa/stock-take'
+import { Route as TouchPwaGoodsInRouteImport } from './routes/_touch/pwa/goods-in'
+import { Route as TouchPwaConsumptionRouteImport } from './routes/_touch/pwa/consumption'
 import { Route as AuthedSuppliersNewRouteImport } from './routes/_authed/suppliers/new'
 import { Route as AuthedSuppliersIdRouteImport } from './routes/_authed/suppliers/$id'
 import { Route as AuthedSupplierInvoicesIdRouteImport } from './routes/_authed/supplier-invoices/$id'
@@ -45,9 +49,6 @@ import { Route as AuthedStockReorderRouteImport } from './routes/_authed/stock/r
 import { Route as AuthedStockBySiteRouteImport } from './routes/_authed/stock/by-site'
 import { Route as AuthedStockAdjustRouteImport } from './routes/_authed/stock/adjust'
 import { Route as AuthedRecipesIdRouteImport } from './routes/_authed/recipes/$id'
-import { Route as AuthedPwaStockTakeRouteImport } from './routes/_authed/pwa/stock-take'
-import { Route as AuthedPwaGoodsInRouteImport } from './routes/_authed/pwa/goods-in'
-import { Route as AuthedPwaConsumptionRouteImport } from './routes/_authed/pwa/consumption'
 import { Route as AuthedPurchaseOrdersNewRouteImport } from './routes/_authed/purchase-orders/new'
 import { Route as AuthedPurchaseOrdersIdRouteImport } from './routes/_authed/purchase-orders/$id'
 import { Route as AuthedProductsNewRouteImport } from './routes/_authed/products/new'
@@ -76,6 +77,10 @@ const PinLoginRoute = PinLoginRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TouchRouteRoute = TouchRouteRouteImport.update({
+  id: '/_touch',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedRouteRoute = AuthedRouteRouteImport.update({
@@ -196,6 +201,21 @@ const AuthedCategoriesIndexRoute = AuthedCategoriesIndexRouteImport.update({
   path: '/categories/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const TouchPwaStockTakeRoute = TouchPwaStockTakeRouteImport.update({
+  id: '/pwa/stock-take',
+  path: '/pwa/stock-take',
+  getParentRoute: () => TouchRouteRoute,
+} as any)
+const TouchPwaGoodsInRoute = TouchPwaGoodsInRouteImport.update({
+  id: '/pwa/goods-in',
+  path: '/pwa/goods-in',
+  getParentRoute: () => TouchRouteRoute,
+} as any)
+const TouchPwaConsumptionRoute = TouchPwaConsumptionRouteImport.update({
+  id: '/pwa/consumption',
+  path: '/pwa/consumption',
+  getParentRoute: () => TouchRouteRoute,
+} as any)
 const AuthedSuppliersNewRoute = AuthedSuppliersNewRouteImport.update({
   id: '/suppliers/new',
   path: '/suppliers/new',
@@ -245,21 +265,6 @@ const AuthedStockAdjustRoute = AuthedStockAdjustRouteImport.update({
 const AuthedRecipesIdRoute = AuthedRecipesIdRouteImport.update({
   id: '/recipes/$id',
   path: '/recipes/$id',
-  getParentRoute: () => AuthedRouteRoute,
-} as any)
-const AuthedPwaStockTakeRoute = AuthedPwaStockTakeRouteImport.update({
-  id: '/pwa/stock-take',
-  path: '/pwa/stock-take',
-  getParentRoute: () => AuthedRouteRoute,
-} as any)
-const AuthedPwaGoodsInRoute = AuthedPwaGoodsInRouteImport.update({
-  id: '/pwa/goods-in',
-  path: '/pwa/goods-in',
-  getParentRoute: () => AuthedRouteRoute,
-} as any)
-const AuthedPwaConsumptionRoute = AuthedPwaConsumptionRouteImport.update({
-  id: '/pwa/consumption',
-  path: '/pwa/consumption',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedPurchaseOrdersNewRoute = AuthedPurchaseOrdersNewRouteImport.update({
@@ -359,9 +364,6 @@ export interface FileRoutesByFullPath {
   '/products/new': typeof AuthedProductsNewRoute
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
-  '/pwa/consumption': typeof AuthedPwaConsumptionRoute
-  '/pwa/goods-in': typeof AuthedPwaGoodsInRoute
-  '/pwa/stock-take': typeof AuthedPwaStockTakeRoute
   '/recipes/$id': typeof AuthedRecipesIdRoute
   '/stock/adjust': typeof AuthedStockAdjustRoute
   '/stock/by-site': typeof AuthedStockBySiteRoute
@@ -372,6 +374,9 @@ export interface FileRoutesByFullPath {
   '/supplier-invoices/$id': typeof AuthedSupplierInvoicesIdRoute
   '/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/suppliers/new': typeof AuthedSuppliersNewRoute
+  '/pwa/consumption': typeof TouchPwaConsumptionRoute
+  '/pwa/goods-in': typeof TouchPwaGoodsInRoute
+  '/pwa/stock-take': typeof TouchPwaStockTakeRoute
   '/categories/': typeof AuthedCategoriesIndexRoute
   '/customers/': typeof AuthedCustomersIndexRoute
   '/integrations/': typeof AuthedIntegrationsIndexRoute
@@ -389,6 +394,7 @@ export interface FileRoutesByFullPath {
   '/suppliers/': typeof AuthedSuppliersIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
   '/test-manual': typeof TestManualRoute
@@ -398,7 +404,6 @@ export interface FileRoutesByTo {
   '/reports': typeof AuthedReportsRoute
   '/square': typeof AuthedSquareRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
-  '/': typeof AuthedIndexRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
   '/customers/new': typeof AuthedCustomersNewRoute
   '/integrations/bulk': typeof AuthedIntegrationsBulkRoute
@@ -413,9 +418,6 @@ export interface FileRoutesByTo {
   '/products/new': typeof AuthedProductsNewRoute
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
-  '/pwa/consumption': typeof AuthedPwaConsumptionRoute
-  '/pwa/goods-in': typeof AuthedPwaGoodsInRoute
-  '/pwa/stock-take': typeof AuthedPwaStockTakeRoute
   '/recipes/$id': typeof AuthedRecipesIdRoute
   '/stock/adjust': typeof AuthedStockAdjustRoute
   '/stock/by-site': typeof AuthedStockBySiteRoute
@@ -426,6 +428,9 @@ export interface FileRoutesByTo {
   '/supplier-invoices/$id': typeof AuthedSupplierInvoicesIdRoute
   '/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/suppliers/new': typeof AuthedSuppliersNewRoute
+  '/pwa/consumption': typeof TouchPwaConsumptionRoute
+  '/pwa/goods-in': typeof TouchPwaGoodsInRoute
+  '/pwa/stock-take': typeof TouchPwaStockTakeRoute
   '/categories': typeof AuthedCategoriesIndexRoute
   '/customers': typeof AuthedCustomersIndexRoute
   '/integrations': typeof AuthedIntegrationsIndexRoute
@@ -445,6 +450,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteRouteWithChildren
+  '/_touch': typeof TouchRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
   '/test-manual': typeof TestManualRoute
@@ -469,9 +475,6 @@ export interface FileRoutesById {
   '/_authed/products/new': typeof AuthedProductsNewRoute
   '/_authed/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/_authed/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
-  '/_authed/pwa/consumption': typeof AuthedPwaConsumptionRoute
-  '/_authed/pwa/goods-in': typeof AuthedPwaGoodsInRoute
-  '/_authed/pwa/stock-take': typeof AuthedPwaStockTakeRoute
   '/_authed/recipes/$id': typeof AuthedRecipesIdRoute
   '/_authed/stock/adjust': typeof AuthedStockAdjustRoute
   '/_authed/stock/by-site': typeof AuthedStockBySiteRoute
@@ -482,6 +485,9 @@ export interface FileRoutesById {
   '/_authed/supplier-invoices/$id': typeof AuthedSupplierInvoicesIdRoute
   '/_authed/suppliers/$id': typeof AuthedSuppliersIdRoute
   '/_authed/suppliers/new': typeof AuthedSuppliersNewRoute
+  '/_touch/pwa/consumption': typeof TouchPwaConsumptionRoute
+  '/_touch/pwa/goods-in': typeof TouchPwaGoodsInRoute
+  '/_touch/pwa/stock-take': typeof TouchPwaStockTakeRoute
   '/_authed/categories/': typeof AuthedCategoriesIndexRoute
   '/_authed/customers/': typeof AuthedCustomersIndexRoute
   '/_authed/integrations/': typeof AuthedIntegrationsIndexRoute
@@ -525,9 +531,6 @@ export interface FileRouteTypes {
     | '/products/new'
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
-    | '/pwa/consumption'
-    | '/pwa/goods-in'
-    | '/pwa/stock-take'
     | '/recipes/$id'
     | '/stock/adjust'
     | '/stock/by-site'
@@ -538,6 +541,9 @@ export interface FileRouteTypes {
     | '/supplier-invoices/$id'
     | '/suppliers/$id'
     | '/suppliers/new'
+    | '/pwa/consumption'
+    | '/pwa/goods-in'
+    | '/pwa/stock-take'
     | '/categories/'
     | '/customers/'
     | '/integrations/'
@@ -555,6 +561,7 @@ export interface FileRouteTypes {
     | '/suppliers/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/login'
     | '/pin-login'
     | '/test-manual'
@@ -564,7 +571,6 @@ export interface FileRouteTypes {
     | '/reports'
     | '/square'
     | '/xero-accounts'
-    | '/'
     | '/customers/$id'
     | '/customers/new'
     | '/integrations/bulk'
@@ -579,9 +585,6 @@ export interface FileRouteTypes {
     | '/products/new'
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
-    | '/pwa/consumption'
-    | '/pwa/goods-in'
-    | '/pwa/stock-take'
     | '/recipes/$id'
     | '/stock/adjust'
     | '/stock/by-site'
@@ -592,6 +595,9 @@ export interface FileRouteTypes {
     | '/supplier-invoices/$id'
     | '/suppliers/$id'
     | '/suppliers/new'
+    | '/pwa/consumption'
+    | '/pwa/goods-in'
+    | '/pwa/stock-take'
     | '/categories'
     | '/customers'
     | '/integrations'
@@ -610,6 +616,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_authed'
+    | '/_touch'
     | '/login'
     | '/pin-login'
     | '/test-manual'
@@ -634,9 +641,6 @@ export interface FileRouteTypes {
     | '/_authed/products/new'
     | '/_authed/purchase-orders/$id'
     | '/_authed/purchase-orders/new'
-    | '/_authed/pwa/consumption'
-    | '/_authed/pwa/goods-in'
-    | '/_authed/pwa/stock-take'
     | '/_authed/recipes/$id'
     | '/_authed/stock/adjust'
     | '/_authed/stock/by-site'
@@ -647,6 +651,9 @@ export interface FileRouteTypes {
     | '/_authed/supplier-invoices/$id'
     | '/_authed/suppliers/$id'
     | '/_authed/suppliers/new'
+    | '/_touch/pwa/consumption'
+    | '/_touch/pwa/goods-in'
+    | '/_touch/pwa/stock-take'
     | '/_authed/categories/'
     | '/_authed/customers/'
     | '/_authed/integrations/'
@@ -666,6 +673,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthedRouteRoute: typeof AuthedRouteRouteWithChildren
+  TouchRouteRoute: typeof TouchRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
   PinLoginRoute: typeof PinLoginRoute
   TestManualRoute: typeof TestManualRoute
@@ -692,6 +700,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_touch': {
+      id: '/_touch'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof TouchRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed': {
@@ -855,6 +870,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCategoriesIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_touch/pwa/stock-take': {
+      id: '/_touch/pwa/stock-take'
+      path: '/pwa/stock-take'
+      fullPath: '/pwa/stock-take'
+      preLoaderRoute: typeof TouchPwaStockTakeRouteImport
+      parentRoute: typeof TouchRouteRoute
+    }
+    '/_touch/pwa/goods-in': {
+      id: '/_touch/pwa/goods-in'
+      path: '/pwa/goods-in'
+      fullPath: '/pwa/goods-in'
+      preLoaderRoute: typeof TouchPwaGoodsInRouteImport
+      parentRoute: typeof TouchRouteRoute
+    }
+    '/_touch/pwa/consumption': {
+      id: '/_touch/pwa/consumption'
+      path: '/pwa/consumption'
+      fullPath: '/pwa/consumption'
+      preLoaderRoute: typeof TouchPwaConsumptionRouteImport
+      parentRoute: typeof TouchRouteRoute
+    }
     '/_authed/suppliers/new': {
       id: '/_authed/suppliers/new'
       path: '/suppliers/new'
@@ -923,27 +959,6 @@ declare module '@tanstack/react-router' {
       path: '/recipes/$id'
       fullPath: '/recipes/$id'
       preLoaderRoute: typeof AuthedRecipesIdRouteImport
-      parentRoute: typeof AuthedRouteRoute
-    }
-    '/_authed/pwa/stock-take': {
-      id: '/_authed/pwa/stock-take'
-      path: '/pwa/stock-take'
-      fullPath: '/pwa/stock-take'
-      preLoaderRoute: typeof AuthedPwaStockTakeRouteImport
-      parentRoute: typeof AuthedRouteRoute
-    }
-    '/_authed/pwa/goods-in': {
-      id: '/_authed/pwa/goods-in'
-      path: '/pwa/goods-in'
-      fullPath: '/pwa/goods-in'
-      preLoaderRoute: typeof AuthedPwaGoodsInRouteImport
-      parentRoute: typeof AuthedRouteRoute
-    }
-    '/_authed/pwa/consumption': {
-      id: '/_authed/pwa/consumption'
-      path: '/pwa/consumption'
-      fullPath: '/pwa/consumption'
-      preLoaderRoute: typeof AuthedPwaConsumptionRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/purchase-orders/new': {
@@ -1069,9 +1084,6 @@ interface AuthedRouteRouteChildren {
   AuthedProductsNewRoute: typeof AuthedProductsNewRoute
   AuthedPurchaseOrdersIdRoute: typeof AuthedPurchaseOrdersIdRoute
   AuthedPurchaseOrdersNewRoute: typeof AuthedPurchaseOrdersNewRoute
-  AuthedPwaConsumptionRoute: typeof AuthedPwaConsumptionRoute
-  AuthedPwaGoodsInRoute: typeof AuthedPwaGoodsInRoute
-  AuthedPwaStockTakeRoute: typeof AuthedPwaStockTakeRoute
   AuthedRecipesIdRoute: typeof AuthedRecipesIdRoute
   AuthedStockAdjustRoute: typeof AuthedStockAdjustRoute
   AuthedStockBySiteRoute: typeof AuthedStockBySiteRoute
@@ -1121,9 +1133,6 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedProductsNewRoute: AuthedProductsNewRoute,
   AuthedPurchaseOrdersIdRoute: AuthedPurchaseOrdersIdRoute,
   AuthedPurchaseOrdersNewRoute: AuthedPurchaseOrdersNewRoute,
-  AuthedPwaConsumptionRoute: AuthedPwaConsumptionRoute,
-  AuthedPwaGoodsInRoute: AuthedPwaGoodsInRoute,
-  AuthedPwaStockTakeRoute: AuthedPwaStockTakeRoute,
   AuthedRecipesIdRoute: AuthedRecipesIdRoute,
   AuthedStockAdjustRoute: AuthedStockAdjustRoute,
   AuthedStockBySiteRoute: AuthedStockBySiteRoute,
@@ -1155,8 +1164,25 @@ const AuthedRouteRouteWithChildren = AuthedRouteRoute._addFileChildren(
   AuthedRouteRouteChildren,
 )
 
+interface TouchRouteRouteChildren {
+  TouchPwaConsumptionRoute: typeof TouchPwaConsumptionRoute
+  TouchPwaGoodsInRoute: typeof TouchPwaGoodsInRoute
+  TouchPwaStockTakeRoute: typeof TouchPwaStockTakeRoute
+}
+
+const TouchRouteRouteChildren: TouchRouteRouteChildren = {
+  TouchPwaConsumptionRoute: TouchPwaConsumptionRoute,
+  TouchPwaGoodsInRoute: TouchPwaGoodsInRoute,
+  TouchPwaStockTakeRoute: TouchPwaStockTakeRoute,
+}
+
+const TouchRouteRouteWithChildren = TouchRouteRoute._addFileChildren(
+  TouchRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   AuthedRouteRoute: AuthedRouteRouteWithChildren,
+  TouchRouteRoute: TouchRouteRouteWithChildren,
   LoginRoute: LoginRoute,
   PinLoginRoute: PinLoginRoute,
   TestManualRoute: TestManualRoute,

@@ -16,6 +16,15 @@
   --card: #ffffff;
   --bar: #1f2a37;
   --bar-ink: #f4f5f7;
+  /* The venue chip's ground. Its own token because it has to win against the
+     topbar rather than blend into it. */
+  --bar-venue: #2f6fed;
+  /* The "not set for this device" ground. NOT `--warn` (#b9770b): that amber
+     is chosen to sit on the light `--warn-soft` badge background, and white
+     text on it is only 3.7:1 — under WCAG AA. This is the same hue, darkened
+     until white passes (6.1:1). Contrast is asserted in
+     site-switcher-contrast.test.ts. */
+  --bar-venue-warn: #95500a;
   --accent: #2f6fed;
   --accent-soft: #e7eefc;
   --ok: #1d9e75;
@@ -26,9 +35,30 @@
   --danger-soft: #fbeaea;
   --t-radius: 10px;
 
+  /*
+   * Sized to the VISUAL viewport, not the layout one (Aug-2026 feedback, B-1).
+   *
+   * `inset: 0` + the layout viewport means that when the iOS keyboard opens
+   * the shell stays keyboard-height too tall, and Safari scrolls it up to keep
+   * the focused field visible — taking the topbar and the first line inputs
+   * off the top of the glass with no way to get them back. Three layers, most
+   * specific last:
+   *
+   *   height: 100vh   — the floor, for browsers with neither of the below
+   *   height: 100dvh  — tracks browser chrome, but NOT the keyboard
+   *   var(--tvv-*)    — the real visual viewport, published by
+   *                     TouchViewportLock; the only one that tracks a keyboard
+   */
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: 0;
   z-index: 40;
+  height: 100vh;
+  height: 100dvh;
+  height: var(--tvv-height, 100dvh);
+  transform: translateY(var(--tvv-offset, 0px));
+  overscroll-behavior: none;
   display: flex;
   flex-direction: column;
   background: var(--paper);
@@ -56,6 +86,20 @@
   background: rgba(255, 255, 255, 0.14); padding: 3px 10px; border-radius: 6px;
 }
 .touch-app .topbar-spacer { flex: 1; }
+/*
+ * Venue name (defect B-5). White on the accent colour, not grey on white:
+ * "which site am I booking to?" is the question behind a 100 kg delivery
+ * landing at the wrong venue, so it has to be readable across a kitchen.
+ */
+.touch-app .venue-chip {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.01em;
+  color: #fff; background: var(--bar-venue);
+  padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+  max-width: 46vw; overflow: hidden; text-overflow: ellipsis;
+}
+/* Not bound to this device — the site was guessed, so say so (E-1). */
+.touch-app .venue-chip.warn { background: var(--bar-venue-warn); color: #fff; }
+.touch-app button.venue-chip { border: none; min-height: 46px; }
 .touch-app .topbar-stat { font-size: 13px; opacity: 0.85; }
 .touch-app .backbtn {
   background: none; border: none; color: #cdd3db; font-size: 30px; line-height: 1;
@@ -83,7 +127,12 @@
 .touch-app .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* ── Scroll body ──────────────────────────────────────────── */
-.touch-app .scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 120px; }
+.touch-app .scroll {
+  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 120px;
+  /* Contain the rubber-band to this box, so a flick at the end of the list
+     cannot drag the shell itself around (B-3). */
+  overscroll-behavior: contain;
+}
 
 /* ── Section headers ──────────────────────────────────────── */
 .touch-app .sec-head { position: sticky; top: 0; background: var(--paper); z-index: 1; padding: 14px 16px 6px; }
@@ -295,3 +344,7 @@
   font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--muted); margin: 16px 0 4px;
 }
+
+/* While a venue screen is mounted the document behind it must not scroll —
+   TouchViewportLock adds this class (defect B-3). */
+body.touch-layout-active { overflow: hidden; overscroll-behavior: none; }

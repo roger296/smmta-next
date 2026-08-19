@@ -23,7 +23,19 @@ export function SiteSwitcher() {
     <div className="flex items-center gap-2">
       <MapPin className="h-4 w-4 text-[var(--color-muted-foreground)]" aria-hidden />
       <Select value={selectedSiteId ?? undefined} onValueChange={setSelectedSiteId}>
-        <SelectTrigger className="h-8 w-44" aria-label="Active site">
+        {/*
+         * Explicit colours (defect B-6). `SelectTrigger` sets
+         * `bg-[var(--color-background)]` — near-white — but sits in the navy
+         * header, so it inherited `--color-shell-foreground` (a pale grey
+         * meant for a dark ground). Pale grey on near-white is roughly 1.6:1;
+         * the venue name was effectively unreadable, on the one control that
+         * says where stock is being booked. `--color-foreground` on that
+         * background is ~13:1, comfortably past WCAG AA at 14px.
+         */}
+        <SelectTrigger
+          className="h-8 w-44 text-[var(--color-foreground)] [&>span]:text-[var(--color-foreground)]"
+          aria-label="Active site"
+        >
           <SelectValue placeholder="Select site" />
         </SelectTrigger>
         <SelectContent>

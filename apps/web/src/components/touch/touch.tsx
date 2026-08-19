@@ -19,9 +19,46 @@ export function partUnit(current: number, fraction: number): number {
 
 export type SyncState = 'synced' | 'syncing' | 'pending' | 'offline';
 
-/** Full-screen touch shell — renders a fixed overlay above the admin SPA. */
+/**
+ * Full-screen touch shell.
+ *
+ * Sizing and the keyboard-tracking offset live in `pwa-touch.css`, driven by
+ * the `--tvv-*` variables `TouchViewportLock` publishes (defect B-1).
+ *
+ * The one behaviour that belongs here rather than in CSS: keeping a focused
+ * control in view. `scrollIntoView({ block: 'nearest' })` is scoped to the
+ * `.scroll` container — never a document-level scroll, which on iOS is exactly
+ * what dragged the whole fixed shell off the top of the glass.
+ */
 export function TouchScreen({ children }: { children: React.ReactNode }) {
-  return <div className="touch-app">{children}</div>;
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target || typeof target.closest !== 'function') return;
+      // Only inside the scrolling body. A focus on the topbar or the action
+      // bar must not scroll anything — they are already pinned.
+      if (!target.closest('.scroll')) return;
+      // Deferred a frame: on iOS the visual viewport has not resized yet at
+      // focusin, so scrolling now would aim at the pre-keyboard geometry.
+      requestAnimationFrame(() => {
+        target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      });
+    };
+
+    root.addEventListener('focusin', onFocusIn);
+    return () => root.removeEventListener('focusin', onFocusIn);
+  }, []);
+
+  return (
+    <div className="touch-app" ref={ref}>
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -86,15 +123,32 @@ export function ErrorBanner({
 }
 
 export function TouchTopbar({
-  title, sub, onBack, right, stat, progress,
+  title, sub, venue, venueBound = true, onVenueClick, onBack, right, stat, progress,
 }: {
   title: React.ReactNode;
   sub?: React.ReactNode;
+  /**
+   * The venue this screen is working against — REQUIRED (defect B-5).
+   *
+   * Not optional, deliberately. It was optional before, and the stock-take
+   * start screen and the End of Bake setup screen simply never passed it —
+   * which is how a South London iPad booked 100 kg to Birmingham with nothing
+   * on screen contradicting it (E-1). Pass the resolved name, or `null` while
+   * it is still loading; there is no third option that omits it.
+   */
+  venue: React.ReactNode | null;
+  /** False when the site was defaulted rather than bound to this device. */
+  venueBound?: boolean;
+  onVenueClick?: () => void;
   onBack?: () => void;
   right?: React.ReactNode;
   stat?: React.ReactNode;
   progress?: number; // 0..100
 }) {
+  const venueLabel = venue ?? 'No venue set';
+  const venueClass = `venue-chip${venueBound ? '' : ' warn'}`;
+  const venueTitle = venueBound ? undefined : 'Not set for this device — tap to choose';
+
   return (
     <div className="topbar">
       <div className="topbar-row">
@@ -102,6 +156,17 @@ export function TouchTopbar({
           <button className="backbtn" onClick={onBack} aria-label="Back">‹</button>
         )}
         <span className="topbar-title">{title}</span>
+        {onVenueClick ? (
+          <button type="button" className={venueClass} onClick={onVenueClick} title={venueTitle} aria-label={`Venue: ${venueLabel}. Tap to change.`}>
+            {venueLabel}
+            {!venueBound && ' — tap to choose'}
+          </button>
+        ) : (
+          <span className={venueClass} title={venueTitle}>
+            {venueLabel}
+            {!venueBound && ' — not set for this device'}
+          </span>
+        )}
         {sub != null && <span className="topbar-sub">{sub}</span>}
         <span className="topbar-spacer" />
         {right}

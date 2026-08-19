@@ -57,9 +57,28 @@ async function fakeToken(page: Page): Promise<string> {
   return getOrGenerateToken();
 }
 
+/** The venue every venue spec runs against unless it says otherwise. */
+export const TEST_VENUE = { id: 'site-1', slug: 'london-south', name: 'London South' };
+
+/**
+ * Stub `/sites` so the screens have a real venue to name. `/sites` is a plain
+ * (non-paginated) list — the envelope must NOT carry total/page, or `apiFetch`
+ * unwraps it as a PaginatedResult and `sites` arrives as an object.
+ */
+export async function stubSites(page: Page, sites = [{ ...TEST_VENUE, isActive: true }]): Promise<void> {
+  await page.route('**/api/v1/sites**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: sites }),
+    }),
+  );
+}
+
 /** Land straight on a venue screen with a token already in localStorage. */
 export async function gotoVenueScreen(page: Page, screen: VenueScreen): Promise<void> {
   await authenticatePage(page);
+  await stubSites(page);
   await page.goto(VENUE_SCREENS[screen]);
   await expect(page.locator('.touch-app')).toBeVisible();
 }
