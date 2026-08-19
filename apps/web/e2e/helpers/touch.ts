@@ -47,7 +47,9 @@ export async function signInWithPin(
   for (const digit of pin) {
     await page.getByRole('button', { name: digit, exact: true }).click();
   }
-  await page.getByRole('button', { name: /sign in/i }).click();
+  // Exact: the PIN screen also carries "Sign in with email instead" (E-2's
+  // office fallback), which a loose match picks up too.
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 }
 
 /** A signed JWT for the SPA to hold; generated once per process by the API. */

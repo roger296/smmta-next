@@ -855,3 +855,37 @@ judgement call so the fix run never blocked.
 - **A route-pending skeleton at 150ms / 300ms minimum.** Below 150ms a
   skeleton that appears and vanishes inside a frame is its own kind of abrupt;
   once shown, 300ms keeps it from flickering.
+
+## F15 — Regression sweep and close-out (Aug-2026)
+
+- **The matrix is a register, not coverage.** Every ID already had a dedicated
+  suite; `feedback-2026-08-12.spec.ts` and its API counterpart exist so someone
+  can read down the list before the next venue session and see each reported
+  symptom still has a test with its name on it. Titles quote the tester
+  verbatim, so a failure reads as the complaint it came from.
+- **Exactly one deliberate skip**, and it carries its reason in the call:
+  E-4's *UI reflection* needs a PIN-minted `head_baker` token rather than the
+  admin JWT the e2e harness generates. The enforcement — the part that protects
+  data — is asserted server-side, and the reflection in component tests. B-6
+  was a conditional skip until it was fixed to authenticate first and assert
+  properly; a skip that fires silently on all three projects is not a test.
+- **Source-level guards for whole classes of bug.** A unit test cannot catch
+  "nobody calls this function" (A-2) or "someone added a `pageSize: 500`"
+  (D-1). Those are properties of the tree, and a grep is the honest tool. The
+  scanners **strip comments first** — every fix explains itself by quoting the
+  code that caused it, and a naive grep failed on the explanation. The
+  `mutateAsync` guard also asserts it found something, so it cannot pass
+  vacuously if the scan itself breaks.
+- **Performance floors, not benchmarks.** 320 lines, sub-100 ms filter,
+  pinned chrome after a full scroll. Set to fail on a regression that makes a
+  screen unusable, not on the noise of a shared box.
+- **The e2e stub honours `search`.** A products stub returning the whole
+  catalogue for every query made the barcode-miss path untestable:
+  `resolveBarcodeToProduct` falls back to search, and an unfiltered list always
+  "finds" something. Two specs were passing for the wrong reason.
+- **A-3 aborts the transport rather than emulating offline.** The claim under
+  test is the pill's *depth*; `route.abort('failed')` makes that deterministic,
+  where `setOffline` plus a fulfilled route left the mutation in flight.
+- **The retest script is numbered and defect-tagged** so the next session is a
+  like-for-like comparison. Each step names the ID it re-tests, so a failure
+  can be reported as "step 14 — C-1 is back".

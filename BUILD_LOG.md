@@ -1682,3 +1682,146 @@ closing behind a navigation, the PIN screen offering nothing, sidebar collapse
 surviving a reload, and the breadcrumb. `pwa-entry` was scoped to `.venue-jobs`
 — the rail now carries the same three job names, so an unscoped by-name query
 is ambiguous by design.
+
+## F15 — Regression sweep and close-out
+
+### The register, defect by defect
+
+Every ID from `docs/FEEDBACK_2026-08-12.md`, the commit that closed it, and the
+test that keeps it closed. "Matrix" below means the named entry in
+`apps/web/e2e/feedback-2026-08-12.spec.ts` (browser) or
+`apps/api/src/modules/feedback-2026-08-12.test.ts` (server) — every ID has one.
+
+#### A — saved work, sync and feedback
+
+| ID | Fixed in | Guarded by |
+|---|---|---|
+| A-1 | `ce9f8eb` F2 | `lib/offline-submit.test.ts`; `e2e/pwa-submit.spec.ts`; matrix A-1; `source-guards.test.ts` (no bare `mutateAsync` in `routes/_touch`) |
+| A-2 | `ce9f8eb` F2 | `features/pwa/use-pwa-jobs.test.tsx`; matrix A-2; `source-guards.test.ts` (`flushPwaQueue` has a production call site) |
+| A-3 | `ce9f8eb` F2 | matrix A-3 (aborted transport → real queue depth on the pill) |
+| A-4 | `ce9f8eb` F2 | matrix A-4; full journey step 5 |
+| A-5 | `4eb08aa` F11 | `pwa/goods-in-receipt.test.tsx`; `e2e/pwa-receipt.spec.ts`; matrix A-5 |
+| A-6 | `5452435` F8 | `pwa/goods-in-code-miss.test.tsx`; matrix A-6 |
+
+#### B — layout, chrome and legibility
+
+| ID | Fixed in | Guarded by |
+|---|---|---|
+| B-1 | `d1b5455` F5 | `e2e/pwa-layout.spec.ts` (topbar in-viewport after focus, at both orientations); matrix B-1 |
+| B-2 | `d1b5455` F5 | matrix B-2; `source-guards.test.ts` (no `autoFocus` under `_touch`) |
+| B-3 | `d1b5455` F5 | matrix B-3 (`body { overflow: hidden }`) |
+| B-4 | `d1b5455` F5 | `e2e/pwa-layout.spec.ts`; matrix B-4; `source-guards.test.ts` (no `/pwa` route under `_authed`) |
+| B-5 | `d1b5455` F5 | `TouchTopbar`'s required `venue` prop; `e2e/pwa-layout.spec.ts`; matrix B-5 |
+| B-6 | `d1b5455` F5 | `layout/site-switcher-contrast.test.ts` (numeric ratio); matrix B-6 |
+| B-7 | `0ce02ea` F14 | `layout/navigation-context.test.tsx`; `e2e/navigation-context.spec.ts`; matrix B-7 |
+
+#### C — products, units and cost
+
+| ID | Fixed in | Guarded by |
+|---|---|---|
+| C-1 | `2e1f807` F9 | `lib/pack.test.ts`; `pwa/goods-in-packs.test.tsx`; `e2e/pwa-packs.spec.ts`; matrix C-1 |
+| C-2 | `2e1f807` F9 | `e2e/pwa-packs.spec.ts` (1.6 kg bags); matrix C-2 |
+| C-3 | `5452435` F8 | `products/product-search-by-code.test.ts`; `lib/barcode.test.ts`; `e2e/pwa-barcode.spec.ts`; matrix C-3 |
+| C-4 | `2e1f807` F9 | migration `0043`; API matrix C-4 (numeric(18,6) round trip); matrix C-4 (`£0.0012/g` on screen) |
+| C-5 | `2e1f807` F9 | API matrix C-5; matrix C-5 |
+| C-6 | `2e1f807` F9 | `e2e/pwa-packs.spec.ts`; matrix C-6 |
+
+#### D — counting and number entry
+
+| ID | Fixed in | Guarded by |
+|---|---|---|
+| D-1 | `5c1505f` F3 | `lib/page-size-guard.test.ts` (whole-tree grep); `e2e/pwa-stock-take.spec.ts`; API matrix D-1 |
+| D-1b | `5c1505f` F3 | API matrix D-1b (identity travels with the sheet); matrix D-1b (sheet legible with `/products` 500ing) |
+| D-2 | `f0d91cc` F4 | `lib/uom.test.ts`; `pwa/stock-take-bucketing.test.tsx`; `source-guards.test.ts` (no defaulted quantum anywhere); matrix D-2 |
+| D-3 | `5c1505f` F3 | `e2e/pwa-stock-take.spec.ts`; matrix D-3 |
+| D-4 | `c85e430` F10 | `components/touch/use-numeric-entry` tests; `e2e/keypad.spec.ts`; matrix D-4 |
+| D-5 | `c85e430` F10 | `e2e/keypad.spec.ts`; matrix D-5 |
+
+#### E — site binding, PWA entry and permissions
+
+| ID | Fixed in | Guarded by |
+|---|---|---|
+| E-1 | `d7233cc` F7 | `features/sites/*` tests; `e2e/pwa-booking.spec.ts`; API matrix E-1; matrix E-1 |
+| E-2 | `9c95efe` F6 | `lib/display-mode.test.ts`; `lib/pwa-assets.test.ts`; `e2e/pwa-entry.spec.ts`; matrix E-2 |
+| E-3 | `d7233cc` F7 | `goods-in.service.test.ts`; `pwa/goods-in-confirm-undo.test.tsx`; API matrix E-3; matrix E-3 |
+| E-4 | `d7233cc` F7 | `shared/middleware/require-role` tests; API matrix E-4 |
+| E-5 | `d7233cc` F7 | `e2e/pwa-booking.spec.ts`; matrix E-5 |
+| E-6 | `9c95efe` F6 | `lib/pwa-assets.test.ts`; matrix E-6 |
+
+#### F — End of Bake and recipe data
+
+| ID | Fixed in | Guarded by |
+|---|---|---|
+| F-1 | `630b846` F12 | `features/consumption/line-reducers` tests; `e2e/pwa-consumption.spec.ts`; matrix F-1 |
+| F-2 | `630b846` F12 | same; matrix F-2 |
+| F-3 | `630b846` F12 | same; matrix F-3 |
+| F-4 | `7a8dff8` F13 | `scripts/demo/seed-bakes.demo.test.ts` (the seed refuses); `scripts/purge-demo-bakes.test.ts`; matrix F-4 |
+| F-5 | `7a8dff8` F13 | `recipes/recipe-import.test.ts`; `scripts/import-recipes.test.ts`; API matrix F-5; matrix F-5 |
+| F-6 | `7a8dff8` F13 | `pwa/consumption-recipe-blockers.test.tsx`; API matrix F-6; matrix F-6 |
+| F-7 | `630b846` F12 | migration `0044`; `site.routes.test.ts`; API matrix F-7; matrix F-7 |
+| F-8 | `630b846` F12 | `consumption/entry-mode.test.ts`; API matrix F-8; matrix F-8 |
+
+### One deliberate skip
+
+`feedback-2026-08-12.spec.ts` carries exactly one `test.skip` — it shows as
+three in the run because every spec runs at three viewports — with its reason
+in the call: **E-4's UI reflection**. Hiding an action a role cannot perform
+needs a PIN-minted token carrying `head_baker` rather than the admin JWT the
+e2e harness generates. The *enforcement* — the part that protects the data — is
+asserted server-side in the API matrix (a head baker gets 403 approving a
+stock-take and 403 reversing a receipt), and the reflection is covered by
+component tests. No other ID is skipped.
+
+### Cross-cutting guards
+
+`apps/web/src/lib/source-guards.test.ts` plus the existing
+`page-size-guard.test.ts` fail on whole classes of the original bugs, not
+single instances:
+
+- no `pageSize` literal above the shared API cap anywhere in `apps/web/src` (D-1);
+- `flushPwaQueue` has at least one production call site, and `PwaQueueSync` is
+  mounted at the app root (A-2);
+- every `mutateAsync` under `routes/_touch/**` sits inside a `try`/`catch`, and
+  the scan asserts it found some, so it cannot pass vacuously (A-1);
+- `bucketCount` is the identity without a configured quantum, and no caller
+  supplies a default of its own (D-2);
+- no `/pwa` or `pin-login` route lives under `_authed`, and the three venue
+  screens are all under `_touch` (B-4);
+- no `autoFocus` anywhere under `_touch` (B-2).
+
+The scanners strip comments first — every one of these files explains its
+defect by quoting the code that caused it, and a naive grep failed on the
+explanation.
+
+### Performance
+
+`apps/web/e2e/venue-performance.spec.ts`, at all three viewports: a 320-line
+count sheet renders every row, filters in under 100 ms, scrolls to the bottom
+with the topbar and action bar still pinned, and a count typed at the bottom
+still reaches the ledger. Loose floors, not benchmarks — they fail on the kind
+of regression that makes a screen unusable, not on CI noise.
+
+### Suite at close-out
+
+| | |
+|---|---|
+| API Vitest | 705 passed, 84 files |
+| Web Vitest | 374 passed, 45 files |
+| Playwright | 306 passed, 3 skipped, across desktop + ipad-portrait + ipad-landscape |
+| `npm run build` | green (shared-types, api, web) |
+| `npm run typecheck` | green (api, web) |
+
+### Deferred, with reasons
+
+- **Playwright drives Chromium, not WebKit-on-iOS.** The iPad projects
+  contribute device *metrics* — viewport, DPR, touch, mobile UA — and catch
+  layout, focus and hit-testing regressions. They do not reproduce iOS
+  Safari's own keyboard and visual-viewport behaviour, which is what B-1
+  actually was. `docs/RETEST_2026-08-12.md` is the final check, on a real iPad.
+- **E-4's UI reflection in e2e** — see the skip above.
+- **The six human tasks** listed at the end of the fix set: the real cake menu
+  and ingredient catalogue as CSVs, confirming each iPad's PIN-to-venue
+  binding, signing off the role split, setting `benchesPerTable` per site, and
+  treating 12 August's data as suspect. All are data, not code; the retest is
+  not meaningful without the first two, and step 19 and step 27 of the retest
+  script will simply fail without items 2 and 4.
