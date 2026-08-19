@@ -8,10 +8,15 @@
  *   POST /api/v1/stock-takes/:id/approve  — true-up + post adjustment
  *
  * JWT-gated. The iPad stock-take screen (P13) drives these.
+ *
+ * Role split (Aug-2026 feedback, E-4; locked decision 5): a `head_baker` may
+ * open a take and record counts; **approving** one writes the variance
+ * straight into the ledger, so that is `site_manager`+.
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../../shared/middleware/auth.js';
+import { requireBoundSite, requireRole } from '../../shared/middleware/require-role.js';
 import { StockTakeService } from './stock-take.service.js';
 
 const openSchema = z.object({
@@ -44,16 +49,25 @@ const service = new StockTakeService();
 export async function stockTakeRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
 
-  app.post('/stock-takes', async (request, reply) => {
-    const parsed = openSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply
-        .status(400)
-        .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
-    }
-    const data = await service.open(parsed.data);
-    return reply.status(201).send({ success: true, data });
-  });
+  app.post(
+    '/stock-takes',
+    {
+      preHandler: [
+        requireRole(['head_baker', 'site_manager']),
+        requireBoundSite((request) => (request.body as { siteId?: string } | undefined)?.siteId),
+      ],
+    },
+    async (request, reply) => {
+      const parsed = openSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
+      }
+      const data = await service.open(parsed.data);
+      return reply.status(201).send({ success: true, data });
+    },
+  );
 
   app.get('/stock-takes', async (request) => {
     const q = listQuerySchema.parse(request.query);
@@ -70,25 +84,34 @@ export async function stockTakeRoutes(app: FastifyInstance) {
     return { success: true, data: { ...data, warnings: await service.varianceWarnings(id) } };
   });
 
-  app.post('/stock-takes/:id/counts', async (request, reply) => {
-    const { id } = idParamSchema.parse(request.params);
-    const parsed = countsSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply
-        .status(400)
-        .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
-    }
-    const recorded = await service.recordCounts(id, parsed.data.counts);
-    return { success: true, data: { recorded } };
-  });
+  app.post(
+    '/stock-takes/:id/counts',
+    { preHandler: requireRole(['head_baker', 'site_manager']) },
+    async (request, reply) => {
+      const { id } = idParamSchema.parse(request.params);
+      const parsed = countsSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
+      }
+      const recorded = await service.recordCounts(id, parsed.data.counts);
+      return { success: true, data: { recorded } };
+    },
+  );
 
-  app.post('/stock-takes/:id/approve', async (request, reply) => {
-    const { id } = idParamSchema.parse(request.params);
-    // Read the warnings BEFORE approving — approval trues the ledger up, after
-    // which the variance is zero and the warning has nothing left to point at.
-    const warnings = await service.varianceWarnings(id);
-    const data = await service.approve(id);
-    if (!data) return reply.status(404).send({ success: false, error: 'Stock-take not found' });
-    return { success: true, data, warnings };
-  });
+  app.post(
+    '/stock-takes/:id/approve',
+    { preHandler: requireRole(['site_manager']) },
+    async (request, reply) => {
+      const { id } = idParamSchema.parse(request.params);
+      // Read the warnings BEFORE approving — approval trues the ledger up,
+      // after which the variance is zero and the warning has nothing left to
+      // point at.
+      const warnings = await service.varianceWarnings(id);
+      const data = await service.approve(id);
+      if (!data) return reply.status(404).send({ success: false, error: 'Stock-take not found' });
+      return { success: true, data, warnings };
+    },
+  );
 }

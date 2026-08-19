@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
+import { hasRole } from '../../shared/middleware/require-role.js';
 import { ProductInUseError, ProductService, ProductValidationError } from './product.service.js';
 import {
   createProductSchema,
@@ -52,6 +53,16 @@ export async function productRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     try {
       const input = updateProductSchema.parse(request.body);
+      // Editing a cost is `site_manager`+ (E-4, locked decision 5). Guarded
+      // here rather than with a blanket `requireRole` on the route, because a
+      // head baker legitimately edits other product fields — it is the PRICE
+      // that moves money, and the tester specifically could not reach it.
+      if (input.expectedNextCost !== undefined && !hasRole(user, ['site_manager'])) {
+        return reply.status(403).send({
+          success: false,
+          error: 'Changing a cost needs a site manager. Ask one to set the price.',
+        });
+      }
       const product = await productService.update(id, user.companyId, input);
       if (!product) return reply.status(404).send({ success: false, error: 'Product not found' });
       return { success: true, data: product };

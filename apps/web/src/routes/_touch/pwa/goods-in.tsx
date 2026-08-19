@@ -2,9 +2,10 @@ import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
+import { useRoles } from '@/features/auth/use-roles';
 import { resolveBarcodeToProduct } from '@/lib/barcode';
 import { purchaseToStock } from '@/lib/uom';
-import { useReceiveGoodsIn } from '@/features/pwa/use-pwa-jobs';
+import { useReceiveGoodsIn, useReverseGoodsIn } from '@/features/pwa/use-pwa-jobs';
 import type { Product } from '@/lib/api-types';
 import { PwaSyncPill } from '@/features/pwa/queue-status';
 import {
@@ -15,6 +16,7 @@ import {
   BigButton,
   ActionBar,
   ErrorBanner,
+  UndoBar,
 } from '@/components/touch/touch';
 
 export const Route = createFileRoute('/_touch/pwa/goods-in')({
@@ -32,8 +34,14 @@ interface Line {
 /** Exported so the component tests can render the screen without a router. */
 export function GoodsInScreen() {
   const navigate = useNavigate();
-  const { selectedSite, selectedSiteId } = useSiteContext();
+  const { selectedSite, selectedSiteId, isBound } = useSiteContext();
   const receive = useReceiveGoodsIn();
+  const reverse = useReverseGoodsIn();
+  // Reversing a receipt is site_manager+ (E-4). A head baker sees the booking
+  // confirmed but not an Undo they would only be refused — the confirmation
+  // step (E-5) is their safeguard, and a site manager can still void it.
+  const { can } = useRoles();
+  const mayReverse = can(['site_manager']);
   const { toast } = useToast();
   const [code, setCode] = React.useState('');
   const [lines, setLines] = React.useState<Line[]>([]);
@@ -42,6 +50,13 @@ export function GoodsInScreen() {
   // A rejection is shown in the screen and stays there until dismissed — a
   // toast vanishes while the user is still looking at the shelf (defect A-1).
   const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
+  // Book-in is a two-step now (defect E-5): confirm the DESTINATION VENUE and
+  // the lines before anything is written. 100 kg landing at the wrong venue is
+  // not a slip anyone should be able to make in one tap.
+  const [confirming, setConfirming] = React.useState(false);
+  // After a successful booking, a 90-second window in which one tap issues a
+  // reversing receipt (defect E-3).
+  const [undo, setUndo] = React.useState<{ receiptId: string; venue: string } | null>(null);
 
   const addByCode = async () => {
     if (!code.trim()) return;
@@ -72,6 +87,7 @@ export function GoodsInScreen() {
 
   const submit = async () => {
     if (!selectedSiteId || lines.length === 0) return;
+    setConfirming(false);
     setError(null);
     let res;
     try {
@@ -103,8 +119,33 @@ export function GoodsInScreen() {
       return;
     }
 
+    if (res.status === 'sent' && res.data?.receipt?.id && mayReverse) {
+      setUndo({ receiptId: res.data.receipt.id, venue: selectedSite?.name ?? 'this venue' });
+    } else {
+      // A queued booking has no receipt id yet, so there is nothing to undo —
+      // and saying otherwise would be the A-1 lie in a different costume.
+      setUndo(null);
+    }
     toast({ title: res.status === 'sent' ? 'Booked in' : 'Saved offline — will sync' });
     setLines([]);
+  };
+
+  const doUndo = async () => {
+    if (!undo) return;
+    try {
+      await reverse.mutateAsync({ receiptId: undo.receiptId });
+    } catch (err) {
+      setError({
+        title: 'Could not undo that booking',
+        message:
+          err instanceof Error
+            ? err.message
+            : 'The reversal failed. A site manager can void the receipt from the admin.',
+      });
+      return;
+    }
+    setUndo(null);
+    toast({ title: 'Booking reversed' });
   };
 
   const qt = qtyTarget !== null ? lines[qtyTarget] : undefined;
@@ -115,6 +156,7 @@ export function GoodsInScreen() {
       <TouchTopbar
         title="Goods in"
         venue={selectedSite?.name ?? null}
+        venueBound={isBound}
         onBack={() => void navigate({ to: '/' })}
         right={<PwaSyncPill />}
         stat={lines.length > 0 ? `${lines.length} line${lines.length === 1 ? '' : 's'} to book in` : undefined}
@@ -171,11 +213,32 @@ export function GoodsInScreen() {
         })}
       </div>
 
+      {undo && (
+        <UndoBar
+          message={`Booked to ${undo.venue}`}
+          actionLabel={reverse.isPending ? 'Undoing…' : 'Undo'}
+          disabled={reverse.isPending}
+          seconds={90}
+          onAction={() => void doUndo()}
+          onExpire={() => setUndo(null)}
+        />
+      )}
+
       <ActionBar>
-        <BigButton variant="ok" disabled={lines.length === 0 || receive.isPending} onClick={() => void submit()}>
+        <BigButton variant="ok" disabled={lines.length === 0 || receive.isPending} onClick={() => setConfirming(true)}>
           {receive.isPending ? 'Booking in…' : `Book in ${lines.length} line${lines.length === 1 ? '' : 's'}`}
         </BigButton>
       </ActionBar>
+
+      {confirming && (
+        <ConfirmBookingSheet
+          venue={selectedSite?.name ?? 'No venue set'}
+          venueBound={isBound}
+          lines={lines}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => void submit()}
+        />
+      )}
 
       {qt && qtyTarget !== null && (
         <KeypadSheet
@@ -242,4 +305,61 @@ function DetailsSheet({
       </div>
     </BottomSheet>
   );
+}
+
+/**
+ * Confirm the destination before booking (defect E-5).
+ *
+ * "Accidental booking logged 100kg to Birmingham." The venue goes first and
+ * biggest, because that is the fact that was wrong; the lines are restated in
+ * the form a human checks — "4 × 25 kg sack = 100 kg" — rather than in the raw
+ * numbers the form happens to hold. Cancel returns with every entry intact.
+ */
+export function ConfirmBookingSheet({
+  venue, venueBound, lines, onCancel, onConfirm,
+}: {
+  venue: string;
+  venueBound: boolean;
+  lines: Line[];
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <BottomSheet title="Book this delivery in?" onClose={onCancel}>
+      <div className="confirm-venue">
+        <span className="confirm-venue-label">Booking to</span>
+        <span className={`confirm-venue-name${venueBound ? '' : ' warn'}`}>{venue}</span>
+        {!venueBound && (
+          <span className="confirm-venue-warn">
+            This venue was not set for this device — check it before confirming.
+          </span>
+        )}
+      </div>
+
+      <div className="confirm-lines">
+        <div className="confirm-count">
+          {lines.length} line{lines.length === 1 ? '' : 's'}
+        </div>
+        {lines.map((l, i) => (
+          <div className="confirm-line" key={`${l.product.id}-${i}`}>
+            <span className="confirm-line-name">{l.product.name}</span>
+            <span className="confirm-line-qty">{describeLine(l)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="sheet-actions">
+        <BigButton variant="ghost" onClick={onCancel}>Cancel</BigButton>
+        <BigButton variant="ok" onClick={onConfirm}>Confirm and book in</BigButton>
+      </div>
+    </BottomSheet>
+  );
+}
+
+/** "4 × 25 kg sack = 100 kg" — the line as a human checks it. */
+export function describeLine(line: Line): string {
+  const factor = Number(line.product.purchaseToStockFactor) || 1;
+  const stockQty = purchaseToStock(line.qtyPurchase, factor);
+  const pack = line.product.purchaseUom ?? 'unit';
+  return `${line.qtyPurchase} × ${pack} = ${stockQty} ${line.product.stockUom}`;
 }

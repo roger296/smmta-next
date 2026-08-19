@@ -166,3 +166,110 @@ describe('GoodsInService.receive', () => {
     expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(2000);
   });
 });
+
+// ── E-3: undo, as a reversing receipt (Aug-2026 feedback set) ───────────────
+describe('GoodsInService.reverse', () => {
+  it('E-3: zeroes the net movement for the product/site', async () => {
+    const booked = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-rev-1',
+      lines: [{ productId: flourId, qtyPurchase: 100, unitCost: 2 }], // 100 kg
+      companyId: COMPANY,
+    });
+    expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(100_000);
+
+    const res = await svc.reverse({ receiptId: booked.receipt.id, companyId: COMPANY });
+    expect(res).not.toBeNull();
+    // Net zero — the ledger balances, rather than the original being erased.
+    expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(0);
+  });
+
+  it('E-3: leaves the ORIGINAL receipt row intact — history is not mutated', async () => {
+    const booked = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-rev-2',
+      lines: [{ productId: flourId, qtyPurchase: 4, unitCost: 2 }],
+      companyId: COMPANY,
+    });
+    const before = booked.receipt;
+
+    const res = await svc.reverse({
+      receiptId: before.id,
+      reason: 'Wrong venue',
+      userId: 'pin:abc',
+      companyId: COMPANY,
+    });
+
+    const after = await getDb().query.goodsInReceipts.findFirst({
+      where: eq(goodsInReceipts.id, before.id),
+    });
+    expect(after).toBeDefined();
+    // The booked figures are exactly as they were.
+    expect(after!.totalStockValue).toBe(before.totalStockValue);
+    expect(after!.siteId).toBe(before.siteId);
+    // And it now points at its reversal, with the audit trail.
+    expect(after!.reversedByReceiptId).toBe(res!.reversal.id);
+    expect(after!.reversedAt).not.toBeNull();
+    expect(after!.reversalReason).toBe('Wrong venue');
+    expect(after!.reversedByUserId).toBe('pin:abc');
+    // The reversal points back.
+    expect(res!.reversal.reversalOfReceiptId).toBe(before.id);
+  });
+
+  it('E-3: is idempotent — a double-tapped Undo reverses once', async () => {
+    const booked = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-rev-3',
+      lines: [{ productId: flourId, qtyPurchase: 10, unitCost: 2 }],
+      companyId: COMPANY,
+    });
+
+    const first = await svc.reverse({ receiptId: booked.receipt.id, companyId: COMPANY });
+    const second = await svc.reverse({ receiptId: booked.receipt.id, companyId: COMPANY });
+
+    expect(first!.alreadyExisted).toBe(false);
+    expect(second!.alreadyExisted).toBe(true);
+    expect(second!.reversal.id).toBe(first!.reversal.id);
+    // Still net zero, not double-reversed into negative stock.
+    expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(0);
+  });
+
+  it('E-3: posts exactly one reversing GL entry', async () => {
+    const booked = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-rev-4',
+      lines: [{ productId: flourId, qtyPurchase: 7, unitCost: 3 }],
+      companyId: COMPANY,
+    });
+    await svc.reverse({ receiptId: booked.receipt.id, companyId: COMPANY });
+    await svc.reverse({ receiptId: booked.receipt.id, companyId: COMPANY });
+
+    const key = `GRN-reversal:${booked.receipt.id}-v1`;
+    const posted = await getDb()
+      .select({ id: glPostingLog.id })
+      .from(glPostingLog)
+      .where(eq(glPostingLog.idempotencyKey, key));
+    expect(posted).toHaveLength(1);
+  });
+
+  it('refuses to reverse a reversal — that would re-book the delivery', async () => {
+    const booked = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-rev-5',
+      lines: [{ productId: flourId, qtyPurchase: 2, unitCost: 1 }],
+      companyId: COMPANY,
+    });
+    const rev = await svc.reverse({ receiptId: booked.receipt.id, companyId: COMPANY });
+    await expect(
+      svc.reverse({ receiptId: rev!.reversal.id, companyId: COMPANY }),
+    ).rejects.toThrow(/itself a reversal/i);
+  });
+
+  it('returns null for a receipt that does not exist', async () => {
+    const res = await svc.reverse({
+      receiptId: '00000000-0000-4000-8000-000000000000',
+      companyId: COMPANY,
+    });
+    expect(res).toBeNull();
+  });
+});

@@ -59,7 +59,10 @@ test.describe('goods-in rejection keeps the work on screen', () => {
       }),
     );
 
+    // Book-in is a two-step since F7 (E-5): confirm the destination venue,
+    // then commit.
     await page.getByRole('button', { name: /book in 1 line/i }).click();
+    await page.getByRole('button', { name: /confirm and book in/i }).click();
 
     await expect(page.getByRole('alert')).toContainText(/no open receiving bay/i);
     // The line is still there — nothing was cleared and nothing claims success.

@@ -13,7 +13,7 @@ import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getDb } from '../../config/database.js';
-import { devicePins } from '../../db/schema/index.js';
+import { devicePins, sites } from '../../db/schema/index.js';
 import { hashPassword, verifyPassword } from '../../shared/auth/password.js';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
 
@@ -52,9 +52,24 @@ export async function pinAuthRoutes(app: FastifyInstance) {
           },
           { expiresIn: '12h' },
         );
+        // The site NAME travels with the login (Aug-2026 feedback, E-1/B-5).
+        // The id alone is not something a venue screen can put in front of a
+        // baker, and the client discarding this response is precisely how a
+        // South London iPad ended up booking to Birmingham.
+        const site = row.siteId
+          ? await db.query.sites.findFirst({ where: eq(sites.id, row.siteId) })
+          : null;
         return {
           success: true,
-          data: { token, user: { label: row.label, roles: row.roles, siteId: row.siteId } },
+          data: {
+            token,
+            user: {
+              label: row.label,
+              roles: row.roles,
+              siteId: row.siteId,
+              siteName: site?.name ?? null,
+            },
+          },
         };
       }
     }

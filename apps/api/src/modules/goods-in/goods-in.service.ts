@@ -59,6 +59,14 @@ export interface GoodsInResult {
   alreadyExisted: boolean;
 }
 
+/** A reversal that cannot be performed for a reason the caller should see. */
+export class GoodsInReversalError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GoodsInReversalError';
+  }
+}
+
 export class GoodsInService {
   private db = getDb();
   private levels = new StockLevelService();
@@ -217,6 +225,146 @@ export class GoodsInService {
       .from(goodsInReceiptLines)
       .where(eq(goodsInReceiptLines.receiptId, receipt!.id));
     return { receipt: receipt!, lines, alreadyExisted: false };
+  }
+
+  /**
+   * Reverse a booked receipt (Aug-2026 feedback set, defect E-3).
+   *
+   * "Accidental booking logged 100kg to Birmingham; requested an undo timer or
+   * role-based permission locks."
+   *
+   * A **reversing receipt** — a new row with mirrored negative stock movements
+   * and its own GL posting. The original is never mutated or deleted (locked
+   * decision 6): the ledger is an audit trail, and a correction that edits
+   * history is a correction nobody can later explain.
+   *
+   * Idempotent. The reversal's idempotency key is derived from the original
+   * receipt id, so a double-tapped Undo — or a replay off the offline queue —
+   * produces exactly one reversal. Re-calling returns the existing one.
+   */
+  async reverse(input: {
+    receiptId: string;
+    reason?: string | null;
+    userId?: string | null;
+    companyId?: string;
+  }): Promise<{ reversal: GoodsInReceipt; lines: GoodsInReceiptLine[]; alreadyExisted: boolean } | null> {
+    const companyId = input.companyId ?? getSingletonCompanyId();
+
+    const original = await this.db.query.goodsInReceipts.findFirst({
+      where: and(eq(goodsInReceipts.id, input.receiptId), eq(goodsInReceipts.companyId, companyId)),
+    });
+    if (!original) return null;
+
+    // Reversing a reversal would net back to the original booking — almost
+    // certainly not what someone tapping "undo" twice means.
+    if (original.reversalOfReceiptId) {
+      throw new GoodsInReversalError('That receipt is itself a reversal and cannot be reversed.');
+    }
+
+    const reversalKey = `reversal:${original.id}`;
+
+    const existing = await this.db.query.goodsInReceipts.findFirst({
+      where: eq(goodsInReceipts.idempotencyKey, reversalKey),
+    });
+    if (existing) {
+      const lines = await this.db
+        .select()
+        .from(goodsInReceiptLines)
+        .where(eq(goodsInReceiptLines.receiptId, existing.id));
+      return { reversal: existing, lines, alreadyExisted: true };
+    }
+
+    const originalLines = await this.db
+      .select()
+      .from(goodsInReceiptLines)
+      .where(eq(goodsInReceiptLines.receiptId, original.id));
+
+    const currencyCode = await getSiteCurrency(original.siteId, companyId);
+    const totalStockValue = round2(-Number(original.totalStockValue ?? 0));
+    const deliveryCharge = round2(-Number(original.deliveryCharge ?? 0));
+
+    const [reversal] = await this.db
+      .insert(goodsInReceipts)
+      .values({
+        companyId,
+        siteId: original.siteId,
+        supplierId: original.supplierId,
+        // Deliberately NOT carried over: a reversal must not re-match the
+        // proposal the original satisfied.
+        reorderProposalId: null,
+        reference: `REVERSAL of ${original.reference ?? original.id.slice(0, 8)}`,
+        idempotencyKey: reversalKey,
+        deliveryCharge: String(deliveryCharge),
+        totalStockValue: String(totalStockValue),
+        variance: 'NONE',
+        glReference: glIdempotencyKey('GRN', reversalKey),
+        reversalOfReceiptId: original.id,
+        reversedByUserId: input.userId ?? null,
+        reversalReason: input.reason ?? null,
+      })
+      .returning();
+
+    for (const line of originalLines) {
+      const qtyPurchase = -Number(line.qtyPurchase);
+      const qtyStock = -Number(line.qtyStock);
+      const unitCost = Number(line.unitCost);
+      const factor = qtyStock === 0 ? 1 : Number(line.qtyStock) / Number(line.qtyPurchase || 1);
+
+      await this.db.insert(goodsInReceiptLines).values({
+        receiptId: reversal!.id,
+        productId: line.productId,
+        qtyPurchase: String(qtyPurchase),
+        qtyStock: String(qtyStock),
+        unitCost: String(unitCost),
+        lineValue: String(round2(-Number(line.lineValue))),
+        lineVariance: 'NONE',
+      });
+
+      await this.levels.applyMovement({
+        productId: line.productId,
+        siteId: original.siteId,
+        qtyDelta: qtyStock,
+        movementType: 'GRN',
+        sourceSystem: 'goods-in',
+        sourceKey: `${reversal!.id}:${line.productId}`,
+        contentHash: 'grn-reversal',
+        unitCost: round4(unitCost / (factor || 1)),
+        currencyCode,
+        companyId,
+      });
+    }
+
+    // Mark the original as reversed. Its own figures are untouched — this is a
+    // pointer, not an edit to what was booked.
+    await this.db
+      .update(goodsInReceipts)
+      .set({
+        reversedByReceiptId: reversal!.id,
+        reversedAt: new Date(),
+        reversedByUserId: input.userId ?? null,
+        reversalReason: input.reason ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(goodsInReceipts.id, original.id));
+
+    // One mirroring GL posting, idempotent on the reversal's own key.
+    await getStockGLService().postGoodsReceivedNote(this.db, {
+      companyId,
+      grnId: reversalKey,
+      grnNumber: reversal!.reference ?? reversal!.id.slice(0, 8),
+      poNumber: original.reference ?? 'REVERSAL',
+      bookedInDate: new Date(),
+      stockValue: totalStockValue,
+      deliveryCharge,
+      isService: false,
+      currencyCode,
+    });
+
+    const lines = await this.db
+      .select()
+      .from(goodsInReceiptLines)
+      .where(eq(goodsInReceiptLines.receiptId, reversal!.id));
+    return { reversal: reversal!, lines, alreadyExisted: false };
   }
 
   async get(id: string, companyId = getSingletonCompanyId()): Promise<GoodsInResult | null> {

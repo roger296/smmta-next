@@ -11,8 +11,8 @@ import { submitOrQueue, syncQueue, type SubmitResult } from '@/lib/offline-submi
 /** Shared offline queue for the iPad jobs. */
 export const pwaQueue = new OfflineQueue(new LocalStorageQueueStorage());
 
-const sendAction = (a: QueuedAction): Promise<void> =>
-  apiFetch(a.endpoint, { method: a.method, body: a.body }).then(() => undefined);
+const sendAction = (a: QueuedAction): Promise<unknown> =>
+  apiFetch(a.endpoint, { method: a.method, body: a.body });
 
 export interface GoodsInLineDraft {
   productId: string;
@@ -22,10 +22,30 @@ export interface GoodsInLineDraft {
   useBy?: string | null;
 }
 
+/** What `POST /goods-in` returns — enough for the receipt screen and Undo. */
+export interface GoodsInReceiptResult {
+  receipt: {
+    id: string;
+    siteId: string;
+    reference: string | null;
+    totalStockValue: string;
+    receivedAt: string;
+  };
+  lines: Array<{
+    id: string;
+    productId: string;
+    qtyPurchase: string;
+    qtyStock: string;
+    unitCost: string;
+    lineValue: string;
+  }>;
+  alreadyExisted: boolean;
+}
+
 /** Goods-in submit — offline-tolerant (queues + replays with one idempotency key). */
 export function useReceiveGoodsIn() {
   return useMutation<
-    SubmitResult,
+    SubmitResult<GoodsInReceiptResult>,
     Error,
     { siteId: string; reorderProposalId?: string; lines: GoodsInLineDraft[]; photoRefs?: unknown }
   >({
@@ -45,7 +65,7 @@ export function useReceiveGoodsIn() {
         label: `Goods in — ${input.lines.length} line${input.lines.length === 1 ? '' : 's'}`,
       };
       (action.body as { idempotencyKey: string }).idempotencyKey = action.idempotencyKey;
-      return submitOrQueue(pwaQueue, action, sendAction);
+      return submitOrQueue<GoodsInReceiptResult>(pwaQueue, action, sendAction);
     },
   });
 }
@@ -85,6 +105,24 @@ export function useRecordStockTakeCounts() {
       };
       return submitOrQueue(pwaQueue, action, sendAction);
     },
+  });
+}
+
+/**
+ * Undo a booking by issuing a REVERSING receipt (defect E-3).
+ *
+ * Deliberately NOT offline-queued. An undo is a 90-second window on a screen
+ * someone is looking at; queuing it would mean the reversal lands minutes or
+ * hours later, long after the person has walked away believing it was done —
+ * the same class of lie as A-1. Offline, the Undo button says so instead.
+ */
+export function useReverseGoodsIn() {
+  return useMutation<unknown, Error, { receiptId: string; reason?: string }>({
+    mutationFn: ({ receiptId, reason }) =>
+      apiFetch(`/goods-in/${receiptId}/reverse`, {
+        method: 'POST',
+        body: { reason: reason ?? 'Undone from the venue screen' },
+      }),
   });
 }
 

@@ -100,7 +100,9 @@ describe('Goods In — truthful submit (A-1)', () => {
       ),
     );
 
+    // Book-in is a two-step now (E-5): confirm the destination, then commit.
     await user.click(screen.getByRole('button', { name: /book in 1 line/i }));
+    await user.click(await screen.findByRole('button', { name: /confirm and book in/i }));
 
     // 1. the server's own message, in the screen, as an alert
     const banner = await screen.findByRole('alert');
@@ -121,6 +123,7 @@ describe('Goods In — truthful submit (A-1)', () => {
     server.use(http.post(`${API}/goods-in`, () => HttpResponse.error()));
 
     await user.click(screen.getByRole('button', { name: /book in 1 line/i }));
+    await user.click(await screen.findByRole('button', { name: /confirm and book in/i }));
 
     await waitFor(async () => expect(await pwaQueue.size()).toBe(1));
     expect(await screen.findByText(/saved offline/i)).toBeInTheDocument();

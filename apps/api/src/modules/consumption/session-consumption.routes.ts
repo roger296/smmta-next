@@ -13,6 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAuth, getAuthUser, canAccessSite } from '../../shared/middleware/auth.js';
+import { requireRole } from '../../shared/middleware/require-role.js';
 import { SessionConsumptionService } from './session-consumption.service.js';
 import { BumbleBeeSessionClient } from './bumblebee-sessions.js';
 import { ConsumptionSweepService } from './consumption-sweep.service.js';
@@ -139,31 +140,38 @@ export async function sessionConsumptionRoutes(app: FastifyInstance) {
     return { success: true, data };
   });
 
-  app.post('/session-consumption', async (request, reply) => {
-    const parsed = submitSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply
-        .status(400)
-        .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
-    }
-    const user = getAuthUser(request);
-    try {
-      const data = await service.submit(parsed.data, { roles: user.roles, siteId: user.siteId });
-      return reply.status(201).send({ success: true, data });
-    } catch (err) {
-      // A line that can't be turned into a defensible usage figure is the
-      // baker's to resolve — tell them which item and why, don't 500.
-      if ((err as Error).name === 'ConsumptionEntryError') {
-        return reply.status(400).send({
-          success: false,
-          error: (err as Error).message,
-          productId: (err as { productId?: string }).productId,
-        });
+  // A head baker records the bake — that IS the job (E-4, locked decision 5).
+  // The site scope is already enforced inside `service.submit` via the token's
+  // own siteId, which is why there is no `requireBoundSite` here.
+  app.post(
+    '/session-consumption',
+    { preHandler: requireRole(['head_baker', 'site_manager']) },
+    async (request, reply) => {
+      const parsed = submitSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
       }
-      if ((err as Error).message === 'forbidden_site_scope') {
-        return reply.status(403).send({ success: false, error: 'forbidden_site_scope' });
+      const user = getAuthUser(request);
+      try {
+        const data = await service.submit(parsed.data, { roles: user.roles, siteId: user.siteId });
+        return reply.status(201).send({ success: true, data });
+      } catch (err) {
+        // A line that can't be turned into a defensible usage figure is the
+        // baker's to resolve — tell them which item and why, don't 500.
+        if ((err as Error).name === 'ConsumptionEntryError') {
+          return reply.status(400).send({
+            success: false,
+            error: (err as Error).message,
+            productId: (err as { productId?: string }).productId,
+          });
+        }
+        if ((err as Error).message === 'forbidden_site_scope') {
+          return reply.status(403).send({ success: false, error: 'forbidden_site_scope' });
+        }
+        throw err;
       }
-      throw err;
-    }
-  });
+    },
+  );
 }

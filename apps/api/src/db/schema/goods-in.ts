@@ -44,10 +44,25 @@ export const goodsInReceipts = pgTable(
     /** The gl_posting_log idempotency key / marker for the posted GRN. */
     glReference: varchar('gl_reference', { length: 200 }),
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    // ── Reversal (Aug-2026 feedback set, defect E-3) ──────────────────
+    // "Accidental booking logged 100kg to Birmingham; requested an undo
+    // timer." A mis-booking is corrected by a REVERSING RECEIPT — a new,
+    // audited, ledger-balancing movement — never by mutating or deleting
+    // history (locked decision 6). These two columns are the link between
+    // the pair, in both directions, so either row explains itself.
+    /** Set on the reversing receipt: the receipt it cancels. */
+    reversalOfReceiptId: uuid('reversal_of_receipt_id'),
+    /** Set on the ORIGINAL receipt when it has been reversed. */
+    reversedByReceiptId: uuid('reversed_by_receipt_id'),
+    reversedAt: timestamp('reversed_at', { withTimezone: true }),
+    /** Who asked for the reversal, and why — the audit trail. */
+    reversedByUserId: varchar('reversed_by_user_id', { length: 200 }),
+    reversalReason: text('reversal_reason'),
     ...auditTimestamps,
   },
   (t) => ({
     goodsInReceiptsSiteIdx: index('goods_in_receipts_site_idx').on(t.siteId),
+    goodsInReceiptsReversalIdx: index('goods_in_receipts_reversal_idx').on(t.reversalOfReceiptId),
   }),
 );
 

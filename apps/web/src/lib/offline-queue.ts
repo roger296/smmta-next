@@ -194,7 +194,7 @@ export class OfflineQueue {
    * rather than being retried forever.
    */
   async flush(
-    send: (action: QueuedAction) => Promise<void>,
+    send: (action: QueuedAction) => Promise<unknown>,
     now: () => number = () => Date.now(),
   ): Promise<FlushResult> {
     let sent = 0;

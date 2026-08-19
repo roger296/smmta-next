@@ -1136,3 +1136,147 @@ connectivity on any page, including `/pin-login` before anyone has signed back
 in, and scoping the replayer to the venue layout would leave unsent work
 waiting for someone to navigate back to a venue screen — a smaller version of
 A-2 itself.
+
+## F6 — PIN login as the iPad home-screen entry point (E-2, E-6) (2026-08-19)
+
+"Adding the iPad PIN login page to the home screen redirects incorrectly to the
+standard email login page." `manifest.webmanifest` set `start_url: "/"`; `/` is
+under `_authed`, whose `beforeLoad` sends an unauthenticated visitor to
+`/login`.
+
+- **Manifest:** `start_url: "/pin-login"`, `scope: "/"` (so links out of the
+  PIN screen stay inside the PWA), and `id: "/pin-login"` so an existing
+  installed icon **updates** rather than duplicating. `orientation` goes from
+  `"portrait"` to `"any"` (E-6) — the venue tested and will use both.
+- **Redirect by device, not by guesswork.** Fixing `start_url` alone is not
+  enough: an installed icon can still land on `/` (a saved state, a navigation,
+  an older install). New `lib/display-mode.ts` reads `display-mode: standalone`
+  **and** the older iOS-only `navigator.standalone` — which is what an iPad
+  added to the home screen actually reports. `signInRouteFor()` sends any
+  `_touch` route to `/pin-login` always, and `/` to `/pin-login` only when
+  launched from an icon. `/login` stays reachable for office users, and the PIN
+  screen carries a "Sign in with email instead" link.
+- **Service-worker hygiene.** `/pin-login` joins the pre-cached shell — an
+  installed icon opened with no network must reach the sign-in screen, not a
+  browser error. The cache name was the hard-coded literal `…-shell-v1`, which
+  meant **a redeploy never invalidated anything**: `activate` only deletes
+  caches whose key differs from the current one, and the key never changed, so
+  a stale shell was served cache-first for ever. It is now
+  `bigbakes-stock-shell-${BUILD_ID}`, substituted by a small
+  `serviceWorkerBuildId()` Vite plugin at `generateBundle` (Vite copies
+  `public/` verbatim, so it has to happen there). API traffic stays uncached.
+- **`apple-mobile-web-app-status-bar-style: black-translucent`** added to
+  `index.html`. The safe-area padding on `.topbar` (`env(safe-area-inset-top)`)
+  is applied exactly once — F5's `--tvv-offset` is the visual viewport's
+  offset, a different quantity, so there is no double-count.
+- **A PIN sign-in lands on a venue home** (`/venue`), a three-tile touch screen
+  (Goods In / End of Bake / Stock Take) under the `_touch` layout with the
+  venue named across the top — not the desktop dashboard, which is an admin
+  page inside the admin shell on a device with no keyboard or mouse. "Sign out"
+  keeps the device's venue binding (it belongs to the iPad, not to whoever last
+  tapped in); a separate "Sign out and forget this venue" clears it.
+
+**Tests:**
+- Unit: the manifest's `start_url`, `id`, `scope`, `display` and `orientation`;
+  the service worker pre-caches `/pin-login`, no longer contains the old literal
+  cache name, and derives the name from `BUILD_ID`; `index.html` carries the
+  status-bar style and `viewport-fit=cover`.
+- Unit: `isStandaloneDisplay` for standalone, for iOS `navigator.standalone`,
+  for an ordinary tab — and that it answers `false` rather than throwing when
+  `matchMedia` is unavailable, since it runs on the auth redirect path where a
+  throw is a white screen instead of a sign-in page. `signInRouteFor` for every
+  combination.
+- Playwright (iPad): an installed app opening `/` lands on `/pin-login`; a
+  venue screen while signed out lands there too; `/login` still renders the
+  email form; a browser tab on `/` still gets it; the email fallback link
+  works; the venue home shows all three jobs plus the venue chip and no desktop
+  chrome; a tile opens its job.
+- The API-side `pwa-assets.test.ts` assertion on `start_url` is updated to
+  match, with the reason inline.
+
+## F7 — Site binding, booking confirmation, undo and roles (E-1, E-3, E-4, E-5) (2026-08-19)
+
+"Accidental booking logged 100kg to Birmingham; requested an undo timer or
+role-based permission locks."
+
+**The chain (E-1).** `POST /auth/pin-login` returns the device's `siteId` and
+embeds it in the JWT; `pin-login.tsx` read only the token and discarded the
+rest. `SiteProvider` then defaulted to the first **active** site by
+`asc(sites.name)` — **Birmingham**, alphabetically first of the five seeded
+sites. A venue iPad in South London booked to Birmingham, silently.
+
+**Four independent safeguards, because one is not enough for a 100 kg error:**
+
+1. **The site is carried through (E-1).** `pin-login` stores the returned
+   `siteId`, `siteName`, label and roles; `POST /auth/pin-login` now returns the
+   site **name** too, because an id is not something a venue screen can put in
+   front of a baker. `SiteProvider`'s precedence is **device → explicit user
+   choice → stored → first active**, and it never falls through to alphabetical
+   order when the device names a site. When it *does* default, `isBound` is
+   false and the venue chip renders in `warn` styling reading "not set for this
+   device" — the 12 Aug behaviour is still the last resort, but it is no longer
+   silent.
+2. **Confirm before booking (E-5).** Book-in opens a `BottomSheet` restating the
+   destination venue **large and first** (it is the fact that was wrong), the
+   line count, and each line as `4 × 25 kg sack = 100000 g` — the form a human
+   checks, not the raw numbers the form holds. An unbound venue is flagged
+   inside the sheet too. Cancel returns with every entry intact.
+3. **Undo (E-3).** New `POST /goods-in/:id/reverse` creates a **reversing
+   receipt**: mirrored negative lines and `stock_movements`, its own
+   idempotency key derived from the original receipt id, an audit reason and
+   user, and one mirroring GL posting. It never mutates or deletes the original
+   — the ledger is an audit trail, and a correction that edits history is one
+   nobody can later explain. The two rows point at each other in both
+   directions. A 90-second undo bar with a **visible countdown** calls it; when
+   the window lapses a site manager can still void from the admin.
+4. **Roles (E-4).** New `requireRole` guard beside `requireAuth`, applied per
+   locked decision 5. `admin` passes every guard without being named in one.
+   Plus `requireBoundSite` — a write naming a different site than the token's
+   is refused for a `head_baker`, which is E-1's belt to the braces above.
+
+| Route | head_baker | site_manager | admin |
+|---|---|---|---|
+| `POST /goods-in` | ✓ | ✓ | ✓ |
+| `POST /stock-takes`, `/…/counts` | ✓ | ✓ | ✓ |
+| `POST /session-consumption` | ✓ | ✓ | ✓ |
+| `POST /goods-in/:id/reverse` | ✗ | ✓ | ✓ |
+| `POST /stock-takes/:id/approve` | ✗ | ✓ | ✓ |
+| `PUT /products/:id` with a cost change | ✗ | ✓ | ✓ |
+| any write naming another site | ✗ | ✓ | ✓ |
+
+The 403 message **names the roles that would work**, because it is surfaced to
+a baker through F2's error banner and "not allowed" alone is a dead end. The UI
+**hides** rather than disables the actions a role cannot perform (Approve, and
+Undo) — a greyed-out button nobody can explain is worse than no button.
+
+The cost guard is applied inside `PUT /products/:id` rather than as a blanket
+route guard: a head baker legitimately edits other product fields, and it is
+the **price** that moves money.
+
+**Tests:**
+- API: reversing zeroes the net movement for the product/site; the original row
+  is byte-for-byte intact and now points at its reversal with reason and user;
+  re-calling is idempotent (a double-tapped Undo reverses once, not twice into
+  negative stock); exactly one reversing GL entry; reversing a reversal is
+  refused; a missing receipt returns null.
+- API: **the full `requireRole` matrix** — every guarded route × every role,
+  plus a role with no permissions, plus `hasRole`'s admin-implicit behaviour.
+- **API named regression for E-1:** a PIN bound to London South with a body
+  naming Birmingham → **403**, and nothing written to Birmingham. Plus: the same
+  booking to its own site succeeds; a `site_manager` may cross sites (someone
+  has to be able to fix a mis-booking); an unscoped desk login is site-agnostic;
+  the same guard covers opening a stock-take.
+- **Web named regression for E-1:** `SiteProvider` prefers the JWT/device site
+  over both localStorage and the alphabetical default, with a fixture shaped
+  like the real one (Birmingham first alphabetically, device bound to London
+  South). Red-to-green verified: all 7 fail against the pre-F7 provider.
+- Web: the confirmation names the venue before anything is posted; restates
+  each line as `4 × 25 kg sack = …`; cancel keeps the entries; the unbound
+  warning appears. Undo fires the reversal for the right receipt; a refused
+  reversal surfaces in the banner; a **queued** booking offers no Undo (there
+  is no receipt to reverse — offering one would be A-1 in a different costume);
+  a head baker is not offered an Undo they would only be refused.
+- Playwright (iPad): book a line, the sheet names the venue, confirm, the undo
+  bar appears, tap undo, the reversal request fires for that receipt id; cancel
+  posts nothing; the chip shows `warn` when unbound and the bound venue when
+  not.

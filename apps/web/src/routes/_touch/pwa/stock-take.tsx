@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch, MAX_PAGE_SIZE, type PaginatedResult } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
+import { useRoles } from '@/features/auth/use-roles';
 import { bucketCount, bucketNote } from '@/lib/uom';
 import {
   useOpenStockTake,
@@ -134,12 +135,17 @@ export function matchesSearch(line: TakeLine, mapped: Product | undefined, query
 /** Exported so the component tests can render the screen without a router. */
 export function StockTakeScreen() {
   const navigate = useNavigate();
-  const { selectedSite, selectedSiteId } = useSiteContext();
+  const { selectedSite, selectedSiteId, isBound } = useSiteContext();
   const { data: productMap } = useProductMap();
   const open = useOpenStockTake();
   const record = useRecordStockTakeCounts();
   const approve = useApproveStockTake();
   const { toast } = useToast();
+  // Approval writes the variance straight into the ledger, so it is
+  // site_manager+ (E-4). HIDDEN rather than disabled: a greyed-out button a
+  // baker cannot explain is a dead end, which is the complaint this came from.
+  const { can } = useRoles();
+  const mayApprove = can(['site_manager']);
 
   const [scope, setScope] = React.useState('FULL');
   const [takeId, setTakeId] = React.useState<string | null>(null);
@@ -236,6 +242,7 @@ export function StockTakeScreen() {
         <TouchTopbar
           title="Stock-take"
           venue={selectedSite?.name ?? null}
+        venueBound={isBound}
           onBack={() => void navigate({ to: '/' })}
         />
         <div className="scroll">
@@ -282,6 +289,7 @@ export function StockTakeScreen() {
       <TouchTopbar
         title="Stock-take"
         venue={selectedSite?.name ?? null}
+        venueBound={isBound}
         sub={scope === 'FULL' ? 'Full' : scope === 'CYCLE' ? 'Cycle' : 'Category'}
         onBack={() => setTakeId(null)}
         right={<PwaSyncPill />}
@@ -338,9 +346,11 @@ export function StockTakeScreen() {
         <BigButton variant="outline" disabled={record.isPending || countedTotal === 0} onClick={() => void submitCounts()}>
           {record.isPending ? 'Saving…' : 'Save counts'}
         </BigButton>
-        <BigButton variant="ok" disabled={approve.isPending} onClick={() => void approveTake()}>
-          {approve.isPending ? 'Approving…' : 'Approve & true-up'}
-        </BigButton>
+        {mayApprove && (
+          <BigButton variant="ok" disabled={approve.isPending} onClick={() => void approveTake()}>
+            {approve.isPending ? 'Approving…' : 'Approve & true-up'}
+          </BigButton>
+        )}
       </ActionBar>
 
       {typeTarget && (

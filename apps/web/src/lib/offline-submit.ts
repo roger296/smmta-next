@@ -31,14 +31,22 @@
 import { ApiError } from './api-client';
 import type { OfflineQueue, QueuedAction } from './offline-queue';
 
-export type SendFn = (action: QueuedAction) => Promise<void>;
+export type SendFn = (action: QueuedAction) => Promise<unknown>;
 
 export type SubmitOutcome = 'sent' | 'queued' | 'rejected';
 
-export interface SubmitResult {
+export interface SubmitResult<T = unknown> {
   status: SubmitOutcome;
   /** Present when `status === 'rejected'` — the server's own refusal. */
   error?: ApiError;
+  /**
+   * The server's response, when it reached the server (`'sent'`).
+   *
+   * Goods-in needs the receipt id back so the screen can offer an Undo
+   * (defect E-3) and show a receipt (A-5). A queued action has no response
+   * yet by definition — and correspondingly, no Undo to offer.
+   */
+  data?: T;
 }
 
 /**
@@ -52,20 +60,20 @@ export function isRejection(err: unknown): err is ApiError {
   return err.status >= 400 && err.status < 500;
 }
 
-export async function submitOrQueue(
+export async function submitOrQueue<T = unknown>(
   queue: OfflineQueue,
   action: QueuedAction,
   send: SendFn,
   isOnline: () => boolean = () => (typeof navigator === 'undefined' ? true : navigator.onLine),
-): Promise<SubmitResult> {
+): Promise<SubmitResult<T>> {
   if (!isOnline()) {
     await queue.enqueue(action);
     return { status: 'queued' };
   }
 
   try {
-    await send(action);
-    return { status: 'sent' };
+    const data = (await send(action)) as T;
+    return { status: 'sent', data };
   } catch (err) {
     if (isRejection(err)) {
       // Deliberately NOT enqueued. See the header — a refused payload is

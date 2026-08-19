@@ -602,3 +602,66 @@ judgement call so the fix run never blocked.
 - **The venue-screen URLs did not change.** `_touch` is a pathless layout, so
   `/pwa/*` still resolves — no redirect, no stale bookmark on a venue iPad, and
   `NAV_ITEMS` needed no edit.
+
+## F6 — PWA entry point
+
+- **`navigator.standalone` is checked as well as `display-mode: standalone`.**
+  The media query is the standard, but an iPad added to the home screen is
+  exactly the device this defect is about, and iOS has long reported the older
+  boolean. Checking only the standard signal would leave the reported case
+  unfixed.
+- **`isStandaloneDisplay` degrades to `false`, never throws.** It runs inside
+  `beforeLoad` on the auth redirect path, so a throw is a white screen instead
+  of a sign-in page. jsdom's lack of `matchMedia` made that concrete, and
+  there is a test for it.
+- **The redirect keys off the route as well as the display mode.** A `_touch`
+  route always means the PIN screen even in a browser tab: someone who has
+  navigated to a venue screen wants the venue sign-in whatever the chrome says.
+- **`scope` stays `/`, not `/pin-login`.** Narrowing it to the start URL would
+  push every link out of the PWA and into Safari — including the venue screens
+  the PIN screen exists to reach.
+- **The build id is time-derived, not content-derived.** The only property that
+  matters is that a new deploy produces a new key; hashing the bundle would be
+  more elegant and no more correct here.
+- **Sign-out keeps the device's venue binding.** The binding describes the
+  iPad, not the person. Clearing it on every sign-out would leave the next
+  person's sign-in screen unable to say which venue the device is for — which
+  is the B-5 half of the Birmingham booking. "Sign out and forget this venue"
+  is the separate, deliberate action.
+
+## F7 — site binding, confirmation, undo, roles
+
+- **Device beats stored, always.** The device knows where it physically is; a
+  localStorage entry is a memory of what someone once chose, possibly on a
+  different device or before it was moved. Letting the stored value win would
+  reproduce E-1 with extra steps.
+- **A defaulted site is shown as unbound rather than suppressed.** Refusing to
+  work without a binding would block a venue whose PIN setup is incomplete —
+  and the bindings are data someone has to enter (human task 3). Naming the
+  guess is the honest middle: the work proceeds, and nobody can claim they
+  weren't told.
+- **Undo is a reversing receipt, not a delete.** Locked decision 6. It also
+  makes the undo window a UI convenience rather than a special power: after 90
+  seconds the *same* reversal is available to a site manager from the admin,
+  because it was never a different mechanism.
+- **The reversal's idempotency key is derived from the original receipt id.**
+  A double-tapped Undo, or a replay, must reverse once. Deriving rather than
+  generating means the second call finds the first.
+- **Reversing a reversal is refused (409).** It would net back to the original
+  booking, which is almost certainly not what a second Undo tap means.
+- **`reversal_of_receipt_id` is not a foreign key.** The pair is written in one
+  transaction and points both ways; a self-referential FK in both directions is
+  a chicken-and-egg on insert. `GoodsInService.reverse` is the only writer.
+- **Undo is NOT offline-queued.** It is a 90-second window on a screen someone
+  is watching. Queuing it would land the reversal minutes later, after the
+  person walked away believing it was done — the A-1 failure mode exactly. A
+  queued booking correspondingly offers no Undo at all.
+- **Role-gated actions are hidden, not disabled.** The complaint behind E-4 was
+  dead ends. A disabled control with no explanation is a dead end with extra
+  visual noise; the server still refuses either way.
+- **The cost guard lives inside `PUT /products/:id`, not on the route.** A head
+  baker legitimately edits other product fields. Gating the whole route would
+  block work the role should do, to protect one field.
+- **`site_manager` may cross sites deliberately.** The guard exists to stop an
+  accident, not to make a mis-booking unfixable. Someone has to be able to
+  correct Birmingham from an office.

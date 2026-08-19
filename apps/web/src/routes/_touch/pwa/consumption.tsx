@@ -53,7 +53,7 @@ function today(): string {
 /** Exported so the component tests can render the screen without a router. */
 export function ConsumptionScreen() {
   const navigate = useNavigate();
-  const { selectedSite, selectedSiteId } = useSiteContext();
+  const { selectedSite, selectedSiteId, isBound } = useSiteContext();
   const { data: bakes } = useBakes();
   const expected = useExpectedConsumption();
   const submit = useSubmitConsumption();
@@ -181,6 +181,7 @@ export function ConsumptionScreen() {
         <TouchTopbar
           title="End of bake"
           venue={selectedSite?.name ?? null}
+        venueBound={isBound}
           onBack={() => void navigate({ to: '/' })}
         />
         <div className="scroll">
@@ -305,6 +306,7 @@ export function ConsumptionScreen() {
       <TouchTopbar
         title="End of bake"
         venue={selectedSite?.name ?? null}
+        venueBound={isBound}
         sub={bake || undefined}
         onBack={() => setLoaded(false)}
         right={<PwaSyncPill />}

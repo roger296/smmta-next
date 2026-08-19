@@ -237,6 +237,58 @@ export function ActionBar({ children }: { children: React.ReactNode }) {
   return <div className="actionbar">{children}</div>;
 }
 
+/**
+ * A time-boxed undo (Aug-2026 feedback set, defect E-3).
+ *
+ * "Accidental booking logged 100kg to Birmingham; requested an undo timer."
+ * The countdown is shown, not implied: a window you cannot see the end of is
+ * one you cannot rely on. When it lapses the bar removes itself and a site
+ * manager can still void the receipt from the admin — the undo is a
+ * convenience over the reversal, never the only route to it.
+ */
+export function UndoBar({
+  message, actionLabel = 'Undo', seconds = 90, disabled, onAction, onExpire,
+}: {
+  message: React.ReactNode;
+  actionLabel?: string;
+  seconds?: number;
+  disabled?: boolean;
+  onAction: () => void;
+  onExpire: () => void;
+}) {
+  const [remaining, setRemaining] = React.useState(seconds);
+  // Held in a ref so the interval below never needs `onExpire` in its deps —
+  // a caller passing an inline arrow would otherwise restart the countdown on
+  // every render, and the window would never end.
+  const expireRef = React.useRef(onExpire);
+  expireRef.current = onExpire;
+
+  React.useEffect(() => {
+    setRemaining(seconds);
+    const id = setInterval(() => {
+      setRemaining((r) => {
+        if (r <= 1) {
+          clearInterval(id);
+          expireRef.current();
+          return 0;
+        }
+        return r - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [seconds]);
+
+  return (
+    <div className="undobar" role="status">
+      <span className="undobar-message">{message}</span>
+      <span className="undobar-timer" aria-hidden>{remaining}s</span>
+      <button type="button" className="undobar-action" onClick={onAction} disabled={disabled}>
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
 const FRACTIONS: Array<{ label: string; value: number }> = [
   { label: '¼', value: 0.25 },
   { label: '½', value: 0.5 },
