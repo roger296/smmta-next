@@ -1411,3 +1411,57 @@ single grams — which is why nothing flagged it.
 Also fixed while here: the labels in the goods-in details sheet had no `for`
 attribute, so they were tied to nothing for a screen reader (and for any
 by-label query).
+
+## F10 — Number entry that behaves (D-4, D-5) (2026-08-19)
+
+"Default numbers are not overridden when typing (entering '3' into a default
+field of '1' results in '13')" and "Request to enable direct number pad typing
+on laptop keyboards."
+
+**The root cause.** `KeypadSheet` seeded its buffer with `String(initial)`, so
+the first keypress **appended**. Every quantity a baker typed was silently
+concatenated onto the default they were trying to replace. And there was no
+`keydown` handling anywhere in either sheet.
+
+- **First keystroke replaces.** New `use-numeric-entry.ts` holds a `pristine`
+  state: the starting value is shown, the first digit (tap **or** keyboard)
+  replaces it, subsequent digits append. Backspace on a pristine value clears
+  it outright rather than nibbling the default one character at a time — the
+  user is replacing it. The original stays visible as **"was 1"**, so nothing
+  is lost by the replacement.
+- **Physical keyboard (D-5).** While the sheet is open: `0-9` and `.` (and `,`)
+  push, `Backspace`/`Delete` delete, `Enter` confirms, `Escape` cancels. Focus
+  is trapped in the sheet (Tab cycles inside it) and **returned to the invoking
+  control** on close.
+- **One implementation, not two.** `KeypadSheet` and `WastageSheet` had
+  near-duplicate keypads with the same append bug and the same missing keyboard
+  support. Both now share `useNumericEntry` + a new `NumericKeypad`, so the
+  behaviour cannot drift apart again. The End of Bake table counts use the same
+  `KeypadSheet`, so they are covered by construction.
+- **`allowDecimal={false}`** (the table counts) rejects `.` from both tap and
+  keyboard — and *consumes* the keystroke, because a stray "." landing
+  elsewhere on the page is worse than nothing happening.
+- **Desktop inputs select on focus.** The plain `.input` fields (unit cost,
+  batch code, wastage reason) select their content on focus, so typing
+  replaces. That is the same D-4 complaint in its laptop form: the caret lands
+  after the default and you type into it.
+- **Accessibility.** The keypad display is a `role="status"` live region
+  announcing the value as it is typed (it changes without focus moving, so a
+  screen reader would otherwise never hear it), and every key has an accessible
+  name.
+
+**Tests** (red-to-green verified: restoring the pre-F10 `touch.tsx` fails 8 of
+the sheet specs):
+- Unit: pristine-then-replace — initial `1`, press `3` → `3`, press `0` → `30`;
+  backspace on pristine clears; `.` on pristine gives `0.`; no second decimal
+  point; a leading zero is a placeholder; a new target resets; `allowDecimal:
+  false` rejects `.` from tap and keyboard; every key mapping; `Enter`/`Escape`
+  return an action **without mutating**; unrelated keys are not consumed.
+- Component: tapping `3` into a default of `1` confirms **3**; "was 1" is shown
+  and then goes; the display announces; typing `3` + Enter confirms 3; a
+  multi-digit and a decimal quantity round-trip; Backspace; Escape does not
+  confirm; the decimal key is disabled for table counts; Save is refused on an
+  empty buffer; focus returns to the opener.
+- **Playwright (desktop), the direct D-4 regression:** open a quantity keypad,
+  type `3` on the physical keyboard, press Enter, assert the line reads **3**
+  — and that the row hint then reads `3 × 25 kg sack = 75 kg`.

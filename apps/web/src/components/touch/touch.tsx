@@ -6,6 +6,7 @@
  * full-screen over the admin chrome.
  */
 import * as React from 'react';
+import { useNumericEntry } from './use-numeric-entry';
 import './pwa-touch.css';
 
 /** Add/replace the fractional part while keeping the whole number (4 + ½ = 4.5;
@@ -18,6 +19,19 @@ export function partUnit(current: number, fraction: number): number {
 }
 
 export type SyncState = 'synced' | 'syncing' | 'pending' | 'offline';
+
+/**
+ * Select a text input's content on focus (Aug-2026, D-4 on the plain fields).
+ *
+ * The keypad's first-keystroke-replaces fix covers the touch path; the plain
+ * `.input` fields in the details and wastage sheets are typed on a laptop
+ * keyboard, where the same problem appears as "the caret lands after the
+ * default and I type into it". Selecting means typing replaces, which is what
+ * every other field on every other system does.
+ */
+export function selectOnFocus(event: React.FocusEvent<HTMLInputElement>): void {
+  event.target.select();
+}
 
 /**
  * Full-screen touch shell.
@@ -238,6 +252,36 @@ export function ActionBar({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Confirm before losing uncommitted work (Aug-2026 feedback set, A-5).
+ *
+ * "Lack of visual feedback on screen exits leaves users uncertain whether
+ * inputs are saved, deleted, or processed." Back used to discard silently, so
+ * there was no way to tell a successful save from a lost one.
+ */
+export function DiscardGuardSheet({
+  title, message, discardLabel = 'Discard', keepLabel = 'Keep editing', onDiscard, onKeep,
+}: {
+  title: React.ReactNode;
+  message: React.ReactNode;
+  discardLabel?: string;
+  keepLabel?: string;
+  onDiscard: () => void;
+  onKeep: () => void;
+}) {
+  return (
+    <BottomSheet title={title} onClose={onKeep}>
+      <p className="lede">{message}</p>
+      <div className="sheet-actions">
+        {/* "Keep editing" is the SOLID one: the safe choice should be the one
+            a thumb finds first. */}
+        <BigButton variant="solid" onClick={onKeep}>{keepLabel}</BigButton>
+        <BigButton variant="ghost" onClick={onDiscard}>{discardLabel}</BigButton>
+      </div>
+    </BottomSheet>
+  );
+}
+
+/**
  * A time-boxed undo (Aug-2026 feedback set, defect E-3).
  *
  * "Accidental booking logged 100kg to Birmingham; requested an undo timer."
@@ -361,14 +405,115 @@ export function CountRow({
   );
 }
 
-export function BottomSheet({ title, onClose, children }: { title: React.ReactNode; onClose: () => void; children: React.ReactNode }) {
+export function BottomSheet({
+  title, onClose, children, onKeyDown,
+}: {
+  title: React.ReactNode;
+  onClose: () => void;
+  children: React.ReactNode;
+  onKeyDown?: (event: React.KeyboardEvent) => void;
+}) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  // Where focus was before the sheet opened, so it can be given back (D-5).
+  const restoreRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    restoreRef.current = document.activeElement as HTMLElement | null;
+    // Focus the sheet itself so keystrokes reach `onKeyDown` immediately —
+    // "type 3, press Enter" must work without hunting for a control first.
+    ref.current?.focus();
+    return () => restoreRef.current?.focus?.();
+  }, []);
+
+  /** Keep Tab inside the sheet while it is open. */
+  const trapTab = (event: React.KeyboardEvent) => {
+    if (event.key !== 'Tab') return;
+    const focusable = ref.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable || focusable.length === 0) return;
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={ref}
+        className="sheet"
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(event) => {
+          trapTab(event);
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            onClose();
+            return;
+          }
+          onKeyDown?.(event);
+        }}
+      >
         {title != null && <h2>{title}</h2>}
         {children}
       </div>
     </div>
+  );
+}
+
+/**
+ * The keypad's own display + keys, shared by every sheet that takes a number
+ * (Aug-2026, D-4/D-5). Extracted so `KeypadSheet` and the wastage keypad —
+ * which were near-duplicates — cannot drift apart again.
+ */
+export function NumericKeypad({
+  entry, allowDecimal = true,
+}: {
+  entry: ReturnType<typeof useNumericEntry>;
+  allowDecimal?: boolean;
+}) {
+  return (
+    <>
+      {/* A live region: the value changes without focus moving, so a screen
+          reader would otherwise never hear the number being typed. */}
+      <div className="keydisplay" role="status" aria-live="polite" aria-atomic="true">
+        {entry.value || '0'}
+      </div>
+      {/* D-4: the starting value stays visible, so replacing it loses nothing. */}
+      {entry.pristine && entry.initial !== 0 && (
+        <div className="keydisplay-was">was {entry.initial}</div>
+      )}
+      <div className="keypad">
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((k) => (
+          <button key={k} type="button" className="key" aria-label={k} onClick={() => entry.push(k)}>
+            {k}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="key"
+          aria-label="Decimal point"
+          onClick={() => entry.push('.')}
+          disabled={!allowDecimal}
+        >
+          .
+        </button>
+        <button type="button" className="key" aria-label="0" onClick={() => entry.push('0')}>
+          0
+        </button>
+        <button type="button" className="key" onClick={entry.backspace} aria-label="Backspace">
+          ⌫
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -383,31 +528,28 @@ export function KeypadSheet({
   onConfirm: (q: number) => void;
   allowDecimal?: boolean;
 }) {
-  const [value, setValue] = React.useState(initial ? String(initial) : '');
-  const push = (ch: string) => {
-    setValue((v) => {
-      if (ch === '.' && (v.includes('.') || !allowDecimal)) return v;
-      if (ch === '.' && v === '') return '0.';
-      if (v === '0' && ch !== '.') return ch;
-      return (v + ch).slice(0, 9);
-    });
+  const entry = useNumericEntry({ initial, allowDecimal });
+
+  const confirm = () => {
+    if (entry.valid) onConfirm(entry.numeric);
   };
-  const num = Number(value);
-  const valid = value !== '' && Number.isFinite(num) && num >= 0;
+
   return (
-    <BottomSheet title={title} onClose={onCancel}>
-      <div className="keydisplay">{value || '0'}</div>
-      <div className="keypad">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((k) => (
-          <button key={k} className="key" onClick={() => push(k)}>{k}</button>
-        ))}
-        <button className="key" onClick={() => push('.')} disabled={!allowDecimal}>.</button>
-        <button className="key" onClick={() => push('0')}>0</button>
-        <button className="key" onClick={() => setValue((v) => v.slice(0, -1))} aria-label="Backspace">⌫</button>
-      </div>
+    <BottomSheet
+      title={title}
+      onClose={onCancel}
+      // D-5: "Request to enable direct number pad typing on laptop keyboards."
+      // 0-9 and . push, Backspace deletes, Enter confirms, Escape cancels.
+      onKeyDown={(event) => {
+        const action = entry.handleKey(event);
+        if (action === 'confirm') confirm();
+        if (action === 'cancel') onCancel();
+      }}
+    >
+      <NumericKeypad entry={entry} allowDecimal={allowDecimal} />
       <div className="sheet-actions">
         <BigButton variant="ghost" onClick={onCancel}>Cancel</BigButton>
-        <BigButton variant="solid" disabled={!valid} onClick={() => onConfirm(num)}>Save</BigButton>
+        <BigButton variant="solid" disabled={!entry.valid} onClick={confirm}>Save</BigButton>
       </div>
     </BottomSheet>
   );

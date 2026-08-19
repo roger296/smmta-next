@@ -406,3 +406,10 @@ body.touch-layout-active { overflow: hidden; overscroll-behavior: none; }
 .touch-app .confirm-line:last-child { border-bottom: none; }
 .touch-app .confirm-line-name { font-weight: 600; }
 .touch-app .confirm-line-qty { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
+
+/* ── Keypad: the value being replaced stays visible (D-4) ─────────────────── */
+.touch-app .keydisplay-was {
+  text-align: right; font-size: 13px; font-weight: 600; color: var(--muted);
+  margin: -6px 0 8px; font-variant-numeric: tabular-nums;
+}
+.touch-app .key:disabled { opacity: 0.35; }

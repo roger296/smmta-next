@@ -710,3 +710,25 @@ judgement call so the fix run never blocked.
 - **The needs-setup payload is `{ rows, summary }` inside `data`.** The
   envelope's sibling keys are reserved for pagination and `apiFetch` unwraps
   `data`, so a top-level `summary` would have been silently dropped.
+
+## F10 — number entry
+
+- **"Pristine" rather than "select all on open".** Selecting the buffer would
+  work for a keyboard but means nothing for a tap, and the venue's primary
+  input is a finger. A pristine flag gives both the same behaviour.
+- **Backspace on a pristine value clears the whole thing.** Deleting one
+  character off a default the user is visibly replacing is a half-measure that
+  leaves a confusing remainder ("1" → "" is right; "250" → "25" is not what
+  anyone meant).
+- **The "was N" hint exists because replacing is destructive.** The old value
+  is gone the moment the first digit lands; showing it costs a line and removes
+  any doubt about what was there.
+- **A rejected "." is still consumed.** On `allowDecimal={false}` the keystroke
+  is swallowed rather than passed through — a "." arriving somewhere else on
+  the page is a stranger failure than nothing happening.
+- **One hook for both sheets.** The wastage keypad was a copy of the quantity
+  keypad, which is why one bug was two bugs. Sharing it is the actual fix; the
+  behaviour change is only half.
+- **The display is a live region.** Its value changes with no focus movement,
+  so without `aria-live` a screen-reader user gets no feedback at all from
+  either the keypad or the keyboard.

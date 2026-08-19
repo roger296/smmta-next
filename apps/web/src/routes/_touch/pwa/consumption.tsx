@@ -14,7 +14,10 @@ import {
   BigButton,
   ActionBar,
   ErrorBanner,
+  NumericKeypad,
+  selectOnFocus,
 } from '@/components/touch/touch';
+import { useNumericEntry } from '@/components/touch/use-numeric-entry';
 
 export const Route = createFileRoute('/_touch/pwa/consumption')({
   component: ConsumptionScreen,
@@ -447,6 +450,14 @@ export function ConsumptionScreen() {
   );
 }
 
+/**
+ * Wastage entry.
+ *
+ * The keypad here was a near-duplicate of `KeypadSheet`'s, with the same D-4
+ * append bug and the same missing keyboard support. Both now share
+ * `useNumericEntry` + `NumericKeypad`, so the behaviour cannot drift apart
+ * again (Aug-2026, D-4/D-5).
+ */
 function WastageSheet({
   line, onCancel, onSave,
 }: {
@@ -454,39 +465,45 @@ function WastageSheet({
   onCancel: () => void;
   onSave: (qty: number, reason: string) => void;
 }) {
-  const [value, setValue] = React.useState(line.wastageQty ? String(line.wastageQty) : '');
+  const entry = useNumericEntry({ initial: line.wastageQty });
   const [reason, setReason] = React.useState(line.wastageReason);
-  const push = (ch: string) =>
-    setValue((v) => {
-      if (ch === '.' && v.includes('.')) return v;
-      if (ch === '.' && v === '') return '0.';
-      if (v === '0' && ch !== '.') return ch;
-      return (v + ch).slice(0, 9);
-    });
-  const num = Number(value) || 0;
+  const save = () => onSave(entry.valid ? entry.numeric : 0, reason.trim());
+
   return (
-    <BottomSheet title={`${line.name} — wastage (${line.stockUom})`} onClose={onCancel}>
-      <div className="keydisplay">{value || '0'}</div>
-      <div className="keypad">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((k) => (
-          <button key={k} className="key" onClick={() => push(k)}>{k}</button>
-        ))}
-        <button className="key" onClick={() => push('.')}>.</button>
-        <button className="key" onClick={() => push('0')}>0</button>
-        <button className="key" onClick={() => setValue((v) => v.slice(0, -1))} aria-label="Backspace">⌫</button>
-      </div>
+    <BottomSheet
+      title={`${line.name} — wastage (${line.stockUom})`}
+      onClose={onCancel}
+      onKeyDown={(event) => {
+        // Only while the keypad has focus — typing a reason must not be
+        // intercepted digit by digit.
+        const target = event.target as HTMLElement | null;
+        if (target?.tagName === 'INPUT') return;
+        const action = entry.handleKey(event);
+        if (action === 'confirm') save();
+        if (action === 'cancel') onCancel();
+      }}
+    >
+      <NumericKeypad entry={entry} />
       <div className="field" style={{ marginTop: 14 }}>
-        <label>Reason</label>
+        <label htmlFor="waste-reason">Reason</label>
         <div className="toolbar" style={{ padding: 0, background: 'transparent', border: 'none', flexWrap: 'wrap' }}>
           {WASTE_REASONS.map((r) => (
-            <button key={r} className={`chip${reason === r ? ' on' : ''}`} onClick={() => setReason(r)}>{r}</button>
+            <button key={r} type="button" className={`chip${reason === r ? ' on' : ''}`} onClick={() => setReason(r)}>{r}</button>
           ))}
         </div>
-        <input className="input" style={{ marginTop: 10 }} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="or type a reason" />
+        <input
+          id="waste-reason"
+          className="input"
+          style={{ marginTop: 10 }}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          onFocus={selectOnFocus}
+          placeholder="or type a reason"
+        />
       </div>
       <div className="sheet-actions">
         <BigButton variant="ghost" onClick={() => onSave(0, '')}>Clear</BigButton>
-        <BigButton variant="solid" onClick={() => onSave(num, reason.trim())}>Save</BigButton>
+        <BigButton variant="solid" onClick={save}>Save</BigButton>
       </div>
     </BottomSheet>
   );
