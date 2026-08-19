@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#3B5266" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!--
+      Standalone status bar (Aug-2026 feedback set, E-2). `black-translucent`
+      makes the web view extend UNDER the status bar, which is why
+      `.topbar` pads with env(safe-area-inset-top) — verified after F5's
+      visual-viewport work that the inset is applied once, not twice.
+    -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Big Bakes Stock" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

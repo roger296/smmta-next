@@ -7,8 +7,26 @@
  * navigation request the cached shell is served as a fallback so a refresh
  * while offline still boots the SPA.
  */
-const CACHE = 'autostock-shell-v1';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest'];
+/*
+ * Cache name (Aug-2026 feedback set, E-2).
+ *
+ * This was a hard-coded literal (the old "…-shell-v1" name). A redeploy
+ * therefore kept serving the OLD shell cache-first for ever, because the
+ * `activate` handler only deletes caches whose key differs from the current
+ * one — and the key never changed. `__BUILD_ID__` is substituted at build time
+ * (see vite.config.ts), so every deploy gets its own cache and the previous
+ * one is swept on activate. Unsubstituted (dev, serving straight from
+ * `public/`) the name is stable and still not the old literal.
+ */
+const BUILD_ID = '__BUILD_ID__';
+const CACHE = `bigbakes-stock-shell-${BUILD_ID}`;
+
+/*
+ * `/pin-login` is in the shell because it is the PWA's `start_url` (E-2) — an
+ * installed icon opened with no network must still reach the sign-in screen,
+ * not a browser error page.
+ */
+const SHELL = ['/', '/index.html', '/pin-login', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

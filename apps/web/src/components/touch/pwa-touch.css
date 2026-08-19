@@ -348,3 +348,61 @@
 /* While a venue screen is mounted the document behind it must not scroll —
    TouchViewportLock adds this class (defect B-3). */
 body.touch-layout-active { overflow: hidden; overscroll-behavior: none; }
+
+/* ── Venue home (the three-job screen a PIN sign-in lands on, E-2) ────────── */
+.touch-app .venue-jobs { gap: 14px; }
+.touch-app .tile.job {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  gap: 4px; min-height: 96px; padding: 18px 20px; text-align: left;
+}
+.touch-app .tile.job .job-label { font-size: 22px; font-weight: 700; }
+.touch-app .tile.job .job-hint { font-size: 14px; color: var(--muted); font-weight: 500; }
+.touch-app .linklike {
+  background: none; border: none; color: var(--accent); font-size: 15px; font-weight: 600;
+  text-decoration: underline; min-height: 46px; padding: 0 8px;
+}
+
+/* ── Undo bar (the 90-second window after a booking, E-3) ─────────────────── */
+.touch-app .undobar {
+  position: absolute; left: 0; right: 0; bottom: 88px; z-index: 30;
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 16px; padding: 10px 12px 10px 16px;
+  background: var(--ink); color: #fff; border-radius: var(--t-radius);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+.touch-app .undobar-message { flex: 1; font-size: 15px; font-weight: 600; }
+.touch-app .undobar-timer {
+  font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0.75;
+}
+.touch-app .undobar-action {
+  min-height: 46px; min-width: 88px; padding: 0 16px;
+  background: #fff; color: var(--ink); border: none; border-radius: var(--t-radius);
+  font-size: 16px; font-weight: 700;
+}
+.touch-app .undobar-action:disabled { opacity: 0.6; }
+
+/* ── Booking confirmation sheet (E-5) ─────────────────────────────────────── */
+.touch-app .confirm-venue {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 16px; margin-bottom: 14px;
+  background: var(--accent-soft); border-radius: var(--t-radius);
+}
+.touch-app .confirm-venue-label {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted);
+}
+/* Large, because the venue is the fact that was wrong on 12 Aug. */
+.touch-app .confirm-venue-name { font-size: 26px; font-weight: 800; line-height: 1.15; }
+.touch-app .confirm-venue-name.warn { color: var(--bar-venue-warn); }
+.touch-app .confirm-venue-warn { font-size: 13px; font-weight: 600; color: var(--bar-venue-warn); }
+.touch-app .confirm-count {
+  font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); margin-bottom: 6px;
+}
+.touch-app .confirm-line {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--line);
+}
+.touch-app .confirm-line:last-child { border-bottom: none; }
+.touch-app .confirm-line-name { font-weight: 600; }
+.touch-app .confirm-line-qty { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }

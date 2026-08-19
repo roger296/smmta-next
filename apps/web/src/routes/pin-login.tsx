@@ -65,7 +65,10 @@ function PinLoginPage() {
         label: body.data.user.label,
         roles: body.data.user.roles,
       });
-      navigate({ to: '/' });
+      // Land on the venue home, not the desktop dashboard (defect E-2). `/`
+      // is an admin page inside the admin shell, on a device with no keyboard
+      // and no mouse.
+      navigate({ to: '/venue' });
     } catch {
       setError('Could not reach the server.');
     } finally {
@@ -107,6 +110,14 @@ function PinLoginPage() {
             <BigButton variant="solid" onClick={() => void submit()} disabled={submitting}>
               {submitting ? 'Signing in…' : 'Sign in'}
             </BigButton>
+          </div>
+
+          {/* Office and head-office users still need the email form; the PWA
+              just no longer sends a venue iPad there by default (E-2). */}
+          <div style={{ marginTop: 14, textAlign: 'center' }}>
+            <button type="button" className="linklike" onClick={() => void navigate({ to: '/login' })}>
+              Sign in with email instead
+            </button>
           </div>
         </div>
       </div>

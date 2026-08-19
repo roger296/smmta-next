@@ -4,11 +4,16 @@ import { Header } from '@/components/layout/header';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { SiteProvider } from '@/features/sites/site-context';
 import { isAuthenticated } from '@/lib/auth';
+import { signInRouteFor } from '@/lib/display-mode';
 
 export const Route = createFileRoute('/_authed')({
-  beforeLoad: () => {
+  beforeLoad: ({ location }) => {
     if (!isAuthenticated()) {
-      throw redirect({ to: '/login' });
+      // Redirect by DEVICE, not by guesswork (defect E-2). An installed
+      // home-screen icon is a venue iPad and belongs on the PIN screen; a
+      // browser tab is somebody at a desk and belongs on the email form.
+      // `/login` stays reachable either way.
+      throw redirect({ to: signInRouteFor(location.pathname) });
     }
   },
   component: AuthedLayout,

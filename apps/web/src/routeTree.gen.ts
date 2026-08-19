@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as TouchRouteRouteImport } from './routes/_touch/route'
 import { Route as AuthedRouteRouteImport } from './routes/_authed/route'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as TouchVenueRouteImport } from './routes/_touch/venue'
 import { Route as AuthedXeroAccountsRouteImport } from './routes/_authed/xero-accounts'
 import { Route as AuthedSquareRouteImport } from './routes/_authed/square'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
@@ -91,6 +92,11 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthedRouteRoute,
+} as any)
+const TouchVenueRoute = TouchVenueRouteImport.update({
+  id: '/venue',
+  path: '/venue',
+  getParentRoute: () => TouchRouteRoute,
 } as any)
 const AuthedXeroAccountsRoute = AuthedXeroAccountsRouteImport.update({
   id: '/xero-accounts',
@@ -350,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof AuthedReportsRoute
   '/square': typeof AuthedSquareRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
+  '/venue': typeof TouchVenueRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
   '/customers/new': typeof AuthedCustomersNewRoute
   '/integrations/bulk': typeof AuthedIntegrationsBulkRoute
@@ -404,6 +411,7 @@ export interface FileRoutesByTo {
   '/reports': typeof AuthedReportsRoute
   '/square': typeof AuthedSquareRoute
   '/xero-accounts': typeof AuthedXeroAccountsRoute
+  '/venue': typeof TouchVenueRoute
   '/customers/$id': typeof AuthedCustomersIdRoute
   '/customers/new': typeof AuthedCustomersNewRoute
   '/integrations/bulk': typeof AuthedIntegrationsBulkRoute
@@ -460,6 +468,7 @@ export interface FileRoutesById {
   '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/square': typeof AuthedSquareRoute
   '/_authed/xero-accounts': typeof AuthedXeroAccountsRoute
+  '/_touch/venue': typeof TouchVenueRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/customers/$id': typeof AuthedCustomersIdRoute
   '/_authed/customers/new': typeof AuthedCustomersNewRoute
@@ -517,6 +526,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/square'
     | '/xero-accounts'
+    | '/venue'
     | '/customers/$id'
     | '/customers/new'
     | '/integrations/bulk'
@@ -571,6 +581,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/square'
     | '/xero-accounts'
+    | '/venue'
     | '/customers/$id'
     | '/customers/new'
     | '/integrations/bulk'
@@ -626,6 +637,7 @@ export interface FileRouteTypes {
     | '/_authed/reports'
     | '/_authed/square'
     | '/_authed/xero-accounts'
+    | '/_touch/venue'
     | '/_authed/'
     | '/_authed/customers/$id'
     | '/_authed/customers/new'
@@ -722,6 +734,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
+    }
+    '/_touch/venue': {
+      id: '/_touch/venue'
+      path: '/venue'
+      fullPath: '/venue'
+      preLoaderRoute: typeof TouchVenueRouteImport
+      parentRoute: typeof TouchRouteRoute
     }
     '/_authed/xero-accounts': {
       id: '/_authed/xero-accounts'
@@ -1165,12 +1184,14 @@ const AuthedRouteRouteWithChildren = AuthedRouteRoute._addFileChildren(
 )
 
 interface TouchRouteRouteChildren {
+  TouchVenueRoute: typeof TouchVenueRoute
   TouchPwaConsumptionRoute: typeof TouchPwaConsumptionRoute
   TouchPwaGoodsInRoute: typeof TouchPwaGoodsInRoute
   TouchPwaStockTakeRoute: typeof TouchPwaStockTakeRoute
 }
 
 const TouchRouteRouteChildren: TouchRouteRouteChildren = {
+  TouchVenueRoute: TouchVenueRoute,
   TouchPwaConsumptionRoute: TouchPwaConsumptionRoute,
   TouchPwaGoodsInRoute: TouchPwaGoodsInRoute,
   TouchPwaStockTakeRoute: TouchPwaStockTakeRoute,
