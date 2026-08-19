@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
 import { hasRole } from '../../shared/middleware/require-role.js';
 import { ProductInUseError, ProductService, ProductValidationError } from './product.service.js';
+import { z } from 'zod';
 import {
   createProductSchema,
   updateProductSchema,
@@ -10,6 +11,10 @@ import {
 } from './product.schema.js';
 
 const productService = new ProductService();
+
+const attachBarcodeSchema = z.object({
+  barcode: z.string().trim().min(1).max(64),
+});
 
 export async function productRoutes(app: FastifyInstance) {
   // All routes require auth
@@ -21,6 +26,47 @@ export async function productRoutes(app: FastifyInstance) {
     const query = productQuerySchema.parse(request.query);
     const result = await productService.list(user.companyId, query);
     return { success: true, ...result };
+  });
+
+  // ── GET /products/by-code/:code ───────────────────────────────
+  // Unambiguous single-product resolution for a scan (defect C-3). Distinct
+  // from /products?search= on purpose: a scan wants one answer or none, not a
+  // relevance-ordered page it then has to guess from.
+  app.get('/products/by-code/:code', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { code } = request.params as { code: string };
+    const product = await productService.findByCode(user.companyId, code);
+    if (!product) {
+      return reply
+        .status(404)
+        .send({ success: false, error: `No product carries the code "${code}".` });
+    }
+    return { success: true, data: product };
+  });
+
+  // ── POST /products/:id/barcode ────────────────────────────────
+  // Attach a scanned code to an existing product, so the next delivery scans
+  // first time (defect C-3). A code already held elsewhere is a 409, never a
+  // silent overwrite.
+  app.post('/products/:id/barcode', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    const parsed = attachBarcodeSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .status(400)
+        .send({ success: false, error: 'Invalid request body', details: parsed.error.issues });
+    }
+    try {
+      const product = await productService.attachBarcode(user.companyId, id, parsed.data.barcode);
+      if (!product) return reply.status(404).send({ success: false, error: 'Product not found' });
+      return { success: true, data: product };
+    } catch (err) {
+      if (err instanceof ProductValidationError) {
+        return reply.status(409).send({ success: false, error: err.message });
+      }
+      throw err;
+    }
   });
 
   // ── GET /products/:id ─────────────────────────────────────────

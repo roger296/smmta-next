@@ -85,6 +85,72 @@ export class ProductService {
   // List / Search
   // ----------------------------------------------------------------
 
+  /**
+   * Resolve one code to exactly one product (Aug-2026 feedback, defect C-3).
+   *
+   * A scan is not a search. `resolveBarcodeToProduct` used to prefer an exact
+   * match **among whatever the search endpoint happened to return** — so a
+   * barcode that also appears as a substring of twenty product names could
+   * lose to a name relevance ordering, and a barcode not in the search
+   * predicate at all found nothing.
+   *
+   * Order matters: `barcode` (what the scanner reads) → `ean` (the legacy
+   * column, still populated) → `stockCode` (what a human types off a shelf
+   * label). Exact, case-insensitive, never a substring: a partial match here
+   * would book a delivery against the wrong product.
+   */
+  async findByCode(companyId: string, code: string) {
+    const trimmed = code.trim();
+    if (!trimmed) return null;
+
+    for (const column of [products.barcode, products.ean, products.stockCode]) {
+      const hit = await this.db.query.products.findFirst({
+        where: and(
+          eq(products.companyId, companyId),
+          isNull(products.deletedAt),
+          sql`lower(${column}) = lower(${trimmed})`,
+        ),
+        with: { manufacturer: true, images: true },
+      });
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /**
+   * Attach a scanned code to an existing product (defect C-3).
+   *
+   * The other half of "make a miss actionable": when a delivery arrives with a
+   * barcode nobody has recorded, the answer is to record it, so the next
+   * delivery scans first time. Refuses to steal a code already held by another
+   * product — a silent overwrite would send the *next* scan of that code to
+   * the wrong item.
+   */
+  async attachBarcode(companyId: string, productId: string, barcode: string) {
+    const trimmed = barcode.trim();
+    if (!trimmed) throw new ProductValidationError('A barcode is required.');
+
+    const holder = await this.db.query.products.findFirst({
+      where: and(
+        eq(products.companyId, companyId),
+        isNull(products.deletedAt),
+        sql`lower(${products.barcode}) = lower(${trimmed})`,
+      ),
+    });
+    if (holder && holder.id !== productId) {
+      throw new ProductValidationError(
+        `Barcode ${trimmed} is already on "${holder.name}". Remove it there first, or scan a different code.`,
+      );
+    }
+
+    const [updated] = await this.db
+      .update(products)
+      .set({ barcode: trimmed, updatedAt: new Date() })
+      .where(and(eq(products.id, productId), eq(products.companyId, companyId)))
+      .returning();
+    return updated ?? null;
+  }
+
   async list(companyId: string, query: ProductQueryInput) {
     const { page, pageSize, search, categoryId, manufacturerId, productType, itemKind } = query;
     const offset = paginationOffset(page, pageSize);
@@ -95,8 +161,13 @@ export class ProductService {
     ];
 
     if (search) {
+      // `barcode` is in the predicate (Aug-2026 feedback, defect C-3).
+      // `products` has had a `barcode` column AND a `products_barcode_idx`
+      // built for scan-to-find since the item model landed — but the search
+      // covered only name / stockCode / ean, so a manually-typed barcode found
+      // nothing. That is the icing sugar delivery, and the Skittles one.
       conditions.push(
-        sql`(${ilike(products.name, `%${search}%`)} OR ${ilike(products.stockCode, `%${search}%`)} OR ${ilike(products.ean, `%${search}%`)})`,
+        sql`(${ilike(products.name, `%${search}%`)} OR ${ilike(products.stockCode, `%${search}%`)} OR ${ilike(products.ean, `%${search}%`)} OR ${ilike(products.barcode, `%${search}%`)})`,
       );
     }
     if (manufacturerId) conditions.push(eq(products.manufacturerId, manufacturerId));

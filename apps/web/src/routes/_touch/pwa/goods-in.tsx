@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
 import { useRoles } from '@/features/auth/use-roles';
-import { resolveBarcodeToProduct } from '@/lib/barcode';
+import { attachBarcodeToProduct, productBarcodeLookup, resolveBarcodeToProduct } from '@/lib/barcode';
 import { purchaseToStock } from '@/lib/uom';
 import { useReceiveGoodsIn, useReverseGoodsIn } from '@/features/pwa/use-pwa-jobs';
 import type { Product } from '@/lib/api-types';
@@ -57,6 +57,10 @@ export function GoodsInScreen() {
   // After a successful booking, a 90-second window in which one tap issues a
   // reversing receipt (defect E-3).
   const [undo, setUndo] = React.useState<{ receiptId: string; venue: string } | null>(null);
+  // A miss is a fork in the road, not a dead end (defect C-3). This holds the
+  // code that failed so the sheet can offer: search by name, or attach this
+  // code to a product so the NEXT delivery scans first time.
+  const [missCode, setMissCode] = React.useState<string | null>(null);
 
   const addByCode = async () => {
     if (!code.trim()) return;
@@ -73,7 +77,9 @@ export function GoodsInScreen() {
       return;
     }
     if (!product) {
-      setError({ title: `No product for "${code}"`, message: 'Check the code, or search by name.' });
+      // Not an error banner and not a destructive toast: a sheet that offers
+      // the two things a baker standing at a delivery actually wants (C-3).
+      setMissCode(code.trim());
       return;
     }
     setError(null);
@@ -146,6 +152,22 @@ export function GoodsInScreen() {
     }
     setUndo(null);
     toast({ title: 'Booking reversed' });
+  };
+
+  const addProduct = (product: Product) => {
+    setLines((ls) => [
+      ...ls,
+      {
+        product,
+        qtyPurchase: 1,
+        unitCost: Number(product.expectedNextCost) || 0,
+        batchCode: '',
+        useBy: '',
+      },
+    ]);
+    setCode('');
+    setMissCode(null);
+    setError(null);
   };
 
   const qt = qtyTarget !== null ? lines[qtyTarget] : undefined;
@@ -229,6 +251,19 @@ export function GoodsInScreen() {
           {receive.isPending ? 'Booking in…' : `Book in ${lines.length} line${lines.length === 1 ? '' : 's'}`}
         </BigButton>
       </ActionBar>
+
+      {missCode && (
+        <CodeMissSheet
+          code={missCode}
+          onClose={() => setMissCode(null)}
+          onPick={addProduct}
+          onAttached={addProduct}
+          onError={(message) => {
+            setMissCode(null);
+            setError({ title: 'Could not attach that code', message });
+          }}
+        />
+      )}
 
       {confirming && (
         <ConfirmBookingSheet
@@ -362,4 +397,115 @@ export function describeLine(line: Line): string {
   const stockQty = purchaseToStock(line.qtyPurchase, factor);
   const pack = line.product.purchaseUom ?? 'unit';
   return `${line.qtyPurchase} × ${pack} = ${stockQty} ${line.product.stockUom}`;
+}
+
+/**
+ * What to do when a code finds nothing (defect C-3).
+ *
+ * "Manual barcode entry failed to find the product for an icing sugar
+ * delivery." The old behaviour was a destructive toast and nothing else — a
+ * dead end at the exact moment someone is holding a delivery note and a pallet.
+ *
+ * Two ways forward, which is what the tester needed on both the icing sugar
+ * and the Skittles:
+ *
+ *  1. **Search by name** — the code is wrong or unrecorded, but the product
+ *     exists. Goods In had no name-search UI at all despite the placeholder
+ *     saying "or name".
+ *  2. **Attach this code** to the product you find, so the next delivery
+ *     scans first time. This is the one that stops the problem recurring.
+ */
+export function CodeMissSheet({
+  code, onClose, onPick, onAttached, onError,
+}: {
+  code: string;
+  onClose: () => void;
+  onPick: (product: Product) => void;
+  onAttached: (product: Product) => void;
+  onError: (message: string) => void;
+}) {
+  const [query, setQuery] = React.useState('');
+  const [results, setResults] = React.useState<Product[] | null>(null);
+  const [searching, setSearching] = React.useState(false);
+  const [attaching, setAttaching] = React.useState<string | null>(null);
+
+  const search = async () => {
+    if (!query.trim()) return;
+    setSearching(true);
+    try {
+      setResults(await productBarcodeLookup(query.trim()));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'The search failed.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const attach = async (product: Product) => {
+    setAttaching(product.id);
+    try {
+      const updated = await attachBarcodeToProduct(product.id, code);
+      onAttached(updated);
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : `Could not put ${code} on ${product.name}.`,
+      );
+    } finally {
+      setAttaching(null);
+    }
+  };
+
+  return (
+    <BottomSheet title={`Nothing found for "${code}"`} onClose={onClose}>
+      <p className="lede">Search for the product by name, then add it — or put this code on it so the next delivery scans first time.</p>
+
+      <div className="toolbar" style={{ padding: 0, background: 'transparent', border: 'none' }}>
+        <input
+          className="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && void search()}
+          placeholder="e.g. icing sugar"
+          aria-label="Search products by name"
+          autoCapitalize="none"
+          autoCorrect="off"
+        />
+        <button className="chip on" onClick={() => void search()} disabled={searching} style={{ minWidth: 88 }}>
+          {searching ? '…' : 'Search'}
+        </button>
+      </div>
+
+      {results !== null && results.length === 0 && (
+        <div className="queue-empty">Nothing matches "{query}". Try a shorter name.</div>
+      )}
+
+      {results?.map((product) => (
+        <div className="queue-item" key={product.id}>
+          <div className="queue-meta">
+            <div className="queue-label">{product.name}</div>
+            <div className="queue-sub">
+              {product.stockCode ?? 'no stock code'}
+              {product.barcode ? ` · barcode ${product.barcode}` : ' · no barcode yet'}
+            </div>
+          </div>
+          <div className="queue-actions">
+            <button onClick={() => onPick(product)}>Add</button>
+            <button
+              onClick={() => void attach(product)}
+              disabled={attaching === product.id}
+              aria-label={`Put code ${code} on ${product.name}`}
+            >
+              {attaching === product.id ? '…' : `Add code`}
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <div className="sheet-actions">
+        <BigButton variant="ghost" onClick={onClose}>Close</BigButton>
+      </div>
+    </BottomSheet>
+  );
 }

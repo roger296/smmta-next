@@ -1280,3 +1280,59 @@ the **price** that moves money.
   bar appears, tap undo, the reversal request fires for that receipt id; cancel
   posts nothing; the chip shows `warn` when unbound and the bound venue when
   not.
+
+## F8 — Barcode and product search that actually finds things (C-3) (2026-08-19)
+
+"Manual barcode entry failed to find the product for an icing sugar delivery."
+
+**The root cause.** `products` has had a `barcode` column **and** a
+`products_barcode_idx` built for scan-to-find since the item model landed — but
+the search predicate covered only `name`, `stockCode` and `ean`. A typed
+barcode matched nothing. The same gap explains the Skittles report.
+
+- **`barcode` is in the search predicate.**
+- **`GET /products/by-code/:code`** — unambiguous single-product resolution:
+  exact `barcode` → exact `ean` → exact `stockCode` → 404. Case-insensitive,
+  never a substring (a partial match here books a delivery against the wrong
+  product). `resolveBarcodeToProduct` asks this **first** and only falls back
+  to search; even in the fallback an exact code match outranks a name
+  relevance hit, because a code appearing inside a product *name* is a
+  coincidence, not an identification. A 404 is `null`; anything else
+  **propagates**, so the screen can distinguish "could not look that up" from
+  "no product carries that code" — very different things to a baker holding a
+  delivery note.
+- **`POST /products/:id/barcode`** — attach a scanned code to a product. A code
+  already held by another product is a **409 naming the holder**, never a
+  silent overwrite: stealing it would send the *next* scan of that code to the
+  wrong item.
+- **A miss is a fork, not a dead end.** The old behaviour was a destructive
+  toast and nothing else, at the exact moment someone is holding a delivery
+  note and a pallet. Now a `BottomSheet` names the code and offers: search by
+  name (Goods In had **no name-search UI at all**, despite the placeholder
+  saying "or name") with a **pickable result list** rather than silently taking
+  `candidates[0]`, and "Add code" — attach the scanned code to the chosen
+  product so the next delivery scans first time, adding the line in the same
+  motion.
+
+**Tests:**
+- API: search by full barcode, by partial barcode, by EAN, by stock code, by
+  name; **an exact barcode outranks a product whose NAME contains the same
+  digits** (the fixture includes exactly that trap); `by-code` 404s on a
+  genuine miss, naming the code.
+- API: attaching persists and the product is then findable by that code;
+  attaching a code held by another product is a 409 and the original holder
+  keeps it; re-attaching a product its own code is a no-op; an empty barcode
+  is a 400.
+- Web unit: the resolver asks the exact endpoint first and does not search at
+  all when it answers; falls back through barcode/ean/stockCode; **an exact
+  code match beats `candidates[0]`**; an empty code asks nothing; a non-404
+  failure propagates rather than being reported as "no such product".
+- Web component: a miss opens the sheet; name search returns a pickable list
+  and says "no barcode yet"; picking adds the line; "Add code" attaches and
+  adds; a 409 surfaces in the error banner; an empty name search says so.
+- Playwright (iPad): typing a barcode gets exactly one result (and exactly one
+  `by-code` request); typing a name gets a pickable list.
+
+The existing A-6 spec asserted the old dead-end toast; it now asserts the
+sheet, keeping A-6's actual property (the failure is surfaced rather than
+silently doing nothing) with the better behaviour.

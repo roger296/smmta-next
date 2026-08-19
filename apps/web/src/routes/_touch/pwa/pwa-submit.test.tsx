@@ -144,7 +144,7 @@ describe('Goods In — truthful submit (A-1)', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument();
   });
 
-  it('A-6: a genuine miss says so, and does not add a line', async () => {
+  it('A-6/C-3: a genuine miss opens the way-forward sheet, and adds no line', async () => {
     const user = userEvent.setup();
     renderScreen(<GoodsInScreen />);
 
@@ -160,7 +160,13 @@ describe('Goods In — truthful submit (A-1)', () => {
     await user.type(screen.getByLabelText(/product code/i), 'NOPE');
     await user.click(screen.getByRole('button', { name: /\+ add/i }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/no product for "NOPE"/i);
+    // Since F8 a miss is a fork, not a dead end: the sheet names the code and
+    // offers a name search / attach (C-3). The A-6 property still holds —
+    // the failure is SURFACED rather than doing nothing at all.
+    expect(await screen.findByText('Nothing found for "NOPE"')).toBeInTheDocument();
+    expect(screen.getByLabelText(/search products by name/i)).toBeInTheDocument();
+    // Still no line, and still no claim that anything worked.
+    expect(screen.getByRole('button', { name: /book in 0 lines/i })).toBeDisabled();
   });
 });
 

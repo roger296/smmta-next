@@ -665,3 +665,24 @@ judgement call so the fix run never blocked.
 - **`site_manager` may cross sites deliberately.** The guard exists to stop an
   accident, not to make a mis-booking unfixable. Someone has to be able to
   correct Birmingham from an office.
+
+## F8 — barcode and product search
+
+- **A scan and a search are different questions.** `by-code` answers "which
+  product carries this?" with one row or none; `?search=` answers "what might
+  I mean?" with a relevance-ordered page. Conflating them is what let a
+  name-relevance hit beat the product that actually carried the code.
+- **`by-code` matching is exact and case-insensitive, never partial.** A
+  substring match on a code would book a delivery against the wrong product,
+  which is strictly worse than finding nothing.
+- **Resolution order is barcode → ean → stockCode.** `barcode` is what the
+  scanner reads; `ean` is the legacy column still populated on older rows;
+  `stockCode` is what a human types off a shelf label when the scan fails.
+- **A 404 is data; anything else is an error.** Collapsing a 503 into "no such
+  product" would tell a baker to go looking for a product that exists.
+- **Attaching a held code is a 409, not an overwrite.** The overwrite is
+  invisible and its damage is deferred: the next scan of that code silently
+  resolves to the wrong product.
+- **The miss sheet adds the line as well as attaching the code.** Making
+  someone search, attach, then search again would be the same dead end with an
+  extra step.
