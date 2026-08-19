@@ -31,6 +31,11 @@ const createSchema = z.object({
   uomSystem: z.enum(['METRIC', 'IMPERIAL']).optional(),
   timezone: z.string().min(1).max(64).optional(),
   isActive: z.boolean().optional(),
+  /**
+   * Benches per table (Aug-2026, F-7). Positive, or null for "not set" —
+   * zero is not a smaller number of benches, it is a missing answer.
+   */
+  benchesPerTable: z.coerce.number().positive().nullable().optional(),
 });
 
 const updateSchema = createSchema.partial();

@@ -1510,3 +1510,73 @@ it was saved or lost.**
 - Playwright (iPad): book, see the receipt with the reference and total, tap
   "Book another", assert an empty form; Back with unbooked lines prompts and
   Keep editing keeps them.
+
+## F12 — End of Bake: entry mode, table stepping and benches (F-1, F-2, F-3, F-7) (2026-08-19)
+
+Three concrete reports and one request, all on the same screen.
+
+**The line arithmetic moved out of the component** into
+`features/consumption/line-reducers.ts`. F-1 and F-2 are *arithmetic* bugs, and
+arithmetic is what a component test pins down worst; the reducers are pure, so
+the direction rule can be asserted as a table over four controls × two modes.
+
+- **F-1 — direction consistency.** The plain `−`/`+` steppers were **not**
+  inverted in REMAINING mode, but `Table−` *increased* `remainingQty` and
+  `Table+` *decreased* it. Two controls on the same row moved the same number
+  in opposite directions. The old intent — "one fewer table used means more
+  left" — is defensible read alone and indefensible next to a `+` that does the
+  opposite. **New rule: every control moves the DISPLAYED number in its own
+  direction**, enforced by there being exactly one mutation path
+  (`bumpDisplayed`) that the four buttons differ from only in step size. In
+  REMAINING mode they are relabelled **`+1 table left` / `−1 table left`** so
+  the press cannot be misread. This supersedes the old inline comment
+  (recorded in DECISIONS.md).
+- **F-2 — non-destructive toggle.** The toggle zeroed the figure it was
+  switching away from, destroying the expected pre-fill; variance then read
+  `−expected`, the dot flipped to `warn`, the "adjusted" count was wrong, and
+  `doSubmit` sent `actualQty: 0`. Both figures are kept now. Entering REMAINING
+  for the first time seeds 0 — a fresh, explicit question — but marks it
+  **unanswered**, so "left nothing" and "didn't count it" stay distinguishable.
+  Variance, the dot and the adjusted count are all computed from the mode
+  actually in force, and REMAINING reports **no** variance (the usage is the
+  server's to derive; reporting one would mean inventing it).
+- **F-3 — live table count.** The number between the table buttons rendered
+  `covers` — the session total, identical on every row and unaffected by every
+  press beside it. It is now `round(qty / qtyPerTable, 1)` with the session
+  total alongside (`2.5 / 5`), updating on every press, and `—` when the recipe
+  has no per-table figure.
+- **F-7 — benches under the kilos.** New per-site `sites.benches_per_table`
+  (migration `0044`, nullable, admin-editable) — **not hard-coded**, because
+  the rooms differ. Each line shows "5 of 5 tables · ≈ 30 benches" beneath the
+  quantity and the header carries the session total, both visible **without
+  scrolling or tapping**, which is the tester's stated reason (interruption
+  recovery). A site with no ratio reads "benches not set for this venue" rather
+  than quietly assuming a number.
+- **F-8's submit guard.** A REMAINING line with nothing entered is blocked
+  inline ("not counted yet") and the submit button says how many are
+  outstanding, rather than sending `remainingQty: 0` — which claims an empty
+  shelf.
+
+**Tests:**
+- Unit (27): the F-1 table — four controls × two modes, each asserted to move
+  the displayed number its own way — plus the direct regression that `Table+`
+  and `+` now agree in REMAINING mode; never below zero; no float drift.
+  **F-2:** CONSUMED(500) → REMAINING → CONSUMED restores **500**; an answered
+  remaining figure survives a round trip; variance is null in REMAINING; a
+  freshly toggled line is not "adjusted". F-3 implied tables, including
+  `qtyPerTable = 0` → null. F-7 bench derivation and the unset cases. F-8's
+  blocked lines, including that an explicit 0 is a real answer.
+- API: `sites.benchesPerTable` defaults null, stores and patches, `null` clears
+  it, and **0 is rejected** — that is a missing answer, not fewer benches.
+- API: `entry-mode.test.ts` still passes, plus explicit assertions that the
+  server-side derivation is **unchanged** by the client rewrite.
+- Playwright (iPad): toggle to What's Left and back without losing the figure;
+  `+1 table left` increases and `−1 table left` decreases; the table count
+  tracks the quantity; benches appear (and say so when unset); an uncounted
+  line blocks the submit.
+
+Also fixed while here: the End of Bake setup labels had no `for`/`aria-labelledby`,
+so nothing tied them to their controls — the same gap as F9 found on goods-in.
+And `gotoVenueScreen` no longer stubs `/sites` over a spec's own fixture
+(Playwright's last-registered route wins, which silently overrode the bench
+fixture).

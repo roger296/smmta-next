@@ -11,7 +11,15 @@ import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
 import { sites } from '../../db/schema/index.js';
 
-const SLUGS = ['rtest-leeds', 'rtest-bristol'];
+const SLUGS = [
+  'rtest-leeds',
+  'rtest-bristol',
+  // F-7 fixtures (Aug-2026 feedback set).
+  'bench-default',
+  'bench-six',
+  'bench-clear',
+  'bench-zero',
+];
 let app: FastifyInstance;
 let token: string;
 
@@ -120,5 +128,67 @@ describe('Sites admin API', () => {
     expect(patch.json().data.name).toBe('Bristol Central');
     expect(patch.json().data.isActive).toBe(false);
     expect(patch.json().data.currencyCode).toBe('USD');
+  });
+});
+
+// ── F-7: benches per table (Aug-2026 feedback set) ──────────────────────────
+describe('benchesPerTable', () => {
+  it('defaults to NULL — "not set for this site", said out loud rather than assumed', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sites',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { slug: 'bench-default', name: 'Bench Default' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().data.benchesPerTable).toBeNull();
+  });
+
+  it('F-7: stores and returns a per-site ratio', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sites',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { slug: 'bench-six', name: 'Bench Six', benchesPerTable: 6 },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(Number(created.json().data.benchesPerTable)).toBe(6);
+
+    const id = created.json().data.id as string;
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/sites/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { benchesPerTable: 4.5 },
+    });
+    expect(Number(patched.json().data.benchesPerTable)).toBe(4.5);
+  });
+
+  it('null clears it back to "not set"', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sites',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { slug: 'bench-clear', name: 'Bench Clear', benchesPerTable: 6 },
+    });
+    const id = created.json().data.id as string;
+
+    const cleared = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/sites/${id}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { benchesPerTable: null },
+    });
+    expect(cleared.json().data.benchesPerTable).toBeNull();
+  });
+
+  it('rejects zero — that is a missing answer, not a smaller number of benches', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/sites',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { slug: 'bench-zero', name: 'Bench Zero', benchesPerTable: 0 },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });

@@ -309,6 +309,13 @@
       "when": 1787164408531,
       "tag": "0043_cost_precision_and_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1787167052469,
+      "tag": "0044_site_benches_per_table",
+      "breakpoints": true
     }
   ]
 }

@@ -43,6 +43,7 @@ const EMPTY_FORM: SiteInput = {
   uomSystem: 'METRIC',
   timezone: 'Europe/London',
   isActive: true,
+  benchesPerTable: null,
 };
 
 function SitesPage() {
@@ -182,6 +183,7 @@ function SiteFormDialog({
         uomSystem: editing.uomSystem,
         timezone: editing.timezone,
         isActive: editing.isActive,
+        benchesPerTable: editing.benchesPerTable ? Number(editing.benchesPerTable) : null,
       });
     } else {
       setForm(EMPTY_FORM);
@@ -271,6 +273,27 @@ function SiteFormDialog({
               onChange={(e) => set('timezone', e.target.value)}
               placeholder="Europe/London"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="site-benches">Benches per table</Label>
+            <Input
+              id="site-benches"
+              type="number"
+              step="any"
+              min="0"
+              value={form.benchesPerTable ?? ''}
+              onChange={(e) =>
+                set('benchesPerTable', e.target.value === '' ? null : Number(e.target.value))
+              }
+              placeholder="e.g. 6"
+            />
+            {/* F-7: bakers set up and count in benches, but the recipe and the
+                session are in tables. Left blank the venue screens say
+                "benches not set for this venue" rather than assuming a number. */}
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              Shown under the kilo figures on the End of Bake screen. Leave blank if this venue
+              does not use benches.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Checkbox

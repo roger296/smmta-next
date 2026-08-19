@@ -65,7 +65,19 @@ export const TEST_VENUE = { id: 'site-1', slug: 'london-south', name: 'London So
  * (non-paginated) list — the envelope must NOT carry total/page, or `apiFetch`
  * unwraps it as a PaginatedResult and `sites` arrives as an object.
  */
-export async function stubSites(page: Page, sites = [{ ...TEST_VENUE, isActive: true }]): Promise<void> {
+export interface StubSite {
+  id: string;
+  slug: string;
+  name: string;
+  isActive: boolean;
+  /** Benches per table (F-7). Absent / null = "not set for this venue". */
+  benchesPerTable?: string | null;
+}
+
+export async function stubSites(
+  page: Page,
+  sites: StubSite[] = [{ ...TEST_VENUE, isActive: true }],
+): Promise<void> {
   await page.route('**/api/v1/sites**', (route) =>
     route.fulfill({
       status: 200,
@@ -75,10 +87,21 @@ export async function stubSites(page: Page, sites = [{ ...TEST_VENUE, isActive: 
   );
 }
 
-/** Land straight on a venue screen with a token already in localStorage. */
-export async function gotoVenueScreen(page: Page, screen: VenueScreen): Promise<void> {
+/**
+ * Land straight on a venue screen with a token already in localStorage.
+ *
+ * `stubSites` is only applied when the caller has not already stubbed `/sites`
+ * itself — Playwright's LAST-registered route handler wins, so stubbing here
+ * unconditionally would silently override a spec's own site fixture (which is
+ * exactly how the bench specs first "failed").
+ */
+export async function gotoVenueScreen(
+  page: Page,
+  screen: VenueScreen,
+  opts: { sites?: StubSite[] | false } = {},
+): Promise<void> {
   await authenticatePage(page);
-  await stubSites(page);
+  if (opts.sites !== false) await stubSites(page, opts.sites);
   await page.goto(VENUE_SCREENS[screen]);
   await expect(page.locator('.touch-app')).toBeVisible();
 }

@@ -754,3 +754,28 @@ judgement call so the fix run never blocked.
 - **A queued (offline) booking shows no receipt.** There is no reference and no
   confirmed content to show; the "saved offline" toast is the honest whole
   story, and the list still clears because the work IS captured.
+
+## F12 — End of Bake
+
+- **Every control moves the DISPLAYED number in its own direction.** This
+  supersedes the inline comment that justified the inverted `Table−` ("one
+  fewer table used means more left"). That reasoning is sound about *usage* and
+  wrong about the *screen*: the number on screen in REMAINING mode is what's
+  left, and a `+` beside a `Table+` that disagree is unusable whatever the
+  underlying logic. The relabelling to "+1 table left" carries the old intent
+  in words instead.
+- **One mutation path for all four steppers.** `bumpDisplayed` is the only way
+  a stepper changes a line; the buttons differ solely in the size of the delta.
+  Two code paths is how the two buttons disagreed in the first place.
+- **REMAINING mode reports no variance at all.** The form has no consumed
+  figure — deriving one from an assumed opening is exactly what the server
+  refuses to do. Showing "Δ −500" was worse than showing nothing.
+- **`remainingSet` exists so 0 can mean something.** "The shelf is empty" and
+  "I haven't counted it" are different facts, and the pre-F12 code sent both as
+  `remainingQty: 0`.
+- **`benchesPerTable` is per-site and nullable.** The rooms differ, so a
+  constant would be wrong somewhere; and "not set" is a real state the screen
+  should admit to rather than paper over with a default. Setting them is human
+  task 5.
+- **The reducers live outside the component.** These were arithmetic bugs; a
+  pure module lets the regression be a table rather than a click-through.

@@ -5,6 +5,20 @@ import { useSiteContext } from '@/features/sites/site-context';
 import { useBakes } from '@/features/recipes/use-recipes';
 import { useExpectedConsumption } from '@/features/consumption/use-consumption';
 import { useSubmitConsumption } from '@/features/pwa/use-pwa-jobs';
+import {
+  benchesFor,
+  blockedLines,
+  bumpDisplayed,
+  displayedQty,
+  impliedTables,
+  isAdjusted,
+  setDisplayed,
+  statusOf,
+  toggleMode,
+  varianceOf,
+  type ConsumptionLine,
+} from '@/features/consumption/line-reducers';
+import { useSiteSettings } from '@/features/sites/use-site-settings';
 import { PwaSyncPill } from '@/features/pwa/queue-status';
 import {
   TouchScreen,
@@ -24,29 +38,13 @@ export const Route = createFileRoute('/_touch/pwa/consumption')({
   component: ConsumptionScreen,
 });
 
-type EntryMode = 'CONSUMED' | 'REMAINING';
-
-interface FormLine {
-  productId: string;
-  name: string;
-  stockUom: string;
-  expectedQty: number;
-  /** One table's worth, straight from the recipe — what Table+ / Table− step
-   *  by. Distinct from expectedQty, which is this times the table count. */
-  qtyPerTable: number;
-  actualQty: number;
-  /** What's left, when this line is in REMAINING mode. The server derives the
-   *  usage from stock on hand — the form never guesses it, because the opening
-   *  it would have to assume is exactly what the server refuses to invent. */
-  remainingQty: number;
-  entryMode: EntryMode;
-  wastageQty: number;
-  wastageReason: string;
-}
-
-/** Quantities are stored to 2dp; repeatedly adding a fractional per-table
- *  amount otherwise drifts into 0.7500000000000001. */
-const round2 = (n: number) => Math.round(n * 100) / 100;
+/**
+ * The line arithmetic lives in `features/consumption/line-reducers.ts` — the
+ * F-1 / F-2 defects were arithmetic, and arithmetic is what a component test
+ * pins down worst. See that file for the reasoning behind the direction rule
+ * and the non-destructive toggle.
+ */
+type FormLine = ConsumptionLine;
 
 const WASTE_REASONS = ['Spillage', 'Burnt', 'Dropped', 'Over-portioned', 'Off / expired'];
 
@@ -58,6 +56,7 @@ function today(): string {
 export function ConsumptionScreen() {
   const navigate = useNavigate();
   const { selectedSite, selectedSiteId, isBound } = useSiteContext();
+  const { benchesPerTable } = useSiteSettings();
   const { data: bakes } = useBakes();
   const expected = useExpectedConsumption();
   const submit = useSubmitConsumption();
@@ -118,7 +117,10 @@ export function ConsumptionScreen() {
         qtyPerTable: r.qtyPerCover,
         actualQty: r.expectedQty, // pre-filled with expected; baker edits
         remainingQty: 0,
-        entryMode: 'CONSUMED' as EntryMode,
+        // False until the baker has actually answered "what's left" — a
+        // REMAINING line submitted as 0 without this claims an empty shelf.
+        remainingSet: false,
+        entryMode: 'CONSUMED' as const,
         wastageQty: 0,
         wastageReason: '',
       })),
@@ -130,8 +132,19 @@ export function ConsumptionScreen() {
   const setLine = (i: number, patch: Partial<FormLine>) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
 
+  /** Total tables' worth across the sheet, for the header bench figure (F-7). */
+  const sessionBenches = benchesFor(covers, benchesPerTable);
+
   const canSubmit =
-    !!selectedSiteId && !!sessionId.trim() && !!bakerName.trim() && lines.length > 0 && !submit.isPending;
+    !!selectedSiteId &&
+    !!sessionId.trim() &&
+    !!bakerName.trim() &&
+    lines.length > 0 &&
+    // F-8's guard: a REMAINING line with no figure would be sent as
+    // `remainingQty: 0` — "the shelf is empty" — which is a very different
+    // claim from "I haven't counted it".
+    blockedLines(lines).length === 0 &&
+    !submit.isPending;
 
   const doSubmit = async () => {
     if (!selectedSiteId) return;
@@ -208,10 +221,13 @@ export function ConsumptionScreen() {
             </div>
 
             <div className="field">
-              <label>Number of Regular Tables</label>
+              {/* The label had no `for`, so nothing tied it to the control —
+                  for a screen reader or for any by-label query. */}
+              <label id="lbl-regular-tables">Number of Regular Tables</label>
               <button
                 className="input"
                 style={{ textAlign: 'left', fontWeight: 700 }}
+                aria-labelledby="lbl-regular-tables"
                 onClick={() => setTableKeypad('regular')}
               >
                 {regularTables !== null ? regularTables : 'Tap to enter'}
@@ -219,10 +235,13 @@ export function ConsumptionScreen() {
             </div>
 
             <div className="field">
-              <label>Number of Gluten Free Tables</label>
+              {/* The label had no `for`, so nothing tied it to the control —
+                  for a screen reader or for any by-label query. */}
+              <label id="lbl-gf-tables">Number of Gluten Free Tables</label>
               <button
                 className="input"
                 style={{ textAlign: 'left', fontWeight: 700 }}
+                aria-labelledby="lbl-gf-tables"
                 onClick={() => setTableKeypad('gf')}
               >
                 {gfTables}
@@ -230,10 +249,13 @@ export function ConsumptionScreen() {
             </div>
 
             <div className="field">
-              <label>Number of Vegan Tables</label>
+              {/* The label had no `for`, so nothing tied it to the control —
+                  for a screen reader or for any by-label query. */}
+              <label id="lbl-vegan-tables">Number of Vegan Tables</label>
               <button
                 className="input"
                 style={{ textAlign: 'left', fontWeight: 700 }}
+                aria-labelledby="lbl-vegan-tables"
                 onClick={() => setTableKeypad('vegan')}
               >
                 {veganTables}
@@ -241,18 +263,18 @@ export function ConsumptionScreen() {
             </div>
 
             <div className="field">
-              <label>Date</label>
-              <input className="input" type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} />
+              <label htmlFor="bake-date">Date</label>
+              <input id="bake-date" className="input" type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} />
             </div>
 
             <div className="field">
-              <label>Session ID</label>
-              <input className="input" value={sessionId} onChange={(e) => setSessionId(e.target.value)} placeholder="BumbleBee session id" />
+              <label htmlFor="bake-session-id">Session ID</label>
+              <input id="bake-session-id" className="input" value={sessionId} onChange={(e) => setSessionId(e.target.value)} onFocus={selectOnFocus} placeholder="BumbleBee session id" />
             </div>
 
             <div className="field">
-              <label>Your name (who baked this)</label>
-              <input className="input" value={bakerName} onChange={(e) => setBakerName(e.target.value)} placeholder="Baker name" autoCapitalize="words" />
+              <label htmlFor="bake-baker-name">Your name (who baked this)</label>
+              <input id="bake-baker-name" className="input" value={bakerName} onChange={(e) => setBakerName(e.target.value)} onFocus={selectOnFocus} placeholder="Baker name" autoCapitalize="words" />
             </div>
 
             <BigButton
@@ -303,7 +325,10 @@ export function ConsumptionScreen() {
   }
 
   // ── Ingredients screen ────────────────────────────────────
-  const changed = lines.filter((l) => l.actualQty !== l.expectedQty || l.wastageQty > 0).length;
+  // Computed from the mode ACTUALLY IN FORCE (F-2): a toggled line used to
+  // count as "adjusted" purely because the toggle had zeroed it.
+  const changed = lines.filter(isAdjusted).length;
+  const unanswered = blockedLines(lines);
   const at = actualTarget !== null ? lines[actualTarget] : undefined;
   const wt = wasteTarget !== null ? lines[wasteTarget] : undefined;
 
@@ -321,23 +346,28 @@ export function ConsumptionScreen() {
           else setLoaded(false);
         }}
         right={<PwaSyncPill />}
-        stat={`${lines.length} ingredients · ${covers} tables${gfTables || veganTables ? ` (${gfTables} GF, ${veganTables} vegan)` : ''} · ${changed} adjusted`}
+        stat={
+          `${lines.length} ingredients · ${covers} tables` +
+          (sessionBenches !== null ? ` (≈ ${sessionBenches} benches)` : '') +
+          (gfTables || veganTables ? ` · ${gfTables} GF, ${veganTables} vegan` : '') +
+          ` · ${changed} adjusted`
+        }
       />
       <div className="scroll">
         {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
         {lines.length === 0 && <div className="empty">No ingredients for that recipe.</div>}
         {lines.map((l, i) => {
           const remaining = l.entryMode === 'REMAINING';
-          // In REMAINING mode the row edits `remainingQty`; the usage is the
-          // server's to derive, so the form deliberately shows no consumed
-          // figure it hasn't been told.
-          const qty = remaining ? l.remainingQty : l.actualQty;
-          const variance = Math.round((l.actualQty - l.expectedQty) * 100) / 100;
-          const dot = l.wastageQty > 0 ? 'warn' : variance === 0 ? 'done' : 'warn';
-          const bump = (by: number) =>
-            setLine(i, remaining
-              ? { remainingQty: Math.max(0, Math.round((l.remainingQty + by) * 100) / 100) }
-              : { actualQty: Math.max(0, Math.round((l.actualQty + by) * 100) / 100) });
+          const qty = displayedQty(l);
+          const variance = varianceOf(l);
+          const dot = statusOf(l);
+          const tables = impliedTables(l);
+          const benches = tables === null ? null : benchesFor(tables, benchesPerTable);
+          // F-1: ONE mutation path for every stepper, so `+`, `−`, `Table+`
+          // and `Table−` cannot disagree about direction — they differ only in
+          // the size of the step.
+          const bump = (by: number) => setLine(i, bumpDisplayed(l, by));
+          const tableWord = remaining ? 'table left' : 'table';
           return (
             <div className={`row mode-${remaining ? 'remaining' : 'consumed'}`} key={l.productId}>
               <div className={`status status-${dot}`} aria-hidden="true">{dot === 'done' ? '●' : '!'}</div>
@@ -349,33 +379,44 @@ export function ConsumptionScreen() {
                   type="button"
                   className={`mode-toggle ${remaining ? 'remaining' : 'consumed'}`}
                   aria-pressed={remaining}
-                  onClick={() =>
-                    setLine(i, {
-                      entryMode: remaining ? 'CONSUMED' : 'REMAINING',
-                      // Reset the figure being switched away from, so a value
-                      // typed as "used" can't survive as "left".
-                      ...(remaining ? { remainingQty: 0 } : { actualQty: 0 }),
-                    })
-                  }
+                  onClick={() => setLine(i, toggleMode(l))}
                 >
                   {remaining ? "ENTERING: WHAT'S LEFT — tap to switch" : 'ENTERING: AMOUNT USED — tap to switch'}
                 </button>
                 <div className="hint book">
                   Expected {l.expectedQty} {l.stockUom}
-                  {/* What one table costs, so the Table+/− steps are legible
-                      and a baker can sanity-check the total in their head. */}
+                  {/* What one table costs, so the Table± steps are legible and
+                      a baker can sanity-check the total in their head. */}
                   {l.qtyPerTable > 0 && (
                     <span className="perTable">
                       {' · '}
                       {l.qtyPerTable} {l.stockUom} per table
                     </span>
                   )}
-                  {!remaining && variance !== 0 && <span className="badge warn" style={{ marginLeft: 6 }}>Δ {variance > 0 ? '+' : ''}{variance}</span>}
+                  {variance !== null && variance !== 0 && (
+                    <span className="badge warn" style={{ marginLeft: 6 }}>
+                      Δ {variance > 0 ? '+' : ''}{variance}
+                    </span>
+                  )}
+                  {remaining && !l.remainingSet && (
+                    <span className="badge warn" style={{ marginLeft: 6 }}>not counted yet</span>
+                  )}
                   {l.wastageQty > 0 && <span className="badge" style={{ marginLeft: 6 }}>waste {l.wastageQty}{l.wastageReason ? ` · ${l.wastageReason}` : ''}</span>}
                 </div>
+                {/* F-7: "Request to show benches under the kilo figures." The
+                    tester's reason is interruption recovery, so it has to be
+                    readable without scrolling or tapping. */}
+                {tables !== null && (
+                  <div className="hint benches">
+                    {tables} of {covers} tables
+                    {benches !== null
+                      ? ` · ≈ ${benches} bench${benches === 1 ? '' : 'es'}`
+                      : ' · benches not set for this venue'}
+                  </div>
+                )}
               </div>
               <div className="qty-controls">
-                <button className="step" aria-label="Decrease" onClick={() => bump(-1)}>−</button>
+                <button className="step" aria-label={`Decrease ${l.name}`} onClick={() => bump(-1)}>−</button>
                 <button
                   className={`qty-value ${remaining ? 'remaining' : ''}`}
                   aria-label={remaining ? `Type what is left of ${l.name}` : `Type amount of ${l.name} used`}
@@ -383,38 +424,31 @@ export function ConsumptionScreen() {
                 >
                   {qty}
                 </button>
-                <button className="step" aria-label="Increase" onClick={() => bump(1)}>+</button>
+                <button className="step" aria-label={`Increase ${l.name}`} onClick={() => bump(1)}>+</button>
                 {/* A whole table's worth in one press. Bakers think in tables,
-                    not in kilograms, so stepping by 1 kg to correct one table
-                    of flour is arithmetic they should not have to do. */}
+                    not kilograms. Labelled "+1 table left" in REMAINING mode so
+                    the press cannot be misread (F-1). */}
                 <button
                   className="step-table"
-                  aria-label={`Remove one table of ${l.name}`}
+                  aria-label={`Remove one ${tableWord} of ${l.name}`}
                   disabled={l.qtyPerTable <= 0}
-                  onClick={() =>
-                    setLine(i, remaining
-                      ? { remainingQty: Math.max(0, round2(l.remainingQty + l.qtyPerTable)) }
-                      : { actualQty: Math.max(0, round2(l.actualQty - l.qtyPerTable)) })
-                  }
+                  onClick={() => bump(-l.qtyPerTable)}
                 >
-                  Table−
+                  −1 {tableWord}
                 </button>
-                {/* What a press is worth, at a glance. Read-only — the count
-                    is set on the first page. */}
+                {/* F-3: the tables-worth of the CURRENT quantity, updating on
+                    every press — not the session total, which was identical on
+                    every row and unaffected by every button beside it. */}
                 <span className="table-count" aria-hidden>
-                  {covers}
+                  {tables === null ? '—' : `${tables} / ${covers}`}
                 </span>
                 <button
                   className="step-table"
-                  aria-label={`Add one table of ${l.name}`}
+                  aria-label={`Add one ${tableWord} of ${l.name}`}
                   disabled={l.qtyPerTable <= 0}
-                  onClick={() =>
-                    setLine(i, remaining
-                      ? { remainingQty: Math.max(0, round2(l.remainingQty - l.qtyPerTable)) }
-                      : { actualQty: round2(l.actualQty + l.qtyPerTable) })
-                  }
+                  onClick={() => bump(l.qtyPerTable)}
                 >
-                  Table+
+                  +1 {tableWord}
                 </button>
                 <button className={`zero${l.wastageQty > 0 ? ' on' : ''}`} aria-label="Wastage" onClick={() => setWasteTarget(i)}>⚠</button>
               </div>
@@ -425,7 +459,11 @@ export function ConsumptionScreen() {
 
       <ActionBar>
         <BigButton variant="ok" disabled={!canSubmit} onClick={() => void doSubmit()}>
-          {submit.isPending ? 'Submitting…' : 'Submit consumption'}
+          {submit.isPending
+            ? 'Submitting…'
+            : unanswered.length > 0
+              ? `${unanswered.length} line${unanswered.length === 1 ? '' : 's'} not counted yet`
+              : 'Submit consumption'}
         </BigButton>
       </ActionBar>
 
@@ -446,13 +484,10 @@ export function ConsumptionScreen() {
       {at && actualTarget !== null && (
         <KeypadSheet
           title={`${at.name} — actual (${at.stockUom})`}
-          initial={at.entryMode === 'REMAINING' ? at.remainingQty : at.actualQty}
+          initial={displayedQty(at)}
           onCancel={() => setActualTarget(null)}
           onConfirm={(v) => {
-            setLine(
-              actualTarget,
-              at.entryMode === 'REMAINING' ? { remainingQty: v } : { actualQty: v },
-            );
+            setLine(actualTarget, setDisplayed(at, v));
             setActualTarget(null);
           }}
         />

@@ -42,3 +42,32 @@ describe('ConsumptionEntryError', () => {
     expect(err).toBeInstanceOf(Error);
   });
 });
+
+/**
+ * The F12 client rewrite changed how a REMAINING line is ENTERED, not how it
+ * is interpreted (Aug-2026 feedback set). This is the assertion that the
+ * server side is untouched: the derivation is still opening − remaining, so
+ * the direction fix and the non-destructive toggle cannot have moved the
+ * meaning of the number that arrives.
+ */
+describe('F12: the server-side derivation is unchanged', () => {
+  it('still derives usage from opening stock, not from anything the form guessed', () => {
+    // The exact shape the venue screen now sends: the baker answered "what's
+    // left" with 300 g against an opening of 500 g.
+    expect(derivedActualQty(500, 300)).toBe(200);
+  });
+
+  it('an explicit "nothing left" is still a full usage, not a missing answer', () => {
+    // The client distinguishes "left nothing" from "did not count" (F-8's
+    // guard); by the time it reaches here, 0 means the shelf really is empty.
+    expect(derivedActualQty(500, 0)).toBe(500);
+  });
+
+  it('is still a pure subtraction — the refusals live in the caller, not here', () => {
+    // `resolveRemainingLine` is what rejects a negative remaining, a missing
+    // one, an unknown opening, and "more left than we think was there". This
+    // helper deliberately stays arithmetic, and the F12 client changes did not
+    // move that boundary.
+    expect(derivedActualQty(1, 5)).toBe(-4);
+  });
+});
