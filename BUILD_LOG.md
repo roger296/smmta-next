@@ -1465,3 +1465,48 @@ the sheet specs):
 - **Playwright (desktop), the direct D-4 regression:** open a quantity keypad,
   type `3` on the physical keyboard, press Enter, assert the line reads **3**
   — and that the row hint then reads `3 × 25 kg sack = 75 kg`.
+
+## F11 — Goods In confirmation and receipt (A-5) (2026-08-19)
+
+"Request clear visual feedback upon booking rather than having items
+immediately clear from view", and "Lack of visual feedback on screen exits
+leaves users uncertain whether inputs are saved, deleted, or processed."
+
+Both halves are the same thing: **a list that vanishes looks identical whether
+it was saved or lost.**
+
+- **A receipt screen** replaces the vanishing list. It shows the venue, the
+  timestamp, the reference, every line as booked (`4 × 25 kg sack = 100 kg ·
+  £120.00`) and the total, with two deliberate ways out: "Book another
+  delivery" and "Done". **It does not disappear on a timer** — the only thing
+  that expires is F7's undo window, which is shown counting down. The undo bar
+  moved onto the receipt, where it belongs.
+- **Destructive exits are guarded.** Back with unbooked lines opens a
+  `DiscardGuardSheet`: "You have 3 lines not yet booked in." — Keep editing /
+  Discard them. "Keep editing" is the solid button, because the safe choice
+  should be the one a thumb finds first. The same guard is on the stock-take
+  (uncommitted counts) and End of Bake (adjusted ingredients); each only fires
+  when there is genuinely something to lose.
+- **In-progress work survives a reload.** The working line list is persisted to
+  the same localStorage layer as the offline queue and restored with a visible
+  "Restored your unfinished delivery from HH:MM" notice — announced, never
+  silently reappearing. **Scoped per site AND per screen**: restoring London
+  South's delivery at Birmingham would be a worse bug than losing it, on the
+  very screen whose venue confusion caused E-1.
+- **"Last booked in at HH:MM"** on an empty goods-in screen, so a returning
+  user has continuity rather than a blank slate.
+
+**Tests:**
+- Unit: draft round-trip; **scoped per site** (a Birmingham read does not see a
+  London South draft) and per screen; "no site" is distinct from a real site;
+  clear; corrupt JSON and a payload missing its timestamp return null rather
+  than throwing; a full quota does not crash the screen.
+- Component: the receipt shows every line, the venue, the reference and the
+  total; it is **still there after 120 s of fake time** (only the undo bar
+  expires); "Book another" gives an empty form; "Done" leaves. Back with lines
+  prompts; Keep editing retains; Discard clears the draft and leaves; Back with
+  nothing entered just leaves. The draft persists, restores with its notice,
+  and is cleared by a successful booking.
+- Playwright (iPad): book, see the receipt with the reference and total, tap
+  "Book another", assert an empty form; Back with unbooked lines prompts and
+  Keep editing keeps them.

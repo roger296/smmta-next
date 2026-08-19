@@ -413,3 +413,22 @@ body.touch-layout-active { overflow: hidden; overscroll-behavior: none; }
   margin: -6px 0 8px; font-variant-numeric: tabular-nums;
 }
 .touch-app .key:disabled { opacity: 0.35; }
+
+/* ── Booking receipt (A-5: the list no longer just vanishes) ──────────────── */
+.touch-app .receipt-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px 16px; background: var(--ok-soft); border-bottom: 1px solid var(--line);
+}
+.touch-app .receipt-tick {
+  width: 44px; height: 44px; flex: none; border-radius: 50%;
+  background: var(--ok); color: #fff; font-size: 24px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.touch-app .receipt-title { font-size: 20px; font-weight: 800; line-height: 1.2; }
+.touch-app .receipt-sub { font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.touch-app .receipt-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 14px 16px; background: var(--card); border-top: 2px solid var(--line);
+  font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.touch-app .notice .linklike { margin-left: 8px; }

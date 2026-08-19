@@ -732,3 +732,25 @@ judgement call so the fix run never blocked.
 - **The display is a live region.** Its value changes with no focus movement,
   so without `aria-live` a screen-reader user gets no feedback at all from
   either the keypad or the keyboard.
+
+## F11 — receipt and exit guards
+
+- **The receipt has no timer.** Auto-dismissing it would reintroduce the exact
+  complaint: work disappearing on its own. The undo window expires because it
+  must; the receipt waits for a person.
+- **"Keep editing" is the solid button.** On a touch screen the visually
+  dominant action is the one that gets pressed in a hurry, and the safe choice
+  should win that.
+- **Each screen's guard fires only on real uncommitted work.** Goods In on
+  unbooked lines, stock-take on unsaved counts, End of Bake on *adjusted*
+  ingredients (not a merely-loaded list). A guard that always fires is a guard
+  people learn to dismiss without reading.
+- **Drafts are keyed by site as well as screen.** This is the same class of
+  error as E-1 and would be harder to spot: someone else's delivery presented
+  as yours, on the screen where venue confusion already cost 100 kg.
+- **A restored draft is announced.** Silently repopulating a form is
+  indistinguishable from never having lost it — right up until the moment it
+  was actually a different session's work.
+- **A queued (offline) booking shows no receipt.** There is no reference and no
+  confirmed content to show; the "saved offline" toast is the honest whole
+  story, and the list still clears because the work IS captured.

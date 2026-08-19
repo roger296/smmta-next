@@ -24,11 +24,29 @@ import {
   ActionBar,
   ErrorBanner,
   UndoBar,
+  DiscardGuardSheet,
+  selectOnFocus,
 } from '@/components/touch/touch';
+import { clearDraft, loadDraft, saveDraft } from '@/lib/draft-store';
 
 export const Route = createFileRoute('/_touch/pwa/goods-in')({
   component: GoodsInScreen,
 });
+
+/** localStorage scope for this screen's unfinished work (A-5). */
+const DRAFT_SCREEN = 'goods-in';
+
+/** A booking, as the receipt screen shows it back (A-5). */
+interface BookedReceipt {
+  reference: string;
+  venue: string;
+  bookedAt: number;
+  lines: Array<{ name: string; description: string; value: number }>;
+}
+
+function formatClock(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 interface Line {
   product: Product;
@@ -71,6 +89,47 @@ export function GoodsInScreen() {
   // code that failed so the sheet can offer: search by name, or attach this
   // code to a product so the NEXT delivery scans first time.
   const [missCode, setMissCode] = React.useState<string | null>(null);
+  // A-5: "Request clear visual feedback upon booking rather than having items
+  // immediately clear from view." The list no longer vanishes — a receipt
+  // takes its place, and the user leaves it deliberately.
+  const [receipt, setReceipt] = React.useState<BookedReceipt | null>(null);
+  // A-5: Back with unbooked lines asks first. Silent discard is the other half
+  // of "uncertain whether inputs are saved, deleted, or processed".
+  const [confirmExit, setConfirmExit] = React.useState(false);
+  // A-5: a draft restored from a previous session, announced rather than
+  // silently reappearing.
+  const [restored, setRestored] = React.useState<number | null>(null);
+  const [lastBookedAt, setLastBookedAt] = React.useState<number | null>(null);
+
+  // ── Draft persistence (A-5) ───────────────────────────────────────────
+  // Keyed by site as well as screen: restoring another venue's delivery would
+  // be worse than losing this one, on the very screen whose venue confusion
+  // caused E-1.
+  const restoredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (restoredRef.current || !selectedSiteId) return;
+    restoredRef.current = true;
+    const draft = loadDraft<Line[]>(DRAFT_SCREEN, selectedSiteId);
+    if (draft?.value?.length) {
+      setLines(draft.value);
+      setRestored(draft.savedAt);
+    }
+  }, [selectedSiteId]);
+
+  React.useEffect(() => {
+    if (!selectedSiteId || !restoredRef.current) return;
+    if (lines.length === 0) clearDraft(DRAFT_SCREEN, selectedSiteId);
+    else saveDraft(DRAFT_SCREEN, selectedSiteId, lines);
+  }, [lines, selectedSiteId]);
+
+  const leaveScreen = () => {
+    // Nothing uncommitted — just go.
+    if (lines.length === 0) {
+      void navigate({ to: '/venue' });
+      return;
+    }
+    setConfirmExit(true);
+  };
 
   const addByCode = async () => {
     if (!code.trim()) return;
@@ -135,6 +194,23 @@ export function GoodsInScreen() {
       return;
     }
 
+    // A-5: keep what was booked, so the receipt can show it. The list is
+    // cleared only when the user leaves the receipt.
+    if (res.status === 'sent' && res.data?.receipt?.id) {
+      setReceipt({
+        reference: res.data.receipt.reference ?? res.data.receipt.id.slice(0, 8),
+        venue: selectedSite?.name ?? 'this venue',
+        bookedAt: Date.now(),
+        lines: lines.map((l) => ({
+          name: l.product.name,
+          description: describePackLine(l.qtyPurchase, l.product),
+          value: l.qtyPurchase * l.unitCost,
+        })),
+      });
+    }
+    setLastBookedAt(Date.now());
+    if (selectedSiteId) clearDraft(DRAFT_SCREEN, selectedSiteId);
+
     if (res.status === 'sent' && res.data?.receipt?.id && mayReverse) {
       setUndo({ receiptId: res.data.receipt.id, venue: selectedSite?.name ?? 'this venue' });
     } else {
@@ -142,7 +218,11 @@ export function GoodsInScreen() {
       // and saying otherwise would be the A-1 lie in a different costume.
       setUndo(null);
     }
-    toast({ title: res.status === 'sent' ? 'Booked in' : 'Saved offline — will sync' });
+    if (res.status !== 'sent') {
+      // Queued: there is no receipt to show, so the toast is the whole story —
+      // and the list still clears, because the work IS captured.
+      toast({ title: 'Saved offline — will sync' });
+    }
     setLines([]);
   };
 
@@ -187,13 +267,36 @@ export function GoodsInScreen() {
   const qt = qtyTarget !== null ? lines[qtyTarget] : undefined;
   const dt = detailsTarget !== null ? lines[detailsTarget] : undefined;
 
+  if (receipt) {
+    return (
+      <ReceiptScreen
+        receipt={receipt}
+        venueBound={isBound}
+        undo={undo}
+        undoPending={reverse.isPending}
+        onUndo={() => void doUndo()}
+        onUndoExpired={() => setUndo(null)}
+        onBookAnother={() => {
+          setReceipt(null);
+          setRestored(null);
+        }}
+        onLeave={() => {
+          setReceipt(null);
+          void navigate({ to: '/venue' });
+        }}
+        error={error}
+        onDismissError={() => setError(null)}
+      />
+    );
+  }
+
   return (
     <TouchScreen>
       <TouchTopbar
         title="Goods in"
         venue={selectedSite?.name ?? null}
         venueBound={isBound}
-        onBack={() => void navigate({ to: '/' })}
+        onBack={leaveScreen}
         right={<PwaSyncPill />}
         stat={lines.length > 0 ? `${lines.length} line${lines.length === 1 ? '' : 's'} to book in` : undefined}
       />
@@ -219,6 +322,17 @@ export function GoodsInScreen() {
       <div className="scroll">
         {error && (
           <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />
+        )}
+        {restored !== null && lines.length > 0 && (
+          <div className="notice" role="status">
+            Restored your unfinished delivery from {formatClock(restored)}.
+            <button type="button" className="linklike" onClick={() => setRestored(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
+        {lastBookedAt !== null && lines.length === 0 && !receipt && (
+          <div className="notice" role="status">Last booked in at {formatClock(lastBookedAt)}.</div>
         )}
         {lines.length === 0 && <div className="empty">Scan or type a product code to start booking stock in.</div>}
         {lines.map((l, i) => {
@@ -327,6 +441,21 @@ export function GoodsInScreen() {
         />
       )}
 
+      {confirmExit && (
+        <DiscardGuardSheet
+          title="Leave without booking in?"
+          message={`You have ${lines.length} line${lines.length === 1 ? '' : 's'} not yet booked in.`}
+          discardLabel="Discard them"
+          onKeep={() => setConfirmExit(false)}
+          onDiscard={() => {
+            setConfirmExit(false);
+            setLines([]);
+            if (selectedSiteId) clearDraft(DRAFT_SCREEN, selectedSiteId);
+            void navigate({ to: '/venue' });
+          }}
+        />
+      )}
+
       {confirming && (
         <ConfirmBookingSheet
           venue={selectedSite?.name ?? 'No venue set'}
@@ -413,6 +542,7 @@ function DetailsSheet({
           inputMode="decimal"
           value={unitCost}
           onChange={(e) => setUnitCost(e.target.value)}
+          onFocus={selectOnFocus}
         />
         <p className="hint" style={{ marginTop: 6 }}>
           {formatMoney(parsedCost)} per {line.product.purchaseUom ?? 'unit'}
@@ -445,7 +575,7 @@ function DetailsSheet({
         <>
           <div className="field">
             <label htmlFor="gi-batch-code">Batch code</label>
-            <input id="gi-batch-code" className="input" value={batchCode} onChange={(e) => setBatchCode(e.target.value)} placeholder="e.g. M-2026-06" autoCapitalize="characters" />
+            <input id="gi-batch-code" className="input" value={batchCode} onChange={(e) => setBatchCode(e.target.value)} onFocus={selectOnFocus} placeholder="e.g. M-2026-06" autoCapitalize="characters" />
           </div>
           <div className="field">
             <label htmlFor="gi-use-by">Use by</label>
@@ -623,5 +753,96 @@ export function CodeMissSheet({
         <BigButton variant="ghost" onClick={onClose}>Close</BigButton>
       </div>
     </BottomSheet>
+  );
+}
+
+/**
+ * What a successful booking leaves on screen (Aug-2026 feedback set, A-5).
+ *
+ * "Request clear visual feedback upon booking rather than having items
+ * immediately clear from view."
+ *
+ * The list used to vanish behind a toast, which is indistinguishable from the
+ * list being lost. This is the opposite: everything that was booked, the venue
+ * it went to, the reference, and two deliberate ways out. **It does not
+ * disappear on a timer** — the only thing that expires is the Undo window, and
+ * that is shown counting down.
+ */
+export function ReceiptScreen({
+  receipt, venueBound, undo, undoPending, onUndo, onUndoExpired, onBookAnother, onLeave, error, onDismissError,
+}: {
+  receipt: BookedReceipt;
+  venueBound: boolean;
+  undo: { receiptId: string; venue: string } | null;
+  undoPending: boolean;
+  onUndo: () => void;
+  onUndoExpired: () => void;
+  onBookAnother: () => void;
+  onLeave: () => void;
+  error: { title: string; message: string } | null;
+  onDismissError: () => void;
+}) {
+  const total = receipt.lines.reduce((sum, l) => sum + l.value, 0);
+
+  return (
+    <TouchScreen>
+      <TouchTopbar
+        title="Booked in"
+        venue={receipt.venue}
+        venueBound={venueBound}
+        onBack={onLeave}
+        right={<PwaSyncPill />}
+        stat={`${receipt.lines.length} line${receipt.lines.length === 1 ? '' : 's'} · ${formatClock(receipt.bookedAt)}`}
+      />
+
+      <div className="scroll">
+        {error && (
+          <ErrorBanner title={error.title} message={error.message} onDismiss={onDismissError} />
+        )}
+
+        <div className="receipt-head">
+          <div className="receipt-tick" aria-hidden>✓</div>
+          <div>
+            <div className="receipt-title">Booked to {receipt.venue}</div>
+            <div className="receipt-sub">
+              Reference {receipt.reference} · {formatClock(receipt.bookedAt)}
+            </div>
+          </div>
+        </div>
+
+        {receipt.lines.map((line, i) => (
+          <div className="row" key={`${line.name}-${i}`}>
+            <div className="status status-done" aria-hidden>●</div>
+            <div className="meta">
+              <div className="name">{line.name}</div>
+              <div className="hint">
+                {line.description} · {formatMoney(line.value)}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <div className="receipt-total">
+          <span>Total</span>
+          <span>{formatMoney(total)}</span>
+        </div>
+      </div>
+
+      {undo && (
+        <UndoBar
+          message={`Booked to ${undo.venue}`}
+          actionLabel={undoPending ? 'Undoing…' : 'Undo'}
+          disabled={undoPending}
+          seconds={90}
+          onAction={onUndo}
+          onExpire={onUndoExpired}
+        />
+      )}
+
+      <ActionBar>
+        <BigButton variant="outline" onClick={onLeave}>Done</BigButton>
+        <BigButton variant="ok" onClick={onBookAnother}>Book another delivery</BigButton>
+      </ActionBar>
+    </TouchScreen>
   );
 }

@@ -23,6 +23,7 @@ import {
   BigButton,
   ActionBar,
   ErrorBanner,
+  DiscardGuardSheet,
 } from '@/components/touch/touch';
 
 export const Route = createFileRoute('/_touch/pwa/stock-take')({
@@ -155,6 +156,8 @@ export function StockTakeScreen() {
   const [filter, setFilter] = React.useState<'all' | 'todo'>('all');
   const [typeTarget, setTypeTarget] = React.useState<string | null>(null);
   const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
+  // A-5: counts entered but not saved must not disappear on a stray Back.
+  const [confirmExit, setConfirmExit] = React.useState(false);
 
   const startCount = async () => {
     if (!selectedSiteId) return;
@@ -291,7 +294,11 @@ export function StockTakeScreen() {
         venue={selectedSite?.name ?? null}
         venueBound={isBound}
         sub={scope === 'FULL' ? 'Full' : scope === 'CYCLE' ? 'Cycle' : 'Category'}
-        onBack={() => setTakeId(null)}
+        onBack={() => {
+          // Uncommitted counts are the ones a Back tap would lose.
+          if (Object.keys(counts).length > 0) setConfirmExit(true);
+          else setTakeId(null);
+        }}
         right={<PwaSyncPill />}
         stat={`${countedTotal} / ${lines.length} counted`}
         progress={pct}
@@ -352,6 +359,20 @@ export function StockTakeScreen() {
           </BigButton>
         )}
       </ActionBar>
+
+      {confirmExit && (
+        <DiscardGuardSheet
+          title="Leave the count?"
+          message={`You have ${Object.keys(counts).length} count${Object.keys(counts).length === 1 ? '' : 's'} that have not been saved.`}
+          discardLabel="Discard them"
+          onKeep={() => setConfirmExit(false)}
+          onDiscard={() => {
+            setConfirmExit(false);
+            setCounts({});
+            setTakeId(null);
+          }}
+        />
+      )}
 
       {typeTarget && (
         <KeypadSheet

@@ -15,6 +15,7 @@ import {
   ActionBar,
   ErrorBanner,
   NumericKeypad,
+  DiscardGuardSheet,
   selectOnFocus,
 } from '@/components/touch/touch';
 import { useNumericEntry } from '@/components/touch/use-numeric-entry';
@@ -85,6 +86,8 @@ export function ConsumptionScreen() {
   const [actualTarget, setActualTarget] = React.useState<number | null>(null);
   const [wasteTarget, setWasteTarget] = React.useState<number | null>(null);
   const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
+  // A-5: an edited ingredient list must not disappear on a stray Back.
+  const [confirmExit, setConfirmExit] = React.useState(false);
 
   const loadExpected = async () => {
     if (!selectedSiteId || !bake.trim() || regularTables === null || covers <= 0) return;
@@ -311,7 +314,12 @@ export function ConsumptionScreen() {
         venue={selectedSite?.name ?? null}
         venueBound={isBound}
         sub={bake || undefined}
-        onBack={() => setLoaded(false)}
+        onBack={() => {
+          // Only guard when something has actually been changed from the
+          // pre-filled expectation — an untouched list is nothing to lose.
+          if (changed > 0) setConfirmExit(true);
+          else setLoaded(false);
+        }}
         right={<PwaSyncPill />}
         stat={`${lines.length} ingredients · ${covers} tables${gfTables || veganTables ? ` (${gfTables} GF, ${veganTables} vegan)` : ''} · ${changed} adjusted`}
       />
@@ -420,6 +428,20 @@ export function ConsumptionScreen() {
           {submit.isPending ? 'Submitting…' : 'Submit consumption'}
         </BigButton>
       </ActionBar>
+
+      {confirmExit && (
+        <DiscardGuardSheet
+          title="Leave the bake?"
+          message={`You have adjusted ${changed} ingredient${changed === 1 ? '' : 's'}. Leaving discards those changes.`}
+          discardLabel="Discard them"
+          onKeep={() => setConfirmExit(false)}
+          onDiscard={() => {
+            setConfirmExit(false);
+            setLines([]);
+            setLoaded(false);
+          }}
+        />
+      )}
 
       {at && actualTarget !== null && (
         <KeypadSheet

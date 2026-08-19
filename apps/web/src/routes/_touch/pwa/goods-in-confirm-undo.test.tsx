@@ -168,6 +168,8 @@ describe('E-5: confirm the destination before booking', () => {
 });
 
 describe('E-3: the undo window', () => {
+  // Since F11 a successful booking lands on the RECEIPT screen (A-5) — the
+  // list no longer vanishes behind a toast — and the undo bar lives there.
   it('a successful booking offers Undo, naming the venue', async () => {
     const user = userEvent.setup();
     server.use(http.post(`${API}/goods-in`, () => HttpResponse.json({ success: true, data: RECEIPT })));
@@ -177,7 +179,11 @@ describe('E-3: the undo window', () => {
     await user.click(screen.getByRole('button', { name: /book in 1 line/i }));
     await user.click(await screen.findByRole('button', { name: /confirm and book in/i }));
 
-    expect(await screen.findByText('Booked to London South')).toBeInTheDocument();
+    // The receipt names the venue in its header, and the undo bar on it says
+    // the same thing — deliberately, so neither has to be read in isolation.
+    expect(await screen.findByRole('button', { name: /book another delivery/i })).toBeInTheDocument();
+    expect(document.querySelector('.receipt-title')).toHaveTextContent('Booked to London South');
+    expect(document.querySelector('.undobar')).toHaveTextContent('Booked to London South');
     expect(screen.getByRole('button', { name: /^undo$/i })).toBeInTheDocument();
   });
 
@@ -199,8 +205,11 @@ describe('E-3: the undo window', () => {
     await user.click(await screen.findByRole('button', { name: /^undo$/i }));
 
     await waitFor(() => expect(reversed).toBe('receipt-1'));
-    // The bar goes once the reversal lands.
-    await waitFor(() => expect(screen.queryByText('Booked to London South')).not.toBeInTheDocument());
+    // The undo BAR goes once the reversal lands; the receipt stays, because
+    // the user leaves it deliberately (A-5).
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /^undo$/i })).not.toBeInTheDocument(),
+    );
   });
 
   it('a refused reversal is surfaced, not swallowed', async () => {
@@ -234,8 +243,9 @@ describe('E-3: the undo window', () => {
     await user.click(screen.getByRole('button', { name: /book in 1 line/i }));
     await user.click(await screen.findByRole('button', { name: /confirm and book in/i }));
 
-    // The booking still happens; only the reversal affordance is withheld.
-    await waitFor(() => expect(screen.queryByText('Icing sugar')).not.toBeInTheDocument());
+    // The booking still happens and the receipt still appears; only the
+    // reversal affordance is withheld.
+    expect(await screen.findByRole('button', { name: /book another delivery/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^undo$/i })).not.toBeInTheDocument();
   });
 
