@@ -1867,3 +1867,22 @@ distinction from the field names.
 neither accepts nor returns `benchesPerTable`, the API defect matrix asserts
 the site payload carries no such property, and the web regression asserts the
 hint line contains no `≈`.
+
+### Post-deploy data checklist
+
+`docs/GO_LIVE_DATA_STEPS.md` consolidates everything that has to happen between
+a green deploy and a meaningful retest: head-baker PINs, the demo-cake purge,
+the ingredient and recipe imports, the recipe audit, Needs-setup to zero, and
+reversing the 12 August Birmingham booking. Every step is stamped with **where**
+it runs — the admin site, the API container's Coolify terminal, or PowerShell on
+the operator's own PC — because that was the first thing the operator had to ask
+when the steps were spread across a chat.
+
+Two orderings in it are load-bearing and called out in the document:
+
+- **Purge the demo cakes BEFORE importing the menu.** The purge deletes recipes
+  by cake name, and `Battenburg` is both an invented demo cake and one Big Bakes
+  actually sells. The other way round destroys the real recipe.
+- **The ingredient catalogue before the recipes.** Recipe lines reference
+  ingredient slugs; the import fails cleanly without them, but there is no
+  reason to spend the round trip.
