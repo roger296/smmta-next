@@ -122,20 +122,45 @@ export async function runImport(args: Args): Promise<ImportResult> {
   const ingredientRows = readCsv(args.ingredientsPath);
   const recipeRows = readCsv(args.recipesPath);
 
-  const missingIngredientCols = missingColumns(Object.keys(ingredientRows[0] ?? {}), [
-    'slug',
-    'name',
-    'stock_uom',
-  ]);
-  const missingRecipeCols = missingColumns(Object.keys(recipeRows[0] ?? {}), [
-    'bake',
-    'effective_from',
-    'variant',
-    'ingredient_slug',
-    'qty_per_table',
-  ]);
+  // An empty file has no first row to read a header from, so the column check
+  // below would report every required column as "missing" — which is both
+  // wrong and baffling when the header is plainly there. Say what is actually
+  // the matter. The blank templates in docs/templates/ hit this exactly.
+  const emptyFileProblems: ImportProblem[] = [];
+  if (ingredientRows.length === 0) {
+    emptyFileProblems.push({
+      row: 1,
+      file: 'ingredients.csv',
+      rule: 'no-data-rows',
+      message: 'Header only — no ingredients. Fill the template in before importing.',
+    });
+  }
+  if (recipeRows.length === 0) {
+    emptyFileProblems.push({
+      row: 1,
+      file: 'recipes.csv',
+      rule: 'no-data-rows',
+      message: 'Header only — no recipe lines. Fill the template in before importing.',
+    });
+  }
+
+  const missingIngredientCols =
+    ingredientRows.length === 0
+      ? []
+      : missingColumns(Object.keys(ingredientRows[0]!), ['slug', 'name', 'stock_uom']);
+  const missingRecipeCols =
+    recipeRows.length === 0
+      ? []
+      : missingColumns(Object.keys(recipeRows[0]!), [
+          'bake',
+          'effective_from',
+          'variant',
+          'ingredient_slug',
+          'qty_per_table',
+        ]);
 
   const problems: ImportProblem[] = [
+    ...emptyFileProblems,
     ...missingIngredientCols.map((c) => ({
       row: 1,
       file: 'ingredients.csv' as const,

@@ -26,6 +26,8 @@ import { parseArgs, runImport } from './import-recipes.js';
 
 const COMPANY = getSingletonCompanyId();
 const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), '../test/fixtures/recipes');
+/** docs/templates/ — the blank templates and worked example shipped to head office. */
+const TEMPLATES = resolve(dirname(fileURLToPath(import.meta.url)), '../../../docs/templates');
 const INGREDIENTS_CSV = join(FIXTURES, 'ingredients.csv');
 const RECIPES_CSV = join(FIXTURES, 'recipes.csv');
 const BAKE = 'ZZ Test Fixture Cake';
@@ -138,6 +140,30 @@ describe('runImport', () => {
       .from(products)
       .where(and(eq(products.companyId, COMPANY), like(products.slug, 'zz-test-%')));
     expect(leaked).toEqual([]);
+  });
+
+  it('says "header only" for a blank template, not "every column is missing"', async () => {
+    // The blank templates in docs/templates/ are headers with no rows. Reading
+    // the header off the first DATA row reported every required column as
+    // missing — wrong, and baffling when the header is plainly there.
+    const result = await runImport({
+      ingredientsPath: join(TEMPLATES, 'ingredients.template.csv'),
+      recipesPath: join(TEMPLATES, 'recipes.template.csv'),
+      dryRun: true,
+    });
+
+    expect(result.problems.map((p) => p.rule)).toEqual(['no-data-rows', 'no-data-rows']);
+    expect(result.problems[0]!.message).toMatch(/header only/i);
+    expect(result.problems.some((p) => p.rule === 'missing-column')).toBe(false);
+  });
+
+  it('the shipped worked example validates — a template nobody can run is not a template', async () => {
+    const result = await runImport({
+      ingredientsPath: join(TEMPLATES, 'EXAMPLE-battenburg-ingredients.csv'),
+      recipesPath: join(TEMPLATES, 'EXAMPLE-battenburg-recipes.csv'),
+      dryRun: true,
+    });
+    expect(result.problems).toEqual([]);
   });
 
   it('refuses the WHOLE import when any row is bad — a half menu is worse than none', async () => {

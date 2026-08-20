@@ -1,0 +1,11 @@
+bake,effective_from,site_slug,variant,ingredient_slug,qty_per_table,unit_cost
+Battenburg,2026-01-01,,BASE,plain-flour,400,
+Battenburg,2026-01-01,,BASE,unsalted-butter,300,
+Battenburg,2026-01-01,,BASE,free-range-egg,6,
+Battenburg,2026-01-01,,BASE,marzipan,250,
+Battenburg,2026-01-01,,GF_REMOVE,plain-flour,,
+Battenburg,2026-01-01,,GF_ADD,gf-flour-blend,420,
+Battenburg,2026-01-01,,VEGAN_REMOVE,unsalted-butter,,
+Battenburg,2026-01-01,,VEGAN_REMOVE,free-range-egg,,
+Battenburg,2026-01-01,,VEGAN_ADD,vegan-block,300,
+Battenburg,2026-01-01,,VEGAN_ADD,aquafaba,180,

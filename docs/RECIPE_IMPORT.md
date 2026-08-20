@@ -15,6 +15,14 @@ arrives through the importer described here.
 
 ---
 
+## Templates
+
+Blank CSVs to fill in, plus a complete worked example, live in
+**`docs/templates/`** — see the README there for a per-column crib aimed at
+whoever fills the spreadsheet in. The templates are headers only on purpose: an
+example row left in by accident becomes a real cake, which is how the demo
+menu reached a live venue test (F-4).
+
 ## Running it
 
 ```bash
