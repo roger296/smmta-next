@@ -8,11 +8,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  benchesFor,
   blockedLines,
   bumpDisplayed,
   displayedQty,
-  impliedTables,
+  impliedBenches,
   isAdjusted,
   setDisplayed,
   statusOf,
@@ -26,7 +25,7 @@ const line = (over: Partial<ConsumptionLine> = {}): ConsumptionLine => ({
   name: 'Plain flour',
   stockUom: 'g',
   expectedQty: 500,
-  qtyPerTable: 100,
+  qtyPerBench: 100,
   actualQty: 500,
   remainingQty: 0,
   remainingSet: false,
@@ -65,12 +64,12 @@ describe('F-1: direction consistency', () => {
   it('F-1 REGRESSION: in REMAINING mode Table+ and + agree — they used to oppose', () => {
     const start = line({ entryMode: 'REMAINING', remainingQty: 500, remainingSet: true });
     const plusOne = displayedQty(bumpDisplayed(start, 1));
-    const plusTable = displayedQty(bumpDisplayed(start, start.qtyPerTable));
+    const plusBench = displayedQty(bumpDisplayed(start, start.qtyPerBench));
     // Pre-F12, `Table−` increased remainingQty while `+` also increased it, so
     // the two buttons beside each other moved the same number opposite ways.
     expect(plusOne).toBeGreaterThan(500);
-    expect(plusTable).toBeGreaterThan(500);
-    expect(plusTable).toBeGreaterThan(plusOne);
+    expect(plusBench).toBeGreaterThan(500);
+    expect(plusBench).toBeGreaterThan(plusOne);
   });
 
   it('never goes below zero', () => {
@@ -79,8 +78,8 @@ describe('F-1: direction consistency', () => {
   });
 
   it('does not drift on repeated fractional steps', () => {
-    let l = line({ actualQty: 0, qtyPerTable: 0.25 });
-    for (let i = 0; i < 3; i += 1) l = bumpDisplayed(l, l.qtyPerTable);
+    let l = line({ actualQty: 0, qtyPerBench: 0.25 });
+    for (let i = 0; i < 3; i += 1) l = bumpDisplayed(l, l.qtyPerBench);
     expect(displayedQty(l)).toBe(0.75);
   });
 });
@@ -140,45 +139,55 @@ describe('F-2: switching mode keeps both figures', () => {
 // ── F-3: the live table count ───────────────────────────────────────────────
 describe('F-3: the number between the table buttons', () => {
   it('F-3: shows the tables implied by the CURRENT quantity, not the session total', () => {
-    const l = line({ actualQty: 250, qtyPerTable: 100 });
-    expect(impliedTables(l)).toBe(2.5);
+    const l = line({ actualQty: 250, qtyPerBench: 100 });
+    expect(impliedBenches(l)).toBe(2.5);
   });
 
   it('F-3: updates on every press', () => {
-    let l = line({ actualQty: 500, qtyPerTable: 100 });
-    expect(impliedTables(l)).toBe(5);
-    l = bumpDisplayed(l, l.qtyPerTable);
-    expect(impliedTables(l)).toBe(6);
+    let l = line({ actualQty: 500, qtyPerBench: 100 });
+    expect(impliedBenches(l)).toBe(5);
+    l = bumpDisplayed(l, l.qtyPerBench);
+    expect(impliedBenches(l)).toBe(6);
   });
 
   it('tracks the remaining figure in REMAINING mode', () => {
-    const l = line({ entryMode: 'REMAINING', remainingQty: 300, remainingSet: true, qtyPerTable: 100 });
-    expect(impliedTables(l)).toBe(3);
+    const l = line({ entryMode: 'REMAINING', remainingQty: 300, remainingSet: true, qtyPerBench: 100 });
+    expect(impliedBenches(l)).toBe(3);
   });
 
   it('is null when the recipe has no per-table figure — no honest answer', () => {
-    expect(impliedTables(line({ qtyPerTable: 0 }))).toBeNull();
+    expect(impliedBenches(line({ qtyPerBench: 0 }))).toBeNull();
   });
 
   it('rounds to one decimal, so a part-table is visible but not noisy', () => {
-    expect(impliedTables(line({ actualQty: 233, qtyPerTable: 100 }))).toBe(2.3);
+    expect(impliedBenches(line({ actualQty: 233, qtyPerBench: 100 }))).toBe(2.3);
   });
 });
 
 // ── F-7: benches ────────────────────────────────────────────────────────────
-describe('F-7: bench derivation', () => {
-  it('derives benches from the site setting', () => {
-    expect(benchesFor(4, 6)).toBe(24);
-    expect(benchesFor(2.5, 6)).toBe(15);
+describe('F-7: the bench count under the figure', () => {
+  /**
+   * "Request to show benches under the kilo figures."
+   *
+   * A bench and a table are the same thing — one team baking one cake. The
+   * first attempt at F-7 read them as two units and multiplied by a per-site
+   * `benchesPerTable` ratio, which is a conversion between a thing and itself;
+   * a five-bench session with a ratio of 6 would have rendered "4 of 5 tables
+   * · ≈ 24 benches". The ratio is gone. The count under the figure is simply
+   * the quantity divided by the per-bench recipe amount.
+   */
+  it('is the quantity in benches, with no site configuration involved', () => {
+    expect(impliedBenches(line({ actualQty: 400, qtyPerBench: 100 }))).toBe(4);
   });
 
-  it('is null when the site has no setting — the UI says so rather than guessing', () => {
-    expect(benchesFor(4, null)).toBeNull();
+  it('needs nothing from the site — a bench is not converted into anything', () => {
+    // Deliberately no site fixture, no ratio, no "not set" state to fall into.
+    const l = line({ actualQty: 250, qtyPerBench: 100 });
+    expect(impliedBenches(l)).toBe(2.5);
   });
 
-  it('treats a zero or negative ratio as unset', () => {
-    expect(benchesFor(4, 0)).toBeNull();
-    expect(benchesFor(4, -2)).toBeNull();
+  it('is null only when the recipe has no per-bench figure', () => {
+    expect(impliedBenches(line({ qtyPerBench: 0 }))).toBeNull();
   });
 });
 

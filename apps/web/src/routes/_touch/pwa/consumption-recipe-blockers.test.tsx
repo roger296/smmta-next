@@ -83,7 +83,7 @@ function renderScreen() {
 /** Pick the cake and type a regular table count, then load. */
 async function setUp(user: ReturnType<typeof userEvent.setup>, tables = 5) {
   await user.click(await screen.findByRole('button', { name: 'Battenburg' }));
-  await user.click(screen.getByRole('button', { name: /number of regular tables/i }));
+  await user.click(screen.getByRole('button', { name: /number of regular benches/i }));
   await user.click(screen.getByRole('button', { name: String(tables) }));
   await user.click(screen.getByRole('button', { name: /^save$/i }));
   await user.click(screen.getByRole('button', { name: /load ingredients/i }));
@@ -183,10 +183,10 @@ describe('F-5: a diet the cake has no recipe for is refused up front', () => {
         screen.getByText(/no gluten-free recipe for this cake — ask head office/i),
       ).toBeTruthy(),
     );
-    const gf = screen.getByRole('button', { name: /number of gluten free tables/i });
+    const gf = screen.getByRole('button', { name: /number of gluten free benches/i });
     expect(gf).toBeDisabled();
     // The vegan side, which the cake DOES have, stays usable.
-    expect(screen.getByRole('button', { name: /number of vegan tables/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /number of vegan benches/i })).not.toBeDisabled();
     expect(screen.queryByText(/no vegan recipe for this cake/i)).toBeNull();
   });
 
@@ -199,7 +199,7 @@ describe('F-5: a diet the cake has no recipe for is refused up front', () => {
     await waitFor(() =>
       expect(screen.getByText(/no vegan recipe for this cake — ask head office/i)).toBeTruthy(),
     );
-    expect(screen.getByRole('button', { name: /number of vegan tables/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /number of vegan benches/i })).toBeDisabled();
   });
 
   it('surfaces the server-side variant blocker as the same blocking notice', async () => {

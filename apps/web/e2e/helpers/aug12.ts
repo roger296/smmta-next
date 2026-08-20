@@ -106,7 +106,7 @@ export async function stubAug12(page: Page, opts: { products?: Aug12Product[] } 
   const products = opts.products ?? AUG12_PRODUCTS;
 
   await page.route('**/api/v1/sites**', (route) =>
-    route.fulfill(json({ success: true, data: [{ ...TEST_VENUE, isActive: true, benchesPerTable: '6.00' }] })),
+    route.fulfill(json({ success: true, data: [{ ...TEST_VENUE, isActive: true }] })),
   );
   await page.route('**/api/v1/products?**', (route) => {
     // Honour `search`. A stub that returns the whole catalogue for every query

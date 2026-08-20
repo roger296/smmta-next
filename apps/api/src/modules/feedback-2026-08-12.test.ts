@@ -460,19 +460,27 @@ describe('F — end of bake and recipe data', () => {
   });
 
   it('F-7: "Request to show benches under the kilo figures"', async () => {
+    // A bench and a table are the same thing. The count the tester wanted is
+    // derived on the client from the quantity and the recipe's per-bench
+    // amount — the server contributes nothing to it, and must NOT reacquire a
+    // per-site ratio (dropped in migration 0045; see site.routes.test.ts).
     const res = await app.inject({
-      method: 'PATCH', url: `/api/v1/sites/${siteId}`,
-      headers: auth(adminToken), payload: { benchesPerTable: 6 },
+      method: 'GET', url: '/api/v1/sites', headers: auth(adminToken),
     });
     expect(res.statusCode).toBe(200);
-    expect(Number(res.json().data.benchesPerTable)).toBe(6);
+    const site = (res.json().data as Array<Record<string, unknown>>).find((s) => s.id === siteId);
+    expect(site).toBeTruthy();
+    expect(site).not.toHaveProperty('benchesPerTable');
 
-    // …and "not set" stays a real, distinguishable state.
-    const cleared = await app.inject({
-      method: 'PATCH', url: `/api/v1/sites/${siteId}`,
-      headers: auth(adminToken), payload: { benchesPerTable: null },
+    // What DOES come from the server is the per-bench recipe amount the count
+    // is derived from — `qtyPerCover` on an expected-consumption line.
+    const lines = await expected.expectedForSession({
+      bake: BAKE, siteId, onDate: '2026-06-01', covers: 5, companyId: COMPANY,
     });
-    expect(cleared.json().data.benchesPerTable).toBeNull();
+    const flour = lines.find((l) => l.productName === 'FB Icing sugar');
+    expect(flour?.qtyPerCover).toBe(400);
+    // 5 benches × 400 g — and 2000 / 400 gives the 5 back on the screen.
+    expect(flour?.expectedQty).toBe(2000);
   });
 
   it('F-8: client/server type drift on consumption lines', async () => {

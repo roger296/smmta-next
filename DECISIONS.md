@@ -773,10 +773,9 @@ judgement call so the fix run never blocked.
 - **`remainingSet` exists so 0 can mean something.** "The shelf is empty" and
   "I haven't counted it" are different facts, and the pre-F12 code sent both as
   `remainingQty: 0`.
-- **`benchesPerTable` is per-site and nullable.** The rooms differ, so a
-  constant would be wrong somewhere; and "not set" is a real state the screen
-  should admit to rather than paper over with a default. Setting them is human
-  task 5.
+- **~~`benchesPerTable` is per-site and nullable.~~ WITHDRAWN 20 Aug 2026 —
+  see the F16 entry below.** A bench and a table are the same thing; this
+  decision rested on a misreading and the column has been dropped.
 - **The reducers live outside the component.** These were arithmetic bugs; a
   pure module lets the regression be a table rather than a click-through.
 
@@ -889,3 +888,34 @@ judgement call so the fix run never blocked.
 - **The retest script is numbered and defect-tagged** so the next session is a
   like-for-like comparison. Each step names the ID it re-tests, so a failure
   can be reported as "step 14 — C-1 is back".
+
+## F16 — Benches ARE tables (Aug-2026, correcting F-7)
+
+- **A bench and a table are the same thing.** One team, baking one cake
+  together. "Bench" is the word used in the venue; "table" is the word in the
+  spec and the recipe model. Confirmed by the owner, 20 Aug 2026.
+- **F-7 was misread.** "Request to show benches under the kilo figures" was
+  taken as a request for a *second unit* alongside tables, and a per-site
+  `benchesPerTable` ratio was built to convert between them — a conversion
+  factor between a thing and itself. Any value entered would have rendered
+  "4 of 5 tables · ≈ 24 benches" for a five-bench session. Dropped in migration
+  `0045`; the column shipped and was never populated, because the go-live step
+  that would have set it was stopped first.
+- **What F-7 actually needed was already computed.** `impliedBenches` derives
+  the count from the quantity and the recipe's per-bench amount. It needed
+  displaying under the figure, not converting. The fix made the feature
+  smaller: a column, a settings field, a hook and a helper all deleted.
+- **The venue screens say "bench" throughout** (owner's choice between the two
+  words). The four in-venue pages, their labels, their stepper buttons and this
+  module's identifiers all use it.
+- **The API wire format still says `covers` / `glutenFreeTables` /
+  `veganTables`.** Renaming request fields is a breaking change that buys
+  nothing — the words are synonyms, so the wire is not wrong, only older. The
+  mismatch is documented at the top of `line-reducers.ts` and at the state
+  declaration in `consumption.tsx` so the next reader does not re-derive the
+  distinction from the field names.
+- **A test asserts the ratio stays gone.** `site.routes.test.ts` checks that
+  `POST /sites` neither accepts nor returns `benchesPerTable`, and the web
+  regression asserts the hint line carries no `≈`. Re-adding the column would
+  put a meaningless field back on the Sites page and a wrong figure under every
+  quantity, and nothing else would catch it.

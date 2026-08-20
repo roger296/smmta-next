@@ -47,17 +47,6 @@ export const sites = pgTable(
      *  sizes the order from a demand estimate (rate-of-use × cover) instead of
      *  the fixed par. Default off — fixed par stays the baseline. */
     demandReorder: boolean('demand_reorder').notNull().default(false),
-    /**
-     * How many benches make up one table at this site (Aug-2026 feedback, F-7).
-     *
-     * "Request to show benches under the kilo figures." Bakers set up and
-     * count in benches; the recipe and the session are in tables. The ratio is
-     * per-site because the rooms differ — it is deliberately NOT hard-coded.
-     *
-     * NULL means "not set for this site", which the UI says out loud rather
-     * than quietly assuming the default (spec §A5).
-     */
-    benchesPerTable: numeric('benches_per_table', { precision: 6, scale: 2 }),
     ...auditTimestamps,
   },
   (t) => ({

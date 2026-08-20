@@ -1545,13 +1545,12 @@ the direction rule can be asserted as a table over four controls × two modes.
   press beside it. It is now `round(qty / qtyPerTable, 1)` with the session
   total alongside (`2.5 / 5`), updating on every press, and `—` when the recipe
   has no per-table figure.
-- **F-7 — benches under the kilos.** New per-site `sites.benches_per_table`
-  (migration `0044`, nullable, admin-editable) — **not hard-coded**, because
-  the rooms differ. Each line shows "5 of 5 tables · ≈ 30 benches" beneath the
-  quantity and the header carries the session total, both visible **without
-  scrolling or tapping**, which is the tester's stated reason (interruption
-  recovery). A site with no ratio reads "benches not set for this venue" rather
-  than quietly assuming a number.
+- **F-7 — benches under the kilos.** ⚠️ **This part was wrong and was
+  superseded the next day — see F16.** It added a per-site
+  `sites.benches_per_table` ratio on the assumption that benches and tables
+  were different units. They are the same thing. The ratio, the column and the
+  admin field were removed in migration `0045`; the count under the figure
+  stayed, which is all F-7 ever asked for.
 - **F-8's submit guard.** A REMAINING line with nothing entered is blocked
   inline ("not counted yet") and the submit button says how many are
   outstanding, rather than sending `remainingQty: 0` — which claims an empty
@@ -1566,8 +1565,8 @@ the direction rule can be asserted as a table over four controls × two modes.
   freshly toggled line is not "adjusted". F-3 implied tables, including
   `qtyPerTable = 0` → null. F-7 bench derivation and the unset cases. F-8's
   blocked lines, including that an explicit 0 is a real answer.
-- API: `sites.benchesPerTable` defaults null, stores and patches, `null` clears
-  it, and **0 is rejected** — that is a missing answer, not fewer benches.
+- API: `sites.benchesPerTable` — *removed in F16; the test now asserts the
+  field stays gone.*
 - API: `entry-mode.test.ts` still passes, plus explicit assertions that the
   server-side derivation is **unchanged** by the client rewrite.
 - Playwright (iPad): toggle to What's Left and back without losing the figure;
@@ -1825,3 +1824,46 @@ of regression that makes a screen unusable, not on CI noise.
   treating 12 August's data as suspect. All are data, not code; the retest is
   not meaningful without the first two, and step 19 and step 27 of the retest
   script will simply fail without items 2 and 4.
+
+
+## F16 — Benches are tables (correcting F-7)
+
+The owner, reviewing the fix set on 20 August, put it plainly: **"'Benches' and
+'Tables' are two words for EXACTLY THE SAME THING. There is no distinction."**
+
+F-7 — *"Request to show benches under the kilo figures"* — was read in F12 as a
+request for a second unit alongside tables. On that reading the fix needed a
+translation between them, so F12 added a per-site `benches_per_table` ratio: a
+column, a migration, an admin field, a hook, a helper and six tests, all
+computing a conversion factor between a thing and itself. With a ratio of 6 set
+against a five-bench session, the screen would have read *"4 of 5 tables · ≈ 24
+benches"*.
+
+It never displayed a wrong number, only because the go-live step that would
+have populated the column was stopped before it ran.
+
+**What F-7 actually needed was already there.** `impliedBenches` (was
+`impliedTables`) derives the count from the quantity and the recipe's per-bench
+amount. It wanted showing under the figure, in the venue's word. So this commit
+makes the feature *smaller*:
+
+- migration `0045` drops `sites.benches_per_table`;
+- the schema field, the service handling, the route validation, the `Site` /
+  `SiteInput` types, the Sites-page input and `use-site-settings.ts` all go;
+- `benchesFor()` goes;
+- the line reads `4 of 5 benches` — no `≈`, no site configuration, no "not set
+  for this venue" state to fall into.
+
+**And the venue screens now say "bench" throughout** (the owner's choice
+between the two words): the three bench-count fields on the setup screen, the
+`+1 bench` / `−1 bench left` steppers, the per-bench cost hint, the header
+stat, the in-app manual at `/test-manual` and `docs/USER_MANUAL.md`. The API
+wire format keeps `covers` / `glutenFreeTables` / `veganTables` — the words are
+synonyms, so the wire is not wrong, and renaming request fields buys nothing.
+The mismatch is documented where a reader would otherwise re-derive the
+distinction from the field names.
+
+**Guarded against recurrence:** `site.routes.test.ts` asserts `POST /sites`
+neither accepts nor returns `benchesPerTable`, the API defect matrix asserts
+the site payload carries no such property, and the web regression asserts the
+hint line contains no `≈`.

@@ -35,7 +35,6 @@ const createSchema = z.object({
    * Benches per table (Aug-2026, F-7). Positive, or null for "not set" —
    * zero is not a smaller number of benches, it is a missing answer.
    */
-  benchesPerTable: z.coerce.number().positive().nullable().optional(),
 });
 
 const updateSchema = createSchema.partial();

@@ -10,11 +10,10 @@ import {
 } from '@/features/consumption/use-consumption';
 import { useSubmitConsumption } from '@/features/pwa/use-pwa-jobs';
 import {
-  benchesFor,
   blockedLines,
   bumpDisplayed,
   displayedQty,
-  impliedTables,
+  impliedBenches,
   isAdjusted,
   setDisplayed,
   statusOf,
@@ -22,7 +21,6 @@ import {
   varianceOf,
   type ConsumptionLine,
 } from '@/features/consumption/line-reducers';
-import { useSiteSettings } from '@/features/sites/use-site-settings';
 import { PwaSyncPill } from '@/features/pwa/queue-status';
 import {
   TouchScreen,
@@ -61,7 +59,6 @@ function today(): string {
 export function ConsumptionScreen() {
   const navigate = useNavigate();
   const { selectedSite, selectedSiteId, isBound } = useSiteContext();
-  const { benchesPerTable } = useSiteSettings();
   const { data: bakes } = useBakes();
   const expected = useExpectedConsumption();
   const submit = useSubmitConsumption();
@@ -70,8 +67,10 @@ export function ConsumptionScreen() {
   const [sessionId, setSessionId] = React.useState('');
   const [sessionDate, setSessionDate] = React.useState(today());
   const [bake, setBake] = React.useState('');
-  // Three table counts, typed by the session leader. Teams bake together, so
-  // tables drive ingredient use rather than head count.
+  // Three bench counts, typed by the session leader. Teams bake together, so
+  // benches drive ingredient use rather than head count. (A bench and a table
+  // are the same thing — "bench" is the venue's word and the one on screen;
+  // the API field names below still say "tables", which is the wire format.)
   //
   // Regular starts NULL, not 0: a zero would be a legitimate answer that
   // happens to look like an unanswered question, and the form would happily
@@ -149,7 +148,7 @@ export function ConsumptionScreen() {
         name: r.productName,
         stockUom: r.stockUom,
         expectedQty: r.expectedQty,
-        qtyPerTable: r.qtyPerCover,
+        qtyPerBench: r.qtyPerCover,
         actualQty: r.expectedQty, // pre-filled with expected; baker edits
         remainingQty: 0,
         // False until the baker has actually answered "what's left" — a
@@ -166,8 +165,6 @@ export function ConsumptionScreen() {
   const setLine = (i: number, patch: Partial<FormLine>) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
 
-  /** Total tables' worth across the sheet, for the header bench figure (F-7). */
-  const sessionBenches = benchesFor(covers, benchesPerTable);
 
   const canSubmit =
     !!selectedSiteId &&
@@ -268,11 +265,11 @@ export function ConsumptionScreen() {
             <div className="field">
               {/* The label had no `for`, so nothing tied it to the control —
                   for a screen reader or for any by-label query. */}
-              <label id="lbl-regular-tables">Number of Regular Tables</label>
+              <label id="lbl-regular-benches">Number of Regular Benches</label>
               <button
                 className="input"
                 style={{ textAlign: 'left', fontWeight: 700 }}
-                aria-labelledby="lbl-regular-tables"
+                aria-labelledby="lbl-regular-benches"
                 onClick={() => setTableKeypad('regular')}
               >
                 {regularTables !== null ? regularTables : 'Tap to enter'}
@@ -282,11 +279,11 @@ export function ConsumptionScreen() {
             <div className="field">
               {/* The label had no `for`, so nothing tied it to the control —
                   for a screen reader or for any by-label query. */}
-              <label id="lbl-gf-tables">Number of Gluten Free Tables</label>
+              <label id="lbl-gf-benches">Number of Gluten Free Benches</label>
               <button
                 className="input"
                 style={{ textAlign: 'left', fontWeight: 700 }}
-                aria-labelledby="lbl-gf-tables"
+                aria-labelledby="lbl-gf-benches"
                 disabled={gfUnavailable}
                 onClick={() => setTableKeypad('gf')}
               >
@@ -304,11 +301,11 @@ export function ConsumptionScreen() {
             <div className="field">
               {/* The label had no `for`, so nothing tied it to the control —
                   for a screen reader or for any by-label query. */}
-              <label id="lbl-vegan-tables">Number of Vegan Tables</label>
+              <label id="lbl-vegan-benches">Number of Vegan Benches</label>
               <button
                 className="input"
                 style={{ textAlign: 'left', fontWeight: 700 }}
-                aria-labelledby="lbl-vegan-tables"
+                aria-labelledby="lbl-vegan-benches"
                 disabled={veganUnavailable}
                 onClick={() => setTableKeypad('vegan')}
               >
@@ -356,10 +353,10 @@ export function ConsumptionScreen() {
           <KeypadSheet
             title={
               tableKeypad === 'regular'
-                ? 'Number of Regular Tables'
+                ? 'Number of Regular Benches'
                 : tableKeypad === 'gf'
-                  ? 'Number of Gluten Free Tables'
-                  : 'Number of Vegan Tables'
+                  ? 'Number of Gluten Free Benches'
+                  : 'Number of Vegan Benches'
             }
             initial={
               tableKeypad === 'regular'
@@ -406,8 +403,7 @@ export function ConsumptionScreen() {
         }}
         right={<PwaSyncPill />}
         stat={
-          `${lines.length} ingredients · ${covers} tables` +
-          (sessionBenches !== null ? ` (≈ ${sessionBenches} benches)` : '') +
+          `${lines.length} ingredients · ${covers} benches` +
           (gfTables || veganTables ? ` · ${gfTables} GF, ${veganTables} vegan` : '') +
           ` · ${changed} adjusted`
         }
@@ -420,13 +416,12 @@ export function ConsumptionScreen() {
           const qty = displayedQty(l);
           const variance = varianceOf(l);
           const dot = statusOf(l);
-          const tables = impliedTables(l);
-          const benches = tables === null ? null : benchesFor(tables, benchesPerTable);
-          // F-1: ONE mutation path for every stepper, so `+`, `−`, `Table+`
-          // and `Table−` cannot disagree about direction — they differ only in
+          const benches = impliedBenches(l);
+          // F-1: ONE mutation path for every stepper, so `+`, `−`, `Bench+`
+          // and `Bench−` cannot disagree about direction — they differ only in
           // the size of the step.
           const bump = (by: number) => setLine(i, bumpDisplayed(l, by));
-          const tableWord = remaining ? 'table left' : 'table';
+          const benchWord = remaining ? 'bench left' : 'bench';
           return (
             <div className={`row mode-${remaining ? 'remaining' : 'consumed'}`} key={l.productId}>
               <div className={`status status-${dot}`} aria-hidden="true">{dot === 'done' ? '●' : '!'}</div>
@@ -444,12 +439,12 @@ export function ConsumptionScreen() {
                 </button>
                 <div className="hint book">
                   Expected {l.expectedQty} {l.stockUom}
-                  {/* What one table costs, so the Table± steps are legible and
+                  {/* What one bench costs, so the Bench± steps are legible and
                       a baker can sanity-check the total in their head. */}
-                  {l.qtyPerTable > 0 && (
+                  {l.qtyPerBench > 0 && (
                     <span className="perTable">
                       {' · '}
-                      {l.qtyPerTable} {l.stockUom} per table
+                      {l.qtyPerBench} {l.stockUom} per bench
                     </span>
                   )}
                   {variance !== null && variance !== 0 && (
@@ -462,15 +457,18 @@ export function ConsumptionScreen() {
                   )}
                   {l.wastageQty > 0 && <span className="badge" style={{ marginLeft: 6 }}>waste {l.wastageQty}{l.wastageReason ? ` · ${l.wastageReason}` : ''}</span>}
                 </div>
-                {/* F-7: "Request to show benches under the kilo figures." The
-                    tester's reason is interruption recovery, so it has to be
-                    readable without scrolling or tapping. */}
-                {tables !== null && (
+                {/* F-7: "Request to show benches under the kilo figures."
+                    The count under the figure, in the venue's own word — a
+                    baker coming back to a half-finished bake can check it
+                    against the room without tapping anything.
+
+                    No conversion: a bench IS a table. An earlier reading took
+                    them for different units and multiplied by a per-site
+                    ratio, which would have rendered "4 of 5 tables · ≈ 24
+                    benches" for a five-bench session. */}
+                {benches !== null && (
                   <div className="hint benches">
-                    {tables} of {covers} tables
-                    {benches !== null
-                      ? ` · ≈ ${benches} bench${benches === 1 ? '' : 'es'}`
-                      : ' · benches not set for this venue'}
+                    {benches} of {covers} bench{covers === 1 ? '' : 'es'}
                   </div>
                 )}
               </div>
@@ -484,30 +482,30 @@ export function ConsumptionScreen() {
                   {qty}
                 </button>
                 <button className="step" aria-label={`Increase ${l.name}`} onClick={() => bump(1)}>+</button>
-                {/* A whole table's worth in one press. Bakers think in tables,
-                    not kilograms. Labelled "+1 table left" in REMAINING mode so
-                    the press cannot be misread (F-1). */}
+                {/* A whole bench's worth in one press. Bakers think in
+                    benches, not kilograms. Labelled "+1 bench left" in
+                    REMAINING mode so the press cannot be misread (F-1). */}
                 <button
                   className="step-table"
-                  aria-label={`Remove one ${tableWord} of ${l.name}`}
-                  disabled={l.qtyPerTable <= 0}
-                  onClick={() => bump(-l.qtyPerTable)}
+                  aria-label={`Remove one ${benchWord} of ${l.name}`}
+                  disabled={l.qtyPerBench <= 0}
+                  onClick={() => bump(-l.qtyPerBench)}
                 >
-                  −1 {tableWord}
+                  −1 {benchWord}
                 </button>
-                {/* F-3: the tables-worth of the CURRENT quantity, updating on
+                {/* F-3: the benches-worth of the CURRENT quantity, updating on
                     every press — not the session total, which was identical on
                     every row and unaffected by every button beside it. */}
                 <span className="table-count" aria-hidden>
-                  {tables === null ? '—' : `${tables} / ${covers}`}
+                  {benches === null ? '—' : `${benches} / ${covers}`}
                 </span>
                 <button
                   className="step-table"
-                  aria-label={`Add one ${tableWord} of ${l.name}`}
-                  disabled={l.qtyPerTable <= 0}
-                  onClick={() => bump(l.qtyPerTable)}
+                  aria-label={`Add one ${benchWord} of ${l.name}`}
+                  disabled={l.qtyPerBench <= 0}
+                  onClick={() => bump(l.qtyPerBench)}
                 >
-                  +1 {tableWord}
+                  +1 {benchWord}
                 </button>
                 <button className={`zero${l.wastageQty > 0 ? ' on' : ''}`} aria-label="Wastage" onClick={() => setWasteTarget(i)}>⚠</button>
               </div>

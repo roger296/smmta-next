@@ -1,5 +1,17 @@
 /**
- * End-of-bake line arithmetic (Aug-2026 feedback set, F-1 / F-2 / F-3).
+ * End-of-bake line arithmetic (Aug-2026 feedback set, F-1 / F-2 / F-3 / F-7).
+ *
+ * ── VOCABULARY ──────────────────────────────────────────────────────────────
+ * A **bench** and a **table** are the same thing: one team, baking one cake
+ * together. "Bench" is the word used in the venue; "table" is the word in the
+ * spec and in the recipe model, which is why the API still says `covers` /
+ * `glutenFreeTables` / `veganTables` on the wire. The venue screens say
+ * *bench* throughout (owner's decision, 20 Aug 2026), and so does this module,
+ * because it exists to serve them.
+ *
+ * There is NO conversion between the two. An earlier reading of F-7 took them
+ * for different units and added a per-site `benchesPerTable` ratio; that was a
+ * conversion factor between a thing and itself and has been removed.
  *
  * Extracted from the screen so the two defects below can be asserted directly
  * rather than through six layers of JSX — they are arithmetic bugs, and
@@ -16,8 +28,8 @@
  * read alone and indefensible sitting next to a `+` that does the opposite.
  * **The rule now: every control moves the DISPLAYED NUMBER in its own
  * direction.** In REMAINING mode the displayed number is what's left, so
- * `Table+` adds a table's worth of remaining stock. The buttons are relabelled
- * `+1 table left` / `−1 table left` so the press cannot be misread. This
+ * `Bench+` adds a bench's worth of remaining stock. The buttons are relabelled
+ * `+1 bench left` / `−1 bench left` so the press cannot be misread. This
  * supersedes the old inline comment (recorded in DECISIONS.md).
  *
  * ── F-2: "Toggling to 'What's Left' resets the counter to 0, but toggling
@@ -37,8 +49,8 @@ export interface ConsumptionLine {
   name: string;
   stockUom: string;
   expectedQty: number;
-  /** One table's worth, straight from the recipe. */
-  qtyPerTable: number;
+  /** One bench's worth, straight from the recipe. */
+  qtyPerBench: number;
   actualQty: number;
   remainingQty: number;
   entryMode: EntryMode;
@@ -59,8 +71,8 @@ export function displayedQty(line: ConsumptionLine): number {
 /**
  * Move the displayed number by `delta`.
  *
- * F-1: this is the ONLY mutation path for the steppers, so `+`, `−`, `Table+`
- * and `Table−` cannot disagree about direction — they differ only in the size
+ * F-1: this is the ONLY mutation path for the steppers, so `+`, `−`, `Bench+`
+ * and `Bench−` cannot disagree about direction — they differ only in the size
  * of `delta`.
  */
 export function bumpDisplayed(line: ConsumptionLine, delta: number): ConsumptionLine {
@@ -99,19 +111,23 @@ export function toggleMode(line: ConsumptionLine): ConsumptionLine {
 }
 
 /**
- * The tables-worth implied by the CURRENT quantity (F-3).
+ * The benches-worth implied by the CURRENT quantity (F-3, and F-7's answer).
  *
- * The number between the table buttons used to render `covers` — the session
+ * The number between the bench buttons used to render `covers` — the session
  * total, read-only, identical on every row and unaffected by every press. It
- * now answers "how many tables is what I am looking at?", which is what a
- * number sitting between two table buttons appears to promise.
+ * now answers "how many benches is what I am looking at?", which is what a
+ * number sitting between two bench buttons appears to promise.
  *
- * Null when the recipe has no per-table figure: there is no honest answer, and
- * the table buttons are disabled in that case anyway.
+ * This is also all F-7 ("show benches under the kilo figures") ever needed: a
+ * count derived from the quantity and the per-bench recipe amount, shown under
+ * the figure. No site configuration, no ratio.
+ *
+ * Null when the recipe has no per-bench figure: there is no honest answer, and
+ * the bench buttons are disabled in that case anyway.
  */
-export function impliedTables(line: ConsumptionLine): number | null {
-  if (!(line.qtyPerTable > 0)) return null;
-  return Math.round((displayedQty(line) / line.qtyPerTable) * 10) / 10;
+export function impliedBenches(line: ConsumptionLine): number | null {
+  if (!(line.qtyPerBench > 0)) return null;
+  return Math.round((displayedQty(line) / line.qtyPerBench) * 10) / 10;
 }
 
 /**
@@ -152,10 +168,4 @@ export function statusOf(line: ConsumptionLine): 'done' | 'warn' {
  */
 export function blockedLines(lines: ConsumptionLine[]): ConsumptionLine[] {
   return lines.filter((l) => l.entryMode === 'REMAINING' && !l.remainingSet);
-}
-
-/** Benches implied by a table count, when the site has told us the ratio (F-7). */
-export function benchesFor(tables: number, benchesPerTable: number | null): number | null {
-  if (benchesPerTable == null || !(benchesPerTable > 0)) return null;
-  return Math.round(tables * benchesPerTable * 10) / 10;
 }

@@ -122,7 +122,7 @@ test.describe('the 12 Aug journey, end to end', () => {
     await expect(page.getByText(/approved/i).first()).toBeVisible();
   });
 
-  test('4 — End of Bake: load the recipe, toggle modes, step by tables, see benches, submit', async ({
+  test('4 — End of Bake: load the recipe, toggle modes, step by benches, see the count, submit', async ({
     page,
   }) => {
     let submitted: Record<string, unknown> | null = null;
@@ -137,7 +137,7 @@ test.describe('the 12 Aug journey, end to end', () => {
 
     await gotoVenueScreen(page, 'consumption', { sites: false });
     await page.getByRole('button', { name: 'Battenburg' }).click();
-    await page.getByRole('button', { name: /number of regular tables/i }).click();
+    await page.getByRole('button', { name: /number of regular benches/i }).click();
     await page.keyboard.type('5');
     await page.getByRole('button', { name: /^save$/i }).click();
     await page.getByLabel(/session id/i).fill('SESSION-AUG12');
@@ -152,13 +152,14 @@ test.describe('the 12 Aug journey, end to end', () => {
     const used = page.getByRole('button', { name: /Type amount of Icing sugar used/i });
     await expect(used).toHaveText('2000');
 
-    // Step by tables, and the count between the buttons tracks it (F-3).
-    await page.getByRole('button', { name: /Remove one table of Icing sugar/i }).click();
+    // Step by benches, and the count between the buttons tracks it (F-3).
+    await page.getByRole('button', { name: /Remove one bench of Icing sugar/i }).click();
     await expect(used).toHaveText('1600');
     await expect(page.locator('.table-count').first()).toHaveText('4 / 5');
 
-    // Benches under the figures (F-7).
-    await expect(page.locator('.hint.benches').first()).toContainText('bench');
+    // The bench count under the figure (F-7) — derived from the quantity, not
+    // converted from anything.
+    await expect(page.locator('.hint.benches').first()).toHaveText('4 of 5 benches');
 
     await page.getByRole('button', { name: /submit consumption/i }).click();
     await expect.poll(() => submitted).not.toBeNull();

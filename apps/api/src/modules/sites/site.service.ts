@@ -24,7 +24,6 @@ export interface SiteCreateInput {
    * back to "not set", which the venue screen states rather than assuming a
    * number.
    */
-  benchesPerTable?: number | null;
 }
 
 export type SiteUpdateInput = Partial<SiteCreateInput>;
@@ -70,7 +69,6 @@ export class SiteService {
         uomSystem: input.uomSystem ?? 'METRIC',
         timezone: input.timezone ?? 'Europe/London',
         isActive: input.isActive ?? true,
-        benchesPerTable: input.benchesPerTable != null ? String(input.benchesPerTable) : null,
       })
       .returning();
     return row!;
@@ -87,16 +85,10 @@ export class SiteService {
         throw new SiteSlugTakenError(patch.slug);
       }
     }
-    // `benchesPerTable` arrives as a number (or null) and the column is
-    // numeric, which drizzle takes as a string.
-    const { benchesPerTable, ...rest } = patch;
     const [row] = await this.db
       .update(sites)
       .set({
-        ...rest,
-        ...(benchesPerTable !== undefined
-          ? { benchesPerTable: benchesPerTable === null ? null : String(benchesPerTable) }
-          : {}),
+        ...patch,
         updatedAt: new Date(),
       })
       .where(and(eq(sites.id, id), eq(sites.companyId, companyId)))

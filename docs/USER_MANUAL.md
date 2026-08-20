@@ -180,9 +180,9 @@ what tells us the true cost of a session.
 
 1. Open **End-of-session** from the menu. Check the site name.
 2. **Cake baked** — tap the cake from the tiles.
-3. **Number of Regular Tables** — tap **Tap to enter** and key in the number.
-   Tables, not guests.
-4. **Number of Gluten Free Tables** and **Number of Vegan Tables** — these
+3. **Number of Regular Benches** — tap **Tap to enter** and key in the number.
+   Benches, not guests.
+4. **Number of Gluten Free Benches** and **Number of Vegan Benches** — these
    start at 0. Change them only if you had any.
 5. **Date** — today by default. Change it only if you're catching up on a
    previous day.
@@ -198,15 +198,16 @@ loaded for that date. Tell the office; don't carry on with a different cake.
 **Step two — confirm what was actually used**
 
 You'll get one row per ingredient, pre-filled with what the recipe *expected*
-for that number of tables. Your job is to correct the ones that are wrong.
+for that number of benches. Your job is to correct the ones that are wrong.
 
-Each row shows `Expected 4 kg · 0.5 kg per table` underneath the name, so you
-can see what one table's worth is.
+Each row shows `Expected 4 kg · 0.5 kg per bench` underneath the name, and the
+bench count that quantity works out to — `4 of 5 benches` — so you can check it
+against the room if you get interrupted.
 
 For each ingredient that didn't go to plan:
 
 - **−** and **+** step by one unit.
-- **Table−** and **Table+** step by exactly one table's worth of the recipe.
+- **−1 bench** and **+1 bench** step by exactly one bench's worth of the recipe.
   Use these — they save you doing the arithmetic.
 - Tap the **big number** to type an exact figure.
 
@@ -358,7 +359,7 @@ For each one, note **the date and time**, **your site**, **which screen**, and
 quantity received → check the unit cost against the delivery note → add batch
 codes where asked → **Book in**.
 
-**At the end of a baking session** → **End-of-session** → cake, tables, date,
+**At the end of a baking session** → **End-of-session** → cake, benches, date,
 Session ID, your name → **Load ingredients** → correct what differs, log
 wastage → **Submit consumption**.
 

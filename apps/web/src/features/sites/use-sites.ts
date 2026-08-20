@@ -10,8 +10,6 @@ export interface Site {
   uomSystem: 'METRIC' | 'IMPERIAL';
   timezone: string;
   isActive: boolean;
-  /** Benches per table at this site (Aug-2026, F-7). null = not set. */
-  benchesPerTable: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,8 +22,6 @@ export interface SiteInput {
   uomSystem?: 'METRIC' | 'IMPERIAL';
   timezone?: string;
   isActive?: boolean;
-  /** Benches per table (F-7). null clears it back to "not set". */
-  benchesPerTable?: number | null;
 }
 
 export const siteKeys = {

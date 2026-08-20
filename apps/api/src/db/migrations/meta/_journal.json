@@ -316,6 +316,13 @@
       "when": 1787167052469,
       "tag": "0044_site_benches_per_table",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1787170652469,
+      "tag": "0045_drop_site_benches_per_table",
+      "breakpoints": true
     }
   ]
 }

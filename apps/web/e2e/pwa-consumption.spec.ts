@@ -8,7 +8,7 @@
  * "Request to show benches under the kilo figures."
  */
 import { expect, test } from '@playwright/test';
-import { gotoVenueScreen, TEST_VENUE } from './helpers/touch';
+import { gotoVenueScreen } from './helpers/touch';
 
 const RECIPE_LINES = [
   {
@@ -50,10 +50,10 @@ async function stubRecipe(page: import('@playwright/test').Page) {
 }
 
 /** Fill the setup screen and load the ingredient list. */
-async function loadIngredients(page: import('@playwright/test').Page, tables = 5) {
+async function loadIngredients(page: import('@playwright/test').Page, benches = 5) {
   await page.getByRole('button', { name: 'Battenburg' }).click();
-  await page.getByRole('button', { name: /number of regular tables/i }).click();
-  await page.keyboard.type(String(tables));
+  await page.getByRole('button', { name: /number of regular benches/i }).click();
+  await page.keyboard.type(String(benches));
   await page.getByRole('button', { name: /^save$/i }).click();
   await page.getByLabel(/session id/i).fill('SESSION-1');
   await page.getByLabel(/your name/i).fill('Test Baker');
@@ -61,8 +61,6 @@ async function loadIngredients(page: import('@playwright/test').Page, tables = 5
   await expect(page.getByText('Plain flour')).toBeVisible();
 }
 
-/** The venue has told us its bench ratio (F-7). */
-const VENUE_WITH_BENCHES = [{ ...TEST_VENUE, isActive: true, benchesPerTable: '6.00' }];
 
 test.describe('End of Bake', () => {
   test.beforeEach(async ({ page }) => {
@@ -70,7 +68,7 @@ test.describe('End of Bake', () => {
   });
 
   test('F-2 REGRESSION: toggling to What\'s Left and back keeps the figure', async ({ page }) => {
-    await gotoVenueScreen(page, 'consumption', { sites: VENUE_WITH_BENCHES });
+    await gotoVenueScreen(page, 'consumption');
     await loadIngredients(page);
 
     const value = page.getByRole('button', { name: /type amount of Plain flour used/i });
@@ -85,56 +83,59 @@ test.describe('End of Bake', () => {
     await expect(page.getByRole('button', { name: /type amount of Plain flour used/i })).toHaveText('500');
   });
 
-  test('F-1 REGRESSION: in What\'s Left mode, +1 table left INCREASES the number', async ({ page }) => {
-    await gotoVenueScreen(page, 'consumption', { sites: VENUE_WITH_BENCHES });
+  test('F-1 REGRESSION: in What\'s Left mode, +1 bench left INCREASES the number', async ({ page }) => {
+    await gotoVenueScreen(page, 'consumption');
     await loadIngredients(page);
 
     await page.getByRole('button', { name: /entering: amount used/i }).click();
     const value = page.getByRole('button', { name: /type what is left of Plain flour/i });
     await expect(value).toHaveText('0');
 
-    // Pre-F12 "Table+" DECREASED remainingQty while "+" increased it.
-    await page.getByRole('button', { name: /add one table left of Plain flour/i }).click();
+    // Pre-F12 "Table+" (as it was then labelled) DECREASED remainingQty
+    // while "+" increased it.
+    await page.getByRole('button', { name: /add one bench left of Plain flour/i }).click();
     await expect(value).toHaveText('100');
     await page.getByRole('button', { name: /increase Plain flour/i }).click();
     await expect(value).toHaveText('101');
 
-    await page.getByRole('button', { name: /remove one table left of Plain flour/i }).click();
+    await page.getByRole('button', { name: /remove one bench left of Plain flour/i }).click();
     await expect(value).toHaveText('1');
   });
 
-  test('F-3: the table count between the buttons tracks the quantity', async ({ page }) => {
-    await gotoVenueScreen(page, 'consumption', { sites: VENUE_WITH_BENCHES });
+  test('F-3: the bench count between the buttons tracks the quantity', async ({ page }) => {
+    await gotoVenueScreen(page, 'consumption');
     await loadIngredients(page, 5);
 
-    // 500 g at 100 g/table = 5 tables, of a 5-table session.
+    // 500 g at 100 g/bench = 5 benches, of a 5-bench session.
     await expect(page.locator('.table-count')).toHaveText('5 / 5');
 
-    await page.getByRole('button', { name: /add one table of Plain flour/i }).click();
+    await page.getByRole('button', { name: /add one bench of Plain flour/i }).click();
     // Pre-F12 this number was the session total and never moved.
     await expect(page.locator('.table-count')).toHaveText('6 / 5');
   });
 
-  test('F-7: benches are shown under the figures', async ({ page }) => {
-    await gotoVenueScreen(page, 'consumption', { sites: VENUE_WITH_BENCHES });
+  test('F-7: the bench count is shown under the figure', async ({ page }) => {
+    await gotoVenueScreen(page, 'consumption');
     await loadIngredients(page, 5);
 
-    // 5 tables × 6 benches.
-    await expect(page.locator('.hint.benches')).toContainText('≈ 30 benches');
-    await expect(page.locator('.topbar')).toContainText('≈ 30 benches');
+    // 500 g at 100 g a bench = 5 of 5 benches. No site setting is involved:
+    // a bench and a table are the same thing, so there is nothing to convert.
+    await expect(page.locator('.hint.benches')).toHaveText('5 of 5 benches');
+    await expect(page.locator('.topbar')).toContainText('5 benches');
   });
 
-  test('F-7: a venue with no bench setting says so rather than guessing', async ({ page }) => {
-    await gotoVenueScreen(page, 'consumption', {
-      sites: [{ ...TEST_VENUE, isActive: true, benchesPerTable: null }],
-    });
+  test('F-7: the count follows the quantity, so it survives an interruption', async ({ page }) => {
+    await gotoVenueScreen(page, 'consumption');
     await loadIngredients(page, 5);
 
-    await expect(page.locator('.hint.benches')).toContainText('benches not set for this venue');
+    await page.getByRole('button', { name: /Remove one bench of Plain flour/i }).click();
+    // The tester's reason for asking was coming back to a half-finished bake
+    // and seeing how much of it is done without tapping anything.
+    await expect(page.locator('.hint.benches')).toHaveText('4 of 5 benches');
   });
 
   test('F-8: an uncounted What\'s Left line blocks the submit', async ({ page }) => {
-    await gotoVenueScreen(page, 'consumption', { sites: VENUE_WITH_BENCHES });
+    await gotoVenueScreen(page, 'consumption');
     await loadIngredients(page);
 
     await page.getByRole('button', { name: /entering: amount used/i }).click();

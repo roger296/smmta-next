@@ -406,7 +406,7 @@ test.describe('F — End of Bake and recipe data', () => {
   async function loadBake(page: import('@playwright/test').Page, tables = 5) {
     await gotoVenueScreen(page, 'consumption', { sites: false });
     await page.getByRole('button', { name: 'Battenburg' }).click();
-    await page.getByRole('button', { name: /number of regular tables/i }).click();
+    await page.getByRole('button', { name: /number of regular benches/i }).click();
     await page.keyboard.type(String(tables));
     await page.getByRole('button', { name: /^save$/i }).click();
     await page.getByLabel(/session id/i).fill('SESSION-AUG12');
@@ -421,7 +421,7 @@ test.describe('F — End of Bake and recipe data', () => {
     await loadBake(page);
     await page.getByRole('button', { name: /ENTERING: AMOUNT USED/ }).click();
     const value = page.getByRole('button', { name: /Type what is left of Icing sugar/i });
-    await page.getByRole('button', { name: /Add one table left of Icing sugar/i }).click();
+    await page.getByRole('button', { name: /Add one bench left of Icing sugar/i }).click();
     // "+1 table left" INCREASES what is left. On 12 Aug it decreased it, while
     // the plain + beside it increased — two controls, opposite directions.
     await expect(value).toHaveText('400');
@@ -440,7 +440,7 @@ test.describe('F — End of Bake and recipe data', () => {
   test('F-3: show the live table count implied by the current quantity', async ({ page }) => {
     await loadBake(page);
     await expect(page.locator('.table-count').first()).toHaveText('5 / 5');
-    await page.getByRole('button', { name: /Remove one table of Icing sugar/i }).click();
+    await page.getByRole('button', { name: /Remove one bench of Icing sugar/i }).click();
     await expect(page.locator('.table-count').first()).toHaveText('4 / 5');
   });
 
@@ -470,7 +470,7 @@ test.describe('F — End of Bake and recipe data', () => {
     // A diet with no recipe is refused up front rather than accepting a number
     // that silently produces the standard ingredient list.
     await expect(page.getByText(/no gluten-free recipe for this cake/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /number of gluten free tables/i })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /number of gluten free benches/i })).toBeDisabled();
   });
 
   test('F-6: "No bake logs were submitted due to incorrect recipe data"', async ({ page }) => {
@@ -489,7 +489,7 @@ test.describe('F — End of Bake and recipe data', () => {
     );
     await gotoVenueScreen(page, 'consumption', { sites: false });
     await page.getByRole('button', { name: 'Battenburg' }).click();
-    await page.getByRole('button', { name: /number of regular tables/i }).click();
+    await page.getByRole('button', { name: /number of regular benches/i }).click();
     await page.keyboard.type('5');
     await page.getByRole('button', { name: /^save$/i }).click();
     await page.getByRole('button', { name: /load ingredients/i }).click();
@@ -503,7 +503,11 @@ test.describe('F — End of Bake and recipe data', () => {
 
   test('F-7: "Request to show benches under the kilo figures"', async ({ page }) => {
     await loadBake(page);
-    await expect(page.locator('.hint.benches').first()).toContainText('benches');
+    // The count under the figure, in the venue's word. No site setting, and
+    // crucially no "≈ N benches" multiplied out of a per-site ratio — a bench
+    // and a table are the same thing.
+    await expect(page.locator('.hint.benches').first()).toHaveText('5 of 5 benches');
+    await expect(page.locator('.hint.benches').first()).not.toContainText('≈');
   });
 
   test('F-8: client/server type drift on consumption lines', async ({ page }) => {

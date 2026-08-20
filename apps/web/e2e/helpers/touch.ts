@@ -72,8 +72,6 @@ export interface StubSite {
   slug: string;
   name: string;
   isActive: boolean;
-  /** Benches per table (F-7). Absent / null = "not set for this venue". */
-  benchesPerTable?: string | null;
 }
 
 export async function stubSites(

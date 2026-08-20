@@ -407,12 +407,12 @@ function TestManualPage() {
               <strong>Cake baked</strong> — tap the cake from the tiles.
             </li>
             <li>
-              <strong>Number of Regular Tables</strong> — tap <Ui>Tap to enter</Ui> and key in the
-              number. Tables, not guests.
+              <strong>Number of Regular Benches</strong> — tap <Ui>Tap to enter</Ui> and key in the
+              number. Benches, not guests.
             </li>
             <li>
-              <strong>Number of Gluten Free Tables</strong> and{' '}
-              <strong>Number of Vegan Tables</strong> — these start at 0. Change them only if you
+              <strong>Number of Gluten Free Benches</strong> and{' '}
+              <strong>Number of Vegan Benches</strong> — these start at 0. Change them only if you
               had any.
             </li>
             <li>
@@ -441,13 +441,14 @@ function TestManualPage() {
 
           <p>
             You&rsquo;ll get one row per ingredient, pre-filled with what the recipe{' '}
-            <em>expected</em> for that number of tables. Your job is to correct the ones that are
+            <em>expected</em> for that number of benches. Your job is to correct the ones that are
             wrong.
           </p>
 
           <p>
-            Each row shows <Ui>Expected 4 kg · 0.5 kg per table</Ui> underneath the name, so you can
-            see what one table&rsquo;s worth is.
+            Each row shows <Ui>Expected 4 kg · 0.5 kg per bench</Ui> underneath the name, and the
+            bench count that quantity works out to — <Ui>4 of 5 benches</Ui> — so you can check it
+            against the room if you get interrupted.
           </p>
 
           <p>For each ingredient that didn&rsquo;t go to plan:</p>
@@ -457,8 +458,8 @@ function TestManualPage() {
               <strong>−</strong> and <strong>+</strong> step by one unit.
             </li>
             <li>
-              <strong>Table−</strong> and <strong>Table+</strong> step by exactly one table&rsquo;s
-              worth of the recipe. Use these — they save you doing the arithmetic.
+              <strong>−1 bench</strong> and <strong>+1 bench</strong> step by exactly one
+              bench&rsquo;s worth of the recipe. Use these — they save you doing the arithmetic.
             </li>
             <li>
               Tap the <strong>big number</strong> to type an exact figure.
@@ -781,7 +782,7 @@ function TestManualPage() {
           <div className="m-qr">
             <h4>At the end of a baking session</h4>
             <p>
-              <strong>End-of-session</strong> → cake, tables, date, Session ID, your name →{' '}
+              <strong>End-of-session</strong> → cake, benches, date, Session ID, your name →{' '}
               <strong>Load ingredients</strong> → correct what differs, log wastage →{' '}
               <strong>Submit consumption</strong>.
             </p>

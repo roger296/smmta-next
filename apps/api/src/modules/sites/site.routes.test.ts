@@ -9,22 +9,32 @@ import type { FastifyInstance } from 'fastify';
 import { inArray } from 'drizzle-orm';
 import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
-import { sites } from '../../db/schema/index.js';
+import { devicePins, sites } from '../../db/schema/index.js';
 
 const SLUGS = [
   'rtest-leeds',
   'rtest-bristol',
-  // F-7 fixtures (Aug-2026 feedback set).
-  'bench-default',
-  'bench-six',
-  'bench-clear',
-  'bench-zero',
+  // F-7 fixture (Aug-2026 feedback set). The per-site bench ratio the other
+  // fixtures here tested was removed in F16 — a bench and a table are the
+  // same thing — so only the "it stays gone" slug remains.
+  'bench-gone',
 ];
 let app: FastifyInstance;
 let token: string;
 
 async function cleanup(): Promise<void> {
-  await getDb().delete(sites).where(inArray(sites.slug, SLUGS));
+  const db = getDb();
+  // Device pins first. `seed-head-baker-pins` mints one per site, so a fixture
+  // site left behind by an interrupted run acquires a PIN and can no longer be
+  // deleted by slug — the FK refuses and every test in this file then skips.
+  const mine = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(inArray(sites.slug, SLUGS));
+  if (mine.length > 0) {
+    await db.delete(devicePins).where(inArray(devicePins.siteId, mine.map((s) => s.id)));
+  }
+  await db.delete(sites).where(inArray(sites.slug, SLUGS));
 }
 
 beforeAll(async () => {
@@ -131,64 +141,23 @@ describe('Sites admin API', () => {
   });
 });
 
-// ── F-7: benches per table (Aug-2026 feedback set) ──────────────────────────
-describe('benchesPerTable', () => {
-  it('defaults to NULL — "not set for this site", said out loud rather than assumed', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/v1/sites',
-      headers: { authorization: `Bearer ${token}` },
-      payload: { slug: 'bench-default', name: 'Bench Default' },
-    });
-    expect(res.statusCode).toBe(201);
-    expect(res.json().data.benchesPerTable).toBeNull();
-  });
-
-  it('F-7: stores and returns a per-site ratio', async () => {
+// ── F-7: no per-site bench configuration exists (Aug-2026, corrected) ───────
+//
+// `sites.benches_per_table` shipped on 20 Aug on a misreading of F-7 and was
+// dropped the same day (migration 0045). A bench and a table are the same
+// thing, so the column was a conversion factor between a thing and itself.
+// This asserts it stays gone: re-adding it would put a meaningless field back
+// on the Sites page and an "≈ N benches" line back under every quantity.
+describe('sites carry no bench ratio', () => {
+  it('does not accept or return benchesPerTable', async () => {
     const created = await app.inject({
       method: 'POST',
       url: '/api/v1/sites',
       headers: { authorization: `Bearer ${token}` },
-      payload: { slug: 'bench-six', name: 'Bench Six', benchesPerTable: 6 },
+      payload: { slug: 'bench-gone', name: 'Bench Gone', benchesPerTable: 6 },
     });
     expect(created.statusCode).toBe(201);
-    expect(Number(created.json().data.benchesPerTable)).toBe(6);
-
-    const id = created.json().data.id as string;
-    const patched = await app.inject({
-      method: 'PATCH',
-      url: `/api/v1/sites/${id}`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { benchesPerTable: 4.5 },
-    });
-    expect(Number(patched.json().data.benchesPerTable)).toBe(4.5);
-  });
-
-  it('null clears it back to "not set"', async () => {
-    const created = await app.inject({
-      method: 'POST',
-      url: '/api/v1/sites',
-      headers: { authorization: `Bearer ${token}` },
-      payload: { slug: 'bench-clear', name: 'Bench Clear', benchesPerTable: 6 },
-    });
-    const id = created.json().data.id as string;
-
-    const cleared = await app.inject({
-      method: 'PATCH',
-      url: `/api/v1/sites/${id}`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { benchesPerTable: null },
-    });
-    expect(cleared.json().data.benchesPerTable).toBeNull();
-  });
-
-  it('rejects zero — that is a missing answer, not a smaller number of benches', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/v1/sites',
-      headers: { authorization: `Bearer ${token}` },
-      payload: { slug: 'bench-zero', name: 'Bench Zero', benchesPerTable: 0 },
-    });
-    expect(res.statusCode).toBe(400);
+    // Unknown keys are ignored by the schema, and nothing comes back.
+    expect(created.json().data).not.toHaveProperty('benchesPerTable');
   });
 });

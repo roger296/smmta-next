@@ -299,6 +299,10 @@
    overflowed and the +/− was clipped away — the pair rendered as "TableTable".
    These size to their text instead, at a font that fits without shrinking the
    tap target below the 48px the rest of the row uses. */
+/* `step-table` / `table-count`: the class names predate the vocabulary fix and
+   are kept because e2e selectors and this stylesheet both use them. The UI
+   copy says BENCH — a bench and a table are the same thing (see
+   line-reducers.ts). Not user-visible either way. */
 .touch-app .step-table {
   height: 48px;
   padding: 0 10px;
