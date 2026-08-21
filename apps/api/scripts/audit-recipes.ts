@@ -7,16 +7,18 @@
  * Read-only. Fixing is deliberately left to a human, because the dangerous
  * part is not finding the broken lines — it is what happens next.
  *
- * ⚠️ THE UNIT TRAP. The four sample recipes were seeded in June against demo
- * products measured in GRAMS and MILLILITRES ("250" meaning 250 g of flour).
- * The real catalogue is in KILOGRAMS and LITRES. Re-pointing a line at the
- * real product without converting turns 250 g into 250 kg — a thousandfold
- * error that no validation catches, because 250 kg of flour is a perfectly
- * legal number. It surfaces as an enormous expected consumption, an enormous
- * materials cost, and a reorder proposal nobody can explain.
+ * ⚠️ THE UNIT TRAP. Re-pointing a line stored in grams at a product measured
+ * in kilograms turns 250 g into 250 kg — a thousandfold error no validation
+ * catches, because 250 kg of flour is a legal number. It surfaces later as an
+ * enormous expected consumption, an enormous materials cost, and a reorder
+ * proposal nobody can explain.
  *
  * So this reports the line's stored unit next to the product's unit and says
- * plainly when they differ.
+ * plainly when they differ — and the closing advice is printed ONLY for the
+ * problems actually found. It used to assert unconditionally that every
+ * quantity was a June demo value needing division by 1000; in Aug-2026 it told
+ * that to an operator whose figures were already correct grams, and following
+ * it would have shrunk every recipe by a factor of a thousand.
  */
 import 'dotenv/config';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
@@ -131,12 +133,16 @@ if (isCliEntry) {
       for (const r of results) {
         const dead = r.orphanedLines.length;
         console.log(`  ${r.bake} — ${r.site} v${r.version}`);
-        console.log(`    ${dead} of ${r.totalLines} ingredient(s) point at a deleted product`);
+        console.log(
+          `    ${dead} of ${r.totalLines} ingredient(s) point at a product that is not live`,
+        );
         if (dead === r.totalLines) {
           console.log('    ⚠ EVERY line is dead — this recipe expects nothing at all.');
         }
         for (const o of r.orphanedLines) {
-          console.log(`      · ${o.qtyPerCover} ${o.stockUom}  (product ${o.productId.slice(0, 8)} gone)`);
+          console.log(
+            `      · ${o.qtyPerCover} ${o.stockUom}  (product ${o.productId.slice(0, 8)} not live)`,
+          );
         }
         for (const m of r.unitMismatches) {
           console.log(
@@ -146,11 +152,32 @@ if (isCliEntry) {
         }
         console.log('');
       }
-      console.log('  The quantities above are the ORIGINAL demo values, in grams and');
-      console.log('  millilitres. The real catalogue is in kilograms and litres, so a');
-      console.log('  line reading 250 means 250 g — re-point it without converting and');
-      console.log('  it becomes 250 kg per guest. Divide by 1000 when repairing.');
-      console.log('');
+      // Only say the things that apply to what was actually found. This block
+      // used to print the unit-trap warning unconditionally, asserting that
+      // every quantity above was a June demo value needing division by 1000.
+      // In Aug-2026 it said that to an operator whose figures were already
+      // correct grams; following it would have made every recipe a thousandth
+      // of its real size. Advice that is right once and wrong afterwards is
+      // worse than none.
+      const anyMismatch = results.some((r) => r.unitMismatches.length > 0);
+      const anyOrphan = results.some((r) => r.orphanedLines.length > 0);
+
+      if (anyOrphan) {
+        console.log('  "Not live" means the product row is missing OR soft-deleted.');
+        console.log('  A soft-deleted one is the commoner case and the easier fix: the');
+        console.log('  ingredient still exists, someone deleted it, and a later import');
+        console.log('  wrote onto it. Re-running `import:recipes` revives any slug named');
+        console.log('  in ingredients.csv and reports which ones it brought back.');
+        console.log('');
+      }
+      if (anyMismatch) {
+        console.log('  ⚠ UNIT MISMATCH above — check the scale before repairing. A line');
+        console.log('  stored in grams re-pointed at a product measured in kilograms');
+        console.log('  turns 250 g into 250 kg, which no validation catches because');
+        console.log('  250 kg is a legal number. Convert deliberately; do not assume a');
+        console.log('  direction. Lines with no mismatch flagged need no conversion.');
+        console.log('');
+      }
       console.log('  Nothing here has been changed. Repair at');
       console.log('  https://stock.thebigbakes.com/recipes — or delete and rebuild.');
     })
