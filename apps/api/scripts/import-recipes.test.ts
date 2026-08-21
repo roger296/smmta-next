@@ -112,6 +112,54 @@ describe('runImport', () => {
     expect(Number(egg!.countQuantum)).toBe(30);
   });
 
+  it('revives a soft-deleted ingredient instead of writing onto a dead row', async () => {
+    // The Manchester import (Aug 2026) hit this for real: four slugs —
+    // caster-sugar, icing-sugar, baking-powder, cocoa-powder — were shared
+    // with the retired demo seed and had been soft-deleted. The upsert matched
+    // them by slug, wrote the new name/unit/cost, and left `deleted_at` set.
+    // Nineteen recipes then pointed at products the rest of the app treats as
+    // gone, and `audit-recipes` reported "product … gone" for every one.
+    const db = getDb();
+    const [dead] = await db
+      .insert(products)
+      .values({
+        companyId: COMPANY,
+        slug: 'zz-test-flour',
+        stockCode: 'ZZ-TEST-FLOUR-OLD',
+        name: 'Old name',
+        stockUom: 'kg',
+        itemKind: 'INGREDIENT',
+        isSold: false,
+        isStocked: true,
+        deletedAt: new Date(),
+      })
+      .returning();
+    expect(dead!.deletedAt).not.toBeNull();
+
+    const result = await runImport({
+      ingredientsPath: INGREDIENTS_CSV,
+      recipesPath: RECIPES_CSV,
+      dryRun: false,
+    });
+
+    expect(result.problems).toEqual([]);
+    expect(result.ingredientsRevived).toContain('zz-test-flour');
+
+    const after = await db.query.products.findFirst({
+      where: and(eq(products.companyId, COMPANY), eq(products.slug, 'zz-test-flour')),
+    });
+    // Same row, brought back — not a duplicate, and no longer deleted.
+    expect(after!.id).toBe(dead!.id);
+    expect(after!.deletedAt).toBeNull();
+    expect(after!.name).toBe('ZZ Test Plain Flour');
+  });
+
+  it('reports nothing revived when every ingredient was already live', async () => {
+    const args = { ingredientsPath: INGREDIENTS_CSV, recipesPath: RECIPES_CSV, dryRun: false };
+    await runImport(args);
+    expect((await runImport(args)).ingredientsRevived).toEqual([]);
+  });
+
   it('is idempotent — a re-import supersedes in place rather than stacking', async () => {
     const args = { ingredientsPath: INGREDIENTS_CSV, recipesPath: RECIPES_CSV, dryRun: false };
     await runImport(args);

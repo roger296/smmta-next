@@ -71,11 +71,27 @@ function readCsv(path: string): Array<Record<string, string>> {
 }
 
 /** Create or update the ingredient product for one CSV row. */
-async function upsertIngredient(row: IngredientRow): Promise<string> {
+/**
+ * Create or update the ingredient product for one CSV row.
+ *
+ * **A soft-deleted product is revived, not silently updated.** The match is on
+ * `(company, slug)` and takes no notice of `deletedAt`, so importing a slug
+ * that someone had previously deleted used to write the new name, unit and
+ * cost onto a row the rest of the app still treats as gone: the recipe line
+ * pointed at it, `audit-recipes` reported "product … gone", and the ingredient
+ * never appeared on a count sheet. Head office naming an ingredient in the
+ * catalogue IS the decision that it is live, so clearing `deletedAt` is the
+ * only defensible reading — and the revival is reported rather than done
+ * quietly, because it un-does somebody's earlier deletion.
+ */
+async function upsertIngredient(
+  row: IngredientRow,
+  revived: string[],
+): Promise<string> {
   const db = getDb();
   const existing = await db.query.products.findFirst({
     where: and(eq(products.companyId, COMPANY), eq(products.slug, row.slug)),
-    columns: { id: true },
+    columns: { id: true, deletedAt: true },
   });
 
   const values = {
@@ -87,10 +103,12 @@ async function upsertIngredient(row: IngredientRow): Promise<string> {
     expectedNextCost: String(row.expectedNextCost),
     barcode: row.barcode,
     countQuantum: row.countQuantum === null ? null : String(row.countQuantum),
+    deletedAt: null,
     updatedAt: new Date(),
   };
 
   if (existing) {
+    if (existing.deletedAt) revived.push(row.slug);
     await db.update(products).set(values).where(eq(products.id, existing.id));
     return existing.id;
   }
@@ -113,6 +131,8 @@ async function upsertIngredient(row: IngredientRow): Promise<string> {
 export interface ImportResult {
   problems: ImportProblem[];
   ingredientsUpserted: number;
+  /** Slugs that existed but were soft-deleted, and have been brought back. */
+  ingredientsRevived: string[];
   recipesWritten: number;
   recipesSuperseded: number;
   dryRun: boolean;
@@ -184,6 +204,7 @@ export async function runImport(args: Args): Promise<ImportResult> {
     return {
       problems,
       ingredientsUpserted: 0,
+      ingredientsRevived: [],
       recipesWritten: 0,
       recipesSuperseded: 0,
       dryRun: args.dryRun,
@@ -193,8 +214,9 @@ export async function runImport(args: Args): Promise<ImportResult> {
   // ── Write ────────────────────────────────────────────────────────────
   const db = getDb();
   const ids = new Map<string, string>();
+  const revived: string[] = [];
   for (const ingredient of parsedIngredients.ingredients) {
-    ids.set(ingredient.slug, await upsertIngredient(ingredient));
+    ids.set(ingredient.slug, await upsertIngredient(ingredient, revived));
   }
 
   const recipeService = new RecipeService();
@@ -248,6 +270,7 @@ export async function runImport(args: Args): Promise<ImportResult> {
   return {
     problems,
     ingredientsUpserted: ids.size,
+    ingredientsRevived: revived,
     recipesWritten: written,
     recipesSuperseded: superseded,
     dryRun: false,
@@ -275,6 +298,13 @@ async function main(): Promise<void> {
     `\n[import-recipes] ${result.ingredientsUpserted} ingredients, ` +
       `${result.recipesWritten} new recipes, ${result.recipesSuperseded} superseded.`,
   );
+  if (result.ingredientsRevived.length > 0) {
+    console.log(
+      `[import-recipes] REVIVED ${result.ingredientsRevived.length} previously deleted ` +
+        `ingredient(s): ${result.ingredientsRevived.join(', ')}\n` +
+        'They were soft-deleted and are named in the catalogue, so they are live again.',
+    );
+  }
 }
 
 const isCliEntry = process.argv[1]?.endsWith('import-recipes.ts') ?? false;

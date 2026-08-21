@@ -65,6 +65,25 @@ recipes.csv   14   remove-not-in-base          Battenburg from 2026-09-01: GF_RE
                                                the BASE recipe. Nothing would be removed.
 ```
 
+### Soft-deleted ingredients are revived
+
+If a slug in `ingredients.csv` matches a product somebody previously deleted,
+the import **brings it back** and says so:
+
+```
+[import-recipes] REVIVED 4 previously deleted ingredient(s): caster-sugar, …
+```
+
+Naming an ingredient in the catalogue is the decision that it is live. Before
+Aug-2026 the upsert matched on slug without noticing `deleted_at`, so it wrote
+the new name, unit and cost onto a row the rest of the app still treated as
+gone — the recipe line pointed at it, `audit-recipes` reported
+"product … gone", and the ingredient never reached a count sheet.
+
+Because it un-does somebody's earlier deletion, the revival is reported rather
+than done quietly. If a revived slug should have stayed deleted, the answer is
+to take it out of `ingredients.csv`, not to re-delete it after every import.
+
 ### Idempotence
 
 Keyed on `(bake, site, effective_from)`. Re-importing the same file supersedes
