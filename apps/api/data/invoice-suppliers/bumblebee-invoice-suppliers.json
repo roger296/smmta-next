@@ -1,0 +1,644 @@
+{
+ "source": "BumbleBee MCP tool bumblebee_invoice_suppliers(category=\"stock\")",
+ "exported": "2026-08-21",
+ "total_count": 91,
+ "rows": [
+  {
+   "supplier_id": 2,
+   "supplier": "Brakes",
+   "category": "stock",
+   "invoice_count": 421,
+   "spend": 168869.16
+  },
+  {
+   "supplier_id": 1,
+   "supplier": "Amazon",
+   "category": "stock",
+   "invoice_count": 1357,
+   "spend": 48144.49
+  },
+  {
+   "supplier_id": 4,
+   "supplier": "Culpitt",
+   "category": "stock",
+   "invoice_count": 211,
+   "spend": 40889.28
+  },
+  {
+   "supplier_id": 5,
+   "supplier": "LWC Drinks",
+   "category": "stock",
+   "invoice_count": 210,
+   "spend": 38755.99
+  },
+  {
+   "supplier_id": 6,
+   "supplier": "Twist Ingredients",
+   "category": "stock",
+   "invoice_count": 88,
+   "spend": 37713.82
+  },
+  {
+   "supplier_id": 22,
+   "supplier": "Alibaba",
+   "category": "stock",
+   "invoice_count": 20,
+   "spend": 27645.88
+  },
+  {
+   "supplier_id": 9,
+   "supplier": "Booker",
+   "category": "stock",
+   "invoice_count": 163,
+   "spend": 25283.14
+  },
+  {
+   "supplier_id": 45,
+   "supplier": "Young & Co",
+   "category": "stock",
+   "invoice_count": 13,
+   "spend": 22680
+  },
+  {
+   "supplier_id": 48,
+   "supplier": "Supreme Creations",
+   "category": "stock",
+   "invoice_count": 13,
+   "spend": 18014.58
+  },
+  {
+   "supplier_id": 359,
+   "supplier": "SP Colour Mill",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 12723.44
+  },
+  {
+   "supplier_id": 25,
+   "supplier": "JMPosner",
+   "category": "stock",
+   "invoice_count": 65,
+   "spend": 9119.41
+  },
+  {
+   "supplier_id": 14,
+   "supplier": "makro",
+   "category": "stock",
+   "invoice_count": 71,
+   "spend": 8061
+  },
+  {
+   "supplier_id": 49,
+   "supplier": "Uncle Roy's",
+   "category": "stock",
+   "invoice_count": 27,
+   "spend": 7952.4
+  },
+  {
+   "supplier_id": 13,
+   "supplier": "Wholesale Sweets",
+   "category": "stock",
+   "invoice_count": 56,
+   "spend": 5660.83
+  },
+  {
+   "supplier_id": 18,
+   "supplier": "Pact Coffee",
+   "category": "stock",
+   "invoice_count": 53,
+   "spend": 5031.59
+  },
+  {
+   "supplier_id": 34,
+   "supplier": "SLR Supplies",
+   "category": "stock",
+   "invoice_count": 40,
+   "spend": 3980.49
+  },
+  {
+   "supplier_id": 189,
+   "supplier": "Workwear Express",
+   "category": "stock",
+   "invoice_count": 6,
+   "spend": 3868.92
+  },
+  {
+   "supplier_id": 31,
+   "supplier": "J M Posner",
+   "category": "stock",
+   "invoice_count": 23,
+   "spend": 3699.05
+  },
+  {
+   "supplier_id": 30,
+   "supplier": "Drinkstuff",
+   "category": "stock",
+   "invoice_count": 17,
+   "spend": 3128.53
+  },
+  {
+   "supplier_id": 85,
+   "supplier": "A.G.Barr",
+   "category": "stock",
+   "invoice_count": 8,
+   "spend": 2704.94
+  },
+  {
+   "supplier_id": 75,
+   "supplier": "Adexa",
+   "category": "stock",
+   "invoice_count": 11,
+   "spend": 2666.44
+  },
+  {
+   "supplier_id": 145,
+   "supplier": "Daals",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 2359.91
+  },
+  {
+   "supplier_id": 3,
+   "supplier": "Tesco",
+   "category": "stock",
+   "invoice_count": 316,
+   "spend": 2329.42
+  },
+  {
+   "supplier_id": 77,
+   "supplier": "Funkin Cocktails",
+   "category": "stock",
+   "invoice_count": 7,
+   "spend": 2129.55
+  },
+  {
+   "supplier_id": 109,
+   "supplier": "Art Sippers",
+   "category": "stock",
+   "invoice_count": 3,
+   "spend": 1960
+  },
+  {
+   "supplier_id": 41,
+   "supplier": "Cater 4 You",
+   "category": "stock",
+   "invoice_count": 24,
+   "spend": 1648.68
+  },
+  {
+   "supplier_id": 47,
+   "supplier": "Cater for you",
+   "category": "stock",
+   "invoice_count": 17,
+   "spend": 1340.85
+  },
+  {
+   "supplier_id": 96,
+   "supplier": "Cups Direct Catering Supplies",
+   "category": "stock",
+   "invoice_count": 19,
+   "spend": 1266.72
+  },
+  {
+   "supplier_id": 61,
+   "supplier": "The Slow Dough Pizza Co Ltd",
+   "category": "stock",
+   "invoice_count": 13,
+   "spend": 1125
+  },
+  {
+   "supplier_id": 69,
+   "supplier": "Cake Boxes Direct",
+   "category": "stock",
+   "invoice_count": 13,
+   "spend": 1034.46
+  },
+  {
+   "supplier_id": 68,
+   "supplier": "Buzz Catering",
+   "category": "stock",
+   "invoice_count": 11,
+   "spend": 1032.82
+  },
+  {
+   "supplier_id": 74,
+   "supplier": "rainbow dust",
+   "category": "stock",
+   "invoice_count": 14,
+   "spend": 1003.45
+  },
+  {
+   "supplier_id": 285,
+   "supplier": "Ivory Flake",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 954
+  },
+  {
+   "supplier_id": 11,
+   "supplier": "Sainsburys",
+   "category": "stock",
+   "invoice_count": 113,
+   "spend": 890.07
+  },
+  {
+   "supplier_id": 118,
+   "supplier": "High Street Vouchers",
+   "category": "stock",
+   "invoice_count": 9,
+   "spend": 706.25
+  },
+  {
+   "supplier_id": 23,
+   "supplier": "Apron",
+   "category": "stock",
+   "invoice_count": 47,
+   "spend": 606.8
+  },
+  {
+   "supplier_id": 161,
+   "supplier": "Metro-pat",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 601.2
+  },
+  {
+   "supplier_id": 282,
+   "supplier": "Influence Studios",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 600
+  },
+  {
+   "supplier_id": 90,
+   "supplier": "Nisbets",
+   "category": "stock",
+   "invoice_count": 13,
+   "spend": 529.64
+  },
+  {
+   "supplier_id": 190,
+   "supplier": "classeq",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 522.86
+  },
+  {
+   "supplier_id": 212,
+   "supplier": "Blow Motion",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 460
+  },
+  {
+   "supplier_id": 407,
+   "supplier": "York Wines",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 458
+  },
+  {
+   "supplier_id": 164,
+   "supplier": "Out of Box Ltd",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 380
+  },
+  {
+   "supplier_id": 151,
+   "supplier": "Dr Schutz",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 348.64
+  },
+  {
+   "supplier_id": 51,
+   "supplier": "Temu",
+   "category": "stock",
+   "invoice_count": 10,
+   "spend": 309.4
+  },
+  {
+   "supplier_id": 186,
+   "supplier": "UK Brassware",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 298.9
+  },
+  {
+   "supplier_id": 56,
+   "supplier": "Cake Decorating",
+   "category": "stock",
+   "invoice_count": 7,
+   "spend": 292.87
+  },
+  {
+   "supplier_id": 52,
+   "supplier": "ASDA",
+   "category": "stock",
+   "invoice_count": 15,
+   "spend": 275.53
+  },
+  {
+   "supplier_id": 64,
+   "supplier": "The Vanilla Valley Limited",
+   "category": "stock",
+   "invoice_count": 8,
+   "spend": 253.2
+  },
+  {
+   "supplier_id": 102,
+   "supplier": "Prestige Design",
+   "category": "stock",
+   "invoice_count": 6,
+   "spend": 240
+  },
+  {
+   "supplier_id": 39,
+   "supplier": "Aldi",
+   "category": "stock",
+   "invoice_count": 20,
+   "spend": 199.57
+  },
+  {
+   "supplier_id": 394,
+   "supplier": "The red burn farm",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 192.39
+  },
+  {
+   "supplier_id": 89,
+   "supplier": "Morrisons",
+   "category": "stock",
+   "invoice_count": 5,
+   "spend": 179.09
+  },
+  {
+   "supplier_id": 78,
+   "supplier": "M&S",
+   "category": "stock",
+   "invoice_count": 21,
+   "spend": 171.2
+  },
+  {
+   "supplier_id": 84,
+   "supplier": "archer",
+   "category": "stock",
+   "invoice_count": 6,
+   "spend": 150
+  },
+  {
+   "supplier_id": 251,
+   "supplier": "Fallow",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 137.85
+  },
+  {
+   "supplier_id": 329,
+   "supplier": "Nextday Catering Equipment",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 128.34
+  },
+  {
+   "supplier_id": 334,
+   "supplier": "Ocado",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 127.8
+  },
+  {
+   "supplier_id": 152,
+   "supplier": "Drink Supermarket",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 127.68
+  },
+  {
+   "supplier_id": 144,
+   "supplier": "Crazy P's Ltd",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 125
+  },
+  {
+   "supplier_id": 347,
+   "supplier": "Prebeat",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 121
+  },
+  {
+   "supplier_id": 112,
+   "supplier": "Be at one Liverpool",
+   "category": "stock",
+   "invoice_count": 3,
+   "spend": 117.6
+  },
+  {
+   "supplier_id": 121,
+   "supplier": "Ice2u",
+   "category": "stock",
+   "invoice_count": 3,
+   "spend": 117
+  },
+  {
+   "supplier_id": 411,
+   "supplier": "craft company",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 112.8
+  },
+  {
+   "supplier_id": 328,
+   "supplier": "Next",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 109
+  },
+  {
+   "supplier_id": 111,
+   "supplier": "B&M",
+   "category": "stock",
+   "invoice_count": 3,
+   "spend": 103.05
+  },
+  {
+   "supplier_id": 172,
+   "supplier": "Rudy's Pizza",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 94.83
+  },
+  {
+   "supplier_id": 80,
+   "supplier": "Nisa",
+   "category": "stock",
+   "invoice_count": 17,
+   "spend": 92.13
+  },
+  {
+   "supplier_id": 57,
+   "supplier": "Deniz London",
+   "category": "stock",
+   "invoice_count": 14,
+   "spend": 89.27
+  },
+  {
+   "supplier_id": 468,
+   "supplier": "Catering Appliance",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 81.53
+  },
+  {
+   "supplier_id": 177,
+   "supplier": "Soho Commercial Ltd",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 77.16
+  },
+  {
+   "supplier_id": 92,
+   "supplier": "Waterplus",
+   "category": "stock",
+   "invoice_count": 10,
+   "spend": 74.47
+  },
+  {
+   "supplier_id": 336,
+   "supplier": "Optagon",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 72
+  },
+  {
+   "supplier_id": 308,
+   "supplier": "Liquor Library",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 71.94
+  },
+  {
+   "supplier_id": 246,
+   "supplier": "Ebay",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 58.11
+  },
+  {
+   "supplier_id": 384,
+   "supplier": "The Cake Decorating Co",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 57.8
+  },
+  {
+   "supplier_id": 275,
+   "supplier": "Hobbycraft",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 56.5
+  },
+  {
+   "supplier_id": 140,
+   "supplier": "Cake Craft Group",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 45.92
+  },
+  {
+   "supplier_id": 86,
+   "supplier": "Coffee House",
+   "category": "stock",
+   "invoice_count": 5,
+   "spend": 36.65
+  },
+  {
+   "supplier_id": 389,
+   "supplier": "The Drink Supermarket Team",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 35.89
+  },
+  {
+   "supplier_id": 304,
+   "supplier": "Lidl",
+   "category": "stock",
+   "invoice_count": 6,
+   "spend": 32.74
+  },
+  {
+   "supplier_id": 260,
+   "supplier": "Freddie's Cake Shop",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 26.4
+  },
+  {
+   "supplier_id": 166,
+   "supplier": "Poundland",
+   "category": "stock",
+   "invoice_count": 3,
+   "spend": 14
+  },
+  {
+   "supplier_id": 104,
+   "supplier": "Tooting Mini Market",
+   "category": "stock",
+   "invoice_count": 4,
+   "spend": 9.64
+  },
+  {
+   "supplier_id": 229,
+   "supplier": "City local Convenience Store",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 9.45
+  },
+  {
+   "supplier_id": 293,
+   "supplier": "King Makers",
+   "category": "stock",
+   "invoice_count": 0,
+   "spend": 0
+  },
+  {
+   "supplier_id": 550,
+   "supplier": "Heaton Catering Equipment",
+   "category": "stock",
+   "invoice_count": 1,
+   "spend": 0
+  },
+  {
+   "supplier_id": 175,
+   "supplier": "Sainsbury's - Sainsbury's - S2029",
+   "category": "stock",
+   "invoice_count": 2,
+   "spend": 0
+  },
+  {
+   "supplier_id": 82,
+   "supplier": "Sysco",
+   "category": "stock",
+   "invoice_count": 6,
+   "spend": 0
+  },
+  {
+   "supplier_id": 139,
+   "supplier": "CUPSDIRECT.CO.UK",
+   "category": "stock",
+   "invoice_count": 0,
+   "spend": 0
+  },
+  {
+   "supplier_id": 153,
+   "supplier": "Gold River Limited",
+   "category": "stock",
+   "invoice_count": 0,
+   "spend": 0
+  }
+ ]
+}

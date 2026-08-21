@@ -1,0 +1,14 @@
+source            : bumblebee-invoice-suppliers.json
+invoice rows      : 91
+after merging     : 86 suppliers
+  already listed  : 29
+  new             : 43  (GBP119,057.38 of stock spend)
+  held for review : 14  (see suppliers-review.csv)
+
+None of these can be ordered from yet — an invoice carries no email,
+lead time or credit terms. The importer lists them by spend.
+
+Possible duplicates NOT merged (decide by hand):
+  Cake Decorating  vs  The Cake Decorating Co
+  Cake Decorating  vs  Cake Craft Group
+  Drinkstuff  vs  Drink Supermarket

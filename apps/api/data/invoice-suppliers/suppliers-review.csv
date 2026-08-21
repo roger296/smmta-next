@@ -1,0 +1,15 @@
+name,slug,type,aliases,invoice_count,spend_gbp,in_catalogue,reason
+Rudy's Pizza,rudy-s-pizza,Stock,,2,94.83,no,under GBP100 and fewer than 3 invoices
+Catering Appliance,catering-appliance,Stock,,1,81.53,no,under GBP100 and fewer than 3 invoices
+Soho Commercial Ltd,soho-commercial-ltd,Stock,,2,77.16,no,under GBP100 and fewer than 3 invoices
+Optagon,optagon,Stock,,1,72.00,no,under GBP100 and fewer than 3 invoices
+Liquor Library,liquor-library,Stock,,1,71.94,no,under GBP100 and fewer than 3 invoices
+eBay,ebay,Stock,Ebay,2,58.11,no,under GBP100 and fewer than 3 invoices
+The Cake Decorating Co,the-cake-decorating-co,Stock,,1,57.80,no,under GBP100 and fewer than 3 invoices
+Hobbycraft,hobbycraft,Stock,,2,56.50,no,under GBP100 and fewer than 3 invoices
+Cake Craft Group,cake-craft-group,Stock,,2,45.92,no,under GBP100 and fewer than 3 invoices
+Freddie's Cake Shop,freddie-s-cake-shop,Stock,,1,26.40,no,under GBP100 and fewer than 3 invoices
+City local Convenience Store,city-local-convenience-store,Stock,,1,9.45,no,under GBP100 and fewer than 3 invoices
+King Makers,king-makers,Stock,,0,0.00,no,under GBP100 and fewer than 3 invoices
+Heaton Catering Equipment,heaton-catering-equipment,Stock,,1,0.00,no,under GBP100 and fewer than 3 invoices
+Gold River Limited,gold-river-limited,Stock,,0,0.00,no,under GBP100 and fewer than 3 invoices

@@ -1,0 +1,73 @@
+name,slug,type,aliases,invoice_count,spend_gbp,in_catalogue
+Brakes,brakes,Stock,,421,168869.16,yes
+Amazon,amazon,Stock,,1357,48144.49,yes
+Culpitt,culpitt,Stock,,211,40889.28,yes
+LWC Drinks,lwc-drinks,Stock,,210,38755.99,yes
+Twist Ingredients,twist-ingredients,Stock,,88,37713.82,no
+Alibaba,alibaba,Stock,,20,27645.88,yes
+Booker,booker,Stock,,163,25283.14,yes
+Young & Co,young-co,Stock,,13,22680.00,no
+Supreme Creations,supreme-creations,Stock,,13,18014.58,yes
+JMPosner,jmposner,Stock,J M Posner,88,12818.46,yes
+SP Colour Mill,sp-colour-mill,Stock,,1,12723.44,no
+Makro,makro,Stock,makro,71,8061.00,yes
+Uncle Roy's,uncle-roy-s,Stock,,27,7952.40,no
+Wholesale Sweets,wholesale-sweets,Stock,,56,5660.83,yes
+Pact Coffee,pact-coffee,Stock,,53,5031.59,no
+SLR Supplies,slr-supplies,Stock,,40,3980.49,yes
+Workwear Express,workwear-express,Stock,,6,3868.92,no
+Drinkstuff,drinkstuff,Stock,,17,3128.53,no
+Cater 4 You,cater-4-you,Stock,Cater for you,41,2989.53,yes
+A.G.Barr,a-g-barr,Stock,,8,2704.94,no
+Adexa,adexa,Stock,,11,2666.44,no
+Daals,daals,Stock,,2,2359.91,no
+Tesco,tesco,Stock,,316,2329.42,yes
+Funkin Cocktails,funkin-cocktails,Stock,,7,2129.55,no
+Art Sippers,art-sippers,Stock,,3,1960.00,no
+Cups Direct Catering Supplies,cups-direct-catering-supplies,Stock,CUPSDIRECT.CO.UK,19,1266.72,no
+The Slow Dough Pizza Co Ltd,the-slow-dough-pizza-co-ltd,Stock,,13,1125.00,no
+Cake Boxes Direct,cake-boxes-direct,Stock,,13,1034.46,no
+Buzz Catering,buzz-catering,Stock,,11,1032.82,no
+Rainbow Dust,rainbow-dust,Stock,rainbow dust,14,1003.45,no
+Ivory Flake,ivory-flake,Stock,,1,954.00,no
+Sainsbury's,sainsbury-s,Stock,Sainsbury's - Sainsbury's - S2029; Sainsburys,115,890.07,yes
+High Street Vouchers,high-street-vouchers,Stock,,9,706.25,no
+Apron,apron,Stock,,47,606.80,no
+Metro-pat,metro-pat,Stock,,2,601.20,no
+Influence Studios,influence-studios,Stock,,1,600.00,no
+Nisbets,nisbets,Stock,,13,529.64,no
+Classeq,classeq,Stock,classeq,2,522.86,no
+Blow Motion,blow-motion,Stock,,1,460.00,no
+York Wines,york-wines,Stock,,1,458.00,no
+Out of Box Ltd,out-of-box-ltd,Stock,,2,380.00,no
+Dr Schutz,dr-schutz,Stock,,2,348.64,no
+Temu,temu,Stock,,10,309.40,no
+UK Brassware,uk-brassware,Stock,,2,298.90,no
+Cake Decorating,cake-decorating,Stock,,7,292.87,no
+ASDA,asda,Stock,,15,275.53,yes
+The Vanilla Valley Limited,the-vanilla-valley-limited,Stock,,8,253.20,yes
+Prestige Design,prestige-design,Stock,,6,240.00,no
+Aldi,aldi,Stock,,20,199.57,yes
+The red burn farm,the-red-burn-farm,Stock,,2,192.39,yes
+Morrisons,morrisons,Stock,,5,179.09,yes
+M&S,m-s,Stock,,21,171.20,yes
+Drink Supermarket,drink-supermarket,Stock,The Drink Supermarket Team,3,163.57,no
+Archer,archer,Stock,archer,6,150.00,no
+Fallow,fallow,Stock,,1,137.85,no
+Nextday Catering Equipment,nextday-catering-equipment,Stock,,1,128.34,no
+Ocado,ocado,Stock,,1,127.80,no
+Crazy P's Ltd,crazy-p-s-ltd,Stock,,2,125.00,no
+Prebeat,prebeat,Stock,,1,121.00,no
+Be at one Liverpool,be-at-one-liverpool,Stock,,3,117.60,yes
+Ice2u,ice2u,Stock,,3,117.00,no
+Craft Company,craft-company,Stock,craft company,1,112.80,no
+Next,next,Stock,,1,109.00,no
+B&M,b-m,Stock,,3,103.05,yes
+Nisa,nisa,Stock,,17,92.13,yes
+Deniz London,deniz-london,Stock,,14,89.27,yes
+Waterplus,waterplus,Stock,,10,74.47,no
+Coffee House,coffee-house,Stock,,5,36.65,yes
+Lidl,lidl,Stock,,6,32.74,yes
+Poundland,poundland,Stock,,3,14.00,yes
+Tooting Mini Market,tooting-mini-market,Stock,,4,9.64,yes
+Sysco,sysco,Stock,,6,0.00,yes

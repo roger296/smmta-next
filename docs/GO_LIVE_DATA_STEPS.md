@@ -162,7 +162,31 @@ as an enormous materials cost and a reorder proposal nobody can explain.
 
 ✅ No broken lines, no unit mismatches.
 
-## Step 7 🖥️ — Work "Needs setup" to zero
+## Step 7 🐳 — Import the suppliers the invoices prove exist
+
+```bash
+cd /app/apps/api && npx tsx scripts/import-invoice-suppliers.ts --dry-run
+cd /app/apps/api && npx tsx scripts/import-invoice-suppliers.ts
+```
+
+Rebecca's workbook named 29 suppliers. BumbleBee's analysed purchase invoices
+name 86. The 43 in between account for roughly **£119,000 of stock spend** and
+currently have no row to raise a purchase order against — Twist Ingredients
+(£37.7k), Young & Co (£22.7k), SP Colour Mill (£12.7k), Uncle Roy's (£8.0k),
+Pact Coffee (£5.0k) among them.
+
+It never overwrites: an existing supplier is only gap-filled where `slug` or
+`type` is blank, so anything you have already typed in stands. Re-running is a
+no-op. Details in `apps/api/data/invoice-suppliers/README.md`.
+
+**None of them are orderable yet.** An invoice carries no email, lead time or
+credit terms, so every supplier lands without a way to send it a PO. The run
+ends with the list ranked by spend — that is your work list, and the top five
+emails cover about £160k of it. Fill them in at `/suppliers`.
+
+✅ `created : 43`, and you've noted the not-orderable list.
+
+## Step 8 🖥️ — Work "Needs setup" to zero
 
 Admin site → **Needs setup** (`/products/needs-setup`).
 
@@ -174,7 +198,7 @@ were exactly this — the model existed, the data didn't.
 
 ✅ The list is empty.
 
-## Step 8 💻 — Reverse the 12 August Birmingham booking
+## Step 9 💻 — Reverse the 12 August Birmingham booking
 
 There's no admin page for goods-in receipts yet, so this is an API call.
 
@@ -205,7 +229,7 @@ editing history — the ledger keeps both rows and they cancel.
 > In PowerShell, `curl` is an alias for `Invoke-WebRequest`, which doesn't
 > understand these flags. Use **`curl.exe`**, with the `.exe`.
 
-## Step 9 — Recount 12 August
+## Step 10 — Recount 12 August
 
 Operational, not a command. Any count taken on 12 August went through the
 blanket-quantum bug, so a 4 kg count may be recorded as 0. Recount anything from
