@@ -52,8 +52,8 @@ const envSchema = z.object({
   // shown when you enable signing in the Event Webhook settings. Empty means
   // signature checks fail closed (the webhook rejects everything).
   SENDGRID_WEBHOOK_VERIFICATION_KEY: z.string().default(''),
-  SENDGRID_FROM_TRANSACTIONAL: z.string().default('orders@filament.shop.cleverdeals.net'),
-  SENDGRID_FROM_MARKETING: z.string().default('hello@filament.shop.cleverdeals.net'),
+  SENDGRID_FROM_TRANSACTIONAL: z.string().default('sales@cleverdeals.net'),
+  SENDGRID_FROM_MARKETING: z.string().default('sales@cleverdeals.net'),
   SENDGRID_SANDBOX: z.coerce.boolean().default(true),
   /** Signs one-click unsubscribe URLs. */
   UNSUBSCRIBE_SECRET: z.string().default('dev-unsubscribe-secret'),

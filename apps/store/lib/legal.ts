@@ -40,10 +40,14 @@ export const LEGAL = {
   /** VAT registration number (checksum-valid under the mod-9755 rule). */
   vatNumber: 'GB 378 4829 39' as string | null,
 
-  /** Customer-facing addresses. */
-  ordersEmail: 'orders@filament.cleverdeals.net',
-  returnsEmail: 'returns@filament.cleverdeals.net',
-  privacyEmail: 'privacy@cleverdeals.net',
+  /**
+   * The single customer-facing contact address — orders, returns and data
+   * protection all land here. One mailbox that genuinely exists beats several
+   * tidy-looking aliases that bounce, and an unanswered UK GDPR request is a
+   * compliance problem in a way an untidy address never is. Split this into
+   * per-purpose addresses only once those mailboxes are actually routed.
+   */
+  contactEmail: 'sales@cleverdeals.net',
 
   siteUrl: 'https://filament.cleverdeals.net',
 

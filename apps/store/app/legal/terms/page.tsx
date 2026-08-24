@@ -53,8 +53,8 @@ export default function TermsPage() {
         <p>
           We sell 3D printer filament direct to customers in the UK and EU. Write to us at that
           address, or email{' '}
-          <a href={`mailto:${LEGAL.ordersEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.ordersEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>
           .
         </p>
@@ -225,8 +225,8 @@ export default function TermsPage() {
         </p>
         <p>
           If something goes wrong, please contact us first at{' '}
-          <a href={`mailto:${LEGAL.ordersEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.ordersEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>{' '}
           — most problems are resolved quickly and informally.
         </p>

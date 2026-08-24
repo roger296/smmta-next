@@ -65,8 +65,8 @@ export default function ReturnsPage() {
         </p>
         <p>
           To cancel, email{' '}
-          <a href={`mailto:${LEGAL.returnsEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.returnsEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>{' '}
           with your order number before the {LEGAL.statutoryCancellationDays} days are up. You then
           have a further {LEGAL.statutoryCancellationDays} days to send the goods back. You are
@@ -121,8 +121,8 @@ export default function ReturnsPage() {
         <p>
           Tell us within 30 days of delivery and you are entitled to a full refund. After 30 days we
           will repair or replace it, and if that is not possible you can claim a refund. Email{' '}
-          <a href={`mailto:${LEGAL.returnsEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.returnsEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>{' '}
           with your order number and a photo of the problem — photographs of the print failure and
           the affected filament help us diagnose it quickly.
@@ -137,8 +137,8 @@ export default function ReturnsPage() {
         <ol className="list-decimal space-y-2 pl-5">
           <li>
             Email{' '}
-            <a href={`mailto:${LEGAL.returnsEmail}`} className="text-[var(--brand-ink)] underline">
-              {LEGAL.returnsEmail}
+            <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+              {LEGAL.contactEmail}
             </a>{' '}
             with your order number and what you would like to return. Please do not send anything
             back before contacting us — we need to issue a returns reference so your parcel can be
@@ -198,13 +198,13 @@ export default function ReturnsPage() {
       <LegalSection id="contact" heading="Contact">
         <p>
           Returns:{' '}
-          <a href={`mailto:${LEGAL.returnsEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.returnsEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>
           <br />
           Everything else:{' '}
-          <a href={`mailto:${LEGAL.ordersEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.ordersEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>
           <br />
           Returns address:{' '}

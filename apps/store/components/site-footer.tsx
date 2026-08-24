@@ -112,10 +112,10 @@ export async function SiteFooter() {
             </li>
             <li>
               <a
-                href="mailto:orders@filament.cleverdeals.net"
+                href={`mailto:${LEGAL.contactEmail}`}
                 className="transition-colors hover:text-[var(--brand-ink)]"
               >
-                orders@filament.cleverdeals.net
+                {LEGAL.contactEmail}
               </a>
             </li>
           </ul>

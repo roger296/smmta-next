@@ -45,8 +45,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           Questions, requests or complaints about privacy should go to{' '}
-          <a href={`mailto:${LEGAL.privacyEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.privacyEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>
           .
         </p>
@@ -182,8 +182,8 @@ export default function PrivacyPage() {
           With your permission we will send you information about products and services that may
           interest you. You have the right at any time to stop us contacting you for marketing
           purposes — use the unsubscribe link at the foot of every email we send, or email{' '}
-          <a href={`mailto:${LEGAL.privacyEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.privacyEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>
           . Withdrawing consent does not stop transactional messages about an order you have placed.
         </p>
@@ -202,8 +202,8 @@ export default function PrivacyPage() {
         </ul>
         <p>
           Make a request by emailing{' '}
-          <a href={`mailto:${LEGAL.privacyEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.privacyEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>
           . We will respond within one month. In most cases we provide the information free of
           charge; where a request is manifestly unfounded or excessive we may charge a reasonable fee
@@ -225,8 +225,8 @@ export default function PrivacyPage() {
           We review this policy regularly and update it to reflect any change in how we collect and
           use personal data. This policy was last updated in {LEGAL.lastUpdated}. Questions, comments
           and requests should be addressed to{' '}
-          <a href={`mailto:${LEGAL.privacyEmail}`} className="text-[var(--brand-ink)] underline">
-            {LEGAL.privacyEmail}
+          <a href={`mailto:${LEGAL.contactEmail}`} className="text-[var(--brand-ink)] underline">
+            {LEGAL.contactEmail}
           </a>
           .
         </p>
