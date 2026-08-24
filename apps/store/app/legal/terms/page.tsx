@@ -40,18 +40,19 @@ export default function TermsPage() {
     >
       <LegalSection id="about" heading="1. Who we are">
         <p>
-          {LEGAL.storeName} is a trading name of {LEGAL.legalEntity}, a company registered in
-          England and Wales under company number {LEGAL.companyNumber}, whose registered office is
-          at {LEGAL.registeredAddress}.
-          {LEGAL.vatNumber ? ` Our VAT registration number is ${LEGAL.vatNumber}.` : ''}
-        </p>
-        <p>
-          We sell 3D printer filament direct to customers in the UK and EU. {LEGAL.storeName} is a
-          sub-brand of{' '}
+          {LEGAL.storeName} is a sub-brand of{' '}
           <a href={LEGAL.parentUrl} className="text-[var(--brand-ink)] underline" rel="noopener">
             {LEGAL.parentName}
           </a>
-          . You can reach us at{' '}
+          , a trading name of {LEGAL.legalEntity} — a company registered in England and Wales under
+          company number {LEGAL.companyNumber}, whose registered office is at{' '}
+          {LEGAL.registeredAddress}.
+          {LEGAL.vatNumber ? ` Our VAT registration number is ${LEGAL.vatNumber}.` : ''} Your
+          contract for any order is with {LEGAL.legalEntity}.
+        </p>
+        <p>
+          We sell 3D printer filament direct to customers in the UK and EU. Write to us at that
+          address, or email{' '}
           <a href={`mailto:${LEGAL.ordersEmail}`} className="text-[var(--brand-ink)] underline">
             {LEGAL.ordersEmail}
           </a>

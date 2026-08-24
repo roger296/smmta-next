@@ -2,11 +2,13 @@
  * Company + contact details used across the legal pages (terms, returns,
  * privacy) and the site footer.
  *
- * ⚠️ ACTION REQUIRED BEFORE LAUNCH — the values marked `TODO` are placeholders.
  * UK law (Companies Act 2006 s.82 + the Consumer Contracts (Information,
  * Cancellation and Additional Charges) Regulations 2013) requires a trader
  * selling online to display its legal name, geographic address and contact
- * details. Fill these in and the legal pages update everywhere at once.
+ * details. Editing them here updates every legal page at once.
+ *
+ * Corporate chain: TBV Limited → trades as CleverDeals → Filament Store is a
+ * CleverDeals sub-brand. The contracting party for every order is TBV Limited.
  */
 
 export const LEGAL = {
@@ -16,17 +18,27 @@ export const LEGAL = {
   parentName: 'CleverDeals',
   parentUrl: 'https://cleverdeals.net/',
 
-  /** TODO: registered company name, e.g. "Example Trading Ltd". */
-  legalEntity: '[COMPANY LEGAL NAME]',
-  /** TODO: Companies House registration number. */
-  companyNumber: '[COMPANY NUMBER]',
-  /** TODO: registered office address (single line or comma-separated). */
-  registeredAddress: '[REGISTERED OFFICE ADDRESS]',
+  /** Registered company name (Companies House, verified 2026-07). */
+  legalEntity: 'TBV Limited',
+  /** Companies House registration number. */
+  companyNumber: '13279893',
   /**
-   * TODO: VAT registration number, or set to null if not VAT-registered.
-   * If null, the pages omit the VAT line entirely rather than showing a blank.
+   * Registered office. Changed to Macclesfield in 2026; the Companies House
+   * public record may still show the previous Congleton address until the
+   * change propagates. Serves as both the registered office (Companies Act
+   * 2006 s.82) and the geographic contact address the Consumer Contracts
+   * Regulations 2013 require.
    */
-  vatNumber: '[VAT NUMBER]' as string | null,
+  registeredAddress: 'Suite 48, Beechfield House, Winterton Way, Macclesfield, SK11 0LP',
+  /**
+   * Where returned goods are sent — the warehouse, not the registered office.
+   * Published on the returns policy so customers can see it up front, but the
+   * policy still asks them to request a returns reference first so an inbound
+   * parcel can be matched to its order.
+   */
+  returnsAddress: 'Close Cottage, Mow Lane, Off Congleton Road, ST7 3PL',
+  /** VAT registration number (checksum-valid under the mod-9755 rule). */
+  vatNumber: 'GB 378 4829 39' as string | null,
 
   /** Customer-facing addresses. */
   ordersEmail: 'orders@filament.cleverdeals.net',

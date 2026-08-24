@@ -38,9 +38,10 @@ export default function PrivacyPage() {
     >
       <LegalSection id="who" heading="1. Who we are">
         <p>
-          {LEGAL.storeName} is a trading name of {LEGAL.legalEntity} (company number{' '}
-          {LEGAL.companyNumber}), registered at {LEGAL.registeredAddress}. We are the data
-          controller for the personal information described in this policy.
+          {LEGAL.storeName} is a sub-brand of {LEGAL.parentName}, a trading name of{' '}
+          {LEGAL.legalEntity} (company number {LEGAL.companyNumber}), registered at{' '}
+          {LEGAL.registeredAddress}. {LEGAL.legalEntity} is the data controller for the personal
+          information described in this policy.
         </p>
         <p>
           Questions, requests or complaints about privacy should go to{' '}

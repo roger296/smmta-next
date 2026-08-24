@@ -144,7 +144,13 @@ export default function ReturnsPage() {
             back before contacting us — we need to issue a returns reference so your parcel can be
             matched to your order.
           </li>
-          <li>We will reply with the returns address and reference, normally within one working day.</li>
+          <li>
+            We will reply with a returns reference, normally within one working day. Returns are
+            received at{' '}
+            <span className="text-[var(--brand-ink)]">{LEGAL.returnsAddress}</span> — please still
+            ask for a reference before sending anything, so your parcel can be matched to your
+            order.
+          </li>
           <li>
             Pack the spool so it arrives as it left — the original box is ideal. Include the returns
             reference in the parcel.
@@ -200,10 +206,14 @@ export default function ReturnsPage() {
           <a href={`mailto:${LEGAL.ordersEmail}`} className="text-[var(--brand-ink)] underline">
             {LEGAL.ordersEmail}
           </a>
+          <br />
+          Returns address:{' '}
+          <span className="text-[var(--brand-ink)]">{LEGAL.returnsAddress}</span>
         </p>
         <p>
-          {LEGAL.legalEntity}, {LEGAL.registeredAddress}. Registered in England and Wales,
-          company number {LEGAL.companyNumber}.
+          {LEGAL.legalEntity} (trading as {LEGAL.parentName}), {LEGAL.registeredAddress}. Registered
+          in England and Wales, company number {LEGAL.companyNumber}.
+          {LEGAL.vatNumber ? ` VAT registration number ${LEGAL.vatNumber}.` : ''}
         </p>
       </LegalSection>
     </LegalPage>
