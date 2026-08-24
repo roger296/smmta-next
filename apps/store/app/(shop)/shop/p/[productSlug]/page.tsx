@@ -195,7 +195,7 @@ export default async function StandaloneProductPage({
               {product.priceGbp ? `£${product.priceGbp}` : 'Price on request'}
             </p>
             <p className="text-xs uppercase tracking-wider text-[var(--brand-muted)]">
-              per spool · ex VAT
+              per spool · inc. VAT
             </p>
           </div>
 
