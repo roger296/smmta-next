@@ -53,6 +53,13 @@ services:
       UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENABLED: ${SENTRY_ENABLED:-false}
+      # Back-in-stock dispatch: the API calls the storefront's internal
+      # email-rendering route. Both halves of the shared secret must be set and
+      # equal (the API sends STORE_INTERNAL_API_KEY; the store checks it against
+      # its own ADMIN_API_KEY) or "notify me when back in stock" silently never
+      # sends. Internal URL — this call never leaves the Docker network.
+      STORE_BASE_URL: ${STORE_INTERNAL_URL:-http://store:3000}
+      STORE_INTERNAL_API_KEY: ${STORE_INTERNAL_API_KEY:-}
     expose:
       - '3000'
     healthcheck:
@@ -107,6 +114,9 @@ services:
       # sitemap.xml, robots.txt and order-confirmation links. Set to the public
       # HTTPS hostname in Coolify; falls back to localhost for local dev.
       STORE_BASE_URL: ${STORE_BASE_URL:-http://localhost:3000}
+      # Shared secret the API presents on /api/internal/* calls. Must equal the
+      # API's STORE_INTERNAL_API_KEY — see the note on the api service.
+      ADMIN_API_KEY: ${STORE_INTERNAL_API_KEY:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
     expose:
       - '3000'
