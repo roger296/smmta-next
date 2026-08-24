@@ -64,10 +64,10 @@ export default function FaqPage() {
           Shipping, returns, materials, tolerances, packaging.
           If your question isn&rsquo;t here, email{' '}
           <a
-            href="mailto:orders@filament.shop.cleverdeals.net"
+            href="mailto:orders@filament.cleverdeals.net"
             className="text-[var(--brand-ink)] underline-offset-2 hover:underline"
           >
-            orders@filament.shop.cleverdeals.net
+            orders@filament.cleverdeals.net
           </a>
           .
         </p>

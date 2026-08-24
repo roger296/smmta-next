@@ -86,11 +86,35 @@ export async function SiteFooter() {
               </Link>
             </li>
             <li>
-              <a
-                href="mailto:orders@filament.shop.cleverdeals.net"
+              <Link
+                href="/legal/returns"
                 className="transition-colors hover:text-[var(--brand-ink)]"
               >
-                orders@filament.shop.cleverdeals.net
+                Returns &amp; cancellations
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/legal/terms"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                Terms &amp; conditions
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/legal/privacy"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                Privacy policy
+              </Link>
+            </li>
+            <li>
+              <a
+                href="mailto:orders@filament.cleverdeals.net"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                orders@filament.cleverdeals.net
               </a>
             </li>
           </ul>

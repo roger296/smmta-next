@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { readCartIdFromCookie } from '@/lib/cookies';
 import { getOrCreateCart } from '@/lib/cart';
+import { colourSuffix } from '@/lib/display-name';
 import { getEnv } from '@/lib/env';
 import { CheckoutForm } from './_components/checkout-form';
 
@@ -61,7 +62,9 @@ export default async function CheckoutPage() {
               <li key={l.id} className="flex justify-between gap-2">
                 <span className="line-clamp-1">
                   {l.quantity}× {l.display.name ?? 'Product'}
-                  {l.display.colour ? ` (${l.display.colour})` : ''}
+                  {colourSuffix(l.display.name, l.display.colour)
+                    ? ` (${colourSuffix(l.display.name, l.display.colour)})`
+                    : ''}
                 </span>
                 <span>£{l.lineTotalGbp}</span>
               </li>

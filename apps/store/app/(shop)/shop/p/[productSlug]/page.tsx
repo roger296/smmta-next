@@ -16,6 +16,7 @@ import type { Metadata } from 'next';
 import { getProductBySlug, SmmtaApiError } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
 import { breadcrumbLd, productLd, stringifyJsonLd } from '@/lib/seo/structured-data';
+import { pageTitle, socialTitle } from '@/lib/seo/title';
 import { Markdown } from '@/lib/markdown';
 import { AddToCartButton } from '@/components/add-to-cart-button';
 import { PreorderPools } from '@/components/preorder-pools';
@@ -41,7 +42,7 @@ export async function generateMetadata({
       ? null
       : `/shop/p/${product.slug ?? productSlug}`;
     return {
-      title: product.seoTitle ?? product.name,
+      title: pageTitle(product.seoTitle, product.name),
       description: product.seoDescription ?? product.shortDescription ?? undefined,
       keywords: product.seoKeywords ?? undefined,
       alternates: canonical ? { canonical } : undefined,
@@ -49,13 +50,13 @@ export async function generateMetadata({
       openGraph: {
         type: 'website',
         url: canonical ?? `/shop/p/${productSlug}`,
-        title: product.seoTitle ?? product.name,
+        title: socialTitle(product.seoTitle, product.name),
         description: product.seoDescription ?? product.shortDescription ?? undefined,
         images: product.heroImageUrl ? [product.heroImageUrl] : undefined,
       },
       twitter: {
         card: 'summary_large_image',
-        title: product.seoTitle ?? product.name,
+        title: socialTitle(product.seoTitle, product.name),
         description: product.seoDescription ?? product.shortDescription ?? undefined,
         images: product.heroImageUrl ? [product.heroImageUrl] : undefined,
       },

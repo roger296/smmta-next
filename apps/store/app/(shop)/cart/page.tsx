@@ -6,6 +6,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getOrCreateCart } from '@/lib/cart';
+import { colourSuffix } from '@/lib/display-name';
 import { readCartIdFromCookie } from '@/lib/cookies';
 import { CartLineControls } from '@/components/cart-line-controls';
 
@@ -86,8 +87,11 @@ export default async function CartPage() {
               <div className="flex-1 space-y-1">
                 <p className="font-semibold leading-snug">
                   {line.display.name ?? 'Unavailable product'}
-                  {line.display.colour ? (
-                    <span className="text-[var(--brand-accent)]"> — {line.display.colour}</span>
+                  {colourSuffix(line.display.name, line.display.colour) ? (
+                    <span className="text-[var(--brand-accent)]">
+                      {' '}
+                      — {colourSuffix(line.display.name, line.display.colour)}
+                    </span>
                   ) : null}
                 </p>
                 <p className="text-sm text-[var(--brand-muted)]">£{line.pricePerUnitGbp} each</p>

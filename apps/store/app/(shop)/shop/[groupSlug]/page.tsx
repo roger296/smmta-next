@@ -25,6 +25,7 @@ import {
 } from '@/lib/seo/structured-data';
 import { Markdown } from '@/lib/markdown';
 import { SHIPPING_FAQ } from '@/lib/seo/faq-data';
+import { pageTitle, socialTitle } from '@/lib/seo/title';
 import { SwatchPicker } from '../../_components/swatch-picker';
 import { YouMayAlsoLike } from '../../_components/you-may-also-like';
 
@@ -54,7 +55,7 @@ export async function generateMetadata({
   try {
     const group = await getGroupBySlug(groupSlug);
     return {
-      title: group.seoTitle ?? group.name,
+      title: pageTitle(group.seoTitle, group.name),
       description: group.seoDescription ?? group.shortDescription ?? undefined,
       keywords: group.seoKeywords ?? undefined,
       alternates: { canonical: `/shop/${group.slug ?? groupSlug}` },
@@ -62,13 +63,13 @@ export async function generateMetadata({
       openGraph: {
         type: 'website',
         url: `/shop/${group.slug ?? groupSlug}`,
-        title: group.seoTitle ?? group.name,
+        title: socialTitle(group.seoTitle, group.name),
         description: group.seoDescription ?? group.shortDescription ?? undefined,
         images: group.heroImageUrl ? [group.heroImageUrl] : undefined,
       },
       twitter: {
         card: 'summary_large_image',
-        title: group.seoTitle ?? group.name,
+        title: socialTitle(group.seoTitle, group.name),
         description: group.seoDescription ?? group.shortDescription ?? undefined,
         images: group.heroImageUrl ? [group.heroImageUrl] : undefined,
       },
