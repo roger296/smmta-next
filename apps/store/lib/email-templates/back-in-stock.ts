@@ -30,9 +30,9 @@ export function renderBackInStock(p: BackInStockPayload): RenderedEmail {
   const link = pdpUrl(p);
 
   const priceLine = p.priceGbp
-    ? `<p style="margin:0 0 16px 0;font-size:16px;"><strong>£${escapeHtml(p.priceGbp)}</strong> per spool · ex VAT</p>`
+    ? `<p style="margin:0 0 16px 0;font-size:16px;"><strong>£${escapeHtml(p.priceGbp)}</strong> per spool · inc. VAT</p>`
     : '';
-  const priceText = p.priceGbp ? `£${p.priceGbp} per spool (ex VAT)\n` : '';
+  const priceText = p.priceGbp ? `£${p.priceGbp} per spool (inc. VAT)\n` : '';
 
   const imageBlock = p.productImageUrl
     ? `<p style="margin:0 0 20px 0;"><img src="${escapeHtml(p.productImageUrl)}" alt="${escapeHtml(p.productName)}" width="280" style="display:block;border:1px solid #C7CCD1;max-width:100%;height:auto;" /></p>`

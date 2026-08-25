@@ -457,6 +457,22 @@ describe('POST /storefront/orders', () => {
     expect(order?.grandTotal).toBe('28.95');
     expect(order?.deliveryCharge).toBe('4.95');
     expect(order?.orderTotal).toBe('24.00');
+    // Delivery on standard-rated goods is standard-rated, and the charge is
+    // VAT-inclusive like every other price, so taxTotal must cover BOTH the
+    // goods and the delivery: £24.00 → £4.00 VAT, £4.95 → £0.82 VAT.
+    expect(order?.taxTotal).toBe('4.82');
+  });
+
+  it('records VAT on the goods only when there is no delivery charge', async () => {
+    const { reservationId } = await reserve({ [seeded.smokeProductId]: 1 });
+    const res = await commit('IDEMP-DELIVERY-NONE-001', reservationId, '24.00');
+    expect(res.statusCode).toBe(201);
+    const body = res.json() as { data: { orderId: string } };
+    const order = await getDb().query.customerOrders.findFirst({
+      where: eq(customerOrders.id, body.data.orderId),
+    });
+    expect(order?.grandTotal).toBe('24.00');
+    expect(order?.taxTotal).toBe('4.00');
   });
 
   it('400 when Idempotency-Key header is missing', async () => {

@@ -95,14 +95,17 @@ function fromPence(pence: number): string {
   return (pence / 100).toFixed(2);
 }
 
+/** VAT element of a VAT-inclusive amount in pence, at 20% UK VAT. */
+function taxOfGrossPence(grossPence: number): number {
+  // Net = gross / 1.20, tax = gross - net, all in pence.
+  return grossPence - Math.round(grossPence / 1.2);
+}
+
 /** Compute (gross, taxValue) for a line at 20% UK VAT, prices VAT-inclusive. */
 function splitGrossPrice(unitGrossMajor: string, qty: number) {
   const unit = toPence(unitGrossMajor);
   const lineGross = unit * qty;
-  // Net = gross / 1.20, tax = gross - net, all in pence.
-  const lineNet = Math.round(lineGross / 1.2);
-  const lineTax = lineGross - lineNet;
-  return { lineGross, lineTax, unit };
+  return { lineGross, lineTax: taxOfGrossPence(lineGross), unit };
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +221,13 @@ export class OrderCommitService {
       };
     }
 
+    // Delivery on standard-rated goods is itself standard-rated, and the
+    // charge quoted to the customer is VAT-inclusive like every other price
+    // here — so split out its VAT element and add it to the order's tax total.
+    // grandTotalPence is unaffected (the customer pays the same either way);
+    // without this the recorded taxTotal understated the VAT actually due.
     const deliveryPence = input.deliveryCharge ? toPence(input.deliveryCharge) : 0;
+    orderTaxPence += taxOfGrossPence(deliveryPence);
     const grandTotalPence = orderGrossPence + deliveryPence;
     const mollieAmountPence = toPence(input.mollie.amount);
     if (Math.abs(grandTotalPence - mollieAmountPence) > 1) {

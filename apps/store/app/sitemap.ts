@@ -29,6 +29,9 @@ const STATIC_PATHS: Array<{ path: string; changeFrequency: 'monthly' | 'weekly';
   { path: '/', changeFrequency: 'weekly', priority: 1.0 },
   { path: '/shop', changeFrequency: 'weekly', priority: 0.9 },
   { path: '/faq', changeFrequency: 'monthly', priority: 0.5 },
+  { path: '/legal/returns', changeFrequency: 'monthly', priority: 0.4 },
+  { path: '/legal/terms', changeFrequency: 'monthly', priority: 0.3 },
+  { path: '/legal/privacy', changeFrequency: 'monthly', priority: 0.3 },
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

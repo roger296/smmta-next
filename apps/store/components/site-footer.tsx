@@ -14,6 +14,7 @@
  */
 import Link from 'next/link';
 import { listGroups } from '@/lib/smmta';
+import { LEGAL } from '@/lib/legal';
 
 const STORE_NAME = 'Filament Store';
 const ABOUT_BLURB =
@@ -86,11 +87,35 @@ export async function SiteFooter() {
               </Link>
             </li>
             <li>
-              <a
-                href="mailto:orders@filament.shop.cleverdeals.net"
+              <Link
+                href="/legal/returns"
                 className="transition-colors hover:text-[var(--brand-ink)]"
               >
-                orders@filament.shop.cleverdeals.net
+                Returns &amp; cancellations
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/legal/terms"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                Terms &amp; conditions
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/legal/privacy"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                Privacy policy
+              </Link>
+            </li>
+            <li>
+              <a
+                href={`mailto:${LEGAL.contactEmail}`}
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                {LEGAL.contactEmail}
               </a>
             </li>
           </ul>
@@ -107,7 +132,18 @@ export async function SiteFooter() {
         </section>
       </div>
 
-      <div className="mx-auto mt-10 flex max-w-6xl flex-col gap-3 border-t border-[var(--brand-border)] px-6 pt-6 text-xs md:flex-row md:items-center md:justify-between">
+      {/* Companies Act 2006 s.82 requires the registered name, number and
+          office on the website; the VAT number belongs alongside them. */}
+      <div className="mx-auto mt-10 max-w-6xl border-t border-[var(--brand-border)] px-6 pt-6 text-xs leading-relaxed">
+        <p>
+          {LEGAL.storeName} is a sub-brand of {LEGAL.parentName}, a trading name of{' '}
+          {LEGAL.legalEntity}. Registered in England and Wales, company number{' '}
+          {LEGAL.companyNumber}. Registered office: {LEGAL.registeredAddress}.
+          {LEGAL.vatNumber ? ` VAT registration number ${LEGAL.vatNumber}.` : ''}
+        </p>
+      </div>
+
+      <div className="mx-auto mt-4 flex max-w-6xl flex-col gap-3 px-6 text-xs md:flex-row md:items-center md:justify-between">
         <p>
           © {year} {STORE_NAME}
         </p>

@@ -25,7 +25,7 @@ export const SHIPPING_FAQ: FaqEntry[] = [
   {
     question: 'What&rsquo;s your returns policy?',
     answer:
-      'Unopened spools can be returned within 30 days for a full refund. We can&rsquo;t accept returns of opened or partially-used filament — moisture absorption affects print quality and we don&rsquo;t resell anything we wouldn&rsquo;t print with ourselves. Email orders@filament.shop.cleverdeals.net for a prepaid label.',
+      'Spools still in their unbroken vacuum seal can be returned within 28 days of delivery for a full refund of the item price; you pay the return postage. We can&rsquo;t accept returns of opened or partially-used filament unless it&rsquo;s faulty — moisture absorption affects print quality and we don&rsquo;t resell anything we wouldn&rsquo;t print with ourselves. Faulty, damaged or incorrectly supplied items are always returnable and we pay the postage. Email sales@cleverdeals.net with your order number. See our full <a href="/legal/returns">returns policy</a> for your statutory cancellation rights.',
   },
   {
     question: 'What diameter do you stock?',
@@ -50,11 +50,11 @@ export const SHIPPING_FAQ: FaqEntry[] = [
   {
     question: 'Do you offer trade / volume discounts?',
     answer:
-      'Yes — orders of 10+ spools of the same SKU get a discount applied at checkout. For larger volumes, email orders@filament.shop.cleverdeals.net and we&rsquo;ll quote.',
+      'Yes — orders of 10+ spools of the same SKU get a discount applied at checkout. For larger volumes, email sales@cleverdeals.net and we&rsquo;ll quote.',
   },
   {
     question: 'Can I change my order after placing it?',
     answer:
-      'If your order hasn&rsquo;t shipped, email orders@filament.shop.cleverdeals.net with your order number — we&rsquo;ll do our best to update it before it leaves the warehouse.',
+      'If your order hasn&rsquo;t shipped, email sales@cleverdeals.net with your order number — we&rsquo;ll do our best to update it before it leaves the warehouse.',
   },
 ];

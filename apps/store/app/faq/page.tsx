@@ -9,6 +9,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { faqPageLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { SHIPPING_FAQ } from '@/lib/seo/faq-data';
+import { LEGAL } from '@/lib/legal';
 
 export const revalidate = 86_400; // 1 day — the FAQ rarely changes
 
@@ -64,10 +65,10 @@ export default function FaqPage() {
           Shipping, returns, materials, tolerances, packaging.
           If your question isn&rsquo;t here, email{' '}
           <a
-            href="mailto:orders@filament.shop.cleverdeals.net"
+            href={`mailto:${LEGAL.contactEmail}`}
             className="text-[var(--brand-ink)] underline-offset-2 hover:underline"
           >
-            orders@filament.shop.cleverdeals.net
+            {LEGAL.contactEmail}
           </a>
           .
         </p>

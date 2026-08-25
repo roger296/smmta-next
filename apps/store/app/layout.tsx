@@ -97,7 +97,7 @@ function Header() {
     <header className="border-b border-[var(--brand-border)] bg-[var(--brand-paper)]">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-5">
         {/*
-          CleverDeals parent-brand logo. The storefront (filament.shop.cleverdeals.net)
+          CleverDeals parent-brand logo. The storefront (filament.cleverdeals.net)
           presents as a CleverDeals property — the Filament Store identity now lives in
           the page copy, hero, and footer rather than in a top-left wordmark.
           Source asset: 1500×245 PNG (transparent), rendered at 196×32 on screen so
