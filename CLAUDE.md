@@ -349,7 +349,11 @@ If a customer-facing browser ever hits a CSP violation, check `apps/store/next.c
 
 - **Branch naming:** `feat/<short-description>`, `fix/<short-description>`. Tag releases as `vX.Y.Z`.
 - **Commit messages:** Conventional Commits (`feat(scope): subject`, `fix(scope): subject`). Body explains *why*, not just what.
-- **PRs merge via the GitHub web UI** (squash or merge — squash preferred for small PRs).
+- **Claude merges and pushes PRs** via the `gh` CLI — Roger does not want to do it by hand in the
+  web UI. Use a merge commit for a branch whose individual commits are worth keeping; squash a
+  small single-concern branch. Always verify the merge actually landed (`gh pr view <n>` shows
+  `MERGED` and `origin/main` HEAD is the merge commit) **before** tagging — a missed "Confirm
+  merge" once left a release tag on the wrong commit.
 - **CI:** `.github/workflows/e2e.yml` runs the full Postgres + API + storefront + Playwright + concurrency stress test stack on PRs that touch `apps/store/**`, `apps/api/src/modules/storefront/**`, `apps/api/scripts/**`, or the workflow itself. Lighthouse CI runs on `apps/store/**` PRs too (`lhci.yml`).
 - **`.tmp-*` files** at the repo root are gitignored deliberately — reserved for ad-hoc imports (e.g. the production `.tmp-catalogue.xlsx`). The CI fixture is a small committed `apps/api/test/fixtures/catalogue.xlsx`.
 
