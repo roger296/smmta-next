@@ -28,7 +28,9 @@ const envSchema = z.object({
 
   // SendGrid (wired in Prompt 11).
   SENDGRID_API_KEY: z.string().default(''),
-  SENDGRID_FROM: z.string().default('orders@example.invalid'),
+  // Must be a verified sender on the SendGrid account or every send is
+  // rejected. Matches the API's SENDGRID_FROM_TRANSACTIONAL default.
+  SENDGRID_FROM: z.string().default('sales@cleverdeals.net'),
 
   // Operator-only admin surface (Prompt 12).
   ADMIN_API_KEY: z.string().default(''),
