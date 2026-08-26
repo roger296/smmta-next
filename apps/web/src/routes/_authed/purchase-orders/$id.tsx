@@ -123,7 +123,7 @@ function PODetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">
-              {formatMoney(data.subtotal, data.currencyCode)}
+              {formatMoney(data.lineTotal, data.currencyCode)}
             </div>
           </CardContent>
         </Card>
@@ -135,7 +135,7 @@ function PODetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">
-              {formatMoney(data.taxAmount, data.currencyCode)}
+              {formatMoney(data.taxTotal, data.currencyCode)}
             </div>
           </CardContent>
         </Card>
@@ -146,7 +146,7 @@ function PODetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{formatMoney(data.total, data.currencyCode)}</div>
+            <div className="text-xl font-bold">{formatMoney(data.grandTotal, data.currencyCode)}</div>
           </CardContent>
         </Card>
       </div>

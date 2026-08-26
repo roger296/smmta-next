@@ -140,7 +140,7 @@ function DashboardPage() {
                         </Badge>
                       </td>
                       <td className="px-4 py-2 text-right">
-                        {formatMoney(o.total, o.currencyCode)}
+                        {formatMoney(o.grandTotal, o.currencyCode)}
                       </td>
                     </tr>
                   );

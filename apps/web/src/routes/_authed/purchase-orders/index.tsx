@@ -46,9 +46,9 @@ const columns: ColumnDef<PurchaseOrder>[] = [
     },
   },
   {
-    accessorKey: 'total',
+    accessorKey: 'grandTotal',
     header: 'Total',
-    cell: ({ row }) => formatMoney(row.original.total, row.original.currencyCode),
+    cell: ({ row }) => formatMoney(row.original.grandTotal, row.original.currencyCode),
   },
 ];
 
