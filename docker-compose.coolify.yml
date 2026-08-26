@@ -125,6 +125,13 @@ services:
       # correct in production — the webhook route is on the storefront. Override
       # only for local development (e.g. an ngrok tunnel).
       MOLLIE_WEBHOOK_URL_BASE: ${MOLLIE_WEBHOOK_URL_BASE:-}
+      # The storefront sends its own transactional email (order confirmations,
+      # back-in-stock) from its outbox — it does not proxy through the API — so
+      # it needs the SendGrid credentials directly. Without the key every send
+      # throws and the row is marked FAILED, which nothing retries.
+      # SENDGRID_FROM must be a verified sender on the SendGrid account.
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_FROM: ${SENDGRID_FROM:-sales@cleverdeals.net}
       DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
     expose:
       - '3000'
