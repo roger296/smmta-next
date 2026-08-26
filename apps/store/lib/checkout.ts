@@ -197,13 +197,31 @@ export async function startCheckout(input: StartCheckoutInput): Promise<StartChe
   const amountValue = fromPence(grandTotalPence);
 
   // 4. Create the Mollie payment.
+  // Mollie only accepts a publicly reachable webhookUrl and rejects anything
+  // pointing at localhost with a 422 — which surfaces to the customer as an
+  // opaque "couldn't reach the payment provider". Fail here instead, with an
+  // error that names the misconfigured variable.
+  const webhookBase = (env.MOLLIE_WEBHOOK_URL_BASE || env.STORE_BASE_URL).replace(/\/$/, '');
+  // Only enforced in production: dev and tests legitimately point at localhost
+  // (fake Mollie), whereas in production a localhost callback is always a
+  // misconfiguration and Mollie will reject the payment outright.
+  if (
+    process.env.NODE_ENV === 'production' &&
+    /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(webhookBase)
+  ) {
+    throw new Error(
+      `Mollie webhook base is not publicly reachable (${webhookBase}). Set MOLLIE_WEBHOOK_URL_BASE ` +
+        'or STORE_BASE_URL to the storefront public HTTPS origin.',
+    );
+  }
+
   let payment: MolliePayment;
   try {
     payment = await createPayment({
       amount: { value: amountValue, currency: 'GBP' },
       description: describeOrder(cart),
       redirectUrl: `${env.STORE_BASE_URL.replace(/\/$/, '')}/checkout/return?cid=${checkoutId}`,
-      webhookUrl: `${env.MOLLIE_WEBHOOK_URL_BASE.replace(/\/$/, '')}/api/mollie/webhook`,
+      webhookUrl: `${webhookBase}/api/mollie/webhook`,
       metadata: { checkoutId, reservationId: reservation.reservationId },
       idempotencyKey: checkoutId,
     });

@@ -117,6 +117,14 @@ services:
       # Shared secret the API presents on /api/internal/* calls. Must equal the
       # API's STORE_INTERNAL_API_KEY — see the note on the api service.
       ADMIN_API_KEY: ${STORE_INTERNAL_API_KEY:-}
+      # The storefront creates its own Mollie payments (separate from the API's
+      # pre-order flow), so it needs the key directly rather than relying on the
+      # deploy platform happening to inject it into every container.
+      MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
+      # Origin Mollie calls back on. Empty falls back to STORE_BASE_URL, which is
+      # correct in production — the webhook route is on the storefront. Override
+      # only for local development (e.g. an ngrok tunnel).
+      MOLLIE_WEBHOOK_URL_BASE: ${MOLLIE_WEBHOOK_URL_BASE:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
     expose:
       - '3000'

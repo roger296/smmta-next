@@ -21,7 +21,10 @@ const envSchema = z.object({
 
   // Mollie (wired in Prompt 10).
   MOLLIE_API_KEY: z.string().default(''),
-  MOLLIE_WEBHOOK_URL_BASE: z.string().default('http://localhost:3000'),
+  // Public origin Mollie should call back on. The webhook route lives on the
+  // storefront itself, so this defaults to STORE_BASE_URL (see checkout.ts) and
+  // exists only as an override — e.g. an ngrok tunnel during local development.
+  MOLLIE_WEBHOOK_URL_BASE: z.string().default(''),
 
   // SendGrid (wired in Prompt 11).
   SENDGRID_API_KEY: z.string().default(''),
