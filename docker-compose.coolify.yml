@@ -129,6 +129,26 @@ services:
     expose:
       - '3000'
 
+  # Drains the storefront's email outbox (order confirmations, back-in-stock).
+  # The store only ENQUEUES rows — /api/internal/process-outbox is what actually
+  # hands them to SendGrid, and nothing calls it on its own. Without this service
+  # customers pay and never receive a confirmation, with the rows sitting PENDING
+  # and no error anywhere. Kept in compose rather than as platform cron config so
+  # a self-hoster gets working email from `docker compose up` alone.
+  # Requires STORE_INTERNAL_API_KEY (the store checks it as ADMIN_API_KEY).
+  outbox-cron:
+    image: curlimages/curl:8.11.1
+    restart: unless-stopped
+    depends_on:
+      store:
+        condition: service_started
+    environment:
+      ADMIN_API_KEY: ${STORE_INTERNAL_API_KEY:-}
+      OUTBOX_INTERVAL_SECONDS: ${OUTBOX_INTERVAL_SECONDS:-60}
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - 'while true; do curl -fsS -m 30 -X POST -H "Authorization: Bearer $${ADMIN_API_KEY}" http://store:3000/api/internal/process-outbox >/dev/null 2>&1 || true; sleep $${OUTBOX_INTERVAL_SECONDS}; done'
+
   web:
     build:
       context: .
