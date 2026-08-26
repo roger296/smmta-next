@@ -186,7 +186,7 @@ function BulkOpsPage() {
                           {meta?.label ?? order.status}
                         </Badge>
                       </td>
-                      <td className="px-4 py-2 text-right">{formatMoney(order.total, order.currencyCode)}</td>
+                      <td className="px-4 py-2 text-right">{formatMoney(order.grandTotal, order.currencyCode)}</td>
                     </tr>
                   );
                 })}

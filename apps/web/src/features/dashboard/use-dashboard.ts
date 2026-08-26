@@ -42,7 +42,7 @@ export function useDashboardKpis() {
         'PARTIALLY_SHIPPED',
       ]);
       const open = openOrders.data.filter((o) => openStatuses.has(o.status));
-      const openOrdersValue = open.reduce((s, o) => s + Number(o.total), 0);
+      const openOrdersValue = open.reduce((s, o) => s + Number(o.grandTotal), 0);
 
       // The /stock-items/report endpoint returns { lines, grandTotal }, not a
       // bare array — use the server-computed total rather than reducing here.

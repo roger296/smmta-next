@@ -14,9 +14,9 @@ const invoice: Invoice = {
   status: 'ISSUED',
   dateOfInvoice: '2026-04-01',
   dueDateOfInvoice: '2026-05-01',
-  subtotal: '100.00',
-  taxAmount: '20.00',
-  total: '120.00',
+  lineTotal: '100.00',
+  taxTotal: '20.00',
+  grandTotal: '120.00',
   paidAmount: '0.00',
   outstandingAmount: '120.00',
   lines: [

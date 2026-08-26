@@ -313,7 +313,10 @@ export interface OrderLine {
   id: string;
   orderId: string;
   productId: string;
+  /** Flattened name, when the endpoint provides one. */
   productName?: string;
+  /** The joined product row — order detail eager-loads this relation. */
+  product?: { id: string; name: string; stockCode?: string | null } | null;
   quantity: string;
   pricePerUnit: string;
   taxRate: string;
@@ -333,9 +336,9 @@ export interface Order {
   warehouseId: string | null;
   currencyCode: string;
   deliveryCharge: string;
-  subtotal: string;
-  taxAmount: string;
-  total: string;
+  orderTotal: string;
+  taxTotal: string;
+  grandTotal: string;
   cogs: string;
   margin: string;
   orderDate: string;
@@ -392,9 +395,9 @@ export interface Invoice {
   status: InvoiceStatus;
   dateOfInvoice: string;
   dueDateOfInvoice: string | null;
-  subtotal: string;
-  taxAmount: string;
-  total: string;
+  lineTotal: string;
+  taxTotal: string;
+  grandTotal: string;
   paidAmount: string;
   outstandingAmount: string;
   lines?: InvoiceLine[];
@@ -450,9 +453,9 @@ export interface PurchaseOrder {
   deliveryWarehouseId: string | null;
   currencyCode: string;
   deliveryCharge: string;
-  subtotal: string;
-  taxAmount: string;
-  total: string;
+  lineTotal: string;
+  taxTotal: string;
+  grandTotal: string;
   vatTreatment: VatTreatment;
   exchangeRate: string;
   expectedDeliveryDate: string | null;
@@ -492,9 +495,9 @@ export interface SupplierInvoice {
   purchaseOrderId: string | null;
   dateOfInvoice: string;
   dueDateOfInvoice: string | null;
-  subtotal: string;
-  taxAmount: string;
-  total: string;
+  lineTotal: string;
+  taxTotal: string;
+  grandTotal: string;
   paidAmount: string;
   outstandingAmount: string;
   status: InvoiceStatus;

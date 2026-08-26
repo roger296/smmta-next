@@ -100,7 +100,7 @@ function InvoiceDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{formatMoney(data.total)}</div>
+            <div className="text-xl font-bold">{formatMoney(data.grandTotal)}</div>
           </CardContent>
         </Card>
         <Card>

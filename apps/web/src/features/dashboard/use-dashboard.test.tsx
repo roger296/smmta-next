@@ -26,7 +26,7 @@ describe('useDashboardKpis', () => {
             {
               id: '1',
               status: 'CONFIRMED',
-              total: '100.00',
+              grandTotal: '100.00',
               currencyCode: 'GBP',
               customerId: 'c1',
               customerName: 'A',
@@ -36,7 +36,7 @@ describe('useDashboardKpis', () => {
             {
               id: '2',
               status: 'COMPLETED',
-              total: '50.00',
+              grandTotal: '50.00',
               currencyCode: 'GBP',
               customerId: 'c1',
               customerName: 'A',

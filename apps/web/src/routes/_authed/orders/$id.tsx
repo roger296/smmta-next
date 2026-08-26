@@ -151,7 +151,7 @@ function OrderDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{formatMoney(data.subtotal, data.currencyCode)}</div>
+            <div className="text-xl font-bold">{formatMoney(data.orderTotal, data.currencyCode)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -161,7 +161,7 @@ function OrderDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{formatMoney(data.taxAmount, data.currencyCode)}</div>
+            <div className="text-xl font-bold">{formatMoney(data.taxTotal, data.currencyCode)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -171,7 +171,7 @@ function OrderDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{formatMoney(data.total, data.currencyCode)}</div>
+            <div className="text-xl font-bold">{formatMoney(data.grandTotal, data.currencyCode)}</div>
           </CardContent>
         </Card>
       </div>
@@ -198,7 +198,7 @@ function OrderDetailPage() {
                   {(data.lines ?? []).map((line) => (
                     <tr key={line.id} className="border-b border-[var(--color-border)] last:border-b-0">
                       <td className="px-4 py-2">
-                        {line.productName ?? line.productId.slice(0, 8)}
+                        {line.product?.name ?? line.productName ?? line.productId.slice(0, 8)}
                       </td>
                       <td className="px-4 py-2 text-right">{line.quantity}</td>
                       <td className="px-4 py-2 text-right">
