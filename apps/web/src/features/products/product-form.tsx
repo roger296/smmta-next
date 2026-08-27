@@ -1,4 +1,5 @@
 import { useForm } from 'react-hook-form';
+import { SupplierPicker } from '@/components/forms/entity-pickers';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useManufacturers, useWarehouses } from '../reference/use-reference';
-import { useSuppliersList } from '../suppliers/use-suppliers';
 
 export const productFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(500),
@@ -50,7 +50,6 @@ interface Props {
 export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onCancel }: Props) {
   const { data: manufacturers } = useManufacturers();
   const { data: warehouses } = useWarehouses();
-  const { data: suppliers } = useSuppliersList({ pageSize: 100 });
   const {
     register,
     handleSubmit,
@@ -157,21 +156,10 @@ export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onC
           </Select>
         </Field>
         <Field id="p-supplier" label="Default supplier" error={errors.supplierId?.message}>
-          <Select
-            value={watch('supplierId') ?? ''}
-            onValueChange={(v) => setValue('supplierId', v || undefined, { shouldValidate: true })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select supplier" />
-            </SelectTrigger>
-            <SelectContent>
-              {suppliers?.data.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SupplierPicker
+            value={watch('supplierId') || undefined}
+            onChange={(v) => setValue('supplierId', v, { shouldValidate: true })}
+          />
         </Field>
       </div>
 
