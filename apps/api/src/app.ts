@@ -39,6 +39,7 @@ import {
 } from './modules/payments/payment.routes.js';
 import { chatRoutes } from './modules/agent/chat.routes.js';
 import { sendgridWebhookRoutes, unsubscribeRoutes } from './modules/messaging/messaging.routes.js';
+import { outboxRoutes } from './modules/messaging/outbox.routes.js';
 import { approvalRoutes } from './modules/approval/approval.routes.js';
 import { subscriptionRoutes, subscriptionAdminRoutes } from './modules/subscriptions/subscription.routes.js';
 import { healthRoutes } from './modules/health/health.routes.js';
@@ -158,6 +159,7 @@ export async function buildApp() {
   await app.register(chatRoutes, { prefix: '/api/v1' });
 
   // Email pipeline (Prompt 9): SendGrid event webhook + one-click unsubscribe.
+  await app.register(outboxRoutes, { prefix: '/api/v1' });
   await app.register(sendgridWebhookRoutes, { prefix: '/api/v1' });
   await app.register(unsubscribeRoutes, { prefix: '/api/v1' });
 
