@@ -58,6 +58,10 @@ export function CheckoutForm() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Disabling the button is not enough: pressing Enter in any text field
+    // still submits the form. Without this guard a second press during the
+    // redirect would reserve the stock twice and open a second Mollie payment.
+    if (submitting) return;
     setErrorBanner(null);
     if (!state.termsAccepted) {
       setErrorBanner('You must accept the terms and conditions to checkout.');
@@ -119,13 +123,23 @@ export function CheckoutForm() {
       }
     } catch (err) {
       setErrorBanner(err instanceof Error ? err.message : 'Network error');
-    } finally {
       setSubmitting(false);
+      return;
     }
+    // Only reached on a handled error response — the success path has already
+    // returned and is navigating away, and must stay locked until it does.
+    setSubmitting(false);
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6" aria-labelledby="checkout-heading">
+    <>
+      {submitting && <ProcessingOverlay />}
+      <form
+        onSubmit={onSubmit}
+        className="space-y-6"
+        aria-labelledby="checkout-heading"
+        aria-busy={submitting}
+      >
       {errorBanner && (
         <div
           role="alert"
@@ -232,7 +246,48 @@ export function CheckoutForm() {
         You&rsquo;ll be redirected to Mollie&rsquo;s secure hosted checkout. Card details never
         touch our servers (PCI SAQ A).
       </p>
-    </form>
+      </form>
+    </>
+  );
+}
+
+/**
+ * Covers the checkout while the payment is being opened.
+ *
+ * The form used to stay on screen and interactive for the second or two it
+ * takes to create the Mollie payment and redirect. Only the button was
+ * disabled, so the page still invited input — and a stray Enter would have
+ * started a second checkout entirely.
+ *
+ * Rendered as a sibling of the form rather than inside it, so it sits above
+ * every field rather than in the document flow.
+ */
+function ProcessingOverlay() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--brand-paper)]/95 p-6"
+    >
+      <div className="max-w-md text-center">
+        <p
+          className="text-2xl font-bold tracking-tight"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          Thanks for your order
+        </p>
+        <p className="mt-3 text-base text-[var(--brand-muted)]">
+          We&rsquo;re processing the transaction with your card company. Please wait &mdash; do
+          not close this page or press back.
+        </p>
+        <div
+          aria-hidden="true"
+          className="mx-auto mt-6 h-1 w-40 overflow-hidden bg-[var(--brand-border)]"
+        >
+          <div className="h-1 w-1/3 animate-pulse bg-[var(--brand-accent)]" />
+        </div>
+      </div>
+    </div>
   );
 }
 
