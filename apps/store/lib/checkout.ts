@@ -40,6 +40,7 @@ import {
   isTerminalNonPaid,
   MollieApiError,
   type MolliePayment,
+  usesLiveMollieApi,
 } from './mollie';
 
 // ---------------------------------------------------------------------------
@@ -202,11 +203,12 @@ export async function startCheckout(input: StartCheckoutInput): Promise<StartChe
   // opaque "couldn't reach the payment provider". Fail here instead, with an
   // error that names the misconfigured variable.
   const webhookBase = (env.MOLLIE_WEBHOOK_URL_BASE || env.STORE_BASE_URL).replace(/\/$/, '');
-  // Only enforced in production: dev and tests legitimately point at localhost
-  // (fake Mollie), whereas in production a localhost callback is always a
-  // misconfiguration and Mollie will reject the payment outright.
+  // Only enforced when the real Mollie has to reach us. A mock at localhost is
+  // entitled to a localhost webhook, and gating on NODE_ENV does not express
+  // that: Next's standalone server hardcodes NODE_ENV=production, so the e2e
+  // suite runs as production and this guard rejected its own harness.
   if (
-    process.env.NODE_ENV === 'production' &&
+    usesLiveMollieApi() &&
     /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(webhookBase)
   ) {
     throw new Error(
