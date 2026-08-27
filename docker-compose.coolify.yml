@@ -153,8 +153,12 @@ services:
       ADMIN_API_KEY: ${STORE_INTERNAL_API_KEY:-}
       OUTBOX_INTERVAL_SECONDS: ${OUTBOX_INTERVAL_SECONDS:-60}
     entrypoint: ['/bin/sh', '-c']
+    # Logs the drainer's JSON result and the HTTP status on every pass. The
+    # first version piped both to /dev/null, so a run of 403s from SendGrid
+    # left no trace anywhere and the queue looked simply idle. `|| true` keeps
+    # the loop alive across a failed poll without hiding what happened.
     command:
-      - 'while true; do curl -fsS -m 30 -X POST -H "Authorization: Bearer $${ADMIN_API_KEY}" http://store:3000/api/internal/process-outbox >/dev/null 2>&1 || true; sleep $${OUTBOX_INTERVAL_SECONDS}; done'
+      - 'while true; do echo "[outbox] polling"; curl -sS -m 30 -X POST -H "Authorization: Bearer $${ADMIN_API_KEY}" http://store:3000/api/internal/process-outbox; echo; sleep $${OUTBOX_INTERVAL_SECONDS}; done'
 
   web:
     build:

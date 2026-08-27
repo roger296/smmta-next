@@ -255,7 +255,24 @@ export const emailOutbox = pgTable(
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
     sendStatus: emailSendStatusEnum('send_status').notNull().default('PENDING'),
     sentAt: timestamp('sent_at', { withTimezone: true }),
+    /** Full provider error — SendGrid's ResponseError.message is only the HTTP
+     *  status text ("Forbidden"), while the actionable reason ("does not match
+     *  a verified Sender Identity") lives in response.body.errors. We store the
+     *  rendered form so a failure explains itself without a server session. */
     error: text('error'),
+    /** HTTP status from the provider. Drives retry classification: 429/5xx are
+     *  transient, other 4xx are permanent and must not be retried forever. */
+    lastStatusCode: integer('last_status_code'),
+    /** SendGrid's x-message-id, for cross-referencing their Activity feed. */
+    providerMessageId: varchar('provider_message_id', { length: 200 }),
+    /** Delivery attempts so far — bounded by MAX_ATTEMPTS in email.ts. */
+    attempts: integer('attempts').notNull().default(0),
+    /** When a FAILED row becomes eligible again (exponential backoff).
+     *  NULL on a FAILED row means "do not retry" — either the failure was
+     *  classified permanent, or the row predates retry support. That is what
+     *  keeps historical failures dead rather than resurrecting them on deploy.
+     *  Unused while a row is PENDING; those are picked up by status alone. */
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
     /** Optional link back to a SMMTA orderId — used to enforce
      *  "no duplicate confirmation per order" via a unique partial index. */
     orderId: uuid('order_id'),
@@ -267,6 +284,7 @@ export const emailOutbox = pgTable(
       t.template,
     ),
     emailOutboxStatusIdx: index('email_outbox_send_status_idx').on(t.sendStatus),
+    emailOutboxRetryIdx: index('email_outbox_retry_idx').on(t.sendStatus, t.nextAttemptAt),
   }),
 );
 

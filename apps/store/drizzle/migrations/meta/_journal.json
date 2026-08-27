@@ -8,6 +8,13 @@
       "when": 1777317324863,
       "tag": "0000_striped_shiva",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787843993136,
+      "tag": "0001_outbox_retry_and_diagnostics",
+      "breakpoints": true
     }
   ]
 }
