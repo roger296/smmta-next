@@ -32,10 +32,19 @@ test.describe('Checkout submit lock', () => {
 
     await page.goto(`/shop/${SEEDED_GROUP_SLUG}`);
     const firstSwatch = page.locator('[data-test="swatch"]').first();
-    if (await firstSwatch.count()) await firstSwatch.click();
-    await page.getByRole('button', { name: /^add to cart$/i }).click();
+    if ((await firstSwatch.count()) > 0) await firstSwatch.click();
 
-    await page.goto('/checkout');
+    // Add-to-cart fires a fetch and does not navigate. Wait for the success
+    // label: navigating early leaves the cart empty, and /checkout then
+    // redirects straight back to /cart with no form on it at all.
+    await page.getByRole('button', { name: /^add to cart$/i }).click();
+    await expect(page.getByRole('button', { name: /^added/i })).toBeVisible({
+      timeout: 5_000,
+    });
+
+    await page.goto('/cart');
+    await page.locator('a, button', { hasText: /checkout/i }).first().click();
+    await expect(page).toHaveURL(/\/checkout/);
     await page.fill('input[name="email"]', 'lock@e2e.invalid');
     await page.fill('input[name="firstName"]', 'Ada');
     await page.fill('input[name="lastName"]', 'Lovelace');
