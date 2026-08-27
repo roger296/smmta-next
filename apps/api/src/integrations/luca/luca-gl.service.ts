@@ -4,6 +4,7 @@ import { LUCA_ACCOUNTS } from './luca-account-map.js';
 import { vatTreatmentToLucaTaxCode } from './luca-tax-map.js';
 import { glIdempotencyKey, derivePeriodId } from '../../shared/utils/idempotency.js';
 import { toDecimalString } from '../../shared/utils/currency.js';
+import { getEnv } from '../../config/env.js';
 import { glPostingLog } from '../../db/schema/gl-posting-log.js';
 import type { LucaPostTransactionRequest, LucaJournalLine } from './luca-types.js';
 import type { VatTreatment } from '@smmta/shared-types';
@@ -485,6 +486,14 @@ export class LucaGLService {
       request: LucaPostTransactionRequest;
     },
   ): Promise<string> {
+    // Luca is optional. When it is not enabled, skip the posting entirely
+    // rather than logging a row that nothing will ever retry — a failed post
+    // re-throws below, and because the log row is written inside the caller's
+    // transaction, that rollback discards the log too. Blocking a warehouse
+    // operation on an external ledger the deployment doesn't run is worse than
+    // not posting at all.
+    if (!getEnv().LUCA_ENABLED) return '';
+
     // Write PENDING log entry
     const [logEntry] = await db
       .insert(glPostingLog)

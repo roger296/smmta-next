@@ -1,5 +1,25 @@
 import { z } from 'zod';
 
+/**
+ * Boolean env var parser.
+ *
+ * NOT zod's coercing boolean — that calls JavaScript's Boolean(), for which
+ * every non-empty string is truthy, so `SENDGRID_SANDBOX=false` silently stayed
+ * ON and `LUCA_ENABLED=false` silently stayed enabled. Env vars arrive as
+ * strings, so the only useful reading is the textual one.
+ */
+const envBool = (defaultValue: boolean) =>
+  z
+    .union([z.boolean(), z.string()])
+    .default(defaultValue)
+    .transform((v) => {
+      if (typeof v === 'boolean') return v;
+      const s = v.trim().toLowerCase();
+      if (['false', '0', 'no', 'off', ''].includes(s)) return false;
+      if (['true', '1', 'yes', 'on'].includes(s)) return true;
+      return defaultValue;
+    });
+
 const envSchema = z.object({
   // Server
   // Default API port. The storefront (Prompt 7) takes :3000, so the API
@@ -22,6 +42,11 @@ const envSchema = z.object({
   COMPANY_ID: z.string().default('11111111-1111-4111-8111-111111111111'),
 
   // Luca GL API
+  // Luca is an OPTIONAL external GL. It is off by default: a deployment
+  // without it must still be able to move stock, and GL posting failures
+  // roll back the business transaction that triggered them (see
+  // luca-gl.service.post). Set true only when a Luca instance is reachable.
+  LUCA_ENABLED: envBool(false),
   LUCA_API_BASE_URL: z.string().default('http://localhost:4000'),
   LUCA_API_TIMEOUT_MS: z.coerce.number().default(10000),
 
@@ -54,7 +79,7 @@ const envSchema = z.object({
   SENDGRID_WEBHOOK_VERIFICATION_KEY: z.string().default(''),
   SENDGRID_FROM_TRANSACTIONAL: z.string().default('sales@cleverdeals.net'),
   SENDGRID_FROM_MARKETING: z.string().default('sales@cleverdeals.net'),
-  SENDGRID_SANDBOX: z.coerce.boolean().default(true),
+  SENDGRID_SANDBOX: envBool(true),
   /** Signs one-click unsubscribe URLs. */
   UNSUBSCRIBE_SECRET: z.string().default('dev-unsubscribe-secret'),
   /** Marketing frequency cap: max N messages per user per rolling M days. */
@@ -65,7 +90,7 @@ const envSchema = z.object({
 
   // Observability (Sentry, §6). Off unless a DSN + flag are set.
   SENTRY_DSN: z.string().default(''),
-  SENTRY_ENABLED: z.coerce.boolean().default(false),
+  SENTRY_ENABLED: envBool(false),
   /** Worker health-check HTTP port (0 disables the server). */
   WORKER_HEALTH_PORT: z.coerce.number().int().default(0),
 
