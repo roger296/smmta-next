@@ -31,6 +31,22 @@ function getMollieBase(): string {
 
 const MOLLIE_BASE = getMollieBase();
 
+/**
+ * True when we are talking to Mollie's real API rather than a local mock.
+ *
+ * The distinction matters for anything that depends on Mollie being able to
+ * reach US: only the real service has to resolve our webhook URL over the
+ * public internet. Test harnesses that point MOLLIE_API_BASE_URL at a mock on
+ * localhost are perfectly entitled to a localhost webhook.
+ *
+ * Deliberately not keyed on NODE_ENV: Next's standalone server hardcodes
+ * `process.env.NODE_ENV = 'production'`, so the e2e suite runs as production
+ * no matter what the workflow sets.
+ */
+export function usesLiveMollieApi(): boolean {
+  return MOLLIE_BASE.startsWith('https://api.mollie.com/');
+}
+
 export type MollieStatus =
   | 'open'
   | 'pending'
