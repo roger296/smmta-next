@@ -16,7 +16,7 @@
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useDebounce } from '@/hooks/use-debounce';
 
 export interface ComboboxOption {
   id: string;
@@ -77,7 +77,7 @@ export function EntityCombobox({
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const debouncedTerm = useDebouncedValue(term, 250);
+  const debouncedTerm = useDebounce(term, 250);
   useEffect(() => {
     onSearchTermChange(debouncedTerm);
     // onSearchTermChange is expected to be stable (useCallback in the wrapper);
