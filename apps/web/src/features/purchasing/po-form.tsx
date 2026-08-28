@@ -1,4 +1,5 @@
 import { useForm, useFieldArray } from 'react-hook-form';
+import { ProductPicker, SupplierPicker } from '@/components/forms/entity-pickers';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
@@ -14,8 +15,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { VAT_TREATMENTS, CURRENCIES } from '../_shared/vat-treatments';
-import { useSuppliersList } from '../suppliers/use-suppliers';
-import { useProductsList } from '../products/use-products';
 import { useWarehouses } from '../reference/use-reference';
 import { formatMoney } from '@/lib/format';
 import { Plus, Trash2 } from 'lucide-react';
@@ -59,8 +58,6 @@ interface Props {
 }
 
 export function POForm({ defaultValues, onSubmit, submitLabel = 'Create PO', onCancel }: Props) {
-  const { data: suppliers } = useSuppliersList({ pageSize: 200 });
-  const { data: products } = useProductsList({ pageSize: 500 });
   const { data: warehouses } = useWarehouses();
 
   const {
@@ -110,21 +107,12 @@ export function POForm({ defaultValues, onSubmit, submitLabel = 'Create PO', onC
     >
       <div className="grid gap-4 md:grid-cols-2">
         <Field id="po-supplier" label="Supplier" required error={errors.supplierId?.message}>
-          <Select
-            value={watch('supplierId') ?? ''}
-            onValueChange={(v) => setValue('supplierId', v, { shouldValidate: true })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select supplier" />
-            </SelectTrigger>
-            <SelectContent>
-              {suppliers?.data.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SupplierPicker
+            id="po-supplier"
+            value={watch('supplierId') || undefined}
+            onChange={(v) => setValue('supplierId', v ?? '', { shouldValidate: true })}
+            aria-invalid={Boolean(errors.supplierId)}
+          />
         </Field>
         <Field id="po-warehouse" label="Delivery warehouse">
           <Select
@@ -234,23 +222,13 @@ export function POForm({ defaultValues, onSubmit, submitLabel = 'Create PO', onC
                   return (
                     <tr key={field.id} className="border-b border-[var(--color-border)] last:border-b-0">
                       <td className="px-3 py-2">
-                        <Select
-                          value={line?.productId ?? ''}
-                          onValueChange={(v) =>
-                            setValue(`lines.${i}.productId`, v, { shouldValidate: true })
+                        <ProductPicker
+                          value={line?.productId || undefined}
+                          onChange={(v) =>
+                            setValue(`lines.${i}.productId`, v ?? '', { shouldValidate: true })
                           }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products?.data.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          aria-invalid={Boolean(errors.lines?.[i]?.productId)}
+                        />
                       </td>
                       <td className="px-3 py-2">
                         <Input

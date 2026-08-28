@@ -1,4 +1,5 @@
 import { useForm, useFieldArray } from 'react-hook-form';
+import { CustomerPicker, ProductPicker } from '@/components/forms/entity-pickers';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
@@ -14,8 +15,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { VAT_TREATMENTS, CURRENCIES } from '../_shared/vat-treatments';
-import { useCustomersList } from '../customers/use-customers';
-import { useProductsList } from '../products/use-products';
 import { useWarehouses } from '../reference/use-reference';
 import { formatMoney } from '@/lib/format';
 import { Plus, Trash2 } from 'lucide-react';
@@ -64,8 +63,6 @@ interface Props {
 }
 
 export function OrderForm({ defaultValues, onSubmit, submitLabel = 'Create order', onCancel }: Props) {
-  const { data: customers } = useCustomersList({ pageSize: 200 });
-  const { data: products } = useProductsList({ pageSize: 500 });
   const { data: warehouses } = useWarehouses();
 
   const {
@@ -120,21 +117,12 @@ export function OrderForm({ defaultValues, onSubmit, submitLabel = 'Create order
     >
       <div className="grid gap-4 md:grid-cols-2">
         <Field id="o-customerId" label="Customer" required error={errors.customerId?.message}>
-          <Select
-            value={watch('customerId') ?? ''}
-            onValueChange={(v) => setValue('customerId', v, { shouldValidate: true })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select customer" />
-            </SelectTrigger>
-            <SelectContent>
-              {customers?.data.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <CustomerPicker
+            id="o-customerId"
+            value={watch('customerId') || undefined}
+            onChange={(v) => setValue('customerId', v ?? '', { shouldValidate: true })}
+            aria-invalid={Boolean(errors.customerId)}
+          />
         </Field>
         <Field id="o-warehouse" label="Warehouse" error={errors.warehouseId?.message}>
           <Select
@@ -248,24 +236,13 @@ export function OrderForm({ defaultValues, onSubmit, submitLabel = 'Create order
                   return (
                     <tr key={field.id} className="border-b border-[var(--color-border)] last:border-b-0">
                       <td className="px-3 py-2">
-                        <Select
-                          value={line?.productId ?? ''}
-                          onValueChange={(v) =>
-                            setValue(`lines.${i}.productId`, v, { shouldValidate: true })
+                        <ProductPicker
+                          value={line?.productId || undefined}
+                          onChange={(v) =>
+                            setValue(`lines.${i}.productId`, v ?? '', { shouldValidate: true })
                           }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products?.data.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
-                                {p.stockCode ? ` (${p.stockCode})` : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          aria-invalid={Boolean(errors.lines?.[i]?.productId)}
+                        />
                         {errors.lines?.[i]?.productId && (
                           <p role="alert" className="mt-1 text-xs text-[var(--color-destructive)]">
                             {errors.lines[i]!.productId!.message}

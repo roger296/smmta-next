@@ -15,8 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useProductsList } from '@/features/products/use-products';
 import { useWarehouses } from '@/features/reference/use-reference';
+import { ProductPicker } from '@/components/forms/entity-pickers';
 import { useAdjustStock } from '@/features/stock/use-stock';
 import { useToast } from '@/hooks/use-toast';
 
@@ -39,7 +39,6 @@ type FormOutput = z.output<typeof schema>;
 function StockAdjustPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: products } = useProductsList({ pageSize: 500 });
   const { data: warehouses } = useWarehouses();
   const mutation = useAdjustStock();
 
@@ -91,21 +90,12 @@ function StockAdjustPage() {
             aria-label="Stock adjustment form"
           >
             <Field id="adj-product" label="Product" required error={errors.productId?.message}>
-              <Select
-                value={watch('productId') ?? ''}
-                onValueChange={(v) => setValue('productId', v, { shouldValidate: true })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products?.data.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ProductPicker
+                id="adj-product"
+                value={watch('productId') || undefined}
+                onChange={(v) => setValue('productId', v ?? '', { shouldValidate: true })}
+                aria-invalid={Boolean(errors.productId)}
+              />
             </Field>
             <Field id="adj-warehouse" label="Warehouse" required error={errors.warehouseId?.message}>
               <Select

@@ -19,16 +19,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field } from '@/components/forms/form-field';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useUpdateProduct } from './use-products';
 import { useProductGroupsList } from '../product-groups/use-product-groups';
+import { ProductGroupPicker } from '@/components/forms/entity-pickers';
 import {
   buildChecklist,
   canPublishFromChecklist,
@@ -40,7 +34,6 @@ import {
 } from '../product-groups/storefront-helpers';
 import type { Product } from '@/lib/api-types';
 
-const STANDALONE = '__standalone__';
 
 interface FormState {
   groupId: string | null;
@@ -79,7 +72,7 @@ function fromProduct(p: Product): FormState {
 export function StorefrontTab({ product }: { product: Product }) {
   const { toast } = useToast();
   const update = useUpdateProduct();
-  const { data: groups, isLoading: groupsLoading } = useProductGroupsList();
+  const { isLoading: groupsLoading } = useProductGroupsList();
 
   const [form, setForm] = React.useState<FormState>(() => fromProduct(product));
 
@@ -167,24 +160,17 @@ export function StorefrontTab({ product }: { product: Product }) {
           <div className="space-y-1.5">
             <Label htmlFor="sf-group">Product group</Label>
             <div className="flex gap-2">
-              <Select
-                value={form.groupId ?? STANDALONE}
-                onValueChange={(v) => set('groupId', v === STANDALONE ? null : v)}
-              >
-                <SelectTrigger id="sf-group" className="flex-1">
-                  <SelectValue
-                    placeholder={groupsLoading ? 'Loading groups…' : 'Select group'}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={STANDALONE}>Standalone (no group)</SelectItem>
-                  {groups?.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex-1">
+                {/* Clearing the picker is what "standalone" means now — the
+                    sentinel option the old Select needed has no equivalent in
+                    a search box, and an empty field says the same thing. */}
+                <ProductGroupPicker
+                  id="sf-group"
+                  value={form.groupId ?? undefined}
+                  onChange={(v) => set('groupId', v ?? null)}
+                  placeholder={groupsLoading ? 'Loading groups...' : 'Search groups, or leave empty for standalone'}
+                />
+              </div>
               <Button asChild type="button" variant="outline" size="sm">
                 <Link to="/product-groups/new">Create new group</Link>
               </Button>
