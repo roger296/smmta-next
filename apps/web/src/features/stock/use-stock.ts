@@ -9,6 +9,8 @@ export interface StockItemListQuery {
   warehouseId?: string;
   status?: StockItemStatus;
   serialNumber?: string;
+  /** Free-text match against the item's product (name, stock code, EAN). */
+  search?: string;
 }
 
 export function useStockItemsList(params: StockItemListQuery = {}) {

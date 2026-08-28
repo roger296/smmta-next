@@ -1,4 +1,4 @@
-import { eq, and, isNull, sql, count, asc } from 'drizzle-orm';
+import { eq, and, isNull, sql, count, asc, inArray, ilike } from 'drizzle-orm';
 import { getDb, getPool } from '../../config/database.js';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { stockItems, products } from '../../db/schema/index.js';
@@ -27,7 +27,7 @@ export class StockItemService {
   // ----------------------------------------------------------------
 
   async list(companyId: string, query: StockItemQueryInput) {
-    const { page, pageSize, productId, warehouseId, status, serialNumber } = query;
+    const { page, pageSize, productId, warehouseId, status, serialNumber, search } = query;
     const offset = paginationOffset(page, pageSize);
 
     const conditions = [
@@ -38,6 +38,28 @@ export class StockItemService {
     if (warehouseId) conditions.push(eq(stockItems.warehouseId, warehouseId));
     if (status) conditions.push(eq(stockItems.status, status));
     if (serialNumber) conditions.push(eq(stockItems.serialNumber, serialNumber));
+    if (search) {
+      // Matched via a subquery rather than a join so the existing findMany
+      // (which eager-loads product + warehouse for the list view) keeps working
+      // unchanged. Mirrors the product endpoint's own search fields, so the
+      // same text finds the same things in both places.
+      const term = `%${search}%`;
+      conditions.push(
+        inArray(
+          stockItems.productId,
+          this.db
+            .select({ id: products.id })
+            .from(products)
+            .where(
+              and(
+                eq(products.companyId, companyId),
+                isNull(products.deletedAt),
+                sql`(${ilike(products.name, term)} OR ${ilike(products.stockCode, term)} OR ${ilike(products.ean, term)})`,
+              ),
+            ),
+        ),
+      );
+    }
 
     const where = and(...conditions);
 

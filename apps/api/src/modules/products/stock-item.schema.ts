@@ -10,6 +10,10 @@ export const stockItemQuerySchema = paginationSchema.extend({
   warehouseId: z.string().uuid().optional(),
   status: z.enum(['IN_STOCK', 'ALLOCATED', 'SOLD', 'RETURNED', 'WRITTEN_OFF', 'IN_TRANSIT']).optional(),
   serialNumber: z.string().optional(),
+  /** Free-text match against the stock item's product — name, stock code or
+   *  EAN. Stock rows carry no searchable text of their own, so an operator
+   *  looking for "the green PLA" has to reach it through the product. */
+  search: z.string().optional(),
 });
 
 export const stockAdjustmentSchema = z.object({

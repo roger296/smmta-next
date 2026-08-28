@@ -520,13 +520,18 @@ export interface StockItem {
   id: string;
   companyId: string;
   productId: string;
-  productName?: string;
+  /** Eager-loaded by the list endpoint. The flattened productName/warehouseName
+   *  this type used to declare were never sent, so the columns fell back to
+   *  showing a slice of the UUID. */
+  product?: { id: string; name: string; stockCode?: string | null; ean?: string | null } | null;
   warehouseId: string;
-  warehouseName?: string;
+  warehouse?: { id: string; name: string } | null;
   status: StockItemStatus;
   serialNumber: string | null;
   batchId: string | null;
-  valuePerUnit: string;
+  /** Unit value. The column is `value`; `valuePerUnit` is the name the
+   *  adjustment INPUT uses, and reading it here rendered an empty cell. */
+  value: string;
   currencyCode: string;
   locationIsle: string | null;
   locationShelf: string | null;

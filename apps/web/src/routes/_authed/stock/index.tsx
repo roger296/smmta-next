@@ -18,6 +18,8 @@ import { useWarehouses } from '@/features/reference/use-reference';
 import type { StockItem, StockItemStatus } from '@/lib/api-types';
 import { formatMoney } from '@/lib/format';
 import { Warehouse } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { useDebounce } from '@/hooks/use-debounce';
 
 export const Route = createFileRoute('/_authed/stock/')({
   component: StockItemsListPage,
@@ -27,12 +29,12 @@ const columns: ColumnDef<StockItem>[] = [
   {
     accessorKey: 'productName',
     header: 'Product',
-    cell: ({ row }) => row.original.productName ?? row.original.productId.slice(0, 8),
+    cell: ({ row }) => row.original.product?.name ?? row.original.productId.slice(0, 8),
   },
   {
     accessorKey: 'warehouseName',
     header: 'Warehouse',
-    cell: ({ row }) => row.original.warehouseName ?? row.original.warehouseId.slice(0, 8),
+    cell: ({ row }) => row.original.warehouse?.name ?? row.original.warehouseId.slice(0, 8),
   },
   {
     accessorKey: 'status',
@@ -55,12 +57,14 @@ const columns: ColumnDef<StockItem>[] = [
   {
     accessorKey: 'valuePerUnit',
     header: 'Value',
-    cell: ({ row }) => formatMoney(row.original.valuePerUnit, row.original.currencyCode),
+    cell: ({ row }) => formatMoney(row.original.value, row.original.currencyCode),
   },
 ];
 
 function StockItemsListPage() {
   const { data: warehouses } = useWarehouses();
+  const [search, setSearch] = React.useState('');
+  const debounced = useDebounce(search, 300);
   const [warehouseId, setWarehouseId] = React.useState<string>('');
   const [status, setStatus] = React.useState<StockItemStatus | ''>('');
   const [page, setPage] = React.useState(1);
@@ -69,6 +73,7 @@ function StockItemsListPage() {
   const { data, isLoading } = useStockItemsList({
     page,
     pageSize,
+    search: debounced || undefined,
     warehouseId: warehouseId || undefined,
     status: status || undefined,
   });
@@ -97,6 +102,19 @@ function StockItemsListPage() {
           </Button>
         </div>
       </div>
+
+      {/* Stock rows carry no searchable text of their own, so this matches
+          against the item's product — the same name / SKU / EAN fields the
+          Products page searches, so the same text finds the same things. */}
+      <Input
+        placeholder="Search by product name, SKU or EAN…"
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setPage(1);
+        }}
+        aria-label="Search stock by product"
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Select

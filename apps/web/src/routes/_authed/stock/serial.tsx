@@ -66,13 +66,13 @@ function SerialLookupPage() {
                   <dt className="text-xs font-medium text-[var(--color-muted-foreground)]">
                     Product
                   </dt>
-                  <dd>{data.productName ?? data.productId}</dd>
+                  <dd>{data.product?.name ?? data.productId}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium text-[var(--color-muted-foreground)]">
                     Warehouse
                   </dt>
-                  <dd>{data.warehouseName ?? data.warehouseId}</dd>
+                  <dd>{data.warehouse?.name ?? data.warehouseId}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium text-[var(--color-muted-foreground)]">
@@ -96,7 +96,7 @@ function SerialLookupPage() {
                   <dt className="text-xs font-medium text-[var(--color-muted-foreground)]">
                     Value
                   </dt>
-                  <dd>{formatMoney(data.valuePerUnit, data.currencyCode)}</dd>
+                  <dd>{formatMoney(data.value, data.currencyCode)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium text-[var(--color-muted-foreground)]">

@@ -123,13 +123,13 @@ function StockTransferPage() {
                             return next;
                           });
                         }}
-                        aria-label={`Select ${item.productName ?? item.productId}`}
+                        aria-label={`Select ${item.product?.name ?? item.productId}`}
                       />
                     </td>
-                    <td className="px-4 py-2">{item.productName ?? item.productId.slice(0, 8)}</td>
+                    <td className="px-4 py-2">{item.product?.name ?? item.productId.slice(0, 8)}</td>
                     <td className="px-4 py-2">{item.serialNumber ?? '—'}</td>
                     <td className="px-4 py-2 text-right">
-                      {item.valuePerUnit} {item.currencyCode}
+                      {item.value} {item.currencyCode}
                     </td>
                   </tr>
                 ))}
