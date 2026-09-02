@@ -85,6 +85,13 @@ export interface CompleteRequest {
   messages: LlmMessage[];
   tools?: LlmToolDef[];
   purpose: LlmPurpose;
+  /**
+   * Try these models instead of the configured default + fallbacks.
+   * Used by the stage-1 classifier, which wants the cheapest model that
+   * can emit small JSON rather than the model that answers the turn.
+   * Still walked in order with the same fallback behaviour.
+   */
+  models?: string[];
 }
 
 export class OpenRouterService {
@@ -120,7 +127,8 @@ export class OpenRouterService {
     let result: LlmResult | undefined;
     let lastErr: unknown;
     const started = Date.now();
-    for (const model of this.models()) {
+    const candidates = req.models?.length ? req.models : this.models();
+    for (const model of candidates) {
       try {
         result = await this.port.complete({ model, messages: req.messages, tools: req.tools });
         break;

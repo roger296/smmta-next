@@ -69,6 +69,23 @@ const envSchema = z.object({
   OPENROUTER_FALLBACK_MODELS: z.string().default('google/gemini-flash-1.5'),
   /** Per-day spend ceiling in integer micro-USD (1_000_000 = $1.00). */
   OPENROUTER_DAILY_CAP_MICROUSD: z.coerce.number().int().default(2_000_000),
+  /**
+   * Stage-1 classifier model. Runs on EVERY user turn, so it wants to be
+   * the cheapest thing that can reliably emit a small JSON object —
+   * deliberately separate from OPENROUTER_MODEL, which answers the turn
+   * and is worth paying more for.
+   */
+  OPENROUTER_CLASSIFIER_MODEL: z.string().default('anthropic/claude-3.5-haiku'),
+  /**
+   * Master switch for the stage-1 classifier. Off → every turn goes
+   * straight to the sales specialist exactly as it did before the
+   * classifier existed, so this can be flipped without a rollback if
+   * classification starts misbehaving in production.
+   */
+  CHAT_CLASSIFIER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 
   // Email (SendGrid, §4.6). Empty key or SENDGRID_SANDBOX → the fake is used.
   SENDGRID_API_KEY: z.string().default(''),

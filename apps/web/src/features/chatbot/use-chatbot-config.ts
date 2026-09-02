@@ -79,10 +79,25 @@ export interface PromptVersion {
   savedAt: string;
 }
 
+export interface Classification {
+  category: string;
+  confidence: 'high' | 'medium' | 'low';
+  clarifyPrompt: string | null;
+  refusalReason: string | null;
+  latencyMs: number;
+  costMicroUsd: number;
+  degraded: boolean;
+  degradedReason: 'llm_error' | 'unparseable' | null;
+}
+
 export interface DryRunResult {
   failed?: boolean;
   error?: string;
   sessionId?: string;
+  classification?: Classification;
+  /** Which specialist actually answered. Differs from
+   *  classification.category while a specialist's tools are unbuilt. */
+  routedTo?: string;
   systemPrompt?: string;
   reply?: string;
   toolCalls?: number;

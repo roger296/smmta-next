@@ -502,35 +502,90 @@ function BenchResult({ result }: { result: DryRunResult }) {
     );
   }
 
+  const c = result.classification;
+  const misroutedNotice =
+    c && result.routedTo && c.category !== result.routedTo && !['irrelevant', 'ambiguous'].includes(c.category);
+
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-base">Reply</CardTitle>
-          <div className="flex items-center gap-2">
-            {result.windDown && <Badge variant="outline">wound down: {result.windDown}</Badge>}
-            <Badge variant="outline" className="tabular-nums">
-              {result.toolCalls ?? 0} tool calls
-            </Badge>
-            <Badge variant="outline" className="tabular-nums">
-              {result.totalLatencyMs} ms
-            </Badge>
+    <div className="space-y-3">
+      {c && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">Stage 1 — classifier</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={c.degraded ? 'destructive' : 'default'}>{c.category}</Badge>
+                <Badge variant="outline">{c.confidence} confidence</Badge>
+                <Badge variant="outline" className="tabular-nums">
+                  {c.latencyMs} ms
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {c.degraded && (
+              <p className="rounded border border-[var(--color-border)] p-2 text-xs text-[var(--color-muted-foreground)]">
+                {c.degradedReason === 'unparseable'
+                  ? 'The classifier did not return valid JSON, so this fell back to pre-sales. Check the classifier prompt still asks for a raw JSON object.'
+                  : c.degradedReason === 'llm_error'
+                    ? 'The classifier call failed, so this fell back to pre-sales. Chat keeps working; check the API logs.'
+                    : 'The classifier is switched off (CHAT_CLASSIFIER_ENABLED), so everything routes to pre-sales.'}
+              </p>
+            )}
+            {c.clarifyPrompt && (
+              <p>
+                <span className="text-[var(--color-muted-foreground)]">Asked back: </span>
+                {c.clarifyPrompt}
+              </p>
+            )}
+            {c.refusalReason && (
+              <p>
+                <span className="text-[var(--color-muted-foreground)]">Refused because: </span>
+                {c.refusalReason}
+              </p>
+            )}
+            {misroutedNotice && (
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Classified <strong>{c.category}</strong> but answered by{' '}
+                <strong>{result.routedTo}</strong> — that specialist&rsquo;s tools aren&rsquo;t built
+                yet, so its traffic falls through for now.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base">Reply</CardTitle>
+            <div className="flex items-center gap-2">
+              {result.windDown && <Badge variant="outline">wound down: {result.windDown}</Badge>}
+              <Badge variant="outline" className="tabular-nums">
+                {result.toolCalls ?? 0} tool calls
+              </Badge>
+              <Badge variant="outline" className="tabular-nums">
+                {result.totalLatencyMs} ms total
+              </Badge>
+            </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="whitespace-pre-wrap rounded border border-[var(--color-border)] p-3 text-sm">
-          {result.reply || <em className="text-[var(--color-muted-foreground)]">(empty reply)</em>}
-        </p>
-        <details className="text-xs">
-          <summary className="cursor-pointer text-[var(--color-muted-foreground)]">
-            System prompt used
-          </summary>
-          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-[var(--color-muted)] p-3">
-            {result.systemPrompt}
-          </pre>
-        </details>
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="whitespace-pre-wrap rounded border border-[var(--color-border)] p-3 text-sm">
+            {result.reply || (
+              <em className="text-[var(--color-muted-foreground)]">(empty reply)</em>
+            )}
+          </p>
+          <details className="text-xs">
+            <summary className="cursor-pointer text-[var(--color-muted-foreground)]">
+              System prompt used
+            </summary>
+            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-[var(--color-muted)] p-3">
+              {result.systemPrompt}
+            </pre>
+          </details>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

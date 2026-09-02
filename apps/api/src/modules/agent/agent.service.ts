@@ -8,8 +8,14 @@
  */
 import { asc, eq, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
+import { getEnv } from '../../config/env.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
-import { chatSessions, chatMessages } from '../../db/schema/index.js';
+import {
+  chatSessions,
+  chatMessages,
+  chatClassifications,
+  type ChatClassifierOutcome,
+} from '../../db/schema/index.js';
 import {
   OpenRouterService,
   SpendCapExceededError,
@@ -19,15 +25,35 @@ import { SALES_AGENT_SYSTEM_PROMPT } from './system-prompt.js';
 import { TOOL_SCHEMAS, ToolExecutor, type ToolContext } from './tools.js';
 import { BasketService, type BasketView } from './basket.service.js';
 import { ChatbotConfigService } from './chatbot-config.service.js';
+import { ClassifierService, type Classification } from './classifier.service.js';
 
 const MAX_TOOL_CALLS_PER_TURN = 8;
 const MAX_TOOL_CALLS_PER_SESSION = 60;
+
+/**
+ * Specialists whose tools are actually wired up, and which may
+ * therefore receive their own system prompt.
+ *
+ * Everything else falls through to `pre_sales` until its phase lands:
+ *   order_status      needs lookup_order_by_account / _by_ref_and_email
+ *   delivery_returns  needs lookup_kb (knowledge base)
+ *   product_advice    needs lookup_kb (knowledge base)
+ *   commercial_offer  needs the escalate-to-email path
+ *   complaint         needs the escalate-to-email path
+ *
+ * Add a category here in the same commit that lands its tools — not
+ * before. The classifier already records traffic for all of them.
+ */
+const READY_SPECIALISTS = new Set<string>(['pre_sales']);
 
 export interface TurnResult {
   content: string;
   basket: BasketView;
   toolCallsThisTurn: number;
   windDown?: 'spend_cap' | 'tool_budget';
+  /** What stage 1 decided this turn was about. Surfaced for the admin
+   *  test bench and for debugging a reply that reads oddly. */
+  category?: ChatClassifierOutcome;
 }
 
 export class AgentService {
@@ -37,28 +63,120 @@ export class AgentService {
   private tools = new ToolExecutor();
   private basket = new BasketService();
   private config: ChatbotConfigService;
+  private classifier: ClassifierService;
 
-  constructor(llm?: OpenRouterService, config?: ChatbotConfigService) {
+  constructor(
+    llm?: OpenRouterService,
+    config?: ChatbotConfigService,
+    classifier?: ClassifierService,
+  ) {
     this.llm = llm ?? new OpenRouterService();
     this.config = config ?? new ChatbotConfigService();
+    this.classifier = classifier ?? new ClassifierService(this.llm);
   }
 
   /**
-   * The system prompt for a turn. Reads the admin-editable
-   * `pre_sales` specialist prompt, falling back to the compiled-in
-   * SPEC F5 constant if the config lookup fails for any reason — a
-   * database hiccup should degrade the assistant's wording, not take
-   * the whole chat offline.
-   *
-   * Stage-2 routing (a prompt per classified category) lands with the
-   * classifier; until then every turn is treated as `pre_sales`, which
-   * is exactly the behaviour this replaces.
+   * Stage 1. Returns the safe default (`pre_sales`, low confidence) when
+   * the classifier is switched off by env, or when anything at all goes
+   * wrong inside it — that default is precisely the behaviour this
+   * pipeline replaced, so a bad classifier degrades to the old chat
+   * rather than to no chat.
    */
-  private async systemPromptFor(category = 'pre_sales'): Promise<string> {
+  private async classifyTurn(
+    userText: string,
+    history: LlmMessage[],
+  ): Promise<Classification> {
+    const disabled: Classification = {
+      category: 'pre_sales',
+      confidence: 'low',
+      clarifyPrompt: null,
+      refusalReason: null,
+      latencyMs: 0,
+      costMicroUsd: 0,
+      degraded: true,
+      degradedReason: null,
+    };
+    if (!getEnv().CHAT_CLASSIFIER_ENABLED) return disabled;
     try {
       const cfg = await this.config.get();
-      const specialist = cfg.specialists.get(category as never);
-      if (specialist?.systemPrompt) return specialist.systemPrompt;
+      return await this.classifier.classify(cfg.classifierPrompt, userText, history);
+    } catch {
+      return disabled;
+    }
+  }
+
+  /**
+   * The two classifier outcomes that answer without a specialist.
+   *
+   * `irrelevant` returns the operator's configured refusal verbatim —
+   * never model-generated, so a jailbreak that gets itself classified
+   * off-topic can't also author the reply. `ambiguous` asks the
+   * classifier's own clarifying question back.
+   *
+   * Returns null when the turn should go on to a specialist.
+   */
+  private async shortCircuitReply(c: Classification): Promise<string | null> {
+    if (c.category === 'irrelevant') {
+      const cfg = await this.config.get().catch(() => null);
+      return (
+        cfg?.offtopicRefusal ??
+        "I can only help with questions about this store's products and orders."
+      );
+    }
+    if (c.category === 'ambiguous' && c.clarifyPrompt) return c.clarifyPrompt;
+    return null;
+  }
+
+  /** Audit row per classified turn. Best-effort: a logging failure must
+   *  never break the customer's conversation. */
+  private async recordClassification(
+    sessionId: string,
+    c: Classification,
+    turnOrdinal: number,
+  ): Promise<void> {
+    try {
+      await this.db.insert(chatClassifications).values({
+        companyId: this.companyId,
+        sessionId,
+        turnOrdinal,
+        category: c.category,
+        confidence: c.confidence,
+        latencyMs: c.latencyMs,
+        costMicroUsd: c.costMicroUsd,
+      });
+    } catch {
+      /* audit only — never break the turn */
+    }
+  }
+
+  /**
+   * The system prompt for a turn, chosen by the classifier's category.
+   *
+   * A specialist is only routed to once its TOOLS exist. Handing the
+   * order-status prompt to a model with no order-lookup tools would
+   * produce an assistant that talks confidently about checking an order
+   * it has no way to read — worse than the honest sales prompt. Until a
+   * specialist's phase lands, its traffic falls through to `pre_sales`,
+   * which is exactly how chat behaved before the classifier. The
+   * classification is still recorded, so the traffic mix for the
+   * not-yet-built specialists is visible before we build them.
+   *
+   * A disabled specialist (admin toggle) also falls through here.
+   *
+   * Final fallback is the compiled-in SPEC F5 constant: a database
+   * hiccup should change the assistant's wording, not take chat offline.
+   */
+  private async systemPromptFor(
+    category: ChatClassifierOutcome = 'pre_sales',
+  ): Promise<string> {
+    const target = READY_SPECIALISTS.has(category) ? category : 'pre_sales';
+    try {
+      const cfg = await this.config.get();
+      const specialist = cfg.specialists.get(target as never);
+      if (specialist?.enabled && specialist.systemPrompt) return specialist.systemPrompt;
+      // Disabled or empty → fall back to pre_sales, then to the constant.
+      const fallbackSpecialist = cfg.specialists.get('pre_sales');
+      if (fallbackSpecialist?.systemPrompt) return fallbackSpecialist.systemPrompt;
     } catch {
       /* fall through to the compiled-in default */
     }
@@ -128,10 +246,29 @@ export class AgentService {
       chatSessionId: sessionId,
     };
 
+    // Stage 1 — classify BEFORE persisting the user turn, so the
+    // classifier sees the history as it was, not including this message
+    // twice. Never throws: a classifier failure degrades to pre_sales.
+    const priorHistory = await this.history(sessionId);
+    const classification = await this.classifyTurn(userText, priorHistory);
+
     await this.persist(sessionId, { role: 'user', content: userText });
+    await this.recordClassification(sessionId, classification, priorHistory.length);
+
+    // Short-circuits — neither spends a specialist call.
+    const shortCircuit = await this.shortCircuitReply(classification);
+    if (shortCircuit) {
+      await this.persist(sessionId, { role: 'assistant', content: shortCircuit });
+      return {
+        content: shortCircuit,
+        basket: await this.basket.view(ctx.basketId),
+        toolCallsThisTurn: 0,
+        category: classification.category,
+      };
+    }
 
     const messages: LlmMessage[] = [
-      { role: 'system', content: await this.systemPromptFor() },
+      { role: 'system', content: await this.systemPromptFor(classification.category) },
       ...(await this.history(sessionId)),
     ];
 
@@ -205,6 +342,8 @@ export class AgentService {
    */
   async dryRun(message: string): Promise<{
     sessionId: string;
+    classification: Classification;
+    routedTo: string;
     systemPrompt: string;
     reply: string;
     toolCalls: number;
@@ -212,10 +351,22 @@ export class AgentService {
     basket: BasketView;
   }> {
     const { sessionId } = await this.startSession();
-    const systemPrompt = await this.systemPromptFor();
+
+    // Classify separately first so the bench can show stage 1's verdict
+    // even when the turn short-circuits. runTurn classifies again on its
+    // own — two calls on a bench run is a fair price for showing the
+    // operator exactly what each stage decided.
+    const classification = await this.classifyTurn(message, []);
+    const routedTo = READY_SPECIALISTS.has(classification.category)
+      ? classification.category
+      : 'pre_sales';
+    const systemPrompt = await this.systemPromptFor(classification.category);
+
     const result = await this.runTurn(sessionId, message);
     return {
       sessionId,
+      classification,
+      routedTo,
       systemPrompt,
       reply: result.content,
       toolCalls: result.toolCallsThisTurn,
