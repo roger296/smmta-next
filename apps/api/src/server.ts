@@ -1,6 +1,7 @@
 import { buildApp } from './app.js';
 import { getEnv } from './config/env.js';
 import { closeDatabase } from './config/database.js';
+import { isLlmConfigured } from './integrations/openrouter/index.js';
 import {
   startReservationExpiryLoop,
   stopReservationExpiryLoop,
@@ -14,6 +15,15 @@ async function main() {
     await app.listen({ port: env.PORT, host: env.HOST });
     app.log.info(`SMMTA-Next API running at http://${env.HOST}:${env.PORT}`);
     app.log.info(`API docs at http://${env.HOST}:${env.PORT}/docs`);
+
+    // Loud on boot rather than silently broken on the first customer
+    // message — a missing key previously fell through to the test
+    // double and threw "no scripted turn left" on every chat turn.
+    if (!isLlmConfigured()) {
+      app.log.warn(
+        'OPENROUTER_API_KEY is not set — the storefront chat assistant will refuse every message. Set it in the deploy environment to enable chat.',
+      );
+    }
 
     // v1: in-process polling loop. TODO: migrate to a BullMQ worker on
     // the existing Redis instance once we add a dedicated worker process.

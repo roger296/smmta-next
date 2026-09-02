@@ -7,6 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { apiKeyAuth } from '../../shared/middleware/api-key.js';
+import { LlmUnavailableError } from '../../integrations/openrouter/index.js';
 import { AgentService } from './agent.service.js';
 
 const agent = new AgentService();
@@ -41,9 +42,52 @@ export async function chatRoutes(app: FastifyInstance) {
       );
       reply.raw.write('event: done\ndata: {}\n\n');
     } catch (err) {
-      request.log.error({ err }, 'chat turn failed');
-      reply.raw.write('event: error\ndata: {"error":"internal"}\n\n');
+      request.log.error({ err, sessionId }, 'chat turn failed');
+      const payload = summariseChatError(err);
+      reply.raw.write(`event: error\ndata: ${JSON.stringify(payload)}\n\n`);
     }
     reply.raw.end();
   });
+}
+
+/**
+ * Turn an internal exception into a payload the storefront can render
+ * verbatim. The API's error frame is proxied through unchanged so the
+ * customer sees `message` immediately — the storefront doesn't need to
+ * know about our internal error taxonomy.
+ *
+ * `detail` is intentionally truncated: enough to distinguish common
+ * failure modes when a customer reports "the chat said X" without
+ * dumping stack traces or leaking connection strings. Only surfaced
+ * from our own thrown errors (never user-typed content echoed back).
+ */
+function summariseChatError(err: unknown): {
+  error: string;
+  message: string;
+  detail?: string;
+} {
+  if (err instanceof LlmUnavailableError) {
+    // Operator-facing misconfiguration, not a customer-facing bug. Say
+    // the assistant is off rather than implying the customer's question
+    // broke something — and keep the detail so /admin and the browser
+    // console name the missing variable directly.
+    return {
+      error: 'unavailable',
+      message:
+        'The assistant is offline at the moment. Please email sales@cleverdeals.net and we’ll help directly.',
+      detail: 'OPENROUTER_API_KEY not configured',
+    };
+  }
+  const raw = err instanceof Error ? err.message : String(err);
+  if (raw === 'session not found') {
+    return {
+      error: 'session_expired',
+      message: "That chat session isn't valid any more — refresh the page to start a new one.",
+    };
+  }
+  return {
+    error: 'internal',
+    message: 'Something went wrong on our end. Please try again in a moment.',
+    detail: raw.slice(0, 160),
+  };
 }
