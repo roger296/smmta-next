@@ -20,17 +20,17 @@ export const SHIPPING_FAQ: FaqEntry[] = [
   {
     question: 'Do you ship outside the UK?',
     answer:
-      'EU shipping is available at checkout. Duties and import VAT are payable on arrival per your country&rsquo;s rules.',
+      'EU shipping is available at checkout. Duties and import VAT are payable on arrival per your country’s rules.',
   },
   {
-    question: 'What&rsquo;s your returns policy?',
+    question: 'What’s your returns policy?',
     answer:
-      'Spools still in their unbroken vacuum seal can be returned within 28 days of delivery for a full refund of the item price; you pay the return postage. We can&rsquo;t accept returns of opened or partially-used filament unless it&rsquo;s faulty — moisture absorption affects print quality and we don&rsquo;t resell anything we wouldn&rsquo;t print with ourselves. Faulty, damaged or incorrectly supplied items are always returnable and we pay the postage. Email sales@cleverdeals.net with your order number. See our full <a href="/legal/returns">returns policy</a> for your statutory cancellation rights.',
+      'Spools still in their unbroken vacuum seal can be returned within 28 days of delivery for a full refund of the item price; you pay the return postage. We can’t accept returns of opened or partially-used filament unless it’s faulty — moisture absorption affects print quality and we don’t resell anything we wouldn’t print with ourselves. Faulty, damaged or incorrectly supplied items are always returnable and we pay the postage. Email sales@cleverdeals.net with your order number. See our full <a href="/legal/returns">returns policy</a> for your statutory cancellation rights.',
   },
   {
     question: 'What diameter do you stock?',
     answer:
-      '1.75mm only — that&rsquo;s the standard for the vast majority of FDM 3D printers (Bambu, Prusa, Creality, Anycubic, Voron, etc.). 2.85mm / 3mm filament for older Ultimakers isn&rsquo;t something we currently carry.',
+      '1.75mm only — that’s the standard for the vast majority of FDM 3D printers (Bambu, Prusa, Creality, Anycubic, Voron, etc.). 2.85mm / 3mm filament for older Ultimakers isn’t something we currently carry.',
   },
   {
     question: 'How tight are the tolerances?',
@@ -45,16 +45,16 @@ export const SHIPPING_FAQ: FaqEntry[] = [
   {
     question: 'Which materials should I use?',
     answer:
-      'PLA for prototyping, decorative prints, and anything that doesn&rsquo;t need heat resistance. PETG for functional prints, water-tight parts, and parts that need to flex without snapping. ABS / ASA for engineering applications and outdoor parts (ASA is UV-stable). TPU for flexible parts — phone cases, gaskets, grips.',
+      'PLA for prototyping, decorative prints, and anything that doesn’t need heat resistance. PETG for functional prints, water-tight parts, and parts that need to flex without snapping. ABS / ASA for engineering applications and outdoor parts (ASA is UV-stable). TPU for flexible parts — phone cases, gaskets, grips.',
   },
   {
     question: 'Do you offer trade / volume discounts?',
     answer:
-      'Yes — orders of 10+ spools of the same SKU get a discount applied at checkout. For larger volumes, email sales@cleverdeals.net and we&rsquo;ll quote.',
+      'Yes — orders of 10+ spools of the same SKU get a discount applied at checkout. For larger volumes, email sales@cleverdeals.net and we’ll quote.',
   },
   {
     question: 'Can I change my order after placing it?',
     answer:
-      'If your order hasn&rsquo;t shipped, email sales@cleverdeals.net with your order number — we&rsquo;ll do our best to update it before it leaves the warehouse.',
+      'If your order hasn’t shipped, email sales@cleverdeals.net with your order number — we’ll do our best to update it before it leaves the warehouse.',
   },
 ];

@@ -121,21 +121,19 @@ export function ChatPanel() {
         <button
           onClick={() => setOpen(true)}
           aria-label="Open filament assistant"
+          // Positioned bottom-right. On narrow viewports (<640px) the
+          // pill would otherwise overlap primary CTAs — the full-width
+          // "Proceed to checkout" bar on /cart, the price-slider label
+          // on /shop — so we shrink to a short "Ask" label with tight
+          // padding that only clips the corner of those controls, not
+          // their text.
+          className="fixed right-2 bottom-2 z-50 rounded-none border-none px-3 py-2 text-xs font-semibold text-white cursor-pointer sm:right-5 sm:bottom-5 sm:px-[18px] sm:py-3 sm:text-sm"
           style={{
-            position: 'fixed',
-            right: 20,
-            bottom: 20,
-            zIndex: 50,
             background: accent,
-            color: '#fff',
-            border: 'none',
-            borderRadius: 0,
-            padding: '12px 18px',
-            fontWeight: 600,
-            cursor: 'pointer',
           }}
         >
-          Ask about filament
+          <span className="sm:hidden">Ask</span>
+          <span className="hidden sm:inline">Ask about filament</span>
         </button>
       )}
 

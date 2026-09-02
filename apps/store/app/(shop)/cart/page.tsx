@@ -77,8 +77,13 @@ export default async function CartPage() {
                   <Image
                     src={line.display.heroImageUrl}
                     alt={line.display.name ?? 'Product image'}
-                    width={120}
-                    height={120}
+                    // The thumbnail slot is 96×96 CSS pixels (h-24 w-24).
+                    // Give Next.js a matching declared size + `sizes` so
+                    // it serves the ~128px bucket, not the 3840px one
+                    // that its default fallback picks. Sharp on retina
+                    // still — Next auto-generates 2x/3x for HiDPI.
+                    width={96}
+                    height={96}
                     sizes="96px"
                     className="h-full w-full object-cover"
                   />

@@ -7,6 +7,7 @@
  * for in-page mutations.
  */
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface SetQtyArgs {
@@ -33,6 +34,7 @@ interface Props {
 
 export function CartLineControls({ itemId, initialQuantity }: Props) {
   const qc = useQueryClient();
+  const router = useRouter();
   const [quantity, setLocal] = React.useState(initialQuantity);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -46,6 +48,14 @@ export function CartLineControls({ itemId, initialQuantity }: Props) {
       setError(null);
       qc.invalidateQueries({ queryKey: ['cart'] });
       window.dispatchEvent(new Event('cart:updated'));
+      // The cart page's line totals, subtotal, and "N items ready"
+      // heading are all rendered in the parent server component from a
+      // getOrCreateCart snapshot. `router.refresh()` re-runs that
+      // server render with the freshly-mutated state, so the on-page
+      // numbers reconcile with the header badge that invalidateQueries
+      // already refreshed. Without it the header updates but the cart
+      // body stays stale until the customer manually reloads.
+      router.refresh();
     },
   });
 
