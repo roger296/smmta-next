@@ -22,7 +22,7 @@ import {
   type LlmMessage,
 } from '../../integrations/openrouter/index.js';
 import { SALES_AGENT_SYSTEM_PROMPT } from './system-prompt.js';
-import { TOOL_SCHEMAS, ToolExecutor, type ToolContext } from './tools.js';
+import { ToolExecutor, toolsForCategory, type ToolContext } from './tools.js';
 import { BasketService, type BasketView } from './basket.service.js';
 import { ChatbotConfigService } from './chatbot-config.service.js';
 import { ClassifierService, type Classification } from './classifier.service.js';
@@ -53,7 +53,7 @@ const MAX_TOOL_CALLS_PER_SESSION = 60;
  * Add a category here in the same commit that lands its tools — not
  * before. The classifier already records traffic for all of them.
  */
-const READY_SPECIALISTS = new Set<string>(['pre_sales']);
+const READY_SPECIALISTS = new Set<string>(['pre_sales', 'delivery_returns']);
 
 export interface TurnResult {
   content: string;
@@ -342,6 +342,15 @@ export class AgentService {
       };
     }
 
+    // The specialist that will actually answer — the classified category
+    // when its tools are wired, else pre_sales. Prompt AND tools are
+    // both taken from it, so they can never disagree about what this
+    // specialist is allowed to do.
+    const routedTo = READY_SPECIALISTS.has(classification.category)
+      ? classification.category
+      : 'pre_sales';
+    const tools = toolsForCategory(routedTo);
+
     const messages: LlmMessage[] = [
       { role: 'system', content: await this.systemPromptFor(classification.category) },
       ...(await this.history(sessionId)),
@@ -353,7 +362,7 @@ export class AgentService {
     for (let step = 0; step < MAX_TOOL_CALLS_PER_TURN + 1; step++) {
       let result;
       try {
-        result = await this.llm.complete({ messages, tools: TOOL_SCHEMAS, purpose: 'chat' });
+        result = await this.llm.complete({ messages, tools, purpose: 'chat' });
       } catch (e) {
         if (e instanceof SpendCapExceededError) {
           windDown = 'spend_cap';

@@ -20,6 +20,12 @@ import {
   type ChatCategory,
   type ChatbotProfile,
   type DryRunResult,
+  useKbDocuments,
+  useKbSearch,
+  useSaveKbDocument,
+  KB_META,
+  type KbDocument,
+  type KbHit,
   type SpecialistRow,
 } from '@/features/chatbot/use-chatbot-config';
 
@@ -27,11 +33,12 @@ import {
  * Storefront assistant configuration.
  *
  * The pipeline code is domain-neutral; everything that makes this
- * store's assistant sound like this store lives in these three tabs.
+ * store's assistant sound like this store lives in these four tabs.
  * Profile drives the {{store_name}} / {{product_kind}} placeholders the
- * prompts interpolate, Prompts edits the classifier + six specialists
- * with rollback, and Test bench dry-runs a message end-to-end without
- * touching a real chat session.
+ * prompts interpolate; Prompts edits the classifier + six specialists
+ * with rollback; Knowledge base holds the only content the delivery and
+ * product-advice specialists may answer from; Test bench dry-runs a
+ * message end-to-end without touching a real chat session.
  */
 export const Route = createFileRoute('/_authed/chatbot/')({
   component: ChatbotPage,
@@ -57,6 +64,7 @@ function ChatbotPage() {
           <TabsList>
             <TabsTrigger value="profile">Store profile</TabsTrigger>
             <TabsTrigger value="prompts">Prompts</TabsTrigger>
+            <TabsTrigger value="kb">Knowledge base</TabsTrigger>
             <TabsTrigger value="bench">Test bench</TabsTrigger>
           </TabsList>
 
@@ -69,6 +77,10 @@ function ChatbotPage() {
             {data.specialists.map((s) => (
               <SpecialistEditor key={s.category} specialist={s} />
             ))}
+          </TabsContent>
+
+          <TabsContent value="kb" className="mt-4">
+            <KnowledgeBaseTab />
           </TabsContent>
 
           <TabsContent value="bench" className="mt-4">
@@ -381,7 +393,182 @@ function SpecialistEditor({ specialist }: { specialist: SpecialistRow }) {
 }
 
 // ============================================================
-// Tab 3 — Test bench
+// Tab 3 — Knowledge base
+// ============================================================
+
+function KnowledgeBaseTab() {
+  const { data: docs, isLoading } = useKbDocuments();
+
+  if (isLoading || !docs) {
+    return <p className="text-sm text-[var(--color-muted-foreground)]">Loading documents…</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">How this is used</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-[var(--color-muted-foreground)]">
+          <p>
+            The delivery &amp; returns and product-advice specialists answer{' '}
+            <strong className="text-[var(--color-foreground)]">only</strong> from these documents.
+            If something isn&rsquo;t written here, the assistant says it doesn&rsquo;t know and
+            offers to pass the question on — it will not fill the gap from general knowledge.
+          </p>
+          <p>
+            Write one <code>##</code> heading per question, phrased the way a customer would ask
+            it. Headings are weighted highest in search, so &ldquo;How long does delivery
+            take?&rdquo; finds far better than &ldquo;Shipping&rdquo;.
+          </p>
+        </CardContent>
+      </Card>
+
+      {docs.map((doc) => (
+        <KbEditor key={doc.slug} doc={doc} />
+      ))}
+
+      <KbSearchTester />
+    </div>
+  );
+}
+
+function KbEditor({ doc }: { doc: KbDocument }) {
+  const { toast } = useToast();
+  const save = useSaveKbDocument();
+  const [markdown, setMarkdown] = React.useState(doc.markdown);
+  React.useEffect(() => setMarkdown(doc.markdown), [doc.markdown]);
+  const meta = KB_META[doc.slug];
+  const dirty = markdown !== doc.markdown;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">{meta?.label ?? doc.title}</CardTitle>
+            <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{meta?.blurb}</p>
+          </div>
+          <Badge variant="outline" className="shrink-0 tabular-nums">
+            {doc.chunkCount} {doc.chunkCount === 1 ? 'passage' : 'passages'}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Textarea
+          rows={18}
+          className="font-mono text-xs leading-relaxed"
+          value={markdown}
+          onChange={(e) => setMarkdown(e.target.value)}
+          spellCheck={false}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            size="sm"
+            disabled={!dirty || save.isPending}
+            onClick={() =>
+              save.mutate(
+                { slug: doc.slug, markdown },
+                {
+                  onSuccess: (updated) =>
+                    toast({
+                      title: 'Saved',
+                      description: `Re-indexed into ${updated.chunkCount} searchable passages.`,
+                    }),
+                  onError: (e: unknown) =>
+                    toast({
+                      title: 'Could not save',
+                      description: e instanceof Error ? e.message : 'Please try again.',
+                      variant: 'destructive',
+                    }),
+                },
+              )
+            }
+          >
+            {save.isPending ? 'Saving…' : 'Save and re-index'}
+          </Button>
+          {dirty && (
+            <Button size="sm" variant="ghost" onClick={() => setMarkdown(doc.markdown)}>
+              Discard
+            </Button>
+          )}
+          <span className="text-xs text-[var(--color-muted-foreground)]">
+            Updated {new Date(doc.updatedAt).toLocaleString('en-GB')}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Runs a retrieval without a chat turn, so an operator can confirm an
+ *  edit is actually findable before trusting the assistant to find it. */
+function KbSearchTester() {
+  const [query, setQuery] = React.useState('');
+  const search = useKbSearch();
+  const [hits, setHits] = React.useState<KbHit[] | null>(null);
+
+  const run = () => {
+    const q = query.trim();
+    if (!q) return;
+    setHits(null);
+    search.mutate(q, { onSuccess: setHits, onError: () => setHits([]) });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Check what the assistant would find</CardTitle>
+        <p className="text-sm text-[var(--color-muted-foreground)]">
+          Search the knowledge base the same way the assistant does. If a question returns nothing
+          here, the assistant will say it doesn&rsquo;t know.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-2">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') run();
+            }}
+            placeholder="Can I return an opened item?"
+          />
+          <Button onClick={run} disabled={search.isPending || !query.trim()}>
+            {search.isPending ? 'Searching…' : 'Search'}
+          </Button>
+        </div>
+
+        {hits !== null &&
+          (hits.length === 0 ? (
+            <p className="rounded border border-dashed border-[var(--color-border)] p-4 text-sm text-[var(--color-muted-foreground)]">
+              Nothing matched. The assistant would say it doesn&rsquo;t know and offer to pass this
+              to the team. If it should have an answer, add a heading phrased like the question.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {hits.map((hit, i) => (
+                <div key={i} className="rounded border border-[var(--color-border)] p-3">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{hit.heading || '(no heading)'}</p>
+                    <Badge variant="outline" className="tabular-nums">
+                      {hit.rank.toFixed(3)}
+                    </Badge>
+                  </div>
+                  <p className="whitespace-pre-wrap text-xs text-[var(--color-muted-foreground)]">
+                    {hit.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
+// Tab 4 — Test bench
 // ============================================================
 
 const SAMPLE_QUERIES = [

@@ -160,3 +160,64 @@ export function useDryRun() {
       apiFetch<DryRunResult>('/admin/chatbot/test', { method: 'POST', body: { message } }),
   });
 }
+
+// ============================================================
+// Knowledge base
+// ============================================================
+
+export const KB_SLUGS = ['faq', 'product-advice'] as const;
+export type KbSlug = (typeof KB_SLUGS)[number];
+
+export const KB_META: Record<KbSlug, { label: string; blurb: string }> = {
+  faq: {
+    label: 'Delivery, returns & policy',
+    blurb:
+      'The only thing the delivery & returns specialist is allowed to answer from. One H2 heading per question.',
+  },
+  'product-advice': {
+    label: 'Product advice',
+    blurb:
+      'How to use what you sell. The product-advice specialist answers from here — leave it as the placeholder and that specialist will keep handing questions to a human.',
+  },
+};
+
+export interface KbDocument {
+  id: string;
+  slug: KbSlug;
+  title: string;
+  markdown: string;
+  chunkCount: number;
+  updatedAt: string;
+}
+
+export interface KbHit {
+  heading: string;
+  body: string;
+  documentSlug: string;
+  rank: number;
+}
+
+const KB_KEY = ['chatbot-kb'];
+
+export function useKbDocuments() {
+  return useQuery({
+    queryKey: KB_KEY,
+    queryFn: () => apiFetch<KbDocument[]>('/admin/chatbot/kb'),
+  });
+}
+
+export function useSaveKbDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ slug, markdown }: { slug: KbSlug; markdown: string }) =>
+      apiFetch<KbDocument>(`/admin/chatbot/kb/${slug}`, { method: 'PUT', body: { markdown } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KB_KEY }),
+  });
+}
+
+export function useKbSearch() {
+  return useMutation({
+    mutationFn: (query: string) =>
+      apiFetch<KbHit[]>('/admin/chatbot/kb/search', { method: 'POST', body: { query } }),
+  });
+}
