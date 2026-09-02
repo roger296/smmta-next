@@ -87,9 +87,12 @@ export default function FaqPage() {
               <h3 className="text-base font-semibold">{entry.question}</h3>
               <p
                 className="mt-2 text-sm leading-relaxed text-[var(--brand-muted)]"
-                // The answer text contains a few HTML entities (&rsquo;,
-                // &ldquo;) baked into the source so the visible copy +
-                // the JSON-LD payload share one canonical string.
+                // The answer text contains inline anchors (e.g. the
+                // link to /legal/returns) so we render it as HTML —
+                // typography is stored as Unicode literals in the
+                // source so React's text-node rendering on `question`
+                // and the JSON-LD FAQPage payload also receive the
+                // right glyphs without a decode step.
                 dangerouslySetInnerHTML={{ __html: entry.answer }}
               />
             </li>
