@@ -2,6 +2,7 @@ import { buildApp } from './app.js';
 import { getEnv } from './config/env.js';
 import { closeDatabase } from './config/database.js';
 import { isLlmConfigured } from './integrations/openrouter/index.js';
+import { isEmailDeliverable } from './integrations/sendgrid/sendgrid.js';
 import {
   startReservationExpiryLoop,
   stopReservationExpiryLoop,
@@ -22,6 +23,15 @@ async function main() {
     if (!isLlmConfigured()) {
       app.log.warn(
         'OPENROUTER_API_KEY is not set — the storefront chat assistant will refuse every message. Set it in the deploy environment to enable chat.',
+      );
+    }
+    // Same class of problem for mail: without a deliverable config the
+    // chat assistant tells customers "someone will be in touch" and the
+    // escalation email goes nowhere. Escalation rows record this per
+    // send in `email_sent_at`; this makes it visible at boot too.
+    if (!isEmailDeliverable()) {
+      app.log.warn(
+        'SendGrid is not configured for real delivery (missing SENDGRID_API_KEY, SENDGRID_SANDBOX on, or non-production NODE_ENV) — chat escalations will be recorded but no email will reach the sales inbox.',
       );
     }
 

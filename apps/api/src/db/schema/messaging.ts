@@ -57,6 +57,23 @@ export const escalations = pgTable('escalations', {
   }).notNull(),
   summary: text('summary').notNull(),
   status: text('status', { enum: ['open', 'resolved'] }).notNull().default('open'),
+  /**
+   * The chat classifier's category, when the escalation came from the
+   * pipeline rather than the older escalate_to_human tool. Kept separate
+   * from `reason` because the two vocabularies don't map cleanly —
+   * `complaint` could be a delivery_issue or a refund_dispute, and
+   * flattening it into one loses what the classifier actually decided.
+   * Null for escalations raised by the legacy tool path.
+   */
+  chatCategory: text('chat_category'),
+  /** `high` jumps the queue in the sales@ mailbox. Complaints default to
+   *  high; commercial enquiries escalate to high on a large stated value. */
+  priority: text('priority', { enum: ['normal', 'high'] }).notNull().default('normal'),
+  /** When the sales@ notification actually left SendGrid. Null means it
+   *  was never sent — a sandboxed send, a missing API key, or a failure.
+   *  Deliberately not defaulted to now(): a row claiming an email went
+   *  out when it didn't is worse than an obviously-null column. */
+  emailSentAt: timestamp('email_sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
 });

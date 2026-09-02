@@ -26,6 +26,12 @@ import { TOOL_SCHEMAS, ToolExecutor, type ToolContext } from './tools.js';
 import { BasketService, type BasketView } from './basket.service.js';
 import { ChatbotConfigService } from './chatbot-config.service.js';
 import { ClassifierService, type Classification } from './classifier.service.js';
+import {
+  EscalationService,
+  defaultPriorityFor,
+  legacyReasonFor,
+} from './escalation.service.js';
+import { RULE_BASED_REPLIES } from './default-prompts.js';
 
 const MAX_TOOL_CALLS_PER_TURN = 8;
 const MAX_TOOL_CALLS_PER_SESSION = 60;
@@ -34,12 +40,15 @@ const MAX_TOOL_CALLS_PER_SESSION = 60;
  * Specialists whose tools are actually wired up, and which may
  * therefore receive their own system prompt.
  *
- * Everything else falls through to `pre_sales` until its phase lands:
+ * `commercial_offer` and `complaint` are absent deliberately even
+ * though they ARE built: they never reach a system prompt at all,
+ * because they short-circuit to the escalation path before any model
+ * is called. This set only governs LLM-backed routing.
+ *
+ * Still falling through to `pre_sales` until their phases land:
  *   order_status      needs lookup_order_by_account / _by_ref_and_email
  *   delivery_returns  needs lookup_kb (knowledge base)
  *   product_advice    needs lookup_kb (knowledge base)
- *   commercial_offer  needs the escalate-to-email path
- *   complaint         needs the escalate-to-email path
  *
  * Add a category here in the same commit that lands its tools — not
  * before. The classifier already records traffic for all of them.
@@ -64,15 +73,18 @@ export class AgentService {
   private basket = new BasketService();
   private config: ChatbotConfigService;
   private classifier: ClassifierService;
+  private escalations: EscalationService;
 
   constructor(
     llm?: OpenRouterService,
     config?: ChatbotConfigService,
     classifier?: ClassifierService,
+    escalations?: EscalationService,
   ) {
     this.llm = llm ?? new OpenRouterService();
     this.config = config ?? new ChatbotConfigService();
     this.classifier = classifier ?? new ClassifierService(this.llm);
+    this.escalations = escalations ?? new EscalationService();
   }
 
   /**
@@ -106,16 +118,24 @@ export class AgentService {
   }
 
   /**
-   * The two classifier outcomes that answer without a specialist.
+   * The classifier outcomes that answer without calling a model.
    *
    * `irrelevant` returns the operator's configured refusal verbatim —
    * never model-generated, so a jailbreak that gets itself classified
    * off-topic can't also author the reply. `ambiguous` asks the
    * classifier's own clarifying question back.
    *
+   * `commercial_offer` and `complaint` escalate to a human and return
+   * fixed acknowledgement copy. No model is involved by design: trade
+   * terms are founder-only territory, and an AI-drafted apology on a
+   * real complaint is a legal and reputational risk.
+   *
    * Returns null when the turn should go on to a specialist.
    */
-  private async shortCircuitReply(c: Classification): Promise<string | null> {
+  private async shortCircuitReply(
+    c: Classification,
+    ctx: { sessionId: string; userText: string; history: LlmMessage[] },
+  ): Promise<string | null> {
     if (c.category === 'irrelevant') {
       const cfg = await this.config.get().catch(() => null);
       return (
@@ -124,7 +144,58 @@ export class AgentService {
       );
     }
     if (c.category === 'ambiguous' && c.clarifyPrompt) return c.clarifyPrompt;
+
+    if (c.category === 'commercial_offer' || c.category === 'complaint') {
+      return this.escalateAndAcknowledge(c.category, ctx);
+    }
     return null;
+  }
+
+  /**
+   * Rule-based specialist: file the escalation, email the operator, and
+   * return the fixed acknowledgement.
+   *
+   * If the notification email doesn't actually go out we say something
+   * weaker — the customer is not told "someone will be in touch" when
+   * nothing reached the mailbox. Better to point them at the email
+   * address themselves than to make a promise the system didn't keep.
+   */
+  private async escalateAndAcknowledge(
+    category: 'commercial_offer' | 'complaint',
+    ctx: { sessionId: string; userText: string; history: LlmMessage[] },
+  ): Promise<string> {
+    const cfg = await this.config.get().catch(() => null);
+    const to = cfg?.escalationEmail ?? 'sales@cleverdeals.net';
+
+    const recentTurns = ctx.history
+      .filter((m): m is LlmMessage & { content: string } =>
+        (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim() !== '',
+      )
+      .slice(-3)
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    recentTurns.push({ role: 'user', content: ctx.userText });
+
+    let emailSent = false;
+    try {
+      const result = await this.escalations.escalate({
+        chatSessionId: ctx.sessionId,
+        chatCategory: category,
+        reason: legacyReasonFor(category),
+        summary: ctx.userText.slice(0, 500),
+        priority: defaultPriorityFor(category, ctx.userText),
+        to,
+        storeName: cfg?.storeName ?? 'the store',
+        recentTurns,
+      });
+      emailSent = result.emailSent;
+    } catch {
+      emailSent = false;
+    }
+
+    if (emailSent) return RULE_BASED_REPLIES[category]!;
+    return category === 'complaint'
+      ? `I'm sorry that's happened — I'm not able to put this in front of the team automatically right now. Please email ${to} with your order number and a photo if you have one, and they'll pick it up.`
+      : `Thanks — that's one for our sales team rather than me, but I couldn't pass it on automatically just now. Please email ${to} directly and they'll come back to you.`;
   }
 
   /** Audit row per classified turn. Best-effort: a logging failure must
@@ -255,8 +326,12 @@ export class AgentService {
     await this.persist(sessionId, { role: 'user', content: userText });
     await this.recordClassification(sessionId, classification, priorHistory.length);
 
-    // Short-circuits — neither spends a specialist call.
-    const shortCircuit = await this.shortCircuitReply(classification);
+    // Short-circuits — none of these spend a specialist call.
+    const shortCircuit = await this.shortCircuitReply(classification, {
+      sessionId,
+      userText,
+      history: priorHistory,
+    });
     if (shortCircuit) {
       await this.persist(sessionId, { role: 'assistant', content: shortCircuit });
       return {
