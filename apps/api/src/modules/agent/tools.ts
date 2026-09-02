@@ -19,6 +19,10 @@ import { PricingService, PricingError } from '../pricing/pricing.service.js';
 import { InterestFlagService } from '../interest/interest.service.js';
 import { BasketService, InsufficientStockError } from './basket.service.js';
 import { KbService } from './kb.service.js';
+import {
+  OrderStatusService,
+  type LookupResult as OrderLookupResult,
+} from './order-status.service.js';
 
 export type ToolErrorCode =
   | 'INVALID_SKU'
@@ -160,6 +164,24 @@ export const TOOL_SCHEMAS: LlmToolDef[] = [
       ['query'],
     ),
   },
+  {
+    name: 'lookup_order_by_account',
+    description:
+      "The signed-in customer's own recent orders. Returns LOGIN_REQUIRED if they are not signed in — in that case ask for their order number and the email they used, then call lookup_order_by_ref_and_email. Takes no arguments: identity comes from the session, never from you.",
+    parameters: obj({}),
+  },
+  {
+    name: 'lookup_order_by_ref_and_email',
+    description:
+      'Look up ONE order for a customer who is not signed in. BOTH the order number and the email used on the order are required — ask for whichever you are missing before calling. A wrong email and an unknown order number return the same not-found result, so never tell the customer which part was wrong; ask them to check both.',
+    parameters: obj(
+      {
+        order_ref: { type: 'string', description: 'The order number as the customer gave it.' },
+        email: { type: 'string', description: 'The email address used on the order.' },
+      },
+      ['order_ref', 'email'],
+    ),
+  },
 ];
 
 export const TOOL_NAMES = TOOL_SCHEMAS.map((t) => t.name);
@@ -193,6 +215,15 @@ const SPECIALIST_TOOL_NAMES: Record<string, string[]> = {
   ],
   delivery_returns: ['lookup_kb', 'escalate_to_human'],
   product_advice: ['lookup_kb', 'get_product_details', 'escalate_to_human'],
+  // No basket tools: someone chasing an order should not be able to
+  // talk the assistant into changing what they bought, and the
+  // specialist cannot alter an order either — that escalates.
+  order_status: [
+    'lookup_order_by_account',
+    'lookup_order_by_ref_and_email',
+    'lookup_kb',
+    'escalate_to_human',
+  ],
 };
 
 /** Tool schemas for one specialist category. */
@@ -210,6 +241,7 @@ export class ToolExecutor {
   private interest = new InterestFlagService();
   private basket = new BasketService();
   private kb = new KbService();
+  private orders = new OrderStatusService();
 
   async execute(name: string, args: Record<string, unknown>, ctx: ToolContext): Promise<ToolEnvelope> {
     try {
@@ -241,6 +273,19 @@ export class ToolExecutor {
           return await this.escalate(args, ctx);
         case 'lookup_kb':
           return await this.lookupKb(String(args.query ?? ''));
+        case 'lookup_order_by_account':
+          if (!ctx.userId) {
+            return err('LOGIN_REQUIRED', 'not signed in — ask for the order number and email');
+          }
+          return this.presentOrders(await this.orders.lookupByAccount(ctx.userId));
+        case 'lookup_order_by_ref_and_email':
+          return this.presentOrders(
+            await this.orders.lookupByRefAndEmail(
+              ctx.chatSessionId,
+              String(args.order_ref ?? ''),
+              String(args.email ?? ''),
+            ),
+          );
         default:
           return err('INTERNAL', `unknown tool ${name}`);
       }
@@ -351,6 +396,32 @@ export class ToolExecutor {
           ? 'The knowledge base has nothing on this. Say so and offer to pass the question to the team — do not answer from general knowledge.'
           : 'Answer only from these passages. Quote figures exactly.',
     });
+  }
+
+  /**
+   * Turn a lookup result into a tool envelope.
+   *
+   * Not-found is a successful tool call with an empty list, not an
+   * error: the specialist needs to ask the customer to check their
+   * details, which is a conversation, not a retry. The `note` tells it
+   * how — including the instruction never to say WHICH of the two
+   * fields was wrong, since that would turn the tool into an order-
+   * number oracle.
+   */
+  private presentOrders(result: OrderLookupResult): ToolEnvelope {
+    if (result.found) {
+      return ok({
+        orders: result.orders,
+        note: 'Report exactly these fields. Do not estimate a delivery date that is not here.',
+      });
+    }
+    const note =
+      result.reason === 'rate_limited'
+        ? 'Too many failed lookups on this conversation. Ask the customer to email the team instead — do not keep trying.'
+        : result.reason === 'no_orders'
+          ? 'This customer has no orders. Say so plainly.'
+          : 'No order matched. Ask the customer to double-check BOTH the order number and the email they used — never say which one was wrong, and never confirm whether the order number exists.';
+    return ok({ orders: [], reason: result.reason, note });
   }
 
   private async escalate(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolEnvelope> {
