@@ -17,6 +17,7 @@ export * from './interest.js';
 export * from './inbound.js';
 export * from './chat.js';
 export * from './chatbot-config.js';
+export * from './knowledge-base.js';
 export * from './messaging.js';
 export * from './subscriptions.js';
 export * from './pricing.js';

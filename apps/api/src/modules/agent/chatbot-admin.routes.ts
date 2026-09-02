@@ -9,13 +9,15 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getAuthUser, requireAuth } from '../../shared/middleware/auth.js';
-import { CHAT_CATEGORIES, type ChatCategory } from '../../db/schema/index.js';
+import { CHAT_CATEGORIES, KB_DOCUMENT_SLUGS, type ChatCategory } from '../../db/schema/index.js';
 import { ChatbotConfigService } from './chatbot-config.service.js';
 import { DEFAULT_SPECIALISTS } from './default-prompts.js';
 import { AgentService } from './agent.service.js';
+import { KbService } from './kb.service.js';
 
 const config = new ChatbotConfigService();
 const agent = new AgentService();
+const kb = new KbService();
 
 const profileSchema = z.object({
   storeName: z.string().min(1).max(120).optional(),
@@ -99,6 +101,32 @@ export async function chatbotAdminRoutes(app: FastifyInstance) {
     const { target } = z.object({ target: z.string().min(1).max(64) }).parse(request.params);
     const rows = await config.listVersions(target);
     return { success: true, data: rows };
+  });
+
+  // GET /admin/chatbot/kb — knowledge-base documents (seeded on first read).
+  app.get('/admin/chatbot/kb', async () => {
+    const docs = await kb.list();
+    return { success: true, data: docs };
+  });
+
+  // PUT /admin/chatbot/kb/:slug — save markdown and re-chunk.
+  app.put('/admin/chatbot/kb/:slug', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { slug } = z.object({ slug: z.enum(KB_DOCUMENT_SLUGS) }).parse(request.params);
+    const { markdown, title } = z
+      .object({ markdown: z.string().max(200_000), title: z.string().min(1).max(200).optional() })
+      .parse(request.body);
+    const doc = await kb.save(slug, markdown, title, user.userId);
+    return reply.send({ success: true, data: doc });
+  });
+
+  // POST /admin/chatbot/kb/search — try a retrieval without a chat turn.
+  // Lets an operator check that an edit is actually findable before
+  // trusting the assistant to find it.
+  app.post('/admin/chatbot/kb/search', async (request, reply) => {
+    const { query } = z.object({ query: z.string().min(1).max(500) }).parse(request.body);
+    const hits = await kb.search(query);
+    return reply.send({ success: true, data: hits });
   });
 
   // POST /admin/chatbot/test — dry-run one message through the pipeline.

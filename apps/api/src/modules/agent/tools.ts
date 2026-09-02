@@ -18,6 +18,7 @@ import { InboundService } from '../inbound/inbound.service.js';
 import { PricingService, PricingError } from '../pricing/pricing.service.js';
 import { InterestFlagService } from '../interest/interest.service.js';
 import { BasketService, InsufficientStockError } from './basket.service.js';
+import { KbService } from './kb.service.js';
 
 export type ToolErrorCode =
   | 'INVALID_SKU'
@@ -150,9 +151,56 @@ export const TOOL_SCHEMAS: LlmToolDef[] = [
       ['reason', 'summary'],
     ),
   },
+  {
+    name: 'lookup_kb',
+    description:
+      "Search the store's own knowledge base for delivery, returns, policy, and product-usage answers. THE ONLY SOURCE for policy answers — never answer a policy question from general knowledge. Returns up to three passages, or an empty list when the knowledge base does not cover the question.",
+    parameters: obj(
+      { query: { type: 'string', description: "The customer's question, in their own words." } },
+      ['query'],
+    ),
+  },
 ];
 
 export const TOOL_NAMES = TOOL_SCHEMAS.map((t) => t.name);
+
+/**
+ * Which tools each specialist gets.
+ *
+ * Small tool sets are a correctness feature, not just a token saving: a
+ * model handed `add_to_basket` while answering a returns question has a
+ * way to do something it was never asked to do. The delivery/returns
+ * specialist can ONLY read the knowledge base, so the worst case for a
+ * misrouted turn is an unhelpful answer rather than a mutated basket.
+ *
+ * Categories absent from this map fall back to the pre-sales set.
+ */
+const SPECIALIST_TOOL_NAMES: Record<string, string[]> = {
+  pre_sales: [
+    'search_catalogue',
+    'get_product_details',
+    'get_stock_and_eta',
+    'quote_price',
+    'view_basket',
+    'add_to_basket',
+    'update_basket_line',
+    'remove_basket_line',
+    'check_discount_code',
+    'get_customer_interests',
+    'create_interest_flag',
+    'escalate_to_human',
+    'lookup_kb',
+  ],
+  delivery_returns: ['lookup_kb', 'escalate_to_human'],
+  product_advice: ['lookup_kb', 'get_product_details', 'escalate_to_human'],
+};
+
+/** Tool schemas for one specialist category. */
+export function toolsForCategory(category: string): LlmToolDef[] {
+  const names = SPECIALIST_TOOL_NAMES[category] ?? SPECIALIST_TOOL_NAMES.pre_sales!;
+  const allowed = new Set(names);
+  return TOOL_SCHEMAS.filter((t) => allowed.has(t.name));
+}
 
 export class ToolExecutor {
   private db = getDb();
@@ -161,6 +209,7 @@ export class ToolExecutor {
   private pricing = new PricingService();
   private interest = new InterestFlagService();
   private basket = new BasketService();
+  private kb = new KbService();
 
   async execute(name: string, args: Record<string, unknown>, ctx: ToolContext): Promise<ToolEnvelope> {
     try {
@@ -190,6 +239,8 @@ export class ToolExecutor {
           return await this.createInterestFlag(args, ctx);
         case 'escalate_to_human':
           return await this.escalate(args, ctx);
+        case 'lookup_kb':
+          return await this.lookupKb(String(args.query ?? ''));
         default:
           return err('INTERNAL', `unknown tool ${name}`);
       }
@@ -278,6 +329,28 @@ export class ToolExecutor {
       sourcePage: 'chat',
     });
     return ok(await this.interest.listInterests(result.userId));
+  }
+
+  /**
+   * Knowledge-base lookup. An empty `passages` list is a MEANINGFUL
+   * result, not an error: it tells the specialist the knowledge base
+   * doesn't cover the question, and its prompt says to admit that and
+   * offer to pass it on rather than reason from general knowledge. An
+   * error envelope here would invite the model to retry or improvise.
+   */
+  private async lookupKb(query: string): Promise<ToolEnvelope> {
+    const hits = await this.kb.search(query);
+    return ok({
+      passages: hits.map((h) => ({
+        heading: h.heading,
+        text: h.body,
+        source: h.documentSlug,
+      })),
+      note:
+        hits.length === 0
+          ? 'The knowledge base has nothing on this. Say so and offer to pass the question to the team — do not answer from general knowledge.'
+          : 'Answer only from these passages. Quote figures exactly.',
+    });
   }
 
   private async escalate(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolEnvelope> {
