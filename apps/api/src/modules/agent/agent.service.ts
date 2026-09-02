@@ -46,14 +46,18 @@ const MAX_TOOL_CALLS_PER_SESSION = 60;
  * is called. This set only governs LLM-backed routing.
  *
  * Still falling through to `pre_sales` until their phases land:
- *   order_status      needs lookup_order_by_account / _by_ref_and_email
- *   delivery_returns  needs lookup_kb (knowledge base)
- *   product_advice    needs lookup_kb (knowledge base)
+ *   product_advice    has its tools, but ships disabled until the
+ *                     product-advice knowledge base is written — an
+ *                     empty KB means it can only say it does not know
  *
  * Add a category here in the same commit that lands its tools — not
  * before. The classifier already records traffic for all of them.
  */
-const READY_SPECIALISTS = new Set<string>(['pre_sales', 'delivery_returns']);
+const READY_SPECIALISTS = new Set<string>([
+  'pre_sales',
+  'delivery_returns',
+  'order_status',
+]);
 
 export interface TurnResult {
   content: string;
