@@ -23,14 +23,56 @@ export class SpendCapExceededError extends Error {
   }
 }
 
+/** Thrown when a completion is attempted with no OPENROUTER_API_KEY set
+ *  outside tests. Typed so the chat route can tell the customer the
+ *  assistant is offline rather than emitting a generic 'internal'. */
+export class LlmUnavailableError extends Error {
+  constructor() {
+    super('OPENROUTER_API_KEY is not set — the agent has no model to call');
+    this.name = 'LlmUnavailableError';
+  }
+}
+
+/**
+ * Stand-in port used when the API key is missing outside tests.
+ *
+ * Previously `getLlmPort()` fell back to `FakeLlm` whenever the key was
+ * empty, INCLUDING in production. FakeLlm only answers from a script
+ * that tests enqueue, so in production its very first call threw
+ * "FakeLlm: no scripted turn left" — which surfaced to customers as a
+ * bare {"error":"internal"} on every single chat message while session
+ * creation kept working. Failing with a typed error here makes the
+ * misconfiguration legible instead of masquerading as a bug.
+ */
+class UnconfiguredLlm implements LlmPort {
+  async complete(): Promise<never> {
+    throw new LlmUnavailableError();
+  }
+}
+
 let _port: LlmPort | undefined;
 
 export function getLlmPort(): LlmPort {
   if (!_port) {
     const env = getEnv();
-    _port = env.NODE_ENV === 'test' || !env.OPENROUTER_API_KEY ? new FakeLlm() : new OpenRouterClient(env.OPENROUTER_API_KEY);
+    if (env.NODE_ENV === 'test') {
+      _port = new FakeLlm();
+    } else if (!env.OPENROUTER_API_KEY) {
+      // Deliberately NOT FakeLlm — see UnconfiguredLlm's docstring.
+      _port = new UnconfiguredLlm();
+    } else {
+      _port = new OpenRouterClient(env.OPENROUTER_API_KEY);
+    }
   }
   return _port;
+}
+
+/** True when the agent has a real model configured. Used by the
+ *  health endpoint + boot log so a missing key is visible before a
+ *  customer finds it. */
+export function isLlmConfigured(): boolean {
+  const env = getEnv();
+  return env.NODE_ENV === 'test' || Boolean(env.OPENROUTER_API_KEY);
 }
 export function setLlmPortForTests(port: LlmPort): void {
   _port = port;
@@ -83,6 +125,10 @@ export class OpenRouterService {
         result = await this.port.complete({ model, messages: req.messages, tools: req.tools });
         break;
       } catch (err) {
+        // A missing API key fails identically for every model in the
+        // list — walking the fallbacks just burns time before throwing
+        // the same error, so surface it immediately.
+        if (err instanceof LlmUnavailableError) throw err;
         lastErr = err; // try the next fallback
       }
     }

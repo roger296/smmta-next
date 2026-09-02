@@ -20,7 +20,7 @@ interface Basket {
   totalPence: number;
 }
 interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'error';
   content: string;
 }
 
@@ -61,7 +61,7 @@ export function ChatPanel() {
 
     const id = await ensureSession();
     if (!id) {
-      setMessages((m) => [...m, { role: 'assistant', content: 'Sorry — chat is unavailable right now.' }]);
+      setMessages((m) => [...m, { role: 'error', content: 'Sorry — chat is unavailable right now.' }]);
       setBusy(false);
       return;
     }
@@ -91,7 +91,7 @@ export function ChatPanel() {
         }
       }
     } catch {
-      setMessages((m) => [...m, { role: 'assistant', content: 'Something went wrong. Please try again.' }]);
+      setMessages((m) => [...m, { role: 'error', content: 'Something went wrong. Please try again.' }]);
     } finally {
       setBusy(false);
     }
@@ -101,7 +101,9 @@ export function ChatPanel() {
     const eventMatch = /^event:\s*(.+)$/m.exec(frame);
     const dataMatch = /^data:\s*(.+)$/m.exec(frame);
     if (!eventMatch || !dataMatch) return;
-    if (eventMatch[1] === 'message') {
+    const eventName = eventMatch[1].trim();
+
+    if (eventName === 'message') {
       try {
         const payload = JSON.parse(dataMatch[1]) as { content?: string; basket?: Basket };
         if (payload.content) setMessages((m) => [...m, { role: 'assistant', content: payload.content! }]);
@@ -109,7 +111,25 @@ export function ChatPanel() {
       } catch {
         /* ignore malformed frame */
       }
+      return;
     }
+
+    // Previously only 'message' was handled, so an error frame left the
+    // customer staring at their own question forever with no feedback.
+    // The API sends a customer-safe `message` on every error frame; fall
+    // back to generic copy if the payload is malformed.
+    if (eventName === 'error') {
+      let text = 'Sorry — something went wrong. Please try again.';
+      try {
+        const payload = JSON.parse(dataMatch[1]) as { message?: string };
+        if (payload.message) text = payload.message;
+      } catch {
+        /* keep the generic fallback */
+      }
+      setMessages((m) => [...m, { role: 'error', content: text }]);
+      return;
+    }
+    // 'done' and any future frame types need no client state change.
   }
 
   const border = '1px solid var(--brand-border, #C7CCD1)';
@@ -171,13 +191,22 @@ export function ChatPanel() {
             {messages.map((m, i) => (
               <div
                 key={i}
+                role={m.role === 'error' ? 'alert' : undefined}
                 style={{
                   alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
                   maxWidth: '85%',
                   padding: '8px 10px',
                   fontSize: 14,
-                  background: m.role === 'user' ? 'var(--brand-accent-ice, #B4C6D2)' : 'var(--brand-paper, #ECECE8)',
-                  border,
+                  background:
+                    m.role === 'user'
+                      ? 'var(--brand-accent-ice, #B4C6D2)'
+                      : m.role === 'error'
+                        ? 'var(--brand-bone, #F5F4F0)'
+                        : 'var(--brand-paper, #ECECE8)',
+                  color: m.role === 'error' ? 'var(--brand-muted, #6B6E76)' : 'inherit',
+                  borderLeft: m.role === 'error' ? '2px solid #A0523B' : undefined,
+                  border: m.role === 'error' ? undefined : border,
+                  fontStyle: m.role === 'error' ? 'italic' : undefined,
                 }}
               >
                 {m.content}

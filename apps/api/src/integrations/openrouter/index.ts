@@ -2,7 +2,9 @@ export * from './openrouter.types.js';
 export {
   OpenRouterService,
   SpendCapExceededError,
+  LlmUnavailableError,
   getLlmPort,
+  isLlmConfigured,
   setLlmPortForTests,
   resetLlmPortForTests,
   type LlmPurpose,
