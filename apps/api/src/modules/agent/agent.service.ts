@@ -18,6 +18,7 @@ import {
 import { SALES_AGENT_SYSTEM_PROMPT } from './system-prompt.js';
 import { TOOL_SCHEMAS, ToolExecutor, type ToolContext } from './tools.js';
 import { BasketService, type BasketView } from './basket.service.js';
+import { ChatbotConfigService } from './chatbot-config.service.js';
 
 const MAX_TOOL_CALLS_PER_TURN = 8;
 const MAX_TOOL_CALLS_PER_SESSION = 60;
@@ -35,9 +36,33 @@ export class AgentService {
   private llm: OpenRouterService;
   private tools = new ToolExecutor();
   private basket = new BasketService();
+  private config: ChatbotConfigService;
 
-  constructor(llm?: OpenRouterService) {
+  constructor(llm?: OpenRouterService, config?: ChatbotConfigService) {
     this.llm = llm ?? new OpenRouterService();
+    this.config = config ?? new ChatbotConfigService();
+  }
+
+  /**
+   * The system prompt for a turn. Reads the admin-editable
+   * `pre_sales` specialist prompt, falling back to the compiled-in
+   * SPEC F5 constant if the config lookup fails for any reason — a
+   * database hiccup should degrade the assistant's wording, not take
+   * the whole chat offline.
+   *
+   * Stage-2 routing (a prompt per classified category) lands with the
+   * classifier; until then every turn is treated as `pre_sales`, which
+   * is exactly the behaviour this replaces.
+   */
+  private async systemPromptFor(category = 'pre_sales'): Promise<string> {
+    try {
+      const cfg = await this.config.get();
+      const specialist = cfg.specialists.get(category as never);
+      if (specialist?.systemPrompt) return specialist.systemPrompt;
+    } catch {
+      /* fall through to the compiled-in default */
+    }
+    return SALES_AGENT_SYSTEM_PROMPT;
   }
 
   /** Start a chat session with its own basket. */
@@ -106,7 +131,7 @@ export class AgentService {
     await this.persist(sessionId, { role: 'user', content: userText });
 
     const messages: LlmMessage[] = [
-      { role: 'system', content: SALES_AGENT_SYSTEM_PROMPT },
+      { role: 'system', content: await this.systemPromptFor() },
       ...(await this.history(sessionId)),
     ];
 
@@ -164,5 +189,38 @@ export class AgentService {
       ? "I'm going to have to pause here — let me hand you a summary and you can pick up from your basket."
       : "Let's take stock of your basket before we go further.";
     return { content, basket: await this.basket.view(ctx.basketId), toolCallsThisTurn, windDown };
+  }
+
+  /**
+   * Run one message through the pipeline for the admin test bench and
+   * report every stage, without touching real state.
+   *
+   * "Without touching real state" is doing real work here: the bench
+   * creates its own throwaway session + basket, so nothing lands in a
+   * customer's chat history and no live basket is mutated. Tool calls
+   * still execute — a read-only tool like search_catalogue must run for
+   * the bench to be worth anything — but they run against the scratch
+   * basket, so an add_to_basket in a test only ever fills a basket that
+   * is abandoned the moment this returns.
+   */
+  async dryRun(message: string): Promise<{
+    sessionId: string;
+    systemPrompt: string;
+    reply: string;
+    toolCalls: number;
+    windDown: TurnResult['windDown'];
+    basket: BasketView;
+  }> {
+    const { sessionId } = await this.startSession();
+    const systemPrompt = await this.systemPromptFor();
+    const result = await this.runTurn(sessionId, message);
+    return {
+      sessionId,
+      systemPrompt,
+      reply: result.content,
+      toolCalls: result.toolCallsThisTurn,
+      windDown: result.windDown,
+      basket: result.basket,
+    };
   }
 }

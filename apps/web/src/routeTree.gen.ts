@@ -29,6 +29,7 @@ import { Route as AuthedIntegrationsIndexRouteImport } from './routes/_authed/in
 import { Route as AuthedInboundIndexRouteImport } from './routes/_authed/inbound/index'
 import { Route as AuthedDigestIndexRouteImport } from './routes/_authed/digest/index'
 import { Route as AuthedCustomersIndexRouteImport } from './routes/_authed/customers/index'
+import { Route as AuthedChatbotIndexRouteImport } from './routes/_authed/chatbot/index'
 import { Route as AuthedCategoriesIndexRouteImport } from './routes/_authed/categories/index'
 import { Route as AuthedApprovalIndexRouteImport } from './routes/_authed/approval/index'
 import { Route as AuthedAgentsIndexRouteImport } from './routes/_authed/agents/index'
@@ -156,6 +157,11 @@ const AuthedDigestIndexRoute = AuthedDigestIndexRouteImport.update({
 const AuthedCustomersIndexRoute = AuthedCustomersIndexRouteImport.update({
   id: '/customers/',
   path: '/customers/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedChatbotIndexRoute = AuthedChatbotIndexRouteImport.update({
+  id: '/chatbot/',
+  path: '/chatbot/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedCategoriesIndexRoute = AuthedCategoriesIndexRouteImport.update({
@@ -308,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/agents/': typeof AuthedAgentsIndexRoute
   '/approval/': typeof AuthedApprovalIndexRoute
   '/categories/': typeof AuthedCategoriesIndexRoute
+  '/chatbot/': typeof AuthedChatbotIndexRoute
   '/customers/': typeof AuthedCustomersIndexRoute
   '/digest/': typeof AuthedDigestIndexRoute
   '/inbound/': typeof AuthedInboundIndexRoute
@@ -353,6 +360,7 @@ export interface FileRoutesByTo {
   '/agents': typeof AuthedAgentsIndexRoute
   '/approval': typeof AuthedApprovalIndexRoute
   '/categories': typeof AuthedCategoriesIndexRoute
+  '/chatbot': typeof AuthedChatbotIndexRoute
   '/customers': typeof AuthedCustomersIndexRoute
   '/digest': typeof AuthedDigestIndexRoute
   '/inbound': typeof AuthedInboundIndexRoute
@@ -400,6 +408,7 @@ export interface FileRoutesById {
   '/_authed/agents/': typeof AuthedAgentsIndexRoute
   '/_authed/approval/': typeof AuthedApprovalIndexRoute
   '/_authed/categories/': typeof AuthedCategoriesIndexRoute
+  '/_authed/chatbot/': typeof AuthedChatbotIndexRoute
   '/_authed/customers/': typeof AuthedCustomersIndexRoute
   '/_authed/digest/': typeof AuthedDigestIndexRoute
   '/_authed/inbound/': typeof AuthedInboundIndexRoute
@@ -447,6 +456,7 @@ export interface FileRouteTypes {
     | '/agents/'
     | '/approval/'
     | '/categories/'
+    | '/chatbot/'
     | '/customers/'
     | '/digest/'
     | '/inbound/'
@@ -492,6 +502,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/approval'
     | '/categories'
+    | '/chatbot'
     | '/customers'
     | '/digest'
     | '/inbound'
@@ -538,6 +549,7 @@ export interface FileRouteTypes {
     | '/_authed/agents/'
     | '/_authed/approval/'
     | '/_authed/categories/'
+    | '/_authed/chatbot/'
     | '/_authed/customers/'
     | '/_authed/digest/'
     | '/_authed/inbound/'
@@ -702,6 +714,13 @@ declare module '@tanstack/react-router' {
       path: '/customers'
       fullPath: '/customers/'
       preLoaderRoute: typeof AuthedCustomersIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/chatbot/': {
+      id: '/_authed/chatbot/'
+      path: '/chatbot'
+      fullPath: '/chatbot/'
+      preLoaderRoute: typeof AuthedChatbotIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/categories/': {
@@ -901,6 +920,7 @@ interface AuthedRouteRouteChildren {
   AuthedAgentsIndexRoute: typeof AuthedAgentsIndexRoute
   AuthedApprovalIndexRoute: typeof AuthedApprovalIndexRoute
   AuthedCategoriesIndexRoute: typeof AuthedCategoriesIndexRoute
+  AuthedChatbotIndexRoute: typeof AuthedChatbotIndexRoute
   AuthedCustomersIndexRoute: typeof AuthedCustomersIndexRoute
   AuthedDigestIndexRoute: typeof AuthedDigestIndexRoute
   AuthedInboundIndexRoute: typeof AuthedInboundIndexRoute
@@ -946,6 +966,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedAgentsIndexRoute: AuthedAgentsIndexRoute,
   AuthedApprovalIndexRoute: AuthedApprovalIndexRoute,
   AuthedCategoriesIndexRoute: AuthedCategoriesIndexRoute,
+  AuthedChatbotIndexRoute: AuthedChatbotIndexRoute,
   AuthedCustomersIndexRoute: AuthedCustomersIndexRoute,
   AuthedDigestIndexRoute: AuthedDigestIndexRoute,
   AuthedInboundIndexRoute: AuthedInboundIndexRoute,
