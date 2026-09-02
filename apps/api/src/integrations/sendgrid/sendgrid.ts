@@ -96,6 +96,22 @@ export function getSendGrid(): SendGridPort {
   }
   return _sg;
 }
+
+/**
+ * True when mail can actually be delivered — a real key, in production,
+ * with sandbox off. Everything else records a send that goes nowhere.
+ *
+ * Callers that make a promise to a customer ("someone will be in
+ * touch") should check the `sandboxed` flag on the send result rather
+ * than this, since that reflects the individual send. This is for the
+ * boot warning, so a deploy missing its key is visible in the logs
+ * instead of being discovered when an escalation is never answered.
+ */
+export function isEmailDeliverable(): boolean {
+  const env = getEnv();
+  if (env.NODE_ENV === 'test') return true;
+  return Boolean(env.SENDGRID_API_KEY) && !env.SENDGRID_SANDBOX && env.NODE_ENV === 'production';
+}
 export function setSendGridForTests(port: SendGridPort): void {
   _sg = port;
 }
