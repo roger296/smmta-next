@@ -88,6 +88,9 @@ function summariseChatError(err: unknown): {
   return {
     error: 'internal',
     message: 'Something went wrong on our end. Please try again in a moment.',
-    detail: raw.slice(0, 160),
+    // Wide enough to carry an AllModelsFailedError listing every
+    // candidate and its reason — the whole point of that error is
+    // that a truncated list hides which model actually broke.
+    detail: raw.slice(0, 400),
   };
 }

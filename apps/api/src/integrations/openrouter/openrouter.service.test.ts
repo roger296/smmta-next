@@ -12,6 +12,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  AllModelsFailedError,
   FakeLlm,
   LlmUnavailableError,
   getLlmPort,
@@ -101,5 +102,41 @@ describe('LlmUnavailableError', () => {
     const err = new LlmUnavailableError();
     expect(err.name).toBe('LlmUnavailableError');
     expect(err.message).toMatch(/OPENROUTER_API_KEY/);
+  });
+});
+
+// ============================================================
+// AllModelsFailedError
+// ============================================================
+
+describe('AllModelsFailedError', () => {
+  it('names EVERY failed model, not just the last one', () => {
+    // The regression: a single `lastErr` meant a decommissioned
+    // fallback masked why the primary failed. A live incident read
+    // "No endpoints found for google/gemini-flash-1.5" while the real
+    // primary-model failure was invisible.
+    const err = new AllModelsFailedError([
+      { model: 'anthropic/claude-3.5-haiku', message: 'insufficient credits' },
+      { model: 'google/gemini-flash-1.5', message: 'No endpoints found' },
+    ]);
+    expect(err.message).toContain('anthropic/claude-3.5-haiku');
+    expect(err.message).toContain('insufficient credits');
+    expect(err.message).toContain('google/gemini-flash-1.5');
+    expect(err.message).toContain('No endpoints found');
+  });
+
+  it('keeps the structured failures for programmatic use', () => {
+    const failures = [{ model: 'm1', message: 'boom' }];
+    expect(new AllModelsFailedError(failures).failures).toEqual(failures);
+  });
+
+  it('is legible when no models were configured at all', () => {
+    expect(new AllModelsFailedError([]).message).toContain('no models configured');
+  });
+
+  it('is an Error with a stable name', () => {
+    const err = new AllModelsFailedError([]);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe('AllModelsFailedError');
   });
 });

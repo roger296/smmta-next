@@ -3,6 +3,8 @@ export {
   OpenRouterService,
   SpendCapExceededError,
   LlmUnavailableError,
+  AllModelsFailedError,
+  type ModelFailure,
   getLlmPort,
   isLlmConfigured,
   setLlmPortForTests,
