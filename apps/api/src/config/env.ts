@@ -66,7 +66,10 @@ const envSchema = z.object({
   // LLM (OpenRouter, §4.5). Empty key → the scripted fake is used (dev/test).
   OPENROUTER_API_KEY: z.string().default(''),
   OPENROUTER_MODEL: z.string().default('anthropic/claude-3.5-haiku'),
-  OPENROUTER_FALLBACK_MODELS: z.string().default('google/gemini-flash-1.5'),
+  /** Comma-separated, tried in order after OPENROUTER_MODEL. Was
+   *  google/gemini-flash-1.5 until that was decommissioned and every
+   *  chat turn started failing with 'No endpoints found'. */
+  OPENROUTER_FALLBACK_MODELS: z.string().default('meta-llama/llama-3.1-8b-instruct'),
   /** Per-day spend ceiling in integer micro-USD (1_000_000 = $1.00). */
   OPENROUTER_DAILY_CAP_MICROUSD: z.coerce.number().int().default(2_000_000),
   /**

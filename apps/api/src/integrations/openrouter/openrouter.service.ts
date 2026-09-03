@@ -33,6 +33,32 @@ export class LlmUnavailableError extends Error {
   }
 }
 
+export interface ModelFailure {
+  model: string;
+  message: string;
+}
+
+/**
+ * Thrown when every candidate model failed.
+ *
+ * Reports EVERY failure, not just the last one. The previous version
+ * kept a single `lastErr`, so a broken fallback silently masked why the
+ * primary model failed — a live incident presented as
+ * "No endpoints found for google/gemini-flash-1.5" (a decommissioned
+ * fallback) while the real primary-model failure was invisible. With
+ * every model named, one look at the message says whether this is one
+ * dead model or an account-wide problem.
+ */
+export class AllModelsFailedError extends Error {
+  constructor(public readonly failures: ModelFailure[]) {
+    const detail = failures.length
+      ? failures.map((f) => `${f.model}: ${f.message}`).join(' | ')
+      : 'no models configured';
+    super(`OpenRouter: all models failed — ${detail}`);
+    this.name = 'AllModelsFailedError';
+  }
+}
+
 /**
  * Stand-in port used when the API key is missing outside tests.
  *
@@ -125,7 +151,7 @@ export class OpenRouterService {
     if (spent >= cap) throw new SpendCapExceededError(spent, cap);
 
     let result: LlmResult | undefined;
-    let lastErr: unknown;
+    const failures: ModelFailure[] = [];
     const started = Date.now();
     const candidates = req.models?.length ? req.models : this.models();
     for (const model of candidates) {
@@ -137,10 +163,10 @@ export class OpenRouterService {
         // list — walking the fallbacks just burns time before throwing
         // the same error, so surface it immediately.
         if (err instanceof LlmUnavailableError) throw err;
-        lastErr = err; // try the next fallback
+        failures.push({ model, message: err instanceof Error ? err.message : String(err) });
       }
     }
-    if (!result) throw lastErr ?? new Error('OpenRouter: all models failed');
+    if (!result) throw new AllModelsFailedError(failures);
 
     await this.db.insert(llmLog).values({
       companyId: getEnv().COMPANY_ID,
