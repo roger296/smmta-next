@@ -20,6 +20,7 @@
 import type { MetadataRoute } from 'next';
 import { listGroups, getProductsByIds } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
+import { MATERIALS } from '@/lib/materials';
 
 export const revalidate = 3600; // 1 hour — fresh enough for SEO
 
@@ -91,6 +92,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   void getProductsByIds;
 
+  // Material category pages. High priority: these are the pages
+  // targeting "PETG filament UK" style queries, which carry more volume
+  // than any individual product name.
+  const materialEntries: MetadataRoute.Sitemap = MATERIALS.map((m) => ({
+    url: `${baseUrl}/${m.slug}`,
+    lastModified,
+    changeFrequency: 'weekly' as const,
+    priority: 0.9,
+  }));
+
   const staticEntries: MetadataRoute.Sitemap = STATIC_PATHS.map((p) => ({
     url: `${baseUrl}${p.path}`,
     lastModified,
@@ -98,5 +109,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: p.priority,
   }));
 
-  return [...staticEntries, ...groupEntries, ...variantEntries].slice(0, MAX_URLS);
+  return [...staticEntries, ...materialEntries, ...groupEntries, ...variantEntries].slice(
+    0,
+    MAX_URLS,
+  );
 }

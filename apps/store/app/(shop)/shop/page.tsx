@@ -12,7 +12,7 @@
 import type { Metadata } from 'next';
 import { listGroups } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
-import { breadcrumbLd, stringifyJsonLd } from '@/lib/seo/structured-data';
+import { breadcrumbLd, itemListLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { CatalogueGrid } from '../_components/catalogue-grid';
 
 export const dynamic = 'force-dynamic';
@@ -93,6 +93,14 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
       { name: 'Shop', url: '/shop' },
     ]),
   );
+  // SEO 08: the listing page described a collection while saying
+  // nothing about what was in it.
+  const itemList = stringifyJsonLd(
+    itemListLd(
+      baseUrl,
+      groups.filter((g) => g.slug).map((g) => ({ name: g.name, url: `/shop/${g.slug}` })),
+    ),
+  );
 
   return (
     <>
@@ -100,6 +108,11 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: breadcrumb }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: itemList }}
       />
 
       <header className="space-y-3">

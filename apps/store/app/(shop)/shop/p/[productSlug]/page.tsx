@@ -15,6 +15,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getProductBySlug, SmmtaApiError } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
+import { ogImageUrl } from '@/lib/seo/og-image';
 import { breadcrumbLd, productLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { pageTitle, socialTitle } from '@/lib/seo/title';
 import { Markdown } from '@/lib/markdown';
@@ -48,6 +49,14 @@ export async function generateMetadata({
     // the group page's swatches link here. `?colour=` stays as the
     // in-page toggle and still canonicalises to the parent.
     const canonical = `/shop/p/${product.slug ?? productSlug}`;
+    const ogBase = (() => {
+      try {
+        return new URL(getEnv().STORE_BASE_URL);
+      } catch {
+        return new URL('http://localhost:3000');
+      }
+    })();
+    const ogImage = ogImageUrl(product.heroImageUrl, ogBase);
     return {
       title: pageTitle(product.seoTitle, product.name),
       description: product.seoDescription ?? product.shortDescription ?? undefined,
@@ -72,13 +81,13 @@ export async function generateMetadata({
         url: canonical,
         title: socialTitle(product.seoTitle, product.name),
         description: product.seoDescription ?? product.shortDescription ?? undefined,
-        images: product.heroImageUrl ? [product.heroImageUrl] : undefined,
+        images: ogImage ? [ogImage] : undefined,
       },
       twitter: {
         card: 'summary_large_image',
         title: socialTitle(product.seoTitle, product.name),
         description: product.seoDescription ?? product.shortDescription ?? undefined,
-        images: product.heroImageUrl ? [product.heroImageUrl] : undefined,
+        images: ogImage ? [ogImage] : undefined,
       },
     };
   } catch {

@@ -71,6 +71,81 @@ export function breadcrumbLd(baseUrl: URL, crumbs: BreadcrumbCrumb[]): Record<st
 
 /** Single Product + Offer JSON-LD. Used on the standalone product page and
  *  on a group page once a colour is selected. */
+/**
+ * The brand every product carries. Kept here rather than inlined so a
+ * second supplier's ranges can be branded correctly by passing it in.
+ */
+const DEFAULT_BRAND = 'Landau';
+
+/**
+ * Merchant return policy, from the published returns policy.
+ *
+ * Google treats this as a recommended property for merchant listings,
+ * and unlike reviews or GTINs we already have the facts: a 28-day
+ * window on unopened goods, with the customer paying return postage.
+ * Declaring it costs nothing and is one of the few enhancements
+ * available to a brand with no ratings yet.
+ */
+function returnPolicyLd(baseUrl: URL): Record<string, unknown> {
+  return {
+    '@type': 'MerchantReturnPolicy',
+    applicableCountry: 'GB',
+    returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+    merchantReturnDays: 28,
+    returnMethod: 'https://schema.org/ReturnByMail',
+    returnFees: 'https://schema.org/ReturnShippingFees',
+    merchantReturnLink: new URL('/legal/returns', baseUrl).toString(),
+  };
+}
+
+/**
+ * Shipping details, matching the single delivery proposition used in
+ * the page copy. If the flat rate or the dispatch window ever changes,
+ * this and the FAQ have to move together — a snippet that promises
+ * something checkout doesn't honour is a consumer-protection problem,
+ * not just an SEO one.
+ */
+function shippingDetailsLd(): Record<string, unknown> {
+  return {
+    '@type': 'OfferShippingDetails',
+    shippingRate: {
+      '@type': 'MonetaryAmount',
+      value: '4.95',
+      currency: 'GBP',
+    },
+    shippingDestination: {
+      '@type': 'DefinedRegion',
+      addressCountry: 'GB',
+    },
+    deliveryTime: {
+      '@type': 'ShippingDeliveryTime',
+      handlingTime: {
+        '@type': 'QuantitativeValue',
+        minValue: 0,
+        maxValue: 1,
+        unitCode: 'DAY',
+      },
+      transitTime: {
+        '@type': 'QuantitativeValue',
+        minValue: 1,
+        maxValue: 2,
+        unitCode: 'DAY',
+      },
+    },
+  };
+}
+
+/** Map our three-state stock model onto schema.org availability. */
+function availabilityFor(stockState: string | undefined, availableQty: number): string {
+  if (stockState === 'IN_STOCK') return 'https://schema.org/InStock';
+  // A dropship line the supplier holds is genuinely orderable, and
+  // BackOrder is the honest term for it — InStock would overstate and
+  // OutOfStock would lose the sale.
+  if (stockState === 'AVAILABLE_FROM_SUPPLIER') return 'https://schema.org/BackOrder';
+  if (stockState === 'OUT_OF_STOCK') return 'https://schema.org/OutOfStock';
+  return availableQty > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock';
+}
+
 export function productLd(
   baseUrl: URL,
   product: {
@@ -79,20 +154,22 @@ export function productLd(
     colour: string | null;
     priceGbp: string | null;
     availableQty: number;
+    stockState?: string;
     heroImageUrl: string | null;
     seoDescription: string | null;
     shortDescription: string | null;
   },
   url: string,
 ): Record<string, unknown> {
+  const absoluteUrl = new URL(url, baseUrl).toString();
   const offer: Record<string, unknown> = {
     '@type': 'Offer',
-    url: new URL(url, baseUrl).toString(),
+    url: absoluteUrl,
     priceCurrency: 'GBP',
-    availability:
-      product.availableQty > 0
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
+    availability: availabilityFor(product.stockState, product.availableQty),
+    itemCondition: 'https://schema.org/NewCondition',
+    hasMerchantReturnPolicy: returnPolicyLd(baseUrl),
+    shippingDetails: shippingDetailsLd(),
   };
   if (product.priceGbp !== null) offer.price = product.priceGbp;
 
@@ -102,6 +179,11 @@ export function productLd(
     name: product.name,
     description: product.seoDescription ?? product.shortDescription ?? undefined,
     sku: product.slug ?? undefined,
+    // `brand` was missing while the page already printed "Landau" in its
+    // eyebrow text — one of several recommended properties Google uses
+    // to decide between a bare listing and an enhanced one.
+    brand: { '@type': 'Brand', name: DEFAULT_BRAND },
+    url: absoluteUrl,
     color: product.colour ?? undefined,
     image: product.heroImageUrl ?? undefined,
     offers: offer,
@@ -111,41 +193,92 @@ export function productLd(
 }
 
 /** Group page JSON-LD: Product + AggregateOffer summarising published variants. */
+/**
+ * Group-level structured data as a ProductGroup with hasVariant.
+ *
+ * Previously a single Product carrying an AggregateOffer, which said
+ * `offerCount: 5, availability: InStock` on a range where four of the
+ * five colours were out of stock. Not technically false — one variant
+ * was buyable — but a shopper arriving from that listing has been
+ * misled about the colour they clicked for.
+ *
+ * ProductGroup is Google's purpose-built pattern for exactly this: each
+ * variant carries its OWN price and availability, and `variesBy` tells
+ * the crawler which axis distinguishes them. It pairs with variant
+ * pages being indexable — the child page carries the Product, this
+ * carries the group.
+ */
 export function groupProductLd(
   baseUrl: URL,
   group: FullGroup,
   url: string,
 ): Record<string, unknown> {
   const variants = group.variants;
-  const prices = variants
-    .map((v) => (v.priceGbp ? Number.parseFloat(v.priceGbp) : null))
-    .filter((p): p is number => p !== null && Number.isFinite(p));
-  const totalAvailable = variants.reduce((s, v) => s + v.availableQty, 0);
+  const absoluteUrl = new URL(url, baseUrl).toString();
 
-  const offers: Record<string, unknown> | undefined =
-    prices.length > 0
-      ? {
-          '@type': 'AggregateOffer',
-          priceCurrency: 'GBP',
-          lowPrice: Math.min(...prices).toFixed(2),
-          highPrice: Math.max(...prices).toFixed(2),
-          offerCount: variants.length,
-          availability:
-            totalAvailable > 0
-              ? 'https://schema.org/InStock'
-              : 'https://schema.org/OutOfStock',
-        }
-      : undefined;
+  const hasVariant = variants.map((v) => {
+    const variantUrl = v.slug
+      ? new URL(`/shop/p/${v.slug}`, baseUrl).toString()
+      : absoluteUrl;
+    const offer: Record<string, unknown> = {
+      '@type': 'Offer',
+      url: variantUrl,
+      priceCurrency: 'GBP',
+      availability: availabilityFor(v.stockState, v.availableQty),
+      itemCondition: 'https://schema.org/NewCondition',
+      hasMerchantReturnPolicy: returnPolicyLd(baseUrl),
+      shippingDetails: shippingDetailsLd(),
+    };
+    if (v.priceGbp) offer.price = v.priceGbp;
+    return prune({
+      '@type': 'Product',
+      name: v.colour ? `${group.name} — ${v.colour}` : group.name,
+      sku: v.slug ?? undefined,
+      color: v.colour ?? undefined,
+      image: v.heroImageUrl ?? group.heroImageUrl ?? undefined,
+      url: variantUrl,
+      offers: offer,
+    });
+  });
 
   return prune({
     '@context': 'https://schema.org',
-    '@type': 'Product',
+    '@type': 'ProductGroup',
     name: group.name,
     description: group.seoDescription ?? group.shortDescription ?? undefined,
-    sku: group.slug ?? undefined,
+    productGroupID: group.slug ?? undefined,
+    brand: { '@type': 'Brand', name: DEFAULT_BRAND },
+    url: absoluteUrl,
     image: group.heroImageUrl ?? undefined,
-    offers,
+    // The axis that distinguishes the children. Filament varies by
+    // colour only; a clothing store would pass size here too.
+    variesBy: ['https://schema.org/color'],
+    hasVariant: hasVariant.length > 0 ? hasVariant : undefined,
   });
+}
+
+/**
+ * ItemList for a listing page.
+ *
+ * /shop and the material category pages describe a collection and said
+ * nothing about what was in it. An ItemList of the products in view is
+ * the standard way to tell a crawler what a listing page lists.
+ */
+export function itemListLd(
+  baseUrl: URL,
+  items: Array<{ name: string; url: string }>,
+): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    numberOfItems: items.length,
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      url: new URL(item.url, baseUrl).toString(),
+    })),
+  };
 }
 
 // ---------------------------------------------------------------------------

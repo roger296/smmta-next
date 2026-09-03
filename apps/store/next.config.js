@@ -116,6 +116,48 @@ const nextConfig = {
         source: '/:path*',
         headers: securityHeaders,
       },
+      // Edge-cacheable public pages.
+      //
+      // Every HTML response carried `private, no-cache, no-store` — Next's
+      // default for force-dynamic routes — so every visitor and every
+      // crawler request went to origin. TTFB is already good, so this is
+      // a ceiling-raiser rather than a fix, and it caps crawl efficiency
+      // as the catalogue grows.
+      //
+      // Listed route by route ON PURPOSE rather than as a blanket rule
+      // with exceptions. A shared cache serving one visitor's page to
+      // another is a data leak, so the safe default has to be no-store
+      // and each cacheable path has to be argued for individually. Every
+      // path below renders identically for all visitors: the cart badge
+      // is a client-side fetch, so no cart state reaches the HTML.
+      //
+      // `max-age=0` keeps browsers revalidating (a customer should see a
+      // price change immediately); `s-maxage` applies only to shared
+      // caches; `stale-while-revalidate` lets a CDN serve the old copy
+      // while it refreshes. /cart, /checkout, /track and /api keep
+      // Next's no-store and are deliberately absent.
+      ...[
+        '/',
+        '/shop',
+        '/shop/:slug',
+        '/shop/p/:slug',
+        '/pla',
+        '/petg',
+        '/abs',
+        '/asa',
+        '/tpu',
+        '/faq',
+        '/about',
+        '/legal/:path*',
+      ].map((source) => ({
+        source,
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=0, s-maxage=300, stale-while-revalidate=3600',
+          },
+        ],
+      })),
     ];
   },
 };

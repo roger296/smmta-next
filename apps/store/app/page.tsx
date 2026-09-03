@@ -12,6 +12,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { listGroups } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
+import { MATERIALS } from '@/lib/materials';
 import { priceFromString, stringifyJsonLd, websiteLd } from '@/lib/seo/structured-data';
 
 // Always server-render so catalogue changes surface immediately. See
@@ -162,6 +163,75 @@ export default async function HomePage() {
             the price you pay.
           </p>
         </div>
+      </section>
+
+      {/*
+        SEO 13: the homepage was 398 words with no link to a material
+        category page, because none existed. These are the pages that
+        answer "PETG filament UK", so the page carrying the brand queries
+        and most of the inbound links should point at them.
+      */}
+      <section className="mt-20">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
+          By material
+        </p>
+        <h2
+          className="mt-3 text-3xl font-bold tracking-tight"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          Which filament do you need?
+        </h2>
+        <ul className="mt-8 grid gap-px bg-[var(--brand-border)] sm:grid-cols-2 lg:grid-cols-3">
+          {MATERIALS.map((m) => (
+            <li key={m.slug} className="bg-[var(--brand-paper)]">
+              <Link
+                href={`/${m.slug}`}
+                className="flex h-full flex-col gap-2 p-6 transition-colors hover:bg-[var(--brand-bone)]"
+              >
+                <h3 className="text-lg font-semibold">{m.name}</h3>
+                <p className="text-sm leading-relaxed text-[var(--brand-muted)]">
+                  {m.standfirst}
+                </p>
+                <span className="mt-auto pt-3 text-xs font-semibold uppercase tracking-wider text-[var(--brand-accent)]">
+                  {m.name} range →
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Trust row — four genuine differentiators that were previously
+          mentioned only in passing, on the page where a first-time
+          visitor decides whether to trust the domain at all. */}
+      <section className="mt-20 border-y border-[var(--brand-border)]">
+        <ul className="grid gap-px bg-[var(--brand-border)] sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              title: 'UK warehouse',
+              body: 'Stock held in Britain, not drop-shipped from abroad.',
+            },
+            {
+              title: 'Same-day dispatch',
+              body: 'Orders placed before 2pm ship the same working day.',
+            },
+            {
+              title: '28-day returns',
+              body: 'Unopened spools returnable for a full refund of the item price.',
+            },
+            {
+              title: 'Recyclable spools',
+              body: 'Cardboard spools and boxes on most ranges, vacuum-sealed with desiccant.',
+            },
+          ].map((item) => (
+            <li key={item.title} className="bg-[var(--brand-paper)] p-6">
+              <h3 className="text-sm font-semibold uppercase tracking-wider">{item.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--brand-muted)]">
+                {item.body}
+              </p>
+            </li>
+          ))}
+        </ul>
       </section>
     </>
   );

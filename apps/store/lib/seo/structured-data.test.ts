@@ -131,14 +131,53 @@ describe('groupProductLd', () => {
     ],
   };
 
-  it('emits AggregateOffer covering the lowest and highest variant prices', () => {
+  it('emits a ProductGroup whose variants carry their own price and availability', () => {
+    // Replaces the old AggregateOffer assertion. AggregateOffer reported
+    // one availability for the whole range, so a group with four of five
+    // colours sold out still advertised "InStock" — true of one variant
+    // and misleading to everyone who clicked for a different colour.
+    // ProductGroup is Google's pattern for per-variant accuracy.
     const ld = groupProductLd(BASE, GROUP, '/shop/aurora-range') as {
-      offers: { '@type': string; lowPrice: string; highPrice: string; offerCount: number };
+      '@type': string;
+      variesBy: string[];
+      hasVariant: Array<{
+        '@type': string;
+        color?: string;
+        offers: { price?: string; availability: string };
+      }>;
     };
-    expect(ld.offers['@type']).toBe('AggregateOffer');
-    expect(ld.offers.lowPrice).toBe('24.00');
-    expect(ld.offers.highPrice).toBe('34.00');
-    expect(ld.offers.offerCount).toBe(2);
+    expect(ld['@type']).toBe('ProductGroup');
+    expect(ld.variesBy).toContain('https://schema.org/color');
+    expect(ld.hasVariant).toHaveLength(2);
+
+    const prices = ld.hasVariant.map((v) => v.offers.price).sort();
+    expect(prices).toEqual(['24.00', '34.00']);
+
+    // Every variant carries its own availability rather than inheriting
+    // a single group-level flag.
+    for (const variant of ld.hasVariant) {
+      expect(variant['@type']).toBe('Product');
+      expect(variant.offers.availability).toMatch(/schema\.org\/(InStock|OutOfStock|BackOrder)/);
+    }
+  });
+
+  it('marks up the return policy and shipping on every offer', () => {
+    // Both are recommended merchant-listing properties, and both are
+    // facts we already publish — a 28-day sealed-goods window and a flat
+    // £4.95 rate. Free enhancement for a brand with no ratings yet.
+    const ld = groupProductLd(BASE, GROUP, '/shop/aurora-range') as {
+      hasVariant: Array<{
+        offers: {
+          hasMerchantReturnPolicy: { merchantReturnDays: number };
+          shippingDetails: { shippingRate: { value: string } };
+          itemCondition: string;
+        };
+      }>;
+    };
+    const offer = ld.hasVariant[0]!.offers;
+    expect(offer.hasMerchantReturnPolicy.merchantReturnDays).toBe(28);
+    expect(offer.shippingDetails.shippingRate.value).toBe('4.95');
+    expect(offer.itemCondition).toBe('https://schema.org/NewCondition');
   });
 
   it('omits offers entirely when no variant has a price', () => {

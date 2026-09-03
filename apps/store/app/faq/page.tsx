@@ -7,9 +7,10 @@
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { faqPageLd, stringifyJsonLd } from '@/lib/seo/structured-data';
+import { breadcrumbLd, faqPageLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { SHIPPING_FAQ } from '@/lib/seo/faq-data';
 import { LEGAL } from '@/lib/legal';
+import { getEnv } from '@/lib/env';
 
 export const revalidate = 86_400; // 1 day — the FAQ rarely changes
 
@@ -30,6 +31,21 @@ export const metadata: Metadata = {
 
 export default function FaqPage() {
   const faqJson = stringifyJsonLd(faqPageLd(SHIPPING_FAQ));
+  // SEO 08: /faq was the only content page without BreadcrumbList —
+  // shop and product pages both had it.
+  const baseUrl = (() => {
+    try {
+      return new URL(getEnv().STORE_BASE_URL);
+    } catch {
+      return new URL('http://localhost:3000');
+    }
+  })();
+  const breadcrumb = stringifyJsonLd(
+    breadcrumbLd(baseUrl, [
+      { name: 'Home', url: '/' },
+      { name: 'FAQ', url: '/faq' },
+    ]),
+  );
 
   return (
     <>
@@ -37,6 +53,11 @@ export default function FaqPage() {
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: faqJson }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: breadcrumb }}
       />
 
       <nav aria-label="Breadcrumb" className="text-sm text-[var(--brand-muted)]">
