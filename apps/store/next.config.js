@@ -6,15 +6,35 @@ const isProd = process.env.NODE_ENV === 'production';
 // eval/script-src; permissive in dev so Next's HMR + React DevTools work.
 //
 // Mollie's hosted checkout lives on https://www.mollie.com — we don't embed
-// it (the customer is redirected away), so frame-src is restrictive. The
-// img-src / connect-src lists cover the API host, picsum.photos for seed
-// images, and Sentry / GA4 endpoints when those are wired in later phases.
+// it (the customer is redirected away), so frame-src is restrictive.
+//
+// Two development artefacts were removed from the production policy after a
+// security review flagged them: picsum.photos (a placeholder image service,
+// now dev-only) and the API origin, which in the Docker deploy resolves to
+// the internal service name `http://api:3000`. The browser never calls the
+// API directly — every call goes through this app's own /api/* proxy routes
+// on the same origin — so publishing an internal hostname over plain HTTP
+// widened the policy while granting nothing.
+
+/** Only a public https origin belongs in a browser-facing CSP. An internal
+ *  Docker service name is unreachable from a browser and just leaks topology. */
+function publicApiOrigin() {
+  if (!process.env.SMMTA_API_BASE_URL) return '';
+  try {
+    const { origin, protocol } = new URL(process.env.SMMTA_API_BASE_URL);
+    return protocol === 'https:' ? origin : '';
+  } catch {
+    return '';
+  }
+}
 const csp = [
   `default-src 'self'`,
   `base-uri 'self'`,
   `frame-ancestors 'none'`,
   `form-action 'self' https://www.mollie.com https://*.mollie.com`,
-  `img-src 'self' data: blob: https://picsum.photos https://fastly.picsum.photos https:`,
+  isProd
+    ? `img-src 'self' data: blob: https:`
+    : `img-src 'self' data: blob: https://picsum.photos https://fastly.picsum.photos https:`,
   `font-src 'self' data:`,
   `style-src 'self' 'unsafe-inline'`,
   // Next 15 with React Server Components emits inline `<script>` tags into
@@ -27,9 +47,7 @@ const csp = [
   isProd
     ? `script-src 'self' 'unsafe-inline'`
     : `script-src 'self' 'unsafe-inline' 'unsafe-eval'`,
-  `connect-src 'self' https://api.mollie.com https://*.sentry.io ${
-    process.env.SMMTA_API_BASE_URL ? new URL(process.env.SMMTA_API_BASE_URL).origin : ''
-  }`.trim(),
+  `connect-src 'self' https://api.mollie.com https://*.sentry.io ${publicApiOrigin()}`.trim(),
   `object-src 'none'`,
   `worker-src 'self' blob:`,
 ].join('; ');
@@ -53,6 +71,9 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  // Don't advertise the framework. Free information for anyone
+  // fingerprinting the stack for known-version exploits.
+  poweredByHeader: false,
   // Standalone output bakes the runtime into .next/standalone for the
   // systemd unit in Prompt 14 — `node .next/standalone/server.js`.
   output: 'standalone',

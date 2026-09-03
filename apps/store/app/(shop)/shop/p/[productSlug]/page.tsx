@@ -36,20 +36,40 @@ export async function generateMetadata({
   const { productSlug } = await params;
   try {
     const product = await getProductBySlug(productSlug);
-    // For grouped variants, canonical points at the group page with the
-    // colour query, not at this URL — avoids fragmenting search rankings.
-    const canonical = product.groupId
-      ? null
-      : `/shop/p/${product.slug ?? productSlug}`;
+    // `/shop/p/*` is THE indexable variant surface.
+    //
+    // Grouped variants used to be noindex with no canonical, on the
+    // reasoning that ?colour= on the group page was the real URL. That
+    // hid well over a hundred ready-built pages — each with a unique
+    // title and description targeting exactly the phrase people search
+    // ("green PLA filament 1kg") — from Google entirely, and with no
+    // canonical there was nothing consolidating the signal back to the
+    // parent either. So: self-canonical, indexable, in the sitemap, and
+    // the group page's swatches link here. `?colour=` stays as the
+    // in-page toggle and still canonicalises to the parent.
+    const canonical = `/shop/p/${product.slug ?? productSlug}`;
     return {
       title: pageTitle(product.seoTitle, product.name),
       description: product.seoDescription ?? product.shortDescription ?? undefined,
       keywords: product.seoKeywords ?? undefined,
-      alternates: canonical ? { canonical } : undefined,
-      robots: { index: !product.groupId, follow: true },
+      alternates: { canonical },
+      robots: { index: true, follow: true },
+      // og:type=product, not website — it changes how link previews render
+      // on social platforms and is what the page actually is. Next's
+      // typed OpenGraph union has no 'product' member, so the type and
+      // the price properties are emitted through `other`; the block
+      // below deliberately omits `type` so only one og:type is written.
+      other: {
+        'og:type': 'product',
+        ...(product.priceGbp
+          ? {
+              'product:price:amount': String(product.priceGbp),
+              'product:price:currency': 'GBP',
+            }
+          : {}),
+      },
       openGraph: {
-        type: 'website',
-        url: canonical ?? `/shop/p/${productSlug}`,
+        url: canonical,
         title: socialTitle(product.seoTitle, product.name),
         description: product.seoDescription ?? product.shortDescription ?? undefined,
         images: product.heroImageUrl ? [product.heroImageUrl] : undefined,

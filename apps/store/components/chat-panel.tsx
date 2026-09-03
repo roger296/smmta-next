@@ -121,8 +121,12 @@ export function ChatPanel() {
     if (eventName === 'error') {
       let text = 'Sorry — something went wrong. Please try again.';
       try {
-        const payload = JSON.parse(dataMatch[1]) as { message?: string };
+        const payload = JSON.parse(dataMatch[1]) as { message?: string; ref?: string };
         if (payload.message) text = payload.message;
+        // The server keeps the real cause in its log under this ref.
+        // Showing it lets a customer quote something useful without
+        // exposing which provider or model the store pays for.
+        if (payload.ref) text = `${text} (ref ${payload.ref})`;
       } catch {
         /* keep the generic fallback */
       }

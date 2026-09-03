@@ -158,25 +158,33 @@ export function CheckoutForm() {
           value={state.email}
           onChange={(v) => set('email', v)}
           type="email"
+          autoComplete="email"
+          inputMode="email"
         />
         <div className="grid gap-3 md:grid-cols-2">
-          <Field id="cf-first" name="firstName" label="First name" required value={state.firstName} onChange={(v) => set('firstName', v)} />
-          <Field id="cf-last" name="lastName" label="Last name" required value={state.lastName} onChange={(v) => set('lastName', v)} />
+          <Field id="cf-first" name="firstName" label="First name" required value={state.firstName} onChange={(v) => set('firstName', v)} autoComplete="given-name" />
+          <Field id="cf-last" name="lastName" label="Last name" required value={state.lastName} onChange={(v) => set('lastName', v)} autoComplete="family-name" />
         </div>
-        <Field id="cf-phone" name="phone" label="Phone (optional)" value={state.phone} onChange={(v) => set('phone', v)} type="tel" />
+        <Field id="cf-phone" name="phone" label="Phone (optional)" value={state.phone} onChange={(v) => set('phone', v)} type="tel" autoComplete="tel" inputMode="tel" />
       </fieldset>
 
       <fieldset className="space-y-3">
         <legend className="text-base font-medium">Delivery address</legend>
-        <Field id="cf-line1" name="line1" label="Address line 1" required value={state.line1} onChange={(v) => set('line1', v)} />
-        <Field id="cf-line2" name="line2" label="Address line 2 (optional)" value={state.line2} onChange={(v) => set('line2', v)} />
+        <Field id="cf-line1" name="line1" label="Address line 1" required value={state.line1} onChange={(v) => set('line1', v)} autoComplete="address-line1" />
+        <Field id="cf-line2" name="line2" label="Address line 2 (optional)" value={state.line2} onChange={(v) => set('line2', v)} autoComplete="address-line2" />
         <div className="grid gap-3 md:grid-cols-2">
-          <Field id="cf-city" name="city" label="City" required value={state.city} onChange={(v) => set('city', v)} />
-          <Field id="cf-region" name="region" label="County / region" value={state.region} onChange={(v) => set('region', v)} />
+          <Field id="cf-city" name="city" label="City" required value={state.city} onChange={(v) => set('city', v)} autoComplete="address-level2" />
+          <Field id="cf-region" name="region" label="County / region" value={state.region} onChange={(v) => set('region', v)} autoComplete="address-level1" />
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          <Field id="cf-postcode" name="postCode" label="Post code" required value={state.postCode} onChange={(v) => set('postCode', v)} />
-          <Field id="cf-country" name="country" label="Country" required value={state.country} onChange={(v) => set('country', v)} />
+          {/*
+            No inputMode="numeric" here, despite it being a common
+            recommendation: UK postcodes are alphanumeric (SK11 0LP), so
+            a numeric keypad would make the field impossible to complete
+            on a handset. That advice is sound for US ZIP codes only.
+          */}
+          <Field id="cf-postcode" name="postCode" label="Post code" required value={state.postCode} onChange={(v) => set('postCode', v)} autoComplete="postal-code" />
+          <CountryField id="cf-country" name="country" value={state.country} onChange={(v) => set('country', v)} />
         </div>
       </fieldset>
 
@@ -192,15 +200,15 @@ export function CheckoutForm() {
         </label>
         {state.separateBilling && (
           <div className="space-y-3">
-            <Field id="bf-line1" name="billing-line1" label="Address line 1" required value={state.billing.line1} onChange={(v) => setBilling('line1', v)} />
-            <Field id="bf-line2" name="billing-line2" label="Address line 2 (optional)" value={state.billing.line2} onChange={(v) => setBilling('line2', v)} />
+            <Field id="bf-line1" name="billing-line1" label="Address line 1" required value={state.billing.line1} onChange={(v) => setBilling('line1', v)} autoComplete="billing address-line1" />
+            <Field id="bf-line2" name="billing-line2" label="Address line 2 (optional)" value={state.billing.line2} onChange={(v) => setBilling('line2', v)} autoComplete="billing address-line2" />
             <div className="grid gap-3 md:grid-cols-2">
-              <Field id="bf-city" name="billing-city" label="City" required value={state.billing.city} onChange={(v) => setBilling('city', v)} />
-              <Field id="bf-region" name="billing-region" label="County / region" value={state.billing.region} onChange={(v) => setBilling('region', v)} />
+              <Field id="bf-city" name="billing-city" label="City" required value={state.billing.city} onChange={(v) => setBilling('city', v)} autoComplete="billing address-level2" />
+              <Field id="bf-region" name="billing-region" label="County / region" value={state.billing.region} onChange={(v) => setBilling('region', v)} autoComplete="billing address-level1" />
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <Field id="bf-postcode" name="billing-postCode" label="Post code" required value={state.billing.postCode} onChange={(v) => setBilling('postCode', v)} />
-              <Field id="bf-country" name="billing-country" label="Country" required value={state.billing.country} onChange={(v) => setBilling('country', v)} />
+              <Field id="bf-postcode" name="billing-postCode" label="Post code" required value={state.billing.postCode} onChange={(v) => setBilling('postCode', v)} autoComplete="billing postal-code" />
+              <CountryField id="bf-country" name="billing-country" value={state.billing.country} onChange={(v) => setBilling('country', v)} />
             </div>
           </div>
         )}
@@ -300,8 +308,29 @@ interface FieldProps {
   onChange: (v: string) => void;
   required?: boolean;
   type?: string;
+  /**
+   * WHATWG autofill token. Not optional in practice — every field on a
+   * checkout has a correct one, and without it browser and iOS/Android
+   * address autofill silently does nothing, so a mobile customer types
+   * a full delivery address by hand at exactly the moment they are most
+   * likely to abandon. Left typed as optional only because the
+   * marketing-consent checkbox below reuses nothing from here.
+   */
+  autoComplete?: string;
+  /** Surfaces the right on-screen keyboard: 'numeric' for postcodes. */
+  inputMode?: 'text' | 'numeric' | 'tel' | 'email';
 }
-function Field({ id, name, label, value, onChange, required, type = 'text' }: FieldProps) {
+function Field({
+  id,
+  name,
+  label,
+  value,
+  onChange,
+  required,
+  type = 'text',
+  autoComplete,
+  inputMode,
+}: FieldProps) {
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="text-sm">
@@ -315,8 +344,93 @@ function Field({ id, name, label, value, onChange, required, type = 'text' }: Fi
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
-        className="w-full rounded-[var(--radius)] border border-[var(--brand-border)] bg-transparent px-3 py-2 text-sm focus-visible:border-[var(--brand-ink)] focus-visible:outline-none"
+        autoComplete={autoComplete}
+        inputMode={inputMode}
+        // min-h-11 = 44px: the iOS/WCAG touch-target floor. The visual
+        // density is unchanged on desktop; this only stops the control
+        // being smaller than a fingertip on a handset.
+        className="min-h-11 w-full rounded-[var(--radius)] border border-[var(--brand-border)] bg-transparent px-3 py-2 text-sm focus-visible:border-[var(--brand-ink)] focus-visible:outline-none"
       />
+    </div>
+  );
+}
+
+/**
+ * Countries we ship to.
+ *
+ * Country was a free-text box, which is the field that decides shipping
+ * cost, VAT treatment and whether duties apply on arrival — so "UK",
+ * "U.K.", "England", "Great Britain" and "united kingdon" all arrived
+ * and all broke downstream rate logic. The value stored is the ISO
+ * 3166-1 alpha-2 code, not the display string.
+ *
+ * The list is the UK plus the EU states the FAQ says we ship to; extend
+ * it when carriage rates for a new destination actually exist rather
+ * than offering a country the checkout can't price.
+ */
+const SHIPPING_COUNTRIES: Array<{ code: string; name: string }> = [
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'AT', name: 'Austria' },
+  { code: 'BE', name: 'Belgium' },
+  { code: 'BG', name: 'Bulgaria' },
+  { code: 'HR', name: 'Croatia' },
+  { code: 'CY', name: 'Cyprus' },
+  { code: 'CZ', name: 'Czechia' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'EE', name: 'Estonia' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'FR', name: 'France' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'GR', name: 'Greece' },
+  { code: 'HU', name: 'Hungary' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'LV', name: 'Latvia' },
+  { code: 'LT', name: 'Lithuania' },
+  { code: 'LU', name: 'Luxembourg' },
+  { code: 'MT', name: 'Malta' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'PL', name: 'Poland' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'RO', name: 'Romania' },
+  { code: 'SK', name: 'Slovakia' },
+  { code: 'SI', name: 'Slovenia' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'SE', name: 'Sweden' },
+];
+
+function CountryField({
+  id,
+  name,
+  value,
+  onChange,
+}: {
+  id: string;
+  name: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label htmlFor={id} className="text-sm">
+        Country
+        <span className="ml-0.5 text-[var(--brand-accent)]">*</span>
+      </label>
+      <select
+        id={id}
+        name={name}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+        autoComplete="country"
+        className="min-h-11 w-full rounded-[var(--radius)] border border-[var(--brand-border)] bg-transparent px-3 py-2 text-sm focus-visible:border-[var(--brand-ink)] focus-visible:outline-none"
+      >
+        {SHIPPING_COUNTRIES.map((c) => (
+          <option key={c.code} value={c.code}>
+            {c.name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
