@@ -25,6 +25,7 @@ import {
   startMockMollie,
   stopMockMollie,
 } from './_helpers/mock-mollie';
+import { addSelectedVariantToCart, selectFirstSwatchIfPresent } from './_helpers/cart';
 import { getPublicOrder } from './_helpers/admin-api';
 
 const SEEDED_GROUP_SLUG = process.env.E2E_GROUP_SLUG ?? 'landau-pla-basic-1-75mm-1kg';
@@ -44,12 +45,8 @@ test.describe('Storefront sad paths', () => {
     setMollieScenario('cancelled');
 
     await page.goto(`/shop/${SEEDED_GROUP_SLUG}`);
-    const swatch = page.locator('[data-test="swatch"]').first();
-    if ((await swatch.count()) > 0) await swatch.click();
-    await page.getByRole('button', { name: /^add to cart$/i }).click();
-    await expect(
-      page.getByRole('button', { name: /^added/i }),
-    ).toBeVisible({ timeout: 5_000 });
+    await selectFirstSwatchIfPresent(page);
+    await addSelectedVariantToCart(page);
     await page.goto('/cart');
     await expect(page).toHaveURL(/\/cart/);
     await page.locator('a, button', { hasText: /checkout/i }).first().click();
@@ -96,12 +93,8 @@ test.describe('Storefront sad paths', () => {
     setMollieScenario('webhook-fails');
 
     await page.goto(`/shop/${SEEDED_GROUP_SLUG}`);
-    const swatch = page.locator('[data-test="swatch"]').first();
-    if ((await swatch.count()) > 0) await swatch.click();
-    await page.getByRole('button', { name: /^add to cart$/i }).click();
-    await expect(
-      page.getByRole('button', { name: /^added/i }),
-    ).toBeVisible({ timeout: 5_000 });
+    await selectFirstSwatchIfPresent(page);
+    await addSelectedVariantToCart(page);
     await page.goto('/cart');
     await expect(page).toHaveURL(/\/cart/);
     await page.locator('a, button', { hasText: /checkout/i }).first().click();
