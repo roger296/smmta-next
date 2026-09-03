@@ -35,8 +35,13 @@ describe('AddToCartButton — component contract', () => {
     // The notify-me form (out-of-stock branch) legitimately uses
     // `<button type="submit">` because it's inside an actual <form> —
     // that's a different component and the e2e tests don't touch it.
-    const activeBlock =
-      SOURCE.match(/function AddToCartActiveButton[\s\S]+?\n\}/)?.[0] ?? '';
+    // Slice to the next top-level function rather than the first closing
+    // brace — the component now contains nested closures (the quantity
+    // handlers), so a non-greedy match to `\n}` stops early and reads
+    // almost none of the component.
+    const start = SOURCE.indexOf('function AddToCartActiveButton');
+    const end = SOURCE.indexOf('function NotifyMeForm');
+    const activeBlock = start >= 0 && end > start ? SOURCE.slice(start, end) : '';
     expect(activeBlock).toMatch(/type="button"/);
     expect(activeBlock).not.toMatch(/type="submit"/);
   });
@@ -47,11 +52,26 @@ describe('AddToCartButton — component contract', () => {
     expect(SOURCE).toMatch(/label\s*=\s*['"]Add to cart['"]/);
   });
 
-  it('shows "Added" after a successful add (drives the e2e wait)', () => {
-    // The Playwright tests wait for `getByRole('button', { name: /^added/i })`
-    // before navigating to /cart, so the component must surface a label
-    // beginning with "Added" when the mutation resolves.
-    expect(SOURCE).toMatch(/Added\s*✓/);
+  it('confirms the add next to the button, not only in the header badge', () => {
+    // Bug 11 from the September audit: the only confirmation was the
+    // header cart badge, which on a product page sits off-screen above
+    // the fold — so the natural next move was to press Add again. The
+    // confirmation now renders under the control that caused it, with
+    // role="status" so it is announced, and a link onward to the basket.
+    //
+    // The Playwright suites wait on this element (see
+    // checkout-happy-path.spec.ts), so its role and text are a contract.
+    expect(SOURCE).toMatch(/role="status"/);
+    expect(SOURCE).toMatch(/Added\{quantity > 1/);
+    expect(SOURCE).toMatch(/View basket/);
+  });
+
+  it('offers a quantity stepper on the product page (UX 05)', () => {
+    // Buying three spools previously meant adding one, navigating to the
+    // basket and pressing + twice — while the FAQ advertised a 10+
+    // discount, i.e. actively promoting a route that was never built.
+    expect(SOURCE).toMatch(/aria-label="Increase quantity"/);
+    expect(SOURCE).toMatch(/aria-label="Decrease quantity"/);
   });
 
   it('disables the in-stock button while the mutation is pending', () => {

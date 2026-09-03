@@ -8,6 +8,7 @@ import { CartHeaderLink } from '@/components/cart-header-link';
 import { SiteFooter } from '@/components/site-footer';
 import { ChatPanel } from '@/components/chat-panel';
 import { getComingSoon } from '@/lib/smmta';
+import { HeaderSearch } from '@/components/header-search';
 import { LEGAL } from '@/lib/legal';
 
 const STORE_NAME = 'Filament Store';
@@ -170,7 +171,7 @@ async function Header() {
             <li>
               <a
                 href="/shop"
-                className="transition-colors hover:text-[var(--brand-accent)]"
+                className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--brand-accent)]"
               >
                 Shop
               </a>
@@ -179,7 +180,7 @@ async function Header() {
               <li>
                 <a
                   href="/shop/coming-soon"
-                  className="transition-colors hover:text-[var(--brand-accent)]"
+                  className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--brand-accent)]"
                 >
                   Coming soon
                 </a>
@@ -188,9 +189,17 @@ async function Header() {
             <li>
               <a
                 href="/faq"
-                className="transition-colors hover:text-[var(--brand-accent)]"
+                className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--brand-accent)]"
               >
                 FAQ
+              </a>
+            </li>
+            <li>
+              <a
+                href="/about"
+                className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--brand-accent)]"
+              >
+                About
               </a>
             </li>
             <li>
@@ -198,6 +207,14 @@ async function Header() {
             </li>
           </ul>
         </nav>
+      </div>
+
+      {/* Search row. Separate from the nav so it can be full-width on a
+          handset without squeezing the primary links. */}
+      <div className="border-t border-[var(--brand-border)] bg-[var(--brand-bone)]">
+        <div className="mx-auto flex max-w-6xl justify-center px-6 py-3">
+          <HeaderSearch className="w-full max-w-xl" />
+        </div>
       </div>
     </header>
   );

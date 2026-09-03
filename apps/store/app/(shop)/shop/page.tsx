@@ -17,21 +17,44 @@ import { CatalogueGrid } from '../_components/catalogue-grid';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Shop',
-  description:
-    'The full Filament Store range — PLA, PETG, ABS, ASA, TPU. Browse by material, filter by colour and price.',
-  alternates: { canonical: '/shop' },
-  openGraph: {
-    type: 'website',
-    url: '/shop',
-    title: 'Shop | Filament Store',
-    description: 'The full Filament Store range — every material, every colour.',
-  },
-  robots: { index: true, follow: true },
-};
+interface ShopPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
 
-export default async function ShopPage() {
+function firstValue(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : (v ?? undefined);
+}
+
+/**
+ * Filtered views canonicalise to /shop so a colour or price facet can't
+ * fragment the ranking signal. Search result pages (?q=) are noindexed
+ * outright — an infinite space of thin, near-duplicate pages is the
+ * classic way to waste a small site's crawl budget.
+ */
+export async function generateMetadata({ searchParams }: ShopPageProps): Promise<Metadata> {
+  const sp = await searchParams;
+  const isSearch = Boolean(firstValue(sp.q)?.trim());
+  return {
+    title: isSearch ? `Search: ${firstValue(sp.q)}` : 'Shop',
+    description:
+      'The full Filament Store range — PLA, PETG, ABS, ASA, TPU. Browse by material, filter by colour and price.',
+    alternates: { canonical: '/shop' },
+    openGraph: {
+      type: 'website',
+      url: '/shop',
+      title: 'Shop | Filament Store',
+      description: 'The full Filament Store range — every material, every colour.',
+    },
+    robots: { index: !isSearch, follow: true },
+  };
+}
+
+export default async function ShopPage({ searchParams }: ShopPageProps) {
+  // Filter state is read here and handed to the client island as
+  // initial props. That makes ?colour=/?q=/?maxPrice= work on first
+  // paint for a shared link or a crawler, without the island needing
+  // useSearchParams (and therefore without a Suspense boundary).
+  const sp = await searchParams;
   const env = getEnv();
   const baseUrl = (() => {
     try {
@@ -113,6 +136,13 @@ export default async function ShopPage() {
           priceMin={priceMin}
           priceMax={priceMax}
           colourOptions={colourOptions}
+          initialColour={firstValue(sp.colour) ?? null}
+          initialMaxPrice={
+            Number.isFinite(Number(firstValue(sp.maxPrice)))
+              ? Number(firstValue(sp.maxPrice))
+              : null
+          }
+          initialQuery={firstValue(sp.q) ?? null}
         />
       </div>
     </>

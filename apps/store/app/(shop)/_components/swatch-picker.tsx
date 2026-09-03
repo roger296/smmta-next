@@ -55,6 +55,11 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
   const selectedState = effectiveStockState(selected);
   const sellable = isSellable(selectedState);
   const inStock = sellable; // back-compat for the AddToCartButton prop
+  // Only show per-swatch prices when colours actually differ in price —
+  // repeating the same figure on every chip is noise. On this catalogue
+  // they often DO differ (Green £7.25 vs Grey £9.25 on the same range),
+  // which the customer previously discovered only after clicking.
+  const pricesVary = new Set(variants.map((v) => v.priceGbp ?? '')).size > 1;
   const lowStock =
     selectedState === 'IN_STOCK' && selected.availableQty > 0 && selected.availableQty <= 5;
 
@@ -156,6 +161,17 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
                   ? 'var(--brand-stock-in)'
                   : 'var(--brand-stock-out)';
                 const flagDataTest = sellable ? 'stock-flag-in' : 'stock-flag-out';
+                // UX 03: an unavailable colour used to carry exactly the
+                // same visual weight as a buyable one, so on a range
+                // where four of five are out of stock the customer's eye
+                // had no way to find the one they could actually buy.
+                // Dimmed, desaturated, and struck through the swatch dot.
+                const unavailableClass = sellable ? '' : ' opacity-55 saturate-50';
+                // Show the price on the swatch when colours differ in
+                // price — otherwise the customer discovers a £2 delta
+                // only after clicking.
+                const swatchPrice =
+                  pricesVary && v.priceGbp ? `£${v.priceGbp}` : null;
                 return (
                   <button
                     key={v.id}
@@ -163,27 +179,53 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
                     data-test="swatch"
                     onClick={() => onPick(v)}
                     aria-pressed={isSelected}
-                    aria-label={`${colourLabel}. ${stockLabel}.`}
+                    aria-label={`${colourLabel}. ${stockLabel}.${
+                      swatchPrice ? ` ${swatchPrice}.` : ''
+                    }`}
                     title={`${colourLabel} — ${stockLabel}`}
                     className={
-                      isSelected
-                        ? 'flex items-center gap-2 border-2 border-[var(--brand-accent)] bg-[var(--brand-accent-ice)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors'
-                        : 'flex items-center gap-2 border border-[var(--brand-border)] bg-[var(--brand-paper)] px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors hover:border-[var(--brand-ink)]'
+                      // min-h-11 = the 44px touch floor; the swatches
+                      // were 30px tall on a handset.
+                      (isSelected
+                        ? 'flex min-h-11 items-center gap-2 border-2 border-[var(--brand-accent)] bg-[var(--brand-accent-ice)] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors'
+                        : 'flex min-h-11 items-center gap-2 border border-[var(--brand-border)] bg-[var(--brand-paper)] px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors hover:border-[var(--brand-ink)]') +
+                      unavailableClass
                     }
                   >
                     {v.colourHex && (
                       <span
                         aria-hidden="true"
-                        className="h-3.5 w-3.5 border border-[var(--brand-border)]"
+                        className="relative h-3.5 w-3.5 border border-[var(--brand-border)]"
                         style={{ backgroundColor: v.colourHex }}
-                      />
+                      >
+                        {!sellable && (
+                          <span
+                            className="absolute inset-0 block"
+                            style={{
+                              // Diagonal rule: reads as "unavailable"
+                              // without relying on colour alone, which
+                              // matters for colour-blind customers.
+                              background:
+                                'linear-gradient(to top right, transparent 45%, var(--brand-stock-out) 45%, var(--brand-stock-out) 55%, transparent 55%)',
+                            }}
+                          />
+                        )}
+                      </span>
                     )}
                     <span>{colourLabel}</span>
+                    {swatchPrice && (
+                      <span className="font-mono text-[10px] font-normal normal-case tracking-normal text-[var(--brand-muted)]">
+                        {swatchPrice}
+                      </span>
+                    )}
                     <span
                       aria-hidden="true"
                       data-test={flagDataTest}
                       data-stock-state={state}
-                      className="border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]"
+                      // Raised from 9px: this is the single most
+                      // decision-relevant word on the control and it was
+                      // set smaller than everything around it.
+                      className="border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
                       style={{ color: flagColour, borderColor: flagColour }}
                     >
                       {stockLabel}
@@ -212,10 +254,88 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
               : DISPATCH_COPY[selectedState].primary}
           </p>
 
-          <AddToCartButton
-            productId={selected.id}
-            inStock={inStock}
-          />
+          {/* data-test hook: the sticky mobile bar observes this element
+              and only shows itself once this CTA leaves the viewport. */}
+          <div data-test="primary-cta">
+            <AddToCartButton
+              productId={selected.id}
+              inStock={inStock}
+              showQuantity
+              bulkHint="10+ spools of the same colour: discount applied at checkout."
+            />
+          </div>
+        </div>
+      </div>
+
+      {/*
+        UX 02: on a 15-colour range the buy button sat ~1,600px down on
+        mobile — nearly two full screens of swatches before the customer
+        could act. This bar carries the selected colour, its price and
+        the action, and only appears once the main CTA has scrolled out
+        of view, so it never double-renders next to itself.
+        Hidden from md up, where the CTA is already in the first screen.
+      */}
+      {sellable && (
+        <StickyBuyBar
+          groupName={groupName}
+          colour={selected.colour}
+          priceGbp={selected.priceGbp}
+          productId={selected.id}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Mobile-only sticky purchase bar.
+ *
+ * Visibility is driven by an IntersectionObserver on the main CTA rather
+ * than a scroll offset — the page height varies enormously with the
+ * number of colours, so any fixed threshold would be wrong on most
+ * products.
+ */
+function StickyBuyBar({
+  groupName,
+  colour,
+  priceGbp,
+  productId,
+}: {
+  groupName: string;
+  colour: string | null;
+  priceGbp: string | null;
+  productId: string;
+}) {
+  const [showBar, setShowBar] = React.useState(false);
+
+  React.useEffect(() => {
+    // The main CTA is the last AddToCartButton in the info column.
+    const target = document.querySelector('[data-test="primary-cta"]');
+    if (!target || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowBar(!entry?.isIntersecting),
+      { rootMargin: '0px 0px -80px 0px' },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
+  if (!showBar) return null;
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--brand-border)] bg-[var(--brand-paper)] p-3 shadow-[0_-1px_0_var(--brand-border)] md:hidden">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-semibold">
+            {groupName}
+            {colour ? ` — ${colour}` : ''}
+          </p>
+          {priceGbp && (
+            <p className="text-sm font-bold text-[var(--brand-accent)]">£{priceGbp}</p>
+          )}
+        </div>
+        <div className="w-40 shrink-0">
+          <AddToCartButton productId={productId} inStock label="Add" />
         </div>
       </div>
     </div>
