@@ -18,6 +18,7 @@ import {
   startMockMollie,
   stopMockMollie,
 } from './_helpers/mock-mollie';
+import { addSelectedVariantToCart, selectFirstSwatchIfPresent } from './_helpers/cart';
 import { getPublicOrder } from './_helpers/admin-api';
 
 const SEEDED_GROUP_SLUG = process.env.E2E_GROUP_SLUG ?? 'landau-pla-basic-1-75mm-1kg';
@@ -47,25 +48,12 @@ test.describe('Storefront happy path', () => {
     await expect(page).toHaveURL(new RegExp(`/shop/${SEEDED_GROUP_SLUG}`));
 
     // ---------------- 2. Pick a colour (if multi-variant) --------
-    // The swatch picker is keyboard-accessible; we just click the first
-    // colour swatch. If the seeded group has only one variant the
-    // picker won't appear — that's fine, the add-to-cart still works.
-    const firstSwatch = page.locator('[data-test="swatch"]').first();
-    if ((await firstSwatch.count()) > 0) {
-      await firstSwatch.click();
-    }
+    // If the seeded group has only one variant the picker won't appear —
+    // that's fine, the add-to-cart still works.
+    await selectFirstSwatchIfPresent(page);
 
     // ---------------- 3. Add to cart ------------------------------
-    // The Add-to-Cart control is a `type="button"` that fires a fetch and
-    // does NOT navigate. The button label no longer changes on success —
-    // confirmation is a separate role="status" element beneath it, so a
-    // customer looking at the button (rather than the off-screen header
-    // badge) actually sees the result. Wait on that status element so we
-    // know the mutation completed, then drive navigation ourselves.
-    await page.getByRole('button', { name: /^add to cart$/i }).click();
-    await expect(
-      page.getByRole('status').filter({ hasText: /added/i }),
-    ).toBeVisible({ timeout: 5_000 });
+    await addSelectedVariantToCart(page);
     await page.goto('/cart');
     await expect(page).toHaveURL(/\/cart/);
 

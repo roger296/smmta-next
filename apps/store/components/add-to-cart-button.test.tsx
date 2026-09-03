@@ -16,7 +16,7 @@
  * than a render-based test but it's free of test-environment dependencies
  * and catches the exact regression we just fixed.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -64,6 +64,30 @@ describe('AddToCartButton — component contract', () => {
     expect(SOURCE).toMatch(/role="status"/);
     expect(SOURCE).toMatch(/Added\{quantity > 1/);
     expect(SOURCE).toMatch(/View basket/);
+  });
+
+  it('no e2e spec still waits on the removed "Added" BUTTON label', () => {
+    // This exists because of a real miss. When the confirmation moved
+    // out of the button label into a role="status" element, one of the
+    // four e2e call sites was updated and three were not — so CI went
+    // red on a change that was otherwise correct, and the unit suite
+    // said nothing because it only ever read this component's source.
+    //
+    // The waits now live in e2e/_helpers/cart.ts so there is one
+    // definition to update. This test guards against a new spec
+    // reintroducing the old selector by hand.
+    const specDir = path.join(__dirname, '..', 'e2e');
+    const offenders = readdirSync(specDir)
+      .filter((f) => f.endsWith('.spec.ts'))
+      .filter((f) =>
+        /getByRole\(\s*['"]button['"]\s*,\s*\{\s*name:\s*\/\^?added/i.test(
+          readFileSync(path.join(specDir, f), 'utf8'),
+        ),
+      );
+    expect(
+      offenders,
+      `these specs wait on a button named "Added", which the component no longer renders — use addSelectedVariantToCart() from e2e/_helpers/cart.ts`,
+    ).toEqual([]);
   });
 
   it('offers a quantity stepper on the product page (UX 05)', () => {

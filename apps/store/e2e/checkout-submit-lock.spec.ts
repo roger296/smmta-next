@@ -16,6 +16,7 @@ import {
   startMockMollie,
   stopMockMollie,
 } from './_helpers/mock-mollie';
+import { addSelectedVariantToCart } from './_helpers/cart';
 
 const SEEDED_GROUP_SLUG = process.env.E2E_GROUP_SLUG ?? 'landau-pla-basic-1-75mm-1kg';
 
@@ -34,13 +35,7 @@ test.describe('Checkout submit lock', () => {
     const firstSwatch = page.locator('[data-test="swatch"]').first();
     if ((await firstSwatch.count()) > 0) await firstSwatch.click();
 
-    // Add-to-cart fires a fetch and does not navigate. Wait for the success
-    // label: navigating early leaves the cart empty, and /checkout then
-    // redirects straight back to /cart with no form on it at all.
-    await page.getByRole('button', { name: /^add to cart$/i }).click();
-    await expect(page.getByRole('button', { name: /^added/i })).toBeVisible({
-      timeout: 5_000,
-    });
+    await addSelectedVariantToCart(page);
 
     await page.goto('/cart');
     await page.locator('a, button', { hasText: /checkout/i }).first().click();
