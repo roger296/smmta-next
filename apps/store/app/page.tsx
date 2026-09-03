@@ -78,7 +78,7 @@ export default async function HomePage() {
         </h1>
         <p className="max-w-2xl text-lg leading-relaxed text-[var(--brand-muted)]">
           PLA, PETG, ABS, ASA, and TPU from Landau. Tight tolerances, vacuum-sealed
-          cardboard spools, same-day dispatch from our UK warehouse on orders
+          spools, same-day dispatch from our UK warehouse on orders
           before 2pm.
         </p>
         <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -155,7 +155,8 @@ export default async function HomePage() {
         <div className="space-y-4 text-base leading-relaxed text-[var(--brand-muted)]">
           <p>
             We hold stock of every standard 3D printer filament — five materials, dozens of
-            colours. Vacuum-sealed in cardboard boxes (recyclable, like the spools).
+            colours. Every spool is vacuum-sealed with a desiccant pack in a recyclable
+            cardboard box.
           </p>
           <p>
             Orders before 2pm ship same day from our UK warehouse. No flash sales, no
@@ -220,8 +221,8 @@ export default async function HomePage() {
               body: 'Unopened spools returnable for a full refund of the item price.',
             },
             {
-              title: 'Recyclable spools',
-              body: 'Cardboard spools and boxes on most ranges, vacuum-sealed with desiccant.',
+              title: 'Tight tolerances',
+              body: 'Every spool made to ±0.02mm diameter tolerance and tested before packing.',
             },
           ].map((item) => (
             <li key={item.title} className="bg-[var(--brand-paper)] p-6">
