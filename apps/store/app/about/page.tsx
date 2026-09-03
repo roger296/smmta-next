@@ -102,8 +102,9 @@ export default function AboutPage() {
         </p>
         <p>
           Filament arrives vacuum-sealed with a desiccant pack and stays that way until you
-          open it. The spools are cardboard on most ranges — recyclable, and they fit the same
-          mounts as plastic. Orders placed before 2pm ship the same working day.
+          open it, in a recyclable cardboard box. The spools are standard-hub plastic, so they
+          drop straight onto any common mount or dry box. Orders placed before 2pm ship the
+          same working day.
         </p>
         <p>
           We don&rsquo;t run flash sales, we don&rsquo;t take payment for placement in our own

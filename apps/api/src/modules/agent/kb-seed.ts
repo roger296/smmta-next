@@ -61,7 +61,14 @@ addition to this and are set out at /legal/returns.
 
 ## How is an order packaged?
 
-Each item is sealed and boxed for transit. Packaging is recyclable.
+Each spool is vacuum-sealed with a desiccant pack inside a recyclable cardboard
+box, so it arrives as dry as it left the warehouse.
+
+## What are the spools made of?
+
+The spools are plastic, on the standard hub size, so they fit every common
+printer mount, spool holder and dry box. The outer packaging is recyclable
+cardboard.
 
 ## Do you offer trade or volume discounts?
 

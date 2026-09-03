@@ -40,7 +40,7 @@ export const SHIPPING_FAQ: FaqEntry[] = [
   {
     question: 'How is the filament packaged?',
     answer:
-      'Each spool is vacuum-sealed inside a recyclable cardboard box with a desiccant pack. The spool itself is cardboard (not plastic) on most ranges — recyclable, biodegradable, and fits the same printer mounts.',
+      'Each spool is vacuum-sealed inside a recyclable cardboard box with a desiccant pack, so it arrives as dry as it left us. The spool itself is plastic, on the standard hub size that fits every common printer mount and holder.',
   },
   {
     question: 'Which materials should I use?',
