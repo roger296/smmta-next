@@ -8,11 +8,22 @@ import type { Metadata } from 'next';
 import { getComingSoon } from '@/lib/smmta';
 import { RegisterInterestForm } from '@/components/register-interest-form';
 
-export const metadata: Metadata = {
-  title: 'Coming soon',
-  description:
-    'Filament we are considering ranging — register interest and help us decide what to bring in next.',
-};
+/**
+ * Metadata is generated rather than static so an empty list can be
+ * noindexed. With nothing ranged, this is a thin page competing for
+ * crawl budget against the catalogue; with products on it, it's a real
+ * demand-signal page worth indexing.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const items = await getComingSoon().catch(() => []);
+  return {
+    title: 'Coming soon',
+    description:
+      'Filament we are considering ranging — register interest and help us decide what to bring in next.',
+    alternates: { canonical: '/shop/coming-soon' },
+    robots: { index: items.length > 0, follow: true },
+  };
+}
 
 // Live demand data — render at request time (avoids a build-time fetch to the
 // API, which isn't running during `next build`).

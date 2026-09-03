@@ -42,8 +42,12 @@ export async function chatRoutes(app: FastifyInstance) {
       );
       reply.raw.write('event: done\ndata: {}\n\n');
     } catch (err) {
-      request.log.error({ err, sessionId }, 'chat turn failed');
-      const payload = summariseChatError(err);
+      // The full error — including which model failed and why — stays
+      // server-side. `ref` is the only part the customer sees, and it
+      // ties their report back to this log line.
+      const ref = errorRef();
+      request.log.error({ err, sessionId, ref }, 'chat turn failed');
+      const payload = summariseChatError(err, ref);
       reply.raw.write(`event: error\ndata: ${JSON.stringify(payload)}\n\n`);
     }
     reply.raw.end();
@@ -51,31 +55,36 @@ export async function chatRoutes(app: FastifyInstance) {
 }
 
 /**
- * Turn an internal exception into a payload the storefront can render
- * verbatim. The API's error frame is proxied through unchanged so the
- * customer sees `message` immediately — the storefront doesn't need to
- * know about our internal error taxonomy.
+ * Turn an internal exception into a payload safe to stream to a browser.
  *
- * `detail` is intentionally truncated: enough to distinguish common
- * failure modes when a customer reports "the chat said X" without
- * dumping stack traces or leaking connection strings. Only surfaced
- * from our own thrown errors (never user-typed content echoed back).
+ * `detail` used to carry the truncated exception text. That leaked the
+ * provider and model names — an audit found "OpenRouter failed: No
+ * endpoints found for google/gemini-flash-1.5" visible to anyone with
+ * devtools open, which tells a competitor exactly which provider and
+ * model the store pays for.
+ *
+ * The diagnosis it was there for still matters, so instead of dropping
+ * it we swap it for a correlation id: the full error goes to the server
+ * log alongside the same id, and a customer reporting "it said ref
+ * a1b2c3d4" can be matched to the exact log line in seconds.
  */
-function summariseChatError(err: unknown): {
+function summariseChatError(
+  err: unknown,
+  ref: string,
+): {
   error: string;
   message: string;
-  detail?: string;
+  ref: string;
 } {
   if (err instanceof LlmUnavailableError) {
     // Operator-facing misconfiguration, not a customer-facing bug. Say
     // the assistant is off rather than implying the customer's question
-    // broke something — and keep the detail so /admin and the browser
-    // console name the missing variable directly.
+    // broke something.
     return {
       error: 'unavailable',
       message:
         'The assistant is offline at the moment. Please email sales@cleverdeals.net and we’ll help directly.',
-      detail: 'OPENROUTER_API_KEY not configured',
+      ref,
     };
   }
   const raw = err instanceof Error ? err.message : String(err);
@@ -83,14 +92,17 @@ function summariseChatError(err: unknown): {
     return {
       error: 'session_expired',
       message: "That chat session isn't valid any more — refresh the page to start a new one.",
+      ref,
     };
   }
   return {
     error: 'internal',
     message: 'Something went wrong on our end. Please try again in a moment.',
-    // Wide enough to carry an AllModelsFailedError listing every
-    // candidate and its reason — the whole point of that error is
-    // that a truncated list hides which model actually broke.
-    detail: raw.slice(0, 400),
+    ref,
   };
+}
+
+/** Short, non-guessable id tying a customer-visible error to a log line. */
+function errorRef(): string {
+  return Math.random().toString(16).slice(2, 10);
 }

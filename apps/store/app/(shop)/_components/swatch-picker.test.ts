@@ -37,7 +37,20 @@ describe('SwatchPicker — stock-flag contract', () => {
   });
 
   it('encodes stock state in the accessible name', () => {
-    expect(SOURCE).toMatch(/aria-label=\{`\$\{colourLabel\}\. \$\{stockLabel\}\.`\}/);
+    // The label now also carries the price when colours differ in price
+    // (UX 03), so this asserts the two parts that matter rather than the
+    // exact template: a screen-reader user must hear the colour AND
+    // whether it can be bought, without depending on the visual flag.
+    expect(SOURCE).toMatch(/aria-label=\{`\$\{colourLabel\}\. \$\{stockLabel\}\./);
+  });
+
+  it('de-emphasises unavailable swatches by more than colour alone', () => {
+    // UX 03: out-of-stock colours carried identical visual weight to
+    // buyable ones. Opacity plus a diagonal rule through the swatch dot
+    // — the rule matters because opacity alone still reads as "colour",
+    // which is exactly what a colour-blind customer can't rely on.
+    expect(SOURCE).toContain('opacity-55');
+    expect(SOURCE).toMatch(/linear-gradient\(to top right/);
   });
 
   it('marks the flag aria-hidden so the accessible name is the single source of truth', () => {

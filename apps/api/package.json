@@ -28,7 +28,8 @@
     "import:uneek-products": "tsx scripts/import-uneek-products.ts",
     "seed:ralawise-catalogue": "tsx scripts/seed-ralawise-catalogue.ts",
     "seed:categories": "tsx scripts/seed-categories.ts",
-    "assign-categories": "tsx scripts/assign-categories.ts"
+    "assign-categories": "tsx scripts/assign-categories.ts",
+    "repair:seo-copy": "tsx scripts/repair-seo-copy.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",

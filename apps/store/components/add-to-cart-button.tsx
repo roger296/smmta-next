@@ -54,18 +54,51 @@ export interface AddToCartButtonProps {
   inStock: boolean;
   /** Optional override label (e.g. "Add to cart"). */
   label?: string;
+  /** Show the quantity stepper. Off in compact contexts (the sticky
+   *  mobile bar), on for the main product-page CTA. */
+  showQuantity?: boolean;
+  /** Trade-break hint shown under the stepper, e.g. "10+ spools:
+   *  discount applied at checkout". */
+  bulkHint?: string;
 }
 
-export function AddToCartButton({ productId, inStock, label = 'Add to cart' }: AddToCartButtonProps) {
+export function AddToCartButton({
+  productId,
+  inStock,
+  label = 'Add to cart',
+  showQuantity = false,
+  bulkHint,
+}: AddToCartButtonProps) {
   if (!inStock) {
     return <NotifyMeForm productId={productId} />;
   }
 
-  return <AddToCartActiveButton productId={productId} label={label} />;
+  return (
+    <AddToCartActiveButton
+      productId={productId}
+      label={label}
+      showQuantity={showQuantity}
+      bulkHint={bulkHint}
+    />
+  );
 }
 
-function AddToCartActiveButton({ productId, label }: { productId: string; label: string }) {
+/** Cart maximum per line — matches the server-side validation. */
+const MAX_QTY = 99;
+
+function AddToCartActiveButton({
+  productId,
+  label,
+  showQuantity,
+  bulkHint,
+}: {
+  productId: string;
+  label: string;
+  showQuantity: boolean;
+  bulkHint?: string;
+}) {
   const [justAdded, setJustAdded] = React.useState(false);
+  const [quantity, setQuantity] = React.useState(1);
   const [error, setError] = React.useState<string | null>(null);
 
   const mutation = useMutation({
@@ -74,7 +107,7 @@ function AddToCartActiveButton({ productId, label }: { productId: string; label:
       setError(null);
       setJustAdded(true);
       window.dispatchEvent(new Event('cart:updated'));
-      setTimeout(() => setJustAdded(false), 2_000);
+      setTimeout(() => setJustAdded(false), 6_000);
     },
     onError: (err: unknown) => {
       setError(err instanceof Error ? err.message : 'Add to cart failed');
@@ -82,16 +115,86 @@ function AddToCartActiveButton({ productId, label }: { productId: string; label:
   });
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {showQuantity && (
+        <div className="flex items-center gap-3">
+          <span id="qty-label" className="text-sm text-[var(--brand-muted)]">
+            Quantity
+          </span>
+          <div className="flex items-center border border-[var(--brand-border)]">
+            <button
+              type="button"
+              aria-label="Decrease quantity"
+              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+              disabled={quantity <= 1}
+              className="h-11 w-11 text-lg disabled:opacity-40"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_QTY}
+              value={quantity}
+              aria-labelledby="qty-label"
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n)) setQuantity(Math.min(MAX_QTY, Math.max(1, Math.trunc(n))));
+              }}
+              className="h-11 w-14 border-x border-[var(--brand-border)] bg-transparent text-center text-sm"
+            />
+            <button
+              type="button"
+              aria-label="Increase quantity"
+              onClick={() => setQuantity((q) => Math.min(MAX_QTY, q + 1))}
+              disabled={quantity >= MAX_QTY}
+              className="h-11 w-11 text-lg disabled:opacity-40"
+            >
+              +
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* The trade break was advertised only in the FAQ, which is the
+          wrong place for it — surfaced here it's at the point of
+          decision, next to the control that acts on it. */}
+      {showQuantity && bulkHint && (
+        <p className="text-xs text-[var(--brand-muted)]">{bulkHint}</p>
+      )}
+
       <button
         type="button"
-        onClick={() => mutation.mutate({ productId })}
+        onClick={() => mutation.mutate({ productId, quantity })}
         disabled={mutation.isPending}
-        aria-live="polite"
         className="w-full bg-[var(--brand-ink)] px-6 py-4 text-sm font-semibold uppercase tracking-wider text-[var(--brand-paper)] transition-colors hover:bg-[var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {mutation.isPending ? 'Adding…' : justAdded ? 'Added ✓' : label}
+        {mutation.isPending ? 'Adding…' : label}
       </button>
+
+      {/*
+        Bug 11: the only confirmation used to be the header cart badge,
+        which on a product page sits well above the fold and off-screen —
+        so the natural next move was to press the button again. This
+        confirmation sits directly under the control that caused it,
+        carries a link onward, and is announced to screen readers.
+      */}
+      {justAdded && !error && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="flex items-center justify-between gap-3 border border-[var(--brand-border)] bg-[var(--brand-bone)] px-3 py-2 text-sm"
+        >
+          <span>
+            Added{quantity > 1 ? ` × ${quantity}` : ''} to your basket
+          </span>
+          <a href="/cart" className="font-semibold text-[var(--brand-accent)] hover:underline">
+            View basket →
+          </a>
+        </p>
+      )}
+
       {error && (
         <p role="alert" className="text-xs font-medium text-[#c43333]">
           {error}

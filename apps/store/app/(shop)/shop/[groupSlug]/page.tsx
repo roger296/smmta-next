@@ -13,10 +13,12 @@
  * than a separate path, so search engines don't index colour permutations
  * as duplicate content.
  */
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { listGroups, getGroupBySlug, SmmtaApiError } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
+import { ogImageUrl } from '@/lib/seo/og-image';
 import {
   breadcrumbLd,
   faqPageLd,
@@ -25,6 +27,9 @@ import {
 } from '@/lib/seo/structured-data';
 import { Markdown } from '@/lib/markdown';
 import { SHIPPING_FAQ } from '@/lib/seo/faq-data';
+
+/** How many FAQ entries a product page repeats before linking to /faq. */
+const PRODUCT_PAGE_FAQ_COUNT = 3;
 import { pageTitle, socialTitle } from '@/lib/seo/title';
 import { SwatchPicker } from '../../_components/swatch-picker';
 import { YouMayAlsoLike } from '../../_components/you-may-also-like';
@@ -54,6 +59,14 @@ export async function generateMetadata({
   const { groupSlug } = await params;
   try {
     const group = await getGroupBySlug(groupSlug);
+    const ogBase = (() => {
+      try {
+        return new URL(getEnv().STORE_BASE_URL);
+      } catch {
+        return new URL('http://localhost:3000');
+      }
+    })();
+    const ogImage = ogImageUrl(group.heroImageUrl, ogBase);
     return {
       title: pageTitle(group.seoTitle, group.name),
       description: group.seoDescription ?? group.shortDescription ?? undefined,
@@ -65,13 +78,13 @@ export async function generateMetadata({
         url: `/shop/${group.slug ?? groupSlug}`,
         title: socialTitle(group.seoTitle, group.name),
         description: group.seoDescription ?? group.shortDescription ?? undefined,
-        images: group.heroImageUrl ? [group.heroImageUrl] : undefined,
+        images: ogImage ? [ogImage] : undefined,
       },
       twitter: {
         card: 'summary_large_image',
         title: socialTitle(group.seoTitle, group.name),
         description: group.seoDescription ?? group.shortDescription ?? undefined,
-        images: group.heroImageUrl ? [group.heroImageUrl] : undefined,
+        images: ogImage ? [ogImage] : undefined,
       },
     };
   } catch {
@@ -122,7 +135,17 @@ export default async function GroupPage({
       { name: group.name, url },
     ]),
   );
-  const faqJson = stringifyJsonLd(faqPageLd(SHIPPING_FAQ));
+  // SEO 09: the identical nine-question FAQ was rendered verbatim on all
+  // 17 product pages — roughly 450 words against ~60 words of unique
+  // product copy, making every product page about 88% text that also
+  // appears on sixteen others. Three product-relevant questions stay
+  // (they answer real purchase objections at the point of decision); the
+  // rest is one click away on /faq.
+  //
+  // The JSON-LD still describes only what's visible on THIS page, so the
+  // markup and the rendered content can't drift apart.
+  const productFaq = SHIPPING_FAQ.slice(0, PRODUCT_PAGE_FAQ_COUNT);
+  const faqJson = stringifyJsonLd(faqPageLd(productFaq));
 
   return (
     <>
@@ -185,7 +208,7 @@ export default async function GroupPage({
           Shipping &amp; returns.
         </h2>
         <ul className="mt-8 divide-y divide-[var(--brand-border)] border-y border-[var(--brand-border)]">
-          {SHIPPING_FAQ.map((entry) => (
+          {productFaq.map((entry) => (
             <li key={entry.question} className="py-5">
               <h3 className="text-base font-semibold">{entry.question}</h3>
               <p
@@ -195,6 +218,14 @@ export default async function GroupPage({
             </li>
           ))}
         </ul>
+        <p className="mt-5 text-sm">
+          <Link
+            href="/faq"
+            className="font-semibold text-[var(--brand-accent)] underline-offset-2 hover:underline"
+          >
+            All shipping, returns and material questions →
+          </Link>
+        </p>
       </section>
     </>
   );

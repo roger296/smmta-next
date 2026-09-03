@@ -56,13 +56,15 @@ test.describe('Storefront happy path', () => {
     }
 
     // ---------------- 3. Add to cart ------------------------------
-    // The Add-to-Cart control is a `type="button"` that fires a fetch
-    // and toggles to "Added ✓"; it does NOT navigate. Use the role +
-    // accessible name to find it, wait for the success label so we know
-    // the mutation completed, then drive the navigation ourselves.
+    // The Add-to-Cart control is a `type="button"` that fires a fetch and
+    // does NOT navigate. The button label no longer changes on success —
+    // confirmation is a separate role="status" element beneath it, so a
+    // customer looking at the button (rather than the off-screen header
+    // badge) actually sees the result. Wait on that status element so we
+    // know the mutation completed, then drive navigation ourselves.
     await page.getByRole('button', { name: /^add to cart$/i }).click();
     await expect(
-      page.getByRole('button', { name: /^added/i }),
+      page.getByRole('status').filter({ hasText: /added/i }),
     ).toBeVisible({ timeout: 5_000 });
     await page.goto('/cart');
     await expect(page).toHaveURL(/\/cart/);

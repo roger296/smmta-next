@@ -9,10 +9,10 @@
  * Customer-facing in-flight URLs (cart / checkout / track / admin) are
  * intentionally omitted — robots.ts disallows them too.
  *
- * `lastmod` is the current build time for v1. The storefront read
- * endpoints don't yet expose `updated_at`; surfacing that is a follow-up
- * (out of scope for this prompt). Build-time-now is acceptable to
- * Google and is better than no lastmod at all.
+ * `lastmod` is the render time of this route. The storefront read
+ * endpoints still don't expose a per-product `updated_at`; with a 1-hour
+ * revalidate that gives Google a freshness signal that moves with the
+ * catalogue rather than being frozen at deploy time.
  *
  * Cap is 5,000 URLs per the prompt; we'll never approach it but the cap
  * is enforced for safety.
@@ -20,6 +20,7 @@
 import type { MetadataRoute } from 'next';
 import { listGroups, getProductsByIds } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
+import { MATERIALS } from '@/lib/materials';
 
 export const revalidate = 3600; // 1 hour — fresh enough for SEO
 
@@ -29,6 +30,7 @@ const STATIC_PATHS: Array<{ path: string; changeFrequency: 'monthly' | 'weekly';
   { path: '/', changeFrequency: 'weekly', priority: 1.0 },
   { path: '/shop', changeFrequency: 'weekly', priority: 0.9 },
   { path: '/faq', changeFrequency: 'monthly', priority: 0.5 },
+  { path: '/about', changeFrequency: 'monthly', priority: 0.5 },
   { path: '/legal/returns', changeFrequency: 'monthly', priority: 0.4 },
   { path: '/legal/terms', changeFrequency: 'monthly', priority: 0.3 },
   { path: '/legal/privacy', changeFrequency: 'monthly', priority: 0.3 },
@@ -61,15 +63,44 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }));
 
-  // Standalone products (group_id NULL) — the listGroups response only
-  // surfaces groups, so we collect any variant ids from groups with
-  // null group_id by re-using the products lookup. For v1 the SMMTA-
-  // NEXT API surface gives us groups only; standalone products that
-  // aren't part of any group don't appear in /storefront/groups, so
-  // there's nothing to enumerate here yet. Once the API exposes a
-  // /storefront/products listing it can be added — for now we leave
-  // the standalone slug discovery as a TODO and move on.
+  // Variant pages at /shop/p/<slug>.
+  //
+  // These were previously absent, which meant the sitemap advertised
+  // six URLs and told Google the catalogue didn't exist. Every group's
+  // thin-variant list already carries the slug, so no extra round trip
+  // is needed — and now that /shop/p/* is indexable and self-canonical
+  // these are the pages carrying the long-tail colour queries.
+  //
+  // Deduped: a variant appearing under two groups would otherwise emit
+  // a duplicate URL, which Search Console flags.
+  const seenVariantSlugs = new Set<string>();
+  const variantEntries: MetadataRoute.Sitemap = [];
+  for (const group of groups) {
+    for (const variant of group.variants ?? []) {
+      if (!variant.slug || seenVariantSlugs.has(variant.slug)) continue;
+      seenVariantSlugs.add(variant.slug);
+      variantEntries.push({
+        url: `${baseUrl}/shop/p/${variant.slug}`,
+        lastModified,
+        changeFrequency: 'weekly' as const,
+        // Below the group page: the group is the stronger landing page
+        // for a range, the variant wins the specific colour query.
+        priority: 0.7,
+      });
+    }
+  }
+
   void getProductsByIds;
+
+  // Material category pages. High priority: these are the pages
+  // targeting "PETG filament UK" style queries, which carry more volume
+  // than any individual product name.
+  const materialEntries: MetadataRoute.Sitemap = MATERIALS.map((m) => ({
+    url: `${baseUrl}/${m.slug}`,
+    lastModified,
+    changeFrequency: 'weekly' as const,
+    priority: 0.9,
+  }));
 
   const staticEntries: MetadataRoute.Sitemap = STATIC_PATHS.map((p) => ({
     url: `${baseUrl}${p.path}`,
@@ -78,5 +109,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: p.priority,
   }));
 
-  return [...staticEntries, ...groupEntries].slice(0, MAX_URLS);
+  return [...staticEntries, ...materialEntries, ...groupEntries, ...variantEntries].slice(
+    0,
+    MAX_URLS,
+  );
 }

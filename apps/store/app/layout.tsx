@@ -7,6 +7,9 @@ import { QueryProvider } from '@/components/query-provider';
 import { CartHeaderLink } from '@/components/cart-header-link';
 import { SiteFooter } from '@/components/site-footer';
 import { ChatPanel } from '@/components/chat-panel';
+import { getComingSoon } from '@/lib/smmta';
+import { HeaderSearch } from '@/components/header-search';
+import { LEGAL } from '@/lib/legal';
 
 const STORE_NAME = 'Filament Store';
 const STORE_TAGLINE =
@@ -56,17 +59,51 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * Organization schema.
+ *
+ * Previously name + url + description only, while the footer already
+ * printed the registered address, company number, VAT number and a
+ * contact address. Everything below was sitting in `lib/legal.ts` and
+ * simply wasn't being declared — free structured data for a brand with
+ * no other authority signals yet.
+ */
 const organizationLd = {
   '@context': 'https://schema.org',
-  '@type': 'Organization',
+  '@type': 'OnlineStore',
   name: STORE_NAME,
   url: baseUrl.toString(),
   description: STORE_TAGLINE,
+  logo: new URL('/cleverdeals-logo.png', baseUrl).toString(),
+  parentOrganization: { '@type': 'Organization', name: LEGAL.parentName, url: LEGAL.parentUrl },
+  legalName: LEGAL.legalEntity,
+  vatID: LEGAL.vatNumber ?? undefined,
+  identifier: {
+    '@type': 'PropertyValue',
+    name: 'Companies House registration',
+    value: LEGAL.companyNumber,
+  },
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'Suite 48, Beechfield House, Winterton Way',
+    addressLocality: 'Macclesfield',
+    postalCode: 'SK11 0LP',
+    addressCountry: 'GB',
+  },
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: 'customer support',
+    email: LEGAL.contactEmail,
+    areaServed: 'GB',
+    availableLanguage: 'English',
+  },
+  currenciesAccepted: 'GBP',
+  areaServed: 'GB',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={fontClassName}>
+    <html lang="en-GB" className={fontClassName}>
       <head>
         {/* Organization JSON-LD lives at the layout level so every page emits it. */}
         <script
@@ -92,7 +129,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   );
 }
 
-function Header() {
+async function Header() {
+  // Bug 10: "Coming soon" sat in the nav on every page pointing at an
+  // empty list. A nav item that leads nowhere costs a click and a bit
+  // of trust, and the page itself was index,follow — a thin page
+  // competing for crawl budget. Hidden here, noindexed there, both
+  // driven by the same emptiness check.
+  //
+  // Failure is treated as empty: if the API is unreachable we'd rather
+  // drop a secondary nav item than render a link into an error page.
+  const comingSoon = await getComingSoon().catch(() => []);
+  const hasComingSoon = comingSoon.length > 0;
+
   return (
     <header className="border-b border-[var(--brand-border)] bg-[var(--brand-paper)]">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-5">
@@ -123,25 +171,35 @@ function Header() {
             <li>
               <a
                 href="/shop"
-                className="transition-colors hover:text-[var(--brand-accent)]"
+                className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--brand-accent)]"
               >
                 Shop
               </a>
             </li>
+            {hasComingSoon && (
+              <li>
+                <a
+                  href="/shop/coming-soon"
+                  className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--brand-accent)]"
+                >
+                  Coming soon
+                </a>
+              </li>
+            )}
             <li>
               <a
-                href="/shop/coming-soon"
-                className="transition-colors hover:text-[var(--brand-accent)]"
+                href="/faq"
+                className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--brand-accent)]"
               >
-                Coming soon
+                FAQ
               </a>
             </li>
             <li>
               <a
-                href="/faq"
-                className="transition-colors hover:text-[var(--brand-accent)]"
+                href="/about"
+                className="inline-flex min-h-11 items-center transition-colors hover:text-[var(--brand-accent)]"
               >
-                FAQ
+                About
               </a>
             </li>
             <li>
@@ -149,6 +207,14 @@ function Header() {
             </li>
           </ul>
         </nav>
+      </div>
+
+      {/* Search row. Separate from the nav so it can be full-width on a
+          handset without squeezing the primary links. */}
+      <div className="border-t border-[var(--brand-border)] bg-[var(--brand-bone)]">
+        <div className="mx-auto flex max-w-6xl justify-center px-6 py-3">
+          <HeaderSearch className="w-full max-w-xl" />
+        </div>
       </div>
     </header>
   );

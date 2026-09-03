@@ -468,6 +468,31 @@ export function groupSlug(material: MaterialCode, subtype: SubtypeCode): string 
   return `landau-${matSlug}-${subSlug}-1-75mm-1kg`;
 }
 
+/**
+ * The single delivery claim used in every generated description.
+ *
+ * There were previously three live at once: variant pages said "free UK
+ * delivery", group pages said "fast UK delivery", and checkout charged
+ * £4.95. A search snippet promising free delivery over a checkout that
+ * charges is a refund-request generator and a consumer-protection
+ * problem, so the wording is defined here and nowhere else. If a
+ * free-over-threshold offer ever launches, change this one constant and
+ * the FAQ copy together.
+ */
+const DELIVERY_CLAIM = 'fast UK delivery';
+
+/**
+ * "from 5 colours" / "in Black" — never "from 1 colours".
+ *
+ * A range that drops to a single available colour reads better naming
+ * it than counting it, and "in Black" matches a real search query where
+ * "from 1 colours" matches nothing and looks broken in a SERP snippet.
+ */
+function colourPhrase(count: number, soleColour?: string): string {
+  if (count === 1) return soleColour ? `in ${soleColour}` : 'in one colour';
+  return `from ${count} colours`;
+}
+
 function groupLongDescription(material: MaterialCode, subtype: SubtypeCode): string {
   const key = groupKey(material, subtype);
   return GROUP_LONG_DESCRIPTIONS[key] ?? GROUP_LONG_DESCRIPTIONS[`${material}-`] ?? '';
@@ -477,7 +502,7 @@ function groupShortDescription(material: MaterialCode, subtype: SubtypeCode): st
   const matLabel = MATERIAL_LABELS[material];
   const subLabel = SUBTYPE_LABELS[subtype];
   if (subtype === '' || subtype === 'REG') {
-    return `Landau ${matLabel} 1.75mm 1kg — multiple colours, vacuum-sealed, fast UK delivery.`;
+    return `Landau ${matLabel} 1.75mm 1kg — multiple colours, vacuum-sealed, ${DELIVERY_CLAIM}.`;
   }
   if (subtype === 'HYP') {
     return `Hyper ${matLabel} 1.75mm — high-speed printing without sacrificing surface quality.`;
@@ -784,7 +809,10 @@ export async function seedStorefront(opts: SeedOptions = {}): Promise<SeedResult
           const matLabel = MATERIAL_LABELS[b.material];
           const seoTitle = `${groupName(b.material, b.subtype)} | Filament Store`.slice(0, 70);
           const seoDescription = (
-            `${groupName(b.material, b.subtype)} from ${b.rows.length} colours. 1kg spools, fast UK delivery.`
+            `${groupName(b.material, b.subtype)} ${colourPhrase(
+              b.rows.length,
+              b.rows[0]?.colour.display,
+            )}. 1kg spools, ${DELIVERY_CLAIM}.`
           ).slice(0, 160);
           return {
             companyId,
@@ -858,7 +886,7 @@ export async function seedStorefront(opts: SeedOptions = {}): Promise<SeedResult
           galleryImageUrls: r.imageUrl ? [r.imageUrl] : [],
           seoTitle: `${groupName(b.material, b.subtype)} — ${r.colour.display}`.slice(0, 70),
           seoDescription: (
-            `${groupName(b.material, b.subtype)} in ${r.colour.display}. 1kg spool, free UK delivery.`
+            `${groupName(b.material, b.subtype)} in ${r.colour.display}. 1kg spool, ${DELIVERY_CLAIM}.`
           ).slice(0, 160),
           seoKeywords: [
             `${MATERIAL_LABELS[b.material]} ${r.colour.display}`,
