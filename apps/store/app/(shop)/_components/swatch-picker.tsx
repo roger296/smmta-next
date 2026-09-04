@@ -77,6 +77,9 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
                 width={1200}
                 height={1200}
                 priority
+                // See the standalone product page: `priority` emits the
+                // preload but not the attribute on the element itself.
+                fetchPriority="high"
                 sizes="(max-width: 768px) 100vw, 50vw"
                 className="h-full w-full object-cover"
               />
@@ -308,16 +311,37 @@ function StickyBuyBar({
 }) {
   const [showBar, setShowBar] = React.useState(false);
 
+  // Scroll position, not IntersectionObserver.
+  //
+  // The first version used an IntersectionObserver on the primary CTA.
+  // It never fired — verified on the live site, where the bar simply
+  // never appeared and a probe reported the observer callback never
+  // running. Whatever the cause (the callback depends on the rendering
+  // pipeline, which a backgrounded or throttled tab can stall), the
+  // failure mode is the worst kind: silent, and invisible to every test
+  // that doesn't scroll a real page.
+  //
+  // A scroll listener is cruder but has no such dependency, and its
+  // behaviour is obvious from reading it: show the bar once the CTA has
+  // passed above the bottom of the viewport.
   React.useEffect(() => {
-    // The main CTA is the last AddToCartButton in the info column.
-    const target = document.querySelector('[data-test="primary-cta"]');
-    if (!target || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setShowBar(!entry?.isIntersecting),
-      { rootMargin: '0px 0px -80px 0px' },
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
+    const update = () => {
+      const target = document.querySelector('[data-test="primary-cta"]');
+      if (!target) {
+        setShowBar(false);
+        return;
+      }
+      const { bottom } = target.getBoundingClientRect();
+      // Once the CTA's bottom edge is above the fold, offer the bar.
+      setShowBar(bottom < 0);
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
   }, []);
 
   if (!showBar) return null;

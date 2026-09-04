@@ -63,20 +63,14 @@ export async function generateMetadata({
       keywords: product.seoKeywords ?? undefined,
       alternates: { canonical },
       robots: { index: true, follow: true },
-      // og:type=product, not website — it changes how link previews render
-      // on social platforms and is what the page actually is. Next's
-      // typed OpenGraph union has no 'product' member, so the type and
-      // the price properties are emitted through `other`; the block
-      // below deliberately omits `type` so only one og:type is written.
-      other: {
-        'og:type': 'product',
-        ...(product.priceGbp
-          ? {
-              'product:price:amount': String(product.priceGbp),
-              'product:price:currency': 'GBP',
-            }
-          : {}),
-      },
+      // NOTE: og:type and the product:price:* tags are NOT set here.
+      //
+      // Next's typed OpenGraph union has no 'product' member, and the
+      // `other` field emits `<meta name="...">` — but Open Graph is read
+      // from `property="..."`, so a crawler sees nothing. That was a
+      // silent no-op: the tags appeared in the HTML and counted for
+      // nothing. They're rendered as real <meta property> elements in
+      // the component body instead, which Next hoists into <head>.
       openGraph: {
         url: canonical,
         title: socialTitle(product.seoTitle, product.name),
@@ -132,6 +126,24 @@ export default async function StandaloneProductPage({
 
   return (
     <>
+      {/*
+        Open Graph product tags, rendered as real elements because they
+        must use `property=` and Next's metadata API can only emit
+        `name=` for keys outside its typed OpenGraph union. Next hoists
+        <meta> from a page into <head>.
+
+        The previous attempt went through `metadata.other`, which
+        produced <meta name="og:type" content="product"> — present in the
+        HTML, invisible to every Open Graph consumer. Worth remembering
+        as a category of bug: the tag was there, so it looked done.
+      */}
+      <meta property="og:type" content="product" />
+      {product.priceGbp && (
+        <>
+          <meta property="product:price:amount" content={String(product.priceGbp)} />
+          <meta property="product:price:currency" content="GBP" />
+        </>
+      )}
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
@@ -171,6 +183,11 @@ export default async function StandaloneProductPage({
                 width={1200}
                 height={1200}
                 priority
+                // `priority` alone emitted the preload link but left the
+                // <img> with no fetchpriority, so the browser still had
+                // to discover its importance. This is the mobile LCP
+                // element; passing it explicitly closes that gap.
+                fetchPriority="high"
                 sizes="(max-width: 768px) 100vw, 50vw"
                 className="h-full w-full object-cover"
               />
