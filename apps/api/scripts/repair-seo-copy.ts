@@ -28,10 +28,10 @@ import { getEnv } from '../src/config/env.js';
 import { products, productGroups } from '../src/db/schema/index.js';
 
 /** Must match DELIVERY_CLAIM in seed-storefront.ts. */
-const DELIVERY_CLAIM = 'fast UK delivery';
+export const DELIVERY_CLAIM = 'fast UK delivery';
 const WRONG_CLAIMS = ['free UK delivery', 'Free UK delivery'];
 
-function fixDeliveryClaim(text: string): string {
+export function fixDeliveryClaim(text: string): string {
   let out = text;
   for (const wrong of WRONG_CLAIMS) out = out.split(wrong).join(DELIVERY_CLAIM);
   return out;
@@ -41,7 +41,7 @@ function fixDeliveryClaim(text: string): string {
  * "from 1 colours" → "in <Colour>" when we know it, else "in one colour".
  * Leaves every other count alone.
  */
-function fixColourCount(text: string, soleColour: string | null): string {
+export function fixColourCount(text: string, soleColour: string | null): string {
   return text.replace(
     /\bfrom 1 colours\b/gi,
     soleColour ? `in ${soleColour}` : 'in one colour',
@@ -145,8 +145,15 @@ async function main(): Promise<void> {
   await closeDatabase();
 }
 
-main().catch(async (err) => {
-  console.error(err);
-  await closeDatabase();
-  process.exit(1);
-});
+/**
+ * Only self-execute when run as a script. The pure helpers above are
+ * imported by repair-seo-copy.test.ts, which must not open a database
+ * connection just to check a regex.
+ */
+if (process.argv[1] && process.argv[1].includes('repair-seo-copy')) {
+  main().catch(async (err) => {
+    console.error(err);
+    await closeDatabase();
+    process.exit(1);
+  });
+}
