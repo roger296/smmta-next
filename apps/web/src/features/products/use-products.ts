@@ -96,6 +96,41 @@ export function useAddProductImage() {
       apiFetch<ProductImage>(`/products/${productId}/images`, { method: 'POST', body: input }),
     onSuccess: (_data, { productId }) => {
       qc.invalidateQueries({ queryKey: ['products', 'detail', productId, 'images'] });
+      qc.invalidateQueries({ queryKey: ['products', 'detail', productId] });
+    },
+  });
+}
+
+/**
+ * Uploads a file from the operator's disk. The URL form assumes the picture is
+ * already hosted somewhere; a photograph taken of the actual stock is not, so
+ * without this the common case had no route in at all.
+ */
+export function useUploadProductImage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      productId,
+      file,
+      priority,
+    }: {
+      productId: string;
+      file: File;
+      priority?: number;
+    }) => {
+      const form = new FormData();
+      form.append('file', file);
+      return apiFetch<ProductImage>(`/products/${productId}/images/upload`, {
+        method: 'POST',
+        body: form,
+        searchParams: { priority: priority ?? 0 },
+      });
+    },
+    onSuccess: (_data, { productId }) => {
+      qc.invalidateQueries({ queryKey: ['products', 'detail', productId, 'images'] });
+      // The upload rewrites products.hero_image_url too, so the detail record
+      // the rest of the page is showing is now stale.
+      qc.invalidateQueries({ queryKey: ['products', 'detail', productId] });
     },
   });
 }
@@ -107,6 +142,7 @@ export function useDeleteProductImage() {
       apiFetch<void>(`/products/${productId}/images/${imageId}`, { method: 'DELETE' }),
     onSuccess: (_data, { productId }) => {
       qc.invalidateQueries({ queryKey: ['products', 'detail', productId, 'images'] });
+      qc.invalidateQueries({ queryKey: ['products', 'detail', productId] });
     },
   });
 }

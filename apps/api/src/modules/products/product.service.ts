@@ -1,4 +1,4 @@
-import { eq, and, ilike, isNull, sql, count } from 'drizzle-orm';
+import { eq, and, ilike, isNull, sql, count, asc } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
   products,
@@ -15,6 +15,7 @@ import type {
   UpdateProductGroupInput,
 } from './product.schema.js';
 import { paginationOffset, paginationMeta } from '../../shared/utils/pagination.js';
+import type { DbTx } from '../../shared/events/emit.js';
 
 /**
  * ProductService — CRUD and search for the product catalogue.
@@ -309,20 +310,100 @@ export class ProductService {
   // Images
   // ----------------------------------------------------------------
 
-  async addImage(productId: string, imageUrl: string, priority: number) {
-    const [image] = await this.db
+  /**
+   * Rewrite products.hero_image_url + gallery_image_urls from product_images.
+   *
+   * The storefront reads those two denormalised columns; product_images is what
+   * the admin Images tab edits. Nothing kept them in step, so adding an image
+   * returned 201 and changed nothing a customer could see. Every mutation of
+   * product_images now ends here.
+   *
+   * Hero is the lowest-priority image; the gallery is every image in priority
+   * order, hero included, which is the shape the PDP already renders.
+   */
+  private async syncImageColumns(productId: string, tx: DbTx | typeof this.db = this.db): Promise<void> {
+    const rows = await tx
+      .select({ imageUrl: productImages.imageUrl })
+      .from(productImages)
+      .where(and(eq(productImages.productId, productId), isNull(productImages.deletedAt)))
+      .orderBy(asc(productImages.priority), asc(productImages.createdAt));
+
+    const urls = rows.map((r) => r.imageUrl);
+    await tx
+      .update(products)
+      .set({
+        heroImageUrl: urls[0] ?? null,
+        galleryImageUrls: urls.length > 0 ? urls : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, productId));
+  }
+
+  /**
+   * Seed product_images from the denormalised columns the first time a product
+   * is edited through the Images tab.
+   *
+   * Catalogue imports write hero/gallery directly and never create
+   * product_images rows, so without this the first added image would become the
+   * product's ONLY image — silently discarding the imported artwork the moment
+   * an operator added a second picture.
+   */
+  private async backfillImagesFromColumns(productId: string, tx: DbTx): Promise<void> {
+    const existing = await tx
+      .select({ id: productImages.id })
+      .from(productImages)
+      .where(and(eq(productImages.productId, productId), isNull(productImages.deletedAt)))
+      .limit(1);
+    if (existing.length > 0) return;
+
+    const [product] = await tx
+      .select({ hero: products.heroImageUrl, gallery: products.galleryImageUrls })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1);
+    if (!product) return;
+
+    // Gallery already contains the hero in imported data; de-duplicate so the
+    // backfill doesn't create the same picture twice.
+    const seeded = [product.hero, ...(product.gallery ?? [])].filter(
+      (u): u is string => typeof u === 'string' && u.length > 0,
+    );
+    const unique = [...new Set(seeded)];
+    if (unique.length === 0) return;
+
+    await tx
       .insert(productImages)
-      .values({ productId, imageUrl, priority })
-      .returning();
-    return image;
+      .values(unique.map((imageUrl, i) => ({ productId, imageUrl, priority: i })));
+  }
+
+  async addImage(productId: string, imageUrl: string, priority: number) {
+    return this.db.transaction(async (tx) => {
+      await this.backfillImagesFromColumns(productId, tx);
+      const [image] = await tx
+        .insert(productImages)
+        .values({ productId, imageUrl, priority })
+        .returning();
+      await this.syncImageColumns(productId, tx);
+      return image;
+    });
   }
 
   async removeImage(imageId: string) {
-    const result = await this.db
-      .update(productImages)
-      .set({ deletedAt: new Date() })
-      .where(and(eq(productImages.id, imageId), isNull(productImages.deletedAt)));
-    return (result.rowCount ?? 0) > 0;
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ productId: productImages.productId })
+        .from(productImages)
+        .where(and(eq(productImages.id, imageId), isNull(productImages.deletedAt)))
+        .limit(1);
+      if (!row) return false;
+
+      await tx
+        .update(productImages)
+        .set({ deletedAt: new Date() })
+        .where(eq(productImages.id, imageId));
+      await this.syncImageColumns(row.productId, tx);
+      return true;
+    });
   }
 
   async getImages(productId: string) {

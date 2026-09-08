@@ -21,6 +21,7 @@ on:
     paths:
       - 'apps/store/**'
       - 'apps/api/src/modules/storefront/**'
+      - 'apps/api/src/modules/products/**'
       - 'apps/api/scripts/**'
       - '.github/workflows/e2e.yml'
   workflow_dispatch:
@@ -223,6 +224,12 @@ jobs:
             apps/api/src/modules/storefront/reservation.concurrency.test.ts \
             --root apps/api \
             --no-file-parallelism
+
+      # Reads the catalogue seeded above and mutates one product's images, so
+      # it runs after the steps that assert on the storefront.
+      - name: Run product image upload tests
+        run: |
+          npx vitest run apps/api/src/modules/products/image-upload.routes.test.ts --root apps/api --no-file-parallelism
 
       - name: Upload Playwright report on failure
         if: failure()
