@@ -225,8 +225,8 @@ jobs:
             --root apps/api \
             --no-file-parallelism
 
-      # Runs last on purpose: it calls seedStorefront, which wipes the demo
-      # catalogue the steps above depend on.
+      # Reads the catalogue seeded above and mutates one product's images, so
+      # it runs after the steps that assert on the storefront.
       - name: Run product image upload tests
         run: |
           npx vitest run apps/api/src/modules/products/image-upload.routes.test.ts --root apps/api --no-file-parallelism

@@ -5,6 +5,9 @@
  * itself: adding an image used to return 201 while products.hero_image_url
  * stayed untouched, so nothing a customer could see ever changed. The
  * assertions on hero/gallery are the ones that would have caught it.
+ *
+ * Prerequisite: a seeded catalogue (npm run seed:storefront -w @smmta/api).
+ * This suite deliberately does NOT seed its own — see the note in beforeAll.
  */
 import { readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -15,10 +18,7 @@ import { eq } from 'drizzle-orm';
 import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
 import { products } from '../../db/schema/index.js';
-import {
-  STOREFRONT_DEMO_COMPANY_ID,
-  seedStorefront,
-} from '../../../scripts/seed-storefront.js';
+import { STOREFRONT_DEMO_COMPANY_ID } from '../../../scripts/seed-storefront.js';
 
 /**
  * A real 1x1 PNG. The route does not decode images, but a valid file keeps
@@ -29,32 +29,10 @@ const PNG_1x1 = Buffer.from(
   'base64',
 );
 
-const IMPORTED_HERO = 'https://example.com/landau-pla-basic-black.png';
-
-const FIXTURE_ROWS = [
-  {
-    stockCode: 'V3-PLA-BAS-BLACK',
-    manufacturer: 'Landau',
-    fullyQualifiedName: '1Kg Roll of FDM Printer Filament BLACK PLA Basic',
-    oldGroupId: 55118,
-    description: '1Kg Roll of FDM Printer Filament',
-    netWeight: 1,
-    shippingWeight: 1.3,
-    dimensionH: 19,
-    dimensionW: 19,
-    dimensionD: 7,
-    measurementUnit: 'cm',
-    sellingPrice: 6.0,
-    expectedNextCost: 3.42,
-    rawColour: 'BLACKPLA Basic',
-    stockQty: 5,
-    imageUrl: IMPORTED_HERO,
-  },
-];
-
 let app: FastifyInstance;
 let token: string;
 let productId: string;
+let importedHero: string;
 let uploads: string;
 
 /** Builds a multipart body by hand - no form-data dependency needed. */
@@ -96,16 +74,30 @@ beforeAll(async () => {
     roles: ['admin'],
   });
 
-  await seedStorefront({ rows: FIXTURE_ROWS });
-
+  // Works against the already-seeded catalogue rather than seeding its own.
+  // seedStorefront wipes the catalogue first, which fails as soon as anything
+  // has ordered against it - order_lines holds a foreign key to products. That
+  // would make this suite unrunnable after the e2e run, and unrunnable at all
+  // on a database with real orders in it.
   const list = await app.inject({
     method: 'GET',
     url: '/api/v1/products',
     headers: { authorization: `Bearer ${token}` },
-    query: { search: 'Landau' },
+    query: { pageSize: '250' },
   });
-  const body = list.json() as { data: Array<{ id: string; stockCode: string }> };
-  productId = body.data.find((p) => p.stockCode === 'V3-PLA-BAS-BLACK')!.id;
+  const body = list.json() as {
+    data: Array<{ id: string; heroImageUrl: string | null }>;
+  };
+  // Needs a product carrying imported artwork, because the backfill path is
+  // part of what is under test - that is the case the sync had to not destroy.
+  const subject = body.data.find((p) => !!p.heroImageUrl);
+  if (!subject) {
+    throw new Error(
+      'No product with a hero image found. Run `npm run seed:storefront -w @smmta/api` first.',
+    );
+  }
+  productId = subject.id;
+  importedHero = subject.heroImageUrl!;
 });
 
 afterAll(async () => {
@@ -196,10 +188,10 @@ describe('POST /api/v1/products/:id/images/upload', () => {
       .from(products)
       .where(eq(products.id, productId));
     expect(row!.gallery).toContain(created.imageUrl);
-    // The imported artwork is backfilled rather than discarded, and keeps
-    // the hero slot because it was there first.
-    expect(row!.gallery).toContain(IMPORTED_HERO);
-    expect(row!.hero).toBe(IMPORTED_HERO);
+    // The imported artwork is backfilled rather than discarded, and keeps the
+    // hero slot because it was there first.
+    expect(row!.gallery).toContain(importedHero);
+    expect(row!.hero).toBe(importedHero);
   });
 
   it('re-syncs the columns when an image is removed', async () => {
