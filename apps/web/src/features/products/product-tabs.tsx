@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Upload } from 'lucide-react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -12,21 +12,109 @@ import {
   useDeleteProductImage,
   useProductImages,
   useProductStockLevel,
+  useUploadProductImage,
 } from './use-products';
+
+/**
+ * Image types the API accepts. Kept in step with ALLOWED_IMAGE_TYPES in
+ * apps/api/src/modules/products/image-upload.routes.ts — this list only
+ * filters the file picker and gives a better message; the API is what
+ * actually enforces it.
+ */
+const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp,image/avif,image/gif';
+
+/** Matches MAX_UPLOAD_BYTES on the API. */
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 export function ProductImagesTab({ productId }: { productId: string }) {
   const { toast } = useToast();
   const { data: images, isLoading } = useProductImages(productId);
   const addMutation = useAddProductImage();
+  const uploadMutation = useUploadProductImage();
   const deleteMutation = useDeleteProductImage();
   const [imageUrl, setImageUrl] = React.useState('');
   const [priority, setPriority] = React.useState(0);
   const [toDelete, setToDelete] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const failed = (title: string) => (err: unknown) =>
+    toast({
+      variant: 'destructive',
+      title,
+      description: err instanceof Error ? err.message : 'Unknown error',
+    });
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    // Upload sequentially rather than in parallel: priority is assigned per
+    // file and the order the operator picked them in is the order they should
+    // appear in, which a race would scramble.
+    let next = priority;
+    let uploaded = 0;
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        failed('File too large')(
+          new Error(`${file.name} is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is 8MB.`),
+        );
+        continue;
+      }
+      try {
+        await uploadMutation.mutateAsync({ productId, file, priority: next });
+        next += 1;
+        uploaded += 1;
+      } catch (err) {
+        failed(`Upload of ${file.name} failed`)(err);
+      }
+    }
+    setPriority(next);
+    // Let the same file be chosen again after a failure — without this the
+    // input holds the old value and picking it a second time fires no event.
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (uploaded > 0) {
+      toast({ title: uploaded === 1 ? 'Image uploaded' : `${uploaded} images uploaded` });
+    }
+  }
+
+  const busy = addMutation.isPending || uploadMutation.isPending;
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="space-y-3 p-4">
+        <CardContent className="space-y-4 p-4">
+          <div className="space-y-2">
+            <Label htmlFor="img-file">Upload from this computer</Label>
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                id="img-file"
+                type="file"
+                className="sr-only"
+                accept={ACCEPTED_IMAGE_TYPES}
+                multiple
+                onChange={(e) => void handleFiles(e.target.files)}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4" />
+                {uploadMutation.isPending ? 'Uploading…' : 'Choose file'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                JPEG, PNG, WebP, AVIF or GIF, up to 8MB each. Select several to add them in order.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
           <div className="grid gap-3 md:grid-cols-[1fr_120px]">
             <div className="space-y-1">
               <Label htmlFor="img-url">Image URL</Label>
@@ -61,19 +149,18 @@ export function ProductImagesTab({ productId }: { productId: string }) {
                   setImageUrl('');
                   setPriority(0);
                 } catch (err) {
-                  toast({
-                    variant: 'destructive',
-                    title: 'Add failed',
-                    description: err instanceof Error ? err.message : 'Unknown error',
-                  });
+                  failed('Add failed')(err);
                 }
               }}
-              disabled={!imageUrl || addMutation.isPending}
+              disabled={!imageUrl || busy}
             >
               <Plus className="h-4 w-4" />
               Add image
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            The first image by priority becomes the product&rsquo;s hero image on the storefront.
+          </p>
         </CardContent>
       </Card>
 

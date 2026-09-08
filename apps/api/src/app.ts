@@ -1,5 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import { resolve } from 'node:path';
+import { mkdir } from 'node:fs/promises';
 import jwt from '@fastify/jwt';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -40,6 +44,11 @@ import {
 import { chatRoutes } from './modules/agent/chat.routes.js';
 import { chatbotAdminRoutes } from './modules/agent/chatbot-admin.routes.js';
 import { sendgridWebhookRoutes, unsubscribeRoutes } from './modules/messaging/messaging.routes.js';
+import {
+  productImageUploadRoutes,
+  uploadsDir,
+  MAX_UPLOAD_BYTES,
+} from './modules/products/image-upload.routes.js';
 import { outboxRoutes } from './modules/messaging/outbox.routes.js';
 import { approvalRoutes } from './modules/approval/approval.routes.js';
 import { subscriptionRoutes, subscriptionAdminRoutes } from './modules/subscriptions/subscription.routes.js';
@@ -61,6 +70,28 @@ export async function buildApp() {
 
   // Plugins
   await app.register(cors, { origin: true });
+
+  // Product image uploads. The limit is enforced per-file at the route too;
+  // this is the transport-level backstop so an oversized body is rejected
+  // before it is buffered.
+  await app.register(multipart, { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
+
+  // Serve uploaded images. Public: these are product photographs shown to
+  // customers, and the storefront fetches them without a token. `decorateReply`
+  // is off because @fastify/swagger-ui also registers @fastify/static, and two
+  // registrations both decorating `reply.sendFile` would collide.
+  // @fastify/static refuses to register against a missing root, and on a fresh
+  // volume the directory does not exist until the first upload.
+  await mkdir(resolve(uploadsDir()), { recursive: true });
+  await app.register(fastifyStatic, {
+    root: resolve(uploadsDir()),
+    prefix: '/uploads/',
+    decorateReply: false,
+    // Filenames are content-addressed UUIDs, so a given URL never changes.
+    cacheControl: true,
+    maxAge: '365d',
+    immutable: true,
+  });
   await app.register(jwt, { secret: env.JWT_SECRET });
 
   await app.register(swagger, {
@@ -87,6 +118,7 @@ export async function buildApp() {
 
   // Phase 2: Products & Stock
   await app.register(productRoutes, { prefix: '/api/v1' });
+  await app.register(productImageUploadRoutes, { prefix: '/api/v1' });
   await app.register(productGroupRoutes, { prefix: '/api/v1' });
   await app.register(stockItemRoutes, { prefix: '/api/v1' });
   await app.register(referenceRoutes, { prefix: '/api/v1' });

@@ -87,6 +87,20 @@ const nextConfig = {
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
+      // Public API origin. Uploaded product images are served from
+      // <APP_BASE_URL>/uploads/..., which is the API's PUBLIC host — whereas
+      // SMMTA_API_BASE_URL below is the internal Docker address in production
+      // (http://api:3000). Without this, every uploaded image 400s through
+      // next/image while pasted external URLs keep working, which reads as
+      // "uploads are broken" rather than as a missing allowlist entry.
+      ...(process.env.SMMTA_API_PUBLIC_URL
+        ? [
+            (() => {
+              const u = new URL(process.env.SMMTA_API_PUBLIC_URL);
+              return { protocol: u.protocol.replace(':', ''), hostname: u.hostname };
+            })(),
+          ]
+        : []),
       // SMMTA-NEXT API host (hero / gallery URLs flow through it).
       ...(process.env.SMMTA_API_BASE_URL
         ? [

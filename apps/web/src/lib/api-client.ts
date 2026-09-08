@@ -36,6 +36,11 @@ export interface PaginatedResult<T> {
 }
 
 interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
+  /**
+   * JSON-serialised, unless it is a FormData — file uploads have to go over
+   * the wire as multipart, and the browser has to set the Content-Type itself
+   * so the multipart boundary matches the body it generated.
+   */
   body?: unknown;
   searchParams?: Record<string, string | number | boolean | undefined | null>;
 }
@@ -72,9 +77,11 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
   const { body, searchParams, headers, ...rest } = opts;
   const token = getToken();
 
+  const isMultipart = typeof FormData !== 'undefined' && body instanceof FormData;
+
   const finalHeaders: Record<string, string> = {
     Accept: 'application/json',
-    ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    ...(body !== undefined && !isMultipart ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(headers as Record<string, string> | undefined),
   };
@@ -82,7 +89,11 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
   const response = await fetch(buildUrl(path, searchParams), {
     ...rest,
     headers: finalHeaders,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: isMultipart
+      ? (body as FormData)
+      : body !== undefined
+        ? JSON.stringify(body)
+        : undefined,
   });
 
   if (response.status === 401) {

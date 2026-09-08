@@ -60,6 +60,12 @@ services:
       # sends. Internal URL — this call never leaves the Docker network.
       STORE_BASE_URL: ${STORE_INTERNAL_URL:-http://store:3000}
       STORE_INTERNAL_API_KEY: ${STORE_INTERNAL_API_KEY:-}
+      # Uploaded product images live here and are served from /uploads. MUST be
+      # a mounted volume: a container filesystem does not survive a redeploy,
+      # and every uploaded photograph would 404 after the next deploy.
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
     expose:
       - '3000'
     healthcheck:
@@ -132,6 +138,10 @@ services:
       # SENDGRID_FROM must be a verified sender on the SendGrid account.
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SENDGRID_FROM: ${SENDGRID_FROM:-sales@cleverdeals.net}
+      # Public origin of the API, used ONLY to allow uploaded product images
+      # through next/image. SMMTA_API_BASE_URL above is the internal Docker
+      # address, which is not the host those image URLs carry.
+      SMMTA_API_PUBLIC_URL: ${APP_BASE_URL:-http://localhost:3000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
     expose:
       - '3000'
@@ -177,3 +187,6 @@ services:
 
 volumes:
   pgdata:
+  # Product image uploads. Back this up with the database — losing it loses
+  # every photograph an operator has uploaded.
+  uploads:
