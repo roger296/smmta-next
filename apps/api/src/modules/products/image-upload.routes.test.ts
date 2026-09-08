@@ -14,7 +14,7 @@ import type { FastifyInstance } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
-import { products } from '../../db/schema.js';
+import { products } from '../../db/schema/index.js';
 import {
   STOREFRONT_DEMO_COMPANY_ID,
   seedStorefront,
