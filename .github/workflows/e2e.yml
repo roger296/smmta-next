@@ -202,7 +202,17 @@ jobs:
           fi
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        # `--with-deps` runs apt-get update, which refreshes EVERY apt source on
+        # the runner — including Google's Chrome repo, which has served a
+        # Packages.gz failing its own checksum and taken the job down with
+        # "Hash Sum mismatch" before a single test ran. That repo is irrelevant
+        # here: Playwright fetches its own Chromium build from Microsoft's CDN,
+        # and --with-deps only wants system libraries from Ubuntu's archives.
+        # Dropping the source removes the dependency on a third party we do not
+        # need. Safe to delete this line once Google's index is fixed.
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          npx playwright install --with-deps chromium
         working-directory: apps/store
 
       - name: Run Playwright e2e
