@@ -2,11 +2,23 @@
  * Cart service — server-only CRUD against the storefront DB's `carts` and
  * `cart_items` tables (Prompt 7 schema).
  *
- * Price snapshotting: when an item is added we read the live price from
- * `/storefront/products?ids=…` (Prompt 4) and write it into
- * `cart_items.price_snapshot_gbp`. All subsequent reads, total displays,
- * and checkouts use the snapshot; the cart is the customer's contract
- * until they re-add the line.
+ * Pricing: prices are computed live on every read, NOT snapshotted.
+ *
+ * This used to snapshot the price into `cart_items.price_snapshot_gbp` at
+ * add-time and honour it thereafter. Volume pricing makes that impossible: the
+ * unit price depends on how many units the whole basket holds, so adding a
+ * tenth roll of any colour must re-price the nine already there, and removing
+ * one must put the price back up. A per-line figure captured at add-time
+ * cannot express that.
+ *
+ * The column is still written, with the unit price as computed at the time, so
+ * the row remains meaningful to anything reading the table directly — but it is
+ * NOT the source of truth for any total. `getCart` recomputes from the live
+ * catalogue every time, which is also what the checkout total and therefore the
+ * Mollie amount are built from.
+ *
+ * The trade-off is deliberate: a catalogue price change now reaches carts that
+ * are already open, where before the snapshot shielded them.
  *
  * Lazy cart creation: `getOrCreateCart(null)` returns an empty in-memory
  * shape. `addItem(null, ...)` inserts a new `carts` row and returns its
@@ -17,13 +29,22 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from './db';
 import { carts, cartItems } from '@/drizzle/schema';
 import { getProductsByIds } from './smmta';
+import { VOLUME_PRICE_BEST_QTY, tieredUnitPricePence } from '@smmta/shared-types';
 
 export interface CartLine {
   id: string;
   productId: string;
   quantity: number;
+  /** Unit price at the basket's CURRENT total quantity. Changes as other
+   *  lines change — see the note at the top of this file. */
   pricePerUnitGbp: string;
   lineTotalGbp: string;
+  /** What one unit of this product costs on its own. Equal to
+   *  pricePerUnitGbp when the basket already earns the best price, or when
+   *  the product does not slide. */
+  unitPriceAtQtyOneGbp: string;
+  /** The best (10+) unit price for this product. */
+  bestUnitPriceGbp: string;
   /** Live data from SMMTA — name / slug / colour for display. May be null
    *  if the product has been unpublished since the line was added. */
   display: {
@@ -40,6 +61,13 @@ export interface CartView {
   subtotalGbp: string;
   itemCount: number;
   currencyCode: string;
+  /** Units still needed to reach the best price, or 0 if already there.
+   *  Drives the "add N more to save" prompt. */
+  unitsToBestPrice: number;
+  /** What the basket would cost, at its current contents, if it were priced
+   *  at the best rate. Null when the basket is already there or nothing
+   *  slides — the UI shows no saving prompt in that case. */
+  subtotalAtBestPriceGbp: string | null;
 }
 
 export class CartError extends Error {
@@ -66,6 +94,8 @@ const EMPTY_VIEW: CartView = {
   lines: [],
   subtotalGbp: '0.00',
   itemCount: 0,
+  unitsToBestPrice: VOLUME_PRICE_BEST_QTY,
+  subtotalAtBestPriceGbp: null,
   currencyCode: 'GBP',
 };
 
@@ -108,15 +138,25 @@ export async function getOrCreateCart(cartId: string | null): Promise<CartView> 
       subtotalGbp: '0.00',
       itemCount: 0,
       currencyCode: cart.currencyCode,
+      unitsToBestPrice: VOLUME_PRICE_BEST_QTY,
+      subtotalAtBestPriceGbp: null,
     };
   }
 
-  // Pull display data live for the lines that are present. Prices for
-  // totals come from the snapshot, not from this read.
+  // Pull display AND price data live. Prices are recomputed here rather than
+  // read from the stored snapshot, because the unit price depends on the
+  // basket's total quantity — see the note at the top of this file.
   const productIds = Array.from(new Set(items.map((i) => i.productId)));
   let displayMap = new Map<
     string,
-    { name: string | null; slug: string | null; colour: string | null; heroImageUrl: string | null }
+    {
+      name: string | null;
+      slug: string | null;
+      colour: string | null;
+      heroImageUrl: string | null;
+      priceGbp: string | null;
+      maxPriceGbp: string | null;
+    }
   >();
   try {
     const products = await getProductsByIds(productIds);
@@ -128,39 +168,69 @@ export async function getOrCreateCart(cartId: string | null): Promise<CartView> 
           slug: p.slug,
           colour: p.colour,
           heroImageUrl: p.heroImageUrl,
+          priceGbp: p.priceGbp,
+          maxPriceGbp: p.maxPriceGbp,
         },
       ]),
     );
   } catch {
-    // If SMMTA is briefly unreachable we still want to render the cart with
-    // the IDs and snapshots — display fields just degrade to empty.
+    // If SMMTA is briefly unreachable we still render the cart, falling back
+    // to the stored figure per line so the customer sees a total rather than
+    // an error. Display fields degrade to empty.
   }
 
+  // Basket-wide quantity drives every line's unit price.
+  const totalUnits = items.reduce((sum, it) => sum + it.quantity, 0);
+
   let subtotalPence = 0;
+  let subtotalAtBestPence = 0;
+  let anythingSlides = false;
+
   const lines: CartLine[] = items.map((it) => {
-    const linePence = toPence(it.priceSnapshotGbp) * it.quantity;
+    const live = displayMap.get(it.productId);
+    // Falling back to the stored figure keeps the cart renderable when the
+    // catalogue is unreachable; it is not used when live data is present.
+    const floorPence = live?.priceGbp != null ? toPence(live.priceGbp) : toPence(it.priceSnapshotGbp);
+    const ceilingPence = live?.maxPriceGbp != null ? toPence(live.maxPriceGbp) : null;
+
+    const unitPence = tieredUnitPricePence(floorPence, ceilingPence, totalUnits);
+    const singleUnitPence = tieredUnitPricePence(floorPence, ceilingPence, 1);
+    const bestUnitPence = tieredUnitPricePence(floorPence, ceilingPence, VOLUME_PRICE_BEST_QTY);
+    if (bestUnitPence < singleUnitPence) anythingSlides = true;
+
+    const linePence = unitPence * it.quantity;
     subtotalPence += linePence;
+    subtotalAtBestPence += bestUnitPence * it.quantity;
+
     return {
       id: it.id,
       productId: it.productId,
       quantity: it.quantity,
-      pricePerUnitGbp: it.priceSnapshotGbp,
+      pricePerUnitGbp: fromPence(unitPence),
       lineTotalGbp: fromPence(linePence),
-      display: displayMap.get(it.productId) ?? {
-        name: null,
-        slug: null,
-        colour: null,
-        heroImageUrl: null,
+      unitPriceAtQtyOneGbp: fromPence(singleUnitPence),
+      bestUnitPriceGbp: fromPence(bestUnitPence),
+      display: {
+        name: live?.name ?? null,
+        slug: live?.slug ?? null,
+        colour: live?.colour ?? null,
+        heroImageUrl: live?.heroImageUrl ?? null,
       },
     };
   });
+
+  const unitsToBestPrice = Math.max(0, VOLUME_PRICE_BEST_QTY - totalUnits);
 
   return {
     cartId: cart.id,
     lines,
     subtotalGbp: fromPence(subtotalPence),
-    itemCount: lines.reduce((s, l) => s + l.quantity, 0),
+    itemCount: totalUnits,
     currencyCode: cart.currencyCode,
+    unitsToBestPrice,
+    // Only worth showing when there is actually a saving still to be had.
+    subtotalAtBestPriceGbp:
+      anythingSlides && unitsToBestPrice > 0 ? fromPence(subtotalAtBestPence) : null,
   };
 }
 

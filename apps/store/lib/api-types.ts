@@ -19,6 +19,10 @@ export interface ThinVariant {
   colourHex: string | null;
   /** Decimal string in major units (e.g. "24.00"). */
   priceGbp: string | null;
+  /** Ceiling for volume pricing: the price of ONE unit. Null, or not above
+   *  priceGbp, means this product does not slide. priceGbp remains the
+   *  floor — the 10+ rate. */
+  maxPriceGbp: string | null;
   availableQty: number;
   /** Three-state availability: warehouse / supplier / out. Older API
    *  responses without the field default to OUT_OF_STOCK at the

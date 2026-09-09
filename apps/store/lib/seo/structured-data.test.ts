@@ -68,6 +68,7 @@ const VARIANT: FullVariant = {
   colour: 'Smoke',
   colourHex: '#3a3a3a',
   priceGbp: '24.00',
+  maxPriceGbp: '24.00',
   availableQty: 5,
   heroImageUrl: 'https://cdn.example.com/aurora-smoke.jpg',
   name: 'Aurora — Smoke',

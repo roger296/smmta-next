@@ -99,7 +99,15 @@ export default async function CartPage() {
                     </span>
                   ) : null}
                 </p>
-                <p className="text-sm text-[var(--brand-muted)]">£{line.pricePerUnitGbp} each</p>
+                <p className="text-sm text-[var(--brand-muted)]">
+                  £{line.pricePerUnitGbp} each
+                  {line.pricePerUnitGbp !== line.unitPriceAtQtyOneGbp && (
+                    <span className="text-[var(--brand-accent)]">
+                      {' '}
+                      · down from £{line.unitPriceAtQtyOneGbp}
+                    </span>
+                  )}
+                </p>
                 {line.display.slug && (
                   <Link
                     href={`/shop/p/${line.display.slug}`}
@@ -135,6 +143,15 @@ export default async function CartPage() {
               £{cart.subtotalGbp}
             </p>
           </div>
+          {cart.subtotalAtBestPriceGbp !== null && cart.unitsToBestPrice > 0 && (
+            <p
+              className="border border-[var(--brand-accent-ice)] bg-[var(--brand-paper)] p-3 text-sm"
+              data-testid="volume-prompt"
+            >
+              Add {cart.unitsToBestPrice} more roll{cart.unitsToBestPrice === 1 ? '' : 's'} to
+              reach the best price — this basket would be £{cart.subtotalAtBestPriceGbp}.
+            </p>
+          )}
           <p className="text-xs text-[var(--brand-muted)]">
             Shipping calculated at checkout. UK orders ship same day before 2pm.
           </p>
