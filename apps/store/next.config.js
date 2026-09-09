@@ -112,8 +112,15 @@ const nextConfig = {
       // SMMTA_API_BASE_URL below is the internal Docker address in production
       // (http://api:3000). Without this, every uploaded image 400s through
       // next/image while pasted external URLs keep working, which reads as
-      // "uploads are broken" rather than as a missing allowlist entry.
-      ...remotePatternFor(process.env.SMMTA_API_PUBLIC_URL),
+      // "uploads are broken" rather than as a missing allow-list entry.
+      //
+      // APP_BASE_URL is the fallback because this is read at BUILD time, and a
+      // value that exists only in the compose `environment:` block does not
+      // exist then — that is precisely how the first attempt at this failed.
+      // APP_BASE_URL is a deploy-platform variable in its own right (the API
+      // builds the upload URLs from it), so it is present wherever the build
+      // runs. The two are the same origin by definition.
+      ...remotePatternFor(process.env.SMMTA_API_PUBLIC_URL || process.env.APP_BASE_URL),
       // SMMTA-NEXT API host (hero / gallery URLs flow through it).
       ...(process.env.SMMTA_API_BASE_URL
         ? remotePatternFor(process.env.SMMTA_API_BASE_URL)
