@@ -58,3 +58,33 @@ export function resolveInitialVariant<T extends PickableVariant>(
   }
   return pickDefaultVariant(variants);
 }
+
+/**
+ * The price a customer pays for ONE of this variant — the top of the band a
+ * catalogue card advertises.
+ *
+ * Volume pricing means a variant has two prices: the floor (`priceGbp`, the
+ * 10+ rate) and the ceiling (`maxPriceGbp`, a single unit). The price filter
+ * works on this figure so that it matches the upper number on the card. Using
+ * the floor left the slider's whole upper half inert, because its bound was
+ * derived from floors while cards advertised ceilings roughly twice as high.
+ *
+ * Falls back to the floor for a variant that does not slide, since that is
+ * then the only price it has.
+ */
+export function variantCeilingGbp(v: {
+  priceGbp: string | null;
+  maxPriceGbp?: string | null;
+}): number | null {
+  const raw = v.maxPriceGbp ?? v.priceGbp;
+  if (raw == null) return null;
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** The lowest price a variant can reach (the volume rate). */
+export function variantFloorGbp(v: { priceGbp: string | null }): number | null {
+  if (v.priceGbp == null) return null;
+  const n = Number.parseFloat(v.priceGbp);
+  return Number.isFinite(n) ? n : null;
+}

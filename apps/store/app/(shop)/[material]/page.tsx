@@ -21,6 +21,7 @@ import { getEnv } from '@/lib/env';
 import { MATERIALS, findMaterial, groupMatchesMaterial } from '@/lib/materials';
 import { breadcrumbLd, itemListLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { CatalogueGrid } from '../_components/catalogue-grid';
+import { variantCeilingGbp, variantFloorGbp } from '@/lib/variants';
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = false;
@@ -77,19 +78,24 @@ export default async function MaterialPage({ params }: { params: Promise<RoutePa
   }
   const groups = allGroups.filter((g) => groupMatchesMaterial(g.name, def.code));
 
-  const allPrices: number[] = [];
+  // The slider spans the same extent the cards advertise: the cheapest volume
+  // price up to the dearest single-unit price. Deriving the upper bound from
+  // floors left it at roughly half the highest price on display, so the top of
+  // the slider could not reach the products it was meant to filter.
+  const floors: number[] = [];
+  const ceilings: number[] = [];
   const colourSet = new Set<string>();
   for (const g of groups) {
     for (const v of g.variants) {
-      if (v.priceGbp) {
-        const p = Number.parseFloat(v.priceGbp);
-        if (Number.isFinite(p)) allPrices.push(p);
-      }
+      const floor = variantFloorGbp(v);
+      if (floor !== null) floors.push(floor);
+      const ceiling = variantCeilingGbp(v);
+      if (ceiling !== null) ceilings.push(ceiling);
       if (v.colour) colourSet.add(v.colour);
     }
   }
-  const priceMin = allPrices.length > 0 ? Math.floor(Math.min(...allPrices)) : 0;
-  const priceMax = allPrices.length > 0 ? Math.ceil(Math.max(...allPrices)) : 100;
+  const priceMin = floors.length > 0 ? Math.floor(Math.min(...floors)) : 0;
+  const priceMax = ceilings.length > 0 ? Math.ceil(Math.max(...ceilings)) : 100;
   const colourOptions = Array.from(colourSet).sort((a, b) => a.localeCompare(b));
 
   const breadcrumb = stringifyJsonLd(

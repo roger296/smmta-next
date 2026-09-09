@@ -202,7 +202,20 @@ jobs:
           fi
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        # `--with-deps` runs apt-get update, which refreshes EVERY apt source on
+        # the runner — including Google's Chrome repo, which has served a
+        # Packages.gz failing its own checksum and taken the job down with
+        # "Hash Sum mismatch" before a single test ran. That repo is irrelevant
+        # here: Playwright fetches its own Chromium build from Microsoft's CDN,
+        # and --with-deps only wants system libraries from Ubuntu's archives.
+        # Dropping the source removes the dependency on a third party we do not
+        # need. Safe to delete this line once Google's index is fixed.
+        run: |
+          # Find the source wherever it lives rather than guessing a filename:
+          # it may be a .list or a deb822 .sources, and an rm of the wrong path
+          # fails silently and leaves the job breaking exactly as before.
+          sudo grep -rlE 'dl\.google\.com/linux/chrome' /etc/apt/ 2>/dev/null             | xargs -r sudo rm -f
+          npx playwright install --with-deps chromium
         working-directory: apps/store
 
       - name: Run Playwright e2e
@@ -223,9 +236,9 @@ jobs:
       - name: Run volume pricing tests
         run: |
           npx vitest run src/modules/storefront/volume-pricing.test.ts --root apps/api
-      - name: Run storefront cart tests
+      - name: Run storefront cart and pricing tests
         run: |
-          npx vitest run lib/cart.test.ts --root apps/store
+          npx vitest run lib/cart.test.ts lib/variants.test.ts --root apps/store
         env:
           DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
 
