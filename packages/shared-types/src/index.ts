@@ -195,3 +195,6 @@ export interface LucaPostTransactionRequest {
   idempotency_key?: string;
   submitted_by?: string;
 }
+
+// Volume pricing — the single source of truth for a unit price.
+export * from './pricing.js';
