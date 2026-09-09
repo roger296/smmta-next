@@ -20,12 +20,15 @@ ENV NODE_ENV=production
 ENV NODE_OPTIONS=--max-old-space-size=2048
 # The API's PUBLIC origin, needed so next/image will accept uploaded product
 # photographs served from <origin>/uploads/. images.remotePatterns is read by
-# `next build` and baked into the standalone output, so this MUST arrive as a
-# build arg — setting it in the runtime environment has no effect whatsoever,
-# and the symptom is every uploaded image 400ing while pasted external URLs
-# keep working.
-ARG SMMTA_API_PUBLIC_URL=""
-ENV SMMTA_API_PUBLIC_URL=$SMMTA_API_PUBLIC_URL
+# `next build` and baked into the standalone output, so a value that only
+# exists in the runtime environment cannot configure it.
+#
+# Declared without a default and WITHOUT a matching ENV on purpose. The earlier
+# `ARG X=""` + `ENV X=$X` set the variable to empty for the build, which
+# actively masked the value the deploy platform was providing — worse than not
+# declaring it at all. next.config.js falls back to APP_BASE_URL, which is the
+# same origin and is present as a platform variable wherever the build runs.
+ARG SMMTA_API_PUBLIC_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build -w @smmta/shared-types \
