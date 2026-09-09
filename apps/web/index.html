@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The CleverDeals mark, the same icon the storefront uses. Without a
+         favicon the browser shows a blank tab, which is hard to pick out when
+         the admin sits alongside the storefront and several other tabs.
+         Vite copies public/ into dist verbatim, so this needs no build step. -->
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
     <title>SMMTA-Next — Admin</title>
   </head>
   <body>
