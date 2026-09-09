@@ -18,6 +18,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 # Cap Node's heap so the Next build stays under memory pressure on small hosts.
 ENV NODE_OPTIONS=--max-old-space-size=2048
+# The API's PUBLIC origin, needed so next/image will accept uploaded product
+# photographs served from <origin>/uploads/. images.remotePatterns is read by
+# `next build` and baked into the standalone output, so this MUST arrive as a
+# build arg — setting it in the runtime environment has no effect whatsoever,
+# and the symptom is every uploaded image 400ing while pasted external URLs
+# keep working.
+ARG SMMTA_API_PUBLIC_URL=""
+ENV SMMTA_API_PUBLIC_URL=$SMMTA_API_PUBLIC_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build -w @smmta/shared-types \

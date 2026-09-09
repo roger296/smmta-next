@@ -104,6 +104,12 @@ services:
     build:
       context: .
       dockerfile: docker/store.Dockerfile
+      args:
+        # Baked in at build: next/image's remotePatterns allow-list is read by
+        # `next build`, not at runtime. The SMMTA_API_PUBLIC_URL below in
+        # `environment:` cannot configure it — only this can. Changing the API's
+        # public host therefore needs a rebuild, not just a restart.
+        SMMTA_API_PUBLIC_URL: ${APP_BASE_URL:-http://localhost:3000}
     restart: unless-stopped
     depends_on:
       api:
@@ -138,9 +144,9 @@ services:
       # SENDGRID_FROM must be a verified sender on the SendGrid account.
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       SENDGRID_FROM: ${SENDGRID_FROM:-sales@cleverdeals.net}
-      # Public origin of the API, used ONLY to allow uploaded product images
-      # through next/image. SMMTA_API_BASE_URL above is the internal Docker
-      # address, which is not the host those image URLs carry.
+      # Public origin of the API. The next/image allow-list is set by the
+      # build arg above, not by this — kept only so the value is visible to
+      # anything that reads it at runtime.
       SMMTA_API_PUBLIC_URL: ${APP_BASE_URL:-http://localhost:3000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
     expose:
