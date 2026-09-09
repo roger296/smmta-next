@@ -215,3 +215,62 @@ export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onC
     </form>
   );
 }
+
+/**
+ * Maps a saved product onto the form's field shape.
+ *
+ * Shared by the edit page and the duplicate flow so the two cannot drift. When
+ * this mapping lived only on the edit page, adding a field to the form meant
+ * remembering to add it here too — and a field missed by a duplicate is a
+ * silent data-loss bug: the new product simply saves without it, looking
+ * complete.
+ *
+ * `omit` blanks fields that must not be copied. Duplicating passes name and
+ * stockCode, which have to be unique or meaningful per product — the stock code
+ * is enforced unique by the API, so copying it would fail the save anyway.
+ */
+export function productToFormValues(
+  product: {
+    name: string;
+    stockCode: string | null;
+    manufacturerId: string | null;
+    manufacturerPartNumber: string | null;
+    description: string | null;
+    expectedNextCost: string | null;
+    minSellingPrice: string | null;
+    maxSellingPrice: string | null;
+    ean: string | null;
+    productType: 'PHYSICAL' | 'SERVICE';
+    requireSerialNumber: boolean;
+    requireBatchNumber: boolean;
+    weight: string | null;
+    countryOfOrigin: string | null;
+    hsCode: string | null;
+    supplierId: string | null;
+    defaultWarehouseId: string | null;
+  },
+  omit: Array<keyof ProductFormValues> = [],
+): Partial<ProductFormValues> {
+  const num = (v: string | null) => (v != null && v !== '' ? Number(v) : undefined);
+  const values: Partial<ProductFormValues> = {
+    name: product.name,
+    stockCode: product.stockCode ?? '',
+    manufacturerId: product.manufacturerId ?? '',
+    manufacturerPartNumber: product.manufacturerPartNumber ?? '',
+    description: product.description ?? '',
+    expectedNextCost: num(product.expectedNextCost) ?? 0,
+    minSellingPrice: num(product.minSellingPrice),
+    maxSellingPrice: num(product.maxSellingPrice),
+    ean: product.ean ?? '',
+    productType: product.productType,
+    requireSerialNumber: product.requireSerialNumber,
+    requireBatchNumber: product.requireBatchNumber,
+    weight: num(product.weight),
+    countryOfOrigin: product.countryOfOrigin ?? '',
+    hsCode: product.hsCode ?? '',
+    supplierId: product.supplierId ?? '',
+    defaultWarehouseId: product.defaultWarehouseId ?? '',
+  };
+  for (const key of omit) delete values[key];
+  return values;
+}

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { ProductForm } from '@/features/products/product-form';
+import { ProductForm, productToFormValues } from '@/features/products/product-form';
 import { ProductImagesTab, ProductStockTab } from '@/features/products/product-tabs';
 import { StorefrontTab } from '@/features/products/storefront-tab';
 import { ChannelsTab } from '@/features/channels/channels-tab';
@@ -16,7 +16,7 @@ import {
   useUpdateProduct,
 } from '@/features/products/use-products';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Copy, Trash2 } from 'lucide-react';
 
 export const Route = createFileRoute('/_authed/products/$id')({
   component: ProductDetailPage,
@@ -65,10 +65,21 @@ function ProductDetailPage() {
             <p className="text-sm text-[var(--color-muted-foreground)]">SKU: {data.stockCode}</p>
           )}
         </div>
-        <Button variant="destructive" size="sm" onClick={() => setConfirmDelete(true)}>
-          <Trash2 className="h-4 w-4" />
-          Delete
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Carries only the source id. The new page reads the product itself,
+              so the copied values are whatever is saved now — not a snapshot
+              serialised into the URL that could go stale or exceed its limits. */}
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/products/new" search={{ duplicateFrom: data.id }}>
+              <Copy className="h-4 w-4" />
+              Duplicate product
+            </Link>
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => setConfirmDelete(true)}>
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="general">
@@ -87,25 +98,7 @@ function ProductDetailPage() {
             </CardHeader>
             <CardContent>
               <ProductForm
-                defaultValues={{
-                  name: data.name,
-                  stockCode: data.stockCode ?? '',
-                  manufacturerId: data.manufacturerId ?? '',
-                  manufacturerPartNumber: data.manufacturerPartNumber ?? '',
-                  description: data.description ?? '',
-                  expectedNextCost: Number(data.expectedNextCost),
-                  minSellingPrice: data.minSellingPrice ? Number(data.minSellingPrice) : undefined,
-                  maxSellingPrice: data.maxSellingPrice ? Number(data.maxSellingPrice) : undefined,
-                  ean: data.ean ?? '',
-                  productType: data.productType,
-                  requireSerialNumber: data.requireSerialNumber,
-                  requireBatchNumber: data.requireBatchNumber,
-                  weight: data.weight ? Number(data.weight) : undefined,
-                  countryOfOrigin: data.countryOfOrigin ?? '',
-                  hsCode: data.hsCode ?? '',
-                  supplierId: data.supplierId ?? '',
-                  defaultWarehouseId: data.defaultWarehouseId ?? '',
-                }}
+                defaultValues={productToFormValues(data)}
                 submitLabel="Save changes"
                 onSubmit={async (v) => {
                   try {
