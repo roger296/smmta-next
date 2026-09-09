@@ -223,9 +223,9 @@ jobs:
       - name: Run volume pricing tests
         run: |
           npx vitest run src/modules/storefront/volume-pricing.test.ts --root apps/api
-      - name: Run storefront cart tests
+      - name: Run storefront cart and pricing tests
         run: |
-          npx vitest run lib/cart.test.ts --root apps/store
+          npx vitest run lib/cart.test.ts lib/variants.test.ts --root apps/store
         env:
           DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
 

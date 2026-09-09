@@ -23,6 +23,7 @@ import * as React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { GroupListItem, ThinVariant } from '@/lib/api-types';
+import { variantCeilingGbp } from '@/lib/variants';
 
 export interface CatalogueGridProps {
   groups: GroupListItem[];
@@ -119,10 +120,10 @@ export function CatalogueGrid({
       .map((g) => {
         const matchingVariants = g.variants.filter((v) => {
           if (colour && v.colour !== colour) return false;
-          if (v.priceGbp) {
-            const p = Number.parseFloat(v.priceGbp);
-            if (Number.isFinite(p) && p > maxPrice) return false;
-          }
+          // Compare on the ceiling — the figure the card shows as the top of
+          // its band — so the slider filters by what it appears to filter by.
+          const ceiling = variantCeilingGbp(v);
+          if (ceiling !== null && ceiling > maxPrice) return false;
           return true;
         });
         if (matchingVariants.length === 0) return null;

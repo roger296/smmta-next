@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickDefaultVariant, resolveInitialVariant } from './variants';
+import { pickDefaultVariant, resolveInitialVariant, variantCeilingGbp, variantFloorGbp } from './variants';
 import type { StockState } from './api-types';
 
 const v = (
@@ -87,5 +87,30 @@ describe('resolveInitialVariant', () => {
   it('returns undefined for an empty list regardless of query', () => {
     expect(resolveInitialVariant([], 'Smoke')).toBeUndefined();
     expect(resolveInitialVariant([], null)).toBeUndefined();
+  });
+});
+
+describe('variantCeilingGbp / variantFloorGbp', () => {
+  it('returns the ceiling when the variant slides', () => {
+    expect(variantCeilingGbp({ priceGbp: '10.00', maxPriceGbp: '20.00' })).toBe(20);
+    expect(variantFloorGbp({ priceGbp: '10.00' })).toBe(10);
+  });
+
+  it('falls back to the floor when there is no ceiling', () => {
+    // A product that does not slide has one price, which is both ends.
+    expect(variantCeilingGbp({ priceGbp: '6.00', maxPriceGbp: null })).toBe(6);
+    expect(variantCeilingGbp({ priceGbp: '6.00' })).toBe(6);
+  });
+
+  it('returns null when the variant has no price at all', () => {
+    expect(variantCeilingGbp({ priceGbp: null, maxPriceGbp: null })).toBeNull();
+    expect(variantFloorGbp({ priceGbp: null })).toBeNull();
+  });
+
+  it('returns null rather than NaN for an unparseable price', () => {
+    // NaN would silently pass the `> maxPrice` comparison as false and leave
+    // the product visible at every filter setting.
+    expect(variantCeilingGbp({ priceGbp: 'n/a', maxPriceGbp: null })).toBeNull();
+    expect(variantFloorGbp({ priceGbp: '' })).toBeNull();
   });
 });
