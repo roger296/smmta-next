@@ -211,7 +211,10 @@ jobs:
         # Dropping the source removes the dependency on a third party we do not
         # need. Safe to delete this line once Google's index is fixed.
         run: |
-          sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+          # Find the source wherever it lives rather than guessing a filename:
+          # it may be a .list or a deb822 .sources, and an rm of the wrong path
+          # fails silently and leaves the job breaking exactly as before.
+          sudo grep -rlE 'dl\.google\.com/linux/chrome' /etc/apt/ 2>/dev/null             | xargs -r sudo rm -f
           npx playwright install --with-deps chromium
         working-directory: apps/store
 
