@@ -15,6 +15,7 @@ import {
   priceBandPence,
   tieredUnitPricePence,
 } from '@smmta/shared-types';
+import { computePriceRange } from './catalogue.service.js';
 
 // The real numbers for V3-PLA-REG-GREEN: £4.62 min, doubled to £9.24 max.
 const MIN = 462;
@@ -132,5 +133,58 @@ describe('priceBandPence', () => {
       toPence: MIN,
       slides: false,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group price bands (the figure on a catalogue card)
+// ---------------------------------------------------------------------------
+
+describe('computePriceRange', () => {
+  const variant = (priceGbp: string | null, maxPriceGbp: string | null) => ({
+    priceGbp,
+    maxPriceGbp,
+  });
+
+  it('spans the cheapest floor to the dearest ceiling', () => {
+    // Landau PLA: REG variants at £7.25 and £9.25 floors, doubled ceilings.
+    expect(
+      computePriceRange([variant('7.25', '14.50'), variant('9.25', '18.50')]),
+    ).toEqual({ min: '7.25', max: '18.50' });
+  });
+
+  it('shows a real band when every variant shares one floor', () => {
+    // This is the case that was broken: PLA Pro's variants all cost £10, so
+    // both ends came from the floor and the card collapsed to "From £10.00",
+    // never showing that a single roll is £20.
+    const range = computePriceRange([
+      variant('10.00', '20.00'),
+      variant('10.00', '20.00'),
+    ]);
+    expect(range).toEqual({ min: '10.00', max: '20.00' });
+    expect(range!.min).not.toBe(range!.max);
+  });
+
+  it('falls back to the floor for a variant with no ceiling', () => {
+    expect(computePriceRange([variant('6.00', null)])).toEqual({
+      min: '6.00',
+      max: '6.00',
+    });
+  });
+
+  it('mixes variants with and without ceilings', () => {
+    expect(
+      computePriceRange([variant('6.00', null), variant('8.50', '17.00')]),
+    ).toEqual({ min: '6.00', max: '17.00' });
+  });
+
+  it('never reports a max below the min', () => {
+    const range = computePriceRange([variant('9.00', null), variant('6.00', '7.00')]);
+    expect(Number(range!.max)).toBeGreaterThanOrEqual(Number(range!.min));
+  });
+
+  it('returns null when no variant has a price', () => {
+    expect(computePriceRange([])).toBeNull();
+    expect(computePriceRange([variant(null, null)])).toBeNull();
   });
 });

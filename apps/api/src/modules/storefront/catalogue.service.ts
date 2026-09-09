@@ -63,7 +63,9 @@ export interface GroupListItem {
    *  for the Clothes Shop. The storefront uses this to know which
    *  selectors to render on the PDP. */
   attributeAxes: string[];
-  /** Inclusive price range across published variants, or null if no variants. */
+  /** Advertised band across published variants: cheapest floor (the volume
+   *  price of the cheapest colour) to dearest ceiling (the single-unit price
+   *  of the dearest). Null if no variants. */
   priceRange: { min: string; max: string } | null;
   totalAvailableQty: number;
   variants: ThinVariant[];
@@ -100,6 +102,35 @@ interface ChannelDecision {
   isOffered: boolean;
   /** The price the storefront should display: override OR base. */
   priceGbp: string | null;
+}
+
+/**
+ * Advertised price range for a group of variants.
+ *
+ * Spans the cheapest FLOOR (what the cheapest colour costs at the volume
+ * discount) to the dearest CEILING (what the dearest colour costs on its own),
+ * so the band a card shows covers every price a customer could actually pay
+ * for anything in the group.
+ *
+ * Both ends used to come from priceGbp, which is the floor — so a group whose
+ * variants all share one floor collapsed to a single figure and never showed
+ * the single-unit price at all.
+ *
+ * A variant with no ceiling contributes its floor, since that is the only price
+ * it has.
+ */
+export function computePriceRange(
+  variants: Array<{ priceGbp: string | null; maxPriceGbp: string | null }>,
+): { min: string; max: string } | null {
+  const floors = variants.map((v) => v.priceGbp).filter((p): p is string => p !== null);
+  if (floors.length === 0) return null;
+  const ceilings = variants
+    .map((v) => v.maxPriceGbp ?? v.priceGbp)
+    .filter((p): p is string => p !== null);
+  return {
+    min: floors.reduce((a, b) => (Number.parseFloat(a) <= Number.parseFloat(b) ? a : b)),
+    max: ceilings.reduce((a, b) => (Number.parseFloat(a) >= Number.parseFloat(b) ? a : b)),
+  };
 }
 
 export class CatalogueService {
@@ -161,20 +192,7 @@ export class CatalogueService {
     return groups
       .map((g) => {
         const variants = variantsByGroup.get(g.id) ?? [];
-        const prices = variants
-          .map((v) => v.priceGbp)
-          .filter((p): p is string => p !== null);
-        const priceRange =
-          prices.length > 0
-            ? {
-                min: prices.reduce((a, b) =>
-                  Number.parseFloat(a) <= Number.parseFloat(b) ? a : b,
-                ),
-                max: prices.reduce((a, b) =>
-                  Number.parseFloat(a) >= Number.parseFloat(b) ? a : b,
-                ),
-              }
-            : null;
+        const priceRange = computePriceRange(variants);
         return {
           id: g.id,
           slug: g.slug,
@@ -260,16 +278,7 @@ export class CatalogueService {
       return null;
     }
 
-    const prices = variants
-      .map((v) => v.priceGbp)
-      .filter((p): p is string => p !== null);
-    const priceRange =
-      prices.length > 0
-        ? {
-            min: prices.reduce((a, b) => (Number.parseFloat(a) <= Number.parseFloat(b) ? a : b)),
-            max: prices.reduce((a, b) => (Number.parseFloat(a) >= Number.parseFloat(b) ? a : b)),
-          }
-        : null;
+    const priceRange = computePriceRange(variants);
 
     return {
       id: group.id,
