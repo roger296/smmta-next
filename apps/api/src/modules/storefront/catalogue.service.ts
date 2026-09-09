@@ -119,6 +119,25 @@ interface ChannelDecision {
  * A variant with no ceiling contributes its floor, since that is the only price
  * it has.
  */
+/**
+ * Image for a group card.
+ *
+ * Prefers the group's own artwork, falling back to the first variant that has
+ * a picture. Group and product images are edited in different places: an
+ * operator uploading a photograph attaches it to a PRODUCT, which sets
+ * products.hero_image_url and shows on the product page — while cards read
+ * product_groups.hero_image_url, which that upload never touches. Without this
+ * fallback a freshly photographed range keeps rendering a placeholder on every
+ * listing page, with the image plainly visible one click deeper.
+ */
+export function groupCardImage(
+  groupHeroImageUrl: string | null,
+  variants: Array<{ heroImageUrl: string | null }>,
+): string | null {
+  if (groupHeroImageUrl) return groupHeroImageUrl;
+  return variants.find((v) => !!v.heroImageUrl)?.heroImageUrl ?? null;
+}
+
 export function computePriceRange(
   variants: Array<{ priceGbp: string | null; maxPriceGbp: string | null }>,
 ): { min: string; max: string } | null {
@@ -198,7 +217,7 @@ export class CatalogueService {
           slug: g.slug,
           name: g.name,
           shortDescription: g.shortDescription,
-          heroImageUrl: g.heroImageUrl,
+          heroImageUrl: groupCardImage(g.heroImageUrl, variants),
           galleryImageUrls: g.galleryImageUrls ?? null,
           seoTitle: g.seoTitle,
           seoDescription: g.seoDescription,
@@ -286,7 +305,7 @@ export class CatalogueService {
       name: group.name,
       shortDescription: group.shortDescription,
       longDescription: group.longDescription,
-      heroImageUrl: group.heroImageUrl,
+      heroImageUrl: groupCardImage(group.heroImageUrl, variants),
       galleryImageUrls: group.galleryImageUrls ?? null,
       seoTitle: group.seoTitle,
       seoDescription: group.seoDescription,

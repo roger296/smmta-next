@@ -233,9 +233,9 @@ jobs:
       # Volume pricing: the storefront and the API must compute identical unit
       # prices or the order-commit reconciliation rejects every checkout. These
       # are the tests that catch a divergence, so they must actually run.
-      - name: Run volume pricing tests
+      - name: Run catalogue pricing and image tests
         run: |
-          npx vitest run src/modules/storefront/volume-pricing.test.ts --root apps/api
+          npx vitest run src/modules/storefront/volume-pricing.test.ts src/modules/storefront/catalogue-image.test.ts --root apps/api
       - name: Run storefront cart and pricing tests
         run: |
           npx vitest run lib/cart.test.ts lib/variants.test.ts --root apps/store
