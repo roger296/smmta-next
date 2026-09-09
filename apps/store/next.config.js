@@ -70,6 +70,26 @@ const securityHeaders = [
     : []),
 ];
 
+/**
+ * One next/image remotePatterns entry for an origin, or none if the value is
+ * absent or unparseable. A bad value used to throw from inside the config and
+ * fail the build without indicating which variable was at fault.
+ *
+ * NB remotePatterns are evaluated by `next build` and baked into the standalone
+ * output, so the origin must arrive as a BUILD ARG. A runtime environment
+ * variable of the same name has no effect on the allow-list.
+ */
+function remotePatternFor(origin) {
+  if (!origin) return [];
+  try {
+    const u = new URL(origin);
+    return [{ protocol: u.protocol.replace(':', ''), hostname: u.hostname }];
+  } catch {
+    console.warn(`[next.config] Ignoring unparseable image origin: ${origin}`);
+    return [];
+  }
+}
+
 const nextConfig = {
   // Don't advertise the framework. Free information for anyone
   // fingerprinting the stack for known-version exploits.
@@ -93,22 +113,10 @@ const nextConfig = {
       // (http://api:3000). Without this, every uploaded image 400s through
       // next/image while pasted external URLs keep working, which reads as
       // "uploads are broken" rather than as a missing allowlist entry.
-      ...(process.env.SMMTA_API_PUBLIC_URL
-        ? [
-            (() => {
-              const u = new URL(process.env.SMMTA_API_PUBLIC_URL);
-              return { protocol: u.protocol.replace(':', ''), hostname: u.hostname };
-            })(),
-          ]
-        : []),
+      ...remotePatternFor(process.env.SMMTA_API_PUBLIC_URL),
       // SMMTA-NEXT API host (hero / gallery URLs flow through it).
       ...(process.env.SMMTA_API_BASE_URL
-        ? [
-            (() => {
-              const u = new URL(process.env.SMMTA_API_BASE_URL);
-              return { protocol: u.protocol.replace(':', ''), hostname: u.hostname };
-            })(),
-          ]
+        ? remotePatternFor(process.env.SMMTA_API_BASE_URL)
         : [
             { protocol: 'http', hostname: 'localhost' },
             { protocol: 'http', hostname: '127.0.0.1' },
