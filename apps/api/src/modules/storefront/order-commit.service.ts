@@ -16,6 +16,7 @@
  * Does **not** post to Luca GL — GL postings remain at invoice / payment time.
  */
 import { and, eq, isNull } from 'drizzle-orm';
+import { tieredUnitPricePence } from '@smmta/shared-types';
 import { getDb } from '../../config/database.js';
 import {
   customerDeliveryAddresses,
@@ -184,7 +185,16 @@ export class OrderCommitService {
         // operator unpublishes mid-flow.
         isNull(products.deletedAt),
       ),
-      columns: { id: true, minSellingPrice: true, name: true, slug: true, colour: true },
+      columns: {
+        id: true,
+        minSellingPrice: true,
+        // Needed for volume pricing. Omitting it would silently price
+        // every order at the floor, undercharging small orders.
+        maxSellingPrice: true,
+        name: true,
+        slug: true,
+        colour: true,
+      },
     });
     const priceById = new Map(
       productRows.filter((p) => productIds.includes(p.id)).map((p) => [p.id, p]),
@@ -202,6 +212,10 @@ export class OrderCommitService {
     > = {};
     let orderGrossPence = 0;
     let orderTaxPence = 0;
+    // Volume pricing is basket-wide: the unit price depends on how many units
+    // the WHOLE order contains, not how many of one product. Computed once,
+    // before the loop, so every line is priced on the same figure.
+    const totalUnits = Array.from(qtyByProduct.values()).reduce((sum, q) => sum + q, 0);
     for (const [pid, qty] of qtyByProduct) {
       const product = priceById.get(pid)!;
       if (!product.minSellingPrice) {
@@ -210,11 +224,20 @@ export class OrderCommitService {
           error: `Product ${pid} has no min_selling_price; cannot price the order`,
         });
       }
-      const { lineGross, lineTax } = splitGrossPrice(product.minSellingPrice, qty);
+      // Same function the storefront used to build the Mollie amount. If these
+      // two ever diverge the reconciliation check below rejects the order, so
+      // there is deliberately no second implementation of this arithmetic.
+      const unitPence = tieredUnitPricePence(
+        toPence(product.minSellingPrice),
+        product.maxSellingPrice != null ? toPence(product.maxSellingPrice) : null,
+        totalUnits,
+      );
+      const unitGrossMajor = fromPence(unitPence);
+      const { lineGross, lineTax } = splitGrossPrice(unitGrossMajor, qty);
       orderGrossPence += lineGross;
       orderTaxPence += lineTax;
       linePrices[pid] = {
-        pricePerUnit: product.minSellingPrice,
+        pricePerUnit: unitGrossMajor,
         lineTotal: fromPence(lineGross),
         taxRate: 20,
         taxValue: fromPence(lineTax),
