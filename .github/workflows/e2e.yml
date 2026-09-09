@@ -23,6 +23,7 @@ on:
       - 'apps/api/src/modules/storefront/**'
       - 'apps/api/src/modules/products/**'
       - 'packages/shared-types/**'
+      - 'apps/web/**'
       - 'apps/api/scripts/**'
       - '.github/workflows/e2e.yml'
   workflow_dispatch:
@@ -241,6 +242,12 @@ jobs:
           npx vitest run lib/cart.test.ts lib/variants.test.ts --root apps/store
         env:
           DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
+
+      # The admin SPA had no CI coverage at all: the path filter did not
+      # mention apps/web, so nothing here ever ran against it.
+      - name: Run admin SPA tests
+        run: |
+          npx vitest run --root apps/web
 
       - name: Run concurrency stress test (50 parallel × 100 iterations)
         # Postgres FOR UPDATE SKIP LOCKED correctness check. Lives in
