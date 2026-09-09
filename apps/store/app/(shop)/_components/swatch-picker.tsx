@@ -18,6 +18,7 @@ import type { FullVariant } from '@/lib/api-types';
 import { resolveInitialVariant } from '@/lib/variants';
 import { DISPATCH_COPY, effectiveStockState, isSellable } from '@/lib/dispatch-copy';
 import { AddToCartButton } from '@/components/add-to-cart-button';
+import { PriceBand } from '@/components/price-band';
 
 export interface SwatchPickerProps {
   groupName: string;
@@ -135,14 +136,11 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
             )}
           </div>
 
-          <div className="flex items-baseline gap-4 border-y border-[var(--brand-border)] py-5">
-            <p className="text-3xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>
-              {selected.priceGbp ? `£${selected.priceGbp}` : 'Price on request'}
-            </p>
-            <p className="text-xs uppercase tracking-wider text-[var(--brand-muted)]">
-              per spool · inc. VAT
-            </p>
-          </div>
+          <PriceBand
+            priceGbp={selected.priceGbp}
+            maxPriceGbp={selected.maxPriceGbp}
+            className="border-y border-[var(--brand-border)] py-5"
+          />
 
           <fieldset>
             <legend className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--brand-ink)]">

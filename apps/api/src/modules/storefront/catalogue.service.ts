@@ -31,6 +31,11 @@ export interface ThinVariant {
   colour: string | null;
   colourHex: string | null;
   priceGbp: string | null;
+  /** Ceiling for volume pricing: what ONE unit costs. Null, or not above
+   *  priceGbp, means this product does not slide and priceGbp is the price.
+   *  priceGbp stays the floor (the 10+ rate) so existing clients are
+   *  unaffected — see packages/shared-types/src/pricing.ts. */
+  maxPriceGbp: string | null;
   availableQty: number;
   /** Three-state stock summary: IN_STOCK (warehouse) / AVAILABLE_FROM_SUPPLIER
    *  (warehouse=0, supplier>0) / OUT_OF_STOCK (both 0). Derived once per
@@ -144,6 +149,7 @@ export class CatalogueService {
         colour: v.colour,
         colourHex: v.colourHex,
         priceGbp: decision.priceGbp ?? v.minSellingPrice ?? null,
+        maxPriceGbp: v.maxSellingPrice ?? null,
         availableQty: stockMap.get(v.id) ?? 0,
         stockState: avail?.stockState ?? 'OUT_OF_STOCK',
         attributes: v.attributes ?? null,
@@ -234,6 +240,7 @@ export class CatalogueService {
         colour: v.colour,
         colourHex: v.colourHex,
         priceGbp: d.priceGbp ?? v.minSellingPrice ?? null,
+        maxPriceGbp: v.maxSellingPrice ?? null,
         availableQty: stockMap.get(v.id) ?? 0,
         stockState: availabilityMap.get(v.id)?.stockState ?? 'OUT_OF_STOCK',
         attributes: v.attributes ?? null,
@@ -312,6 +319,7 @@ export class CatalogueService {
       colour: p.colour,
       colourHex: p.colourHex,
       priceGbp: decision.priceGbp ?? p.minSellingPrice ?? null,
+      maxPriceGbp: p.maxSellingPrice ?? null,
       availableQty: stockMap.get(p.id) ?? 0,
       stockState: availabilityMap.get(p.id)?.stockState ?? 'OUT_OF_STOCK',
       attributes: p.attributes ?? null,
@@ -362,6 +370,7 @@ export class CatalogueService {
         colour: p.colour,
         colourHex: p.colourHex,
         priceGbp: d.priceGbp ?? p.minSellingPrice ?? null,
+        maxPriceGbp: p.maxSellingPrice ?? null,
         availableQty: stockMap.get(p.id) ?? 0,
         stockState: availabilityMap.get(p.id)?.stockState ?? 'OUT_OF_STOCK',
         attributes: p.attributes ?? null,

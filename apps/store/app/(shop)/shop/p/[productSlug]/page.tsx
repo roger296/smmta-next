@@ -20,6 +20,7 @@ import { breadcrumbLd, productLd, stringifyJsonLd } from '@/lib/seo/structured-d
 import { pageTitle, socialTitle } from '@/lib/seo/title';
 import { Markdown } from '@/lib/markdown';
 import { AddToCartButton } from '@/components/add-to-cart-button';
+import { PriceBand } from '@/components/price-band';
 import { PreorderPools } from '@/components/preorder-pools';
 import { WatchOffersButton } from '@/components/watch-offers-button';
 
@@ -236,14 +237,11 @@ export default async function StandaloneProductPage({
             )}
           </div>
 
-          <div className="flex items-baseline gap-4 border-y border-[var(--brand-border)] py-5">
-            <p className="text-3xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>
-              {product.priceGbp ? `£${product.priceGbp}` : 'Price on request'}
-            </p>
-            <p className="text-xs uppercase tracking-wider text-[var(--brand-muted)]">
-              per spool · inc. VAT
-            </p>
-          </div>
+          <PriceBand
+            priceGbp={product.priceGbp}
+            maxPriceGbp={product.maxPriceGbp}
+            className="border-y border-[var(--brand-border)] py-5"
+          />
 
           <p
             className={`text-sm font-medium ${

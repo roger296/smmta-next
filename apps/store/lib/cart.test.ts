@@ -9,9 +9,12 @@ import { eq, inArray } from 'drizzle-orm';
 const PRODUCT_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const OTHER_PRODUCT_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeefff';
 
-// Mock the SMMTA client so addItem doesn't make real network calls. The
-// mock returns a stable price snapshot we can assert against.
+// Mock the SMMTA client so addItem doesn't make real network calls.
+// mockedPrice is the floor (the 10+ rate); mockedMaxPrice is the ceiling that
+// a single unit costs. Null means the product does not slide, which is how
+// most of these tests want it — they assert cart mechanics, not pricing.
 let mockedPrice = '24.00';
+let mockedMaxPrice: string | null = null;
 vi.mock('./smmta', () => ({
   getProductsByIds: vi.fn(async (ids: string[]) =>
     ids.map((id) => ({
@@ -20,6 +23,7 @@ vi.mock('./smmta', () => ({
       colour: id === PRODUCT_ID ? 'Smoke' : 'Amber',
       colourHex: null,
       priceGbp: mockedPrice,
+      maxPriceGbp: mockedMaxPrice,
       availableQty: 10,
       heroImageUrl: 'https://example.com/h.jpg',
       name: id === PRODUCT_ID ? 'Aurora — Smoke' : 'Aurora — Amber',
@@ -60,6 +64,7 @@ beforeEach(async () => {
     await db.delete(carts).where(inArray(carts.id, dirtyIds));
   }
   mockedPrice = '24.00';
+  mockedMaxPrice = null;
 });
 
 afterAll(async () => {
@@ -78,13 +83,18 @@ describe('addItem → getOrCreateCart', () => {
     expect(cart.itemCount).toBe(2);
   });
 
-  it('snapshots the price at add time and ignores later API price changes', async () => {
+  // This replaces a test that asserted the OPPOSITE — that the price was
+  // snapshotted at add time and later catalogue changes were ignored. Volume
+  // pricing makes a per-line snapshot unworkable, because adding a tenth roll
+  // of any colour has to re-price the nine already in the basket. The
+  // consequence is recorded here rather than left implicit: a catalogue price
+  // change now reaches carts that are already open.
+  it('re-prices from the live catalogue on every read', async () => {
     const { cartId } = await addItem(null, PRODUCT_ID, 1);
-    // Simulate a price change in SMMTA.
     mockedPrice = '99.99';
     const view = await getOrCreateCart(cartId);
-    expect(view.lines[0]?.pricePerUnitGbp).toBe('24.00');
-    expect(view.subtotalGbp).toBe('24.00');
+    expect(view.lines[0]?.pricePerUnitGbp).toBe('99.99');
+    expect(view.subtotalGbp).toBe('99.99');
   });
 
   it('combines duplicate productId adds into one line', async () => {
@@ -177,5 +187,104 @@ describe('getOrCreateCart', () => {
     const view = await getOrCreateCart('00000000-0000-4000-8000-000000000000');
     expect(view.cartId).toBeNull();
     expect(view.lines).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Volume pricing
+// ---------------------------------------------------------------------------
+
+/**
+ * £4.62 floor, £9.24 ceiling — the real figures for a filament spool once the
+ * max is set to twice the min. One roll costs the ceiling, ten cost the floor,
+ * and the steps between are (max-min)/9 = 51.33p, rounded once.
+ */
+describe('cart — volume pricing', () => {
+  const FLOOR = '4.62';
+  const CEILING = '9.24';
+
+  beforeEach(() => {
+    mockedPrice = FLOOR;
+    mockedMaxPrice = CEILING;
+  });
+
+  it('charges the ceiling price for a single roll', async () => {
+    const { cart } = await addItem(null, PRODUCT_ID, 1);
+    expect(cart.lines[0]?.pricePerUnitGbp).toBe('9.24');
+    expect(cart.subtotalGbp).toBe('9.24');
+    expect(cart.unitsToBestPrice).toBe(9);
+  });
+
+  it('charges the floor price at ten rolls, exactly', async () => {
+    const { cart } = await addItem(null, PRODUCT_ID, 10);
+    expect(cart.lines[0]?.pricePerUnitGbp).toBe('4.62');
+    expect(cart.subtotalGbp).toBe('46.20');
+    expect(cart.unitsToBestPrice).toBe(0);
+    // Nothing left to save, so no prompt.
+    expect(cart.subtotalAtBestPriceGbp).toBeNull();
+  });
+
+  it('stays at the floor price beyond ten rolls', async () => {
+    const { cart } = await addItem(null, PRODUCT_ID, 14);
+    expect(cart.lines[0]?.pricePerUnitGbp).toBe('4.62');
+    expect(cart.unitsToBestPrice).toBe(0);
+  });
+
+  it('re-prices rolls already in the basket when another is added', async () => {
+    const first = await addItem(null, PRODUCT_ID, 1);
+    expect(first.cart.lines[0]?.pricePerUnitGbp).toBe('9.24');
+
+    const second = await addItem(first.cartId, PRODUCT_ID, 1);
+    // Both rolls now cost less than the first one did on its own — this is
+    // the requirement that made the price snapshot unworkable.
+    expect(second.cart.lines[0]?.quantity).toBe(2);
+    expect(Number(second.cart.lines[0]?.pricePerUnitGbp)).toBeLessThan(9.24);
+    expect(Number(second.cart.subtotalGbp)).toBeLessThan(9.24 * 2);
+  });
+
+  it('puts the price back up when a roll is removed', async () => {
+    const { cartId } = await addItem(null, PRODUCT_ID, 3);
+    const three = await getOrCreateCart(cartId);
+    const priceAtThree = Number(three.lines[0]?.pricePerUnitGbp);
+
+    const line = three.lines[0]!;
+    const afterRemoval = await setQty(cartId!, line.id, 2);
+    expect(Number(afterRemoval.lines[0]?.pricePerUnitGbp)).toBeGreaterThan(priceAtThree);
+  });
+
+  it('counts different colours towards the same volume tier', async () => {
+    // The discount is basket-wide, so five of each reaches the best price —
+    // a customer mixing colours is not penalised for it.
+    const first = await addItem(null, PRODUCT_ID, 5);
+    const second = await addItem(first.cartId, OTHER_PRODUCT_ID, 5);
+    expect(second.cart.itemCount).toBe(10);
+    for (const line of second.cart.lines) {
+      expect(line.pricePerUnitGbp).toBe('4.62');
+    }
+    expect(second.cart.subtotalGbp).toBe('46.20');
+  });
+
+  it('reports the saving still available while below the tier', async () => {
+    const { cart } = await addItem(null, PRODUCT_ID, 2);
+    expect(cart.unitsToBestPrice).toBe(8);
+    // Two rolls at the floor price is what the prompt compares against.
+    expect(cart.subtotalAtBestPriceGbp).toBe('9.24');
+    expect(Number(cart.subtotalGbp)).toBeGreaterThan(9.24);
+  });
+
+  it('does not slide a product with no ceiling', async () => {
+    mockedMaxPrice = null;
+    const { cart } = await addItem(null, PRODUCT_ID, 1);
+    expect(cart.lines[0]?.pricePerUnitGbp).toBe('4.62');
+    const ten = await addItem(cart.cartId, PRODUCT_ID, 9);
+    expect(ten.cart.lines[0]?.pricePerUnitGbp).toBe('4.62');
+    // No saving to advertise when nothing slides.
+    expect(ten.cart.subtotalAtBestPriceGbp).toBeNull();
+  });
+
+  it('exposes both ends of the band on each line', async () => {
+    const { cart } = await addItem(null, PRODUCT_ID, 1);
+    expect(cart.lines[0]?.unitPriceAtQtyOneGbp).toBe('9.24');
+    expect(cart.lines[0]?.bestUnitPriceGbp).toBe('4.62');
   });
 });

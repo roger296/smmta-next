@@ -22,6 +22,7 @@ on:
       - 'apps/store/**'
       - 'apps/api/src/modules/storefront/**'
       - 'apps/api/src/modules/products/**'
+      - 'packages/shared-types/**'
       - 'apps/api/scripts/**'
       - '.github/workflows/e2e.yml'
   workflow_dispatch:
@@ -215,6 +216,18 @@ jobs:
           SMMTA_API_KEY: ${{ steps.store-key.outputs.KEY }}
           SMMTA_API_BASE_URL: http://127.0.0.1:8080/api/v1
         run: npm run e2e -w @smmta/store
+
+      # Volume pricing: the storefront and the API must compute identical unit
+      # prices or the order-commit reconciliation rejects every checkout. These
+      # are the tests that catch a divergence, so they must actually run.
+      - name: Run volume pricing tests
+        run: |
+          npx vitest run src/modules/storefront/volume-pricing.test.ts --root apps/api
+      - name: Run storefront cart tests
+        run: |
+          npx vitest run lib/cart.test.ts --root apps/store
+        env:
+          DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
 
       - name: Run concurrency stress test (50 parallel × 100 iterations)
         # Postgres FOR UPDATE SKIP LOCKED correctness check. Lives in

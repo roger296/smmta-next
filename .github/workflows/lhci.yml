@@ -14,6 +14,7 @@ on:
   pull_request:
     paths:
       - 'apps/store/**'
+      - 'packages/shared-types/**'
       - '.github/workflows/lhci.yml'
   workflow_dispatch:
 
@@ -31,6 +32,14 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The storefront imports the volume-pricing curve from this package, and
+      # its package.json main points at dist/ — which does not exist until it is
+      # built. Workspaces are built individually here, so the order has to be
+      # explicit; without this the store build fails with "Can't resolve
+      # @smmta/shared-types".
+      - name: Build shared types
+        run: npm run build -w @smmta/shared-types
 
       - name: Build storefront
         env:
