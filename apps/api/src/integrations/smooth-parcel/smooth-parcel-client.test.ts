@@ -97,6 +97,14 @@ describe('login', () => {
     expect((err as Error).message).not.toContain(PASSWORD);
   });
 
+  it('treats a 200 reply with status false as a rejected login', async () => {
+    // How Smooth Parcel actually answers a wrong password.
+    stubFetch(json({ status: false, message: 'Username or password is incorrect' }));
+    await expect(client().addNewOrder(payload)).rejects.toThrow(
+      /login was rejected: Username or password is incorrect/,
+    );
+  });
+
   it('makes no request at all without credentials', async () => {
     const calls = stubFetch(loginOk());
     await expect(client({ password: '' }).addNewOrder(payload)).rejects.toThrow(/username and password are not set/);
