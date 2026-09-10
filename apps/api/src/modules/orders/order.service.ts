@@ -1,4 +1,4 @@
-import { eq, and, isNull, ilike, sql, count, gte, lte } from 'drizzle-orm';
+import { eq, and, or, isNull, ilike, inArray, count, gte, lte } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
   customerOrders, orderLines, orderNotes, customers,
@@ -49,13 +49,27 @@ export class OrderService {
     if (sourceChannel) conditions.push(eq(customerOrders.sourceChannel, sourceChannel));
     if (search) {
       const pattern = `%${search}%`;
-      // Customer name is matched through a subquery rather than a join so the
-      // same condition serves both the count and the page of rows below —
-      // a join on one and not the other would make "5 total" disagree with
-      // the rows actually shown.
-      conditions.push(
-        sql`(${ilike(customerOrders.orderNumber, pattern)} OR ${ilike(customerOrders.customerOrderNumber, pattern)} OR ${customerOrders.customerId} IN (SELECT ${customers.id} FROM ${customers} WHERE ${ilike(customers.name, pattern)}))`,
-      );
+      // Customer name is matched by resolving the matching customer ids first,
+      // then filtering orders by those ids — NOT by a raw subquery. Inside a
+      // relational findMany, Drizzle aliases the root table as "customerOrders"
+      // and rewrites column references in raw sql to that alias, so a subquery's
+      // "customers"."name" was emitted as "customerOrders"."name", a column that
+      // does not exist. Plain queries avoid the rewrite, and the one resulting
+      // condition still drives both the count and the rows.
+      const matchingCustomers = await this.db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(and(eq(customers.companyId, companyId), ilike(customers.name, pattern)));
+      const terms = [
+        ilike(customerOrders.orderNumber, pattern),
+        ilike(customerOrders.customerOrderNumber, pattern),
+      ];
+      // Only when something matched: an empty IN list is not safe to rely on
+      // across Drizzle versions.
+      if (matchingCustomers.length > 0) {
+        terms.push(inArray(customerOrders.customerId, matchingCustomers.map((c) => c.id)));
+      }
+      conditions.push(or(...terms)!);
     }
     if (dateFrom) conditions.push(gte(customerOrders.orderDate, dateFrom));
     if (dateTo) conditions.push(lte(customerOrders.orderDate, dateTo));
