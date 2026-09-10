@@ -50,7 +50,7 @@ export const SHIPPING_FAQ: FaqEntry[] = [
   {
     question: 'Do you offer trade / volume discounts?',
     answer:
-      'Yes — orders of 10+ spools of the same SKU get a discount applied at checkout. For larger volumes, email sales@cleverdeals.net and we’ll quote.',
+      'Yes — the price per roll drops with every roll in your basket, in any mix of colours and ranges, reaching the best price at 10 rolls or more. It’s applied automatically, and every product page shows both the single-roll and the 10-roll price. For larger volumes, email sales@cleverdeals.net and we’ll quote.',
   },
   {
     question: 'Can I change my order after placing it?',

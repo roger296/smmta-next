@@ -72,8 +72,11 @@ cardboard.
 
 ## Do you offer trade or volume discounts?
 
-Yes. Orders of ten or more of the same item get a discount applied at checkout.
-For larger volumes, customers should email sales@cleverdeals.net for a quote.
+Yes. Every roll in the basket lowers the price per roll, across any mix of
+colours and ranges, down to the best price at ten rolls or more. Each product
+page shows both the single-roll price and the ten-roll price, and the discount
+is applied automatically in the basket. For larger volumes, customers should
+email sales@cleverdeals.net for a quote.
 
 ## Can I change the delivery address after ordering?
 
