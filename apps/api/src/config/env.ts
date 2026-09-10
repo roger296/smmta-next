@@ -53,11 +53,11 @@ const envSchema = z.object({
   // Smooth Parcel shipping labels. OFF by default, like Luca: with it off, a
   // paid order records a DISABLED label and nothing is bought. The API logs in
   // with the Smooth Parcel account's email address and password and uses the
-  // token that returns (see smooth-parcel-client.ts). BETA by default, so
-  // switching on cannot buy a real label by accident; LIVE is
-  // https://api.smoothparcel.com.
+  // token that returns (see smooth-parcel-client.ts). LIVE by default: a label
+  // costs nothing unless the parcel is actually sent, so there is no need to
+  // start on BETA (https://api-beta.smoothparcel.com).
   SMOOTH_PARCEL_ENABLED: envBool(false),
-  SMOOTH_PARCEL_API_BASE_URL: z.string().default('https://api-beta.smoothparcel.com'),
+  SMOOTH_PARCEL_API_BASE_URL: z.string().default('https://api.smoothparcel.com'),
   SMOOTH_PARCEL_USERNAME: z.string().default(''),
   SMOOTH_PARCEL_PASSWORD: z.string().default(''),
   SMOOTH_PARCEL_TIMEOUT_MS: z.coerce.number().default(15000),
