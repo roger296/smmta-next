@@ -10,6 +10,8 @@ import { ChatPanel } from '@/components/chat-panel';
 import { getComingSoon } from '@/lib/smmta';
 import { HeaderSearch } from '@/components/header-search';
 import { LEGAL } from '@/lib/legal';
+import { resolveMeasurementId } from '@/lib/analytics';
+import { AnalyticsConsent } from '@/components/analytics-consent';
 
 const STORE_NAME = 'Filament Store';
 const STORE_TAGLINE =
@@ -124,6 +126,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SiteFooter />
           <ChatPanel />
         </QueryProvider>
+        {/* Google Analytics, loaded only after the visitor accepts. */}
+        <AnalyticsConsent measurementId={resolveMeasurementId(getEnv())} />
       </body>
     </html>
   );
