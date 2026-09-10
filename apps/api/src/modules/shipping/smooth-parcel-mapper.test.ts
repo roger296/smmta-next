@@ -110,9 +110,10 @@ describe('buildSmoothParcelOrder', () => {
     });
   });
 
-  it('sends units as the strings the API contract expects', () => {
-    const [item] = buildSmoothParcelOrder(order(), opts).OrderDetailList;
-    expect([item!.WeightUnits, item!.LWHUnit]).toEqual(['kg', 'cm']);
+  it('sends the unit codes and source tag the ETS integration used', () => {
+    const p = buildSmoothParcelOrder(order(), opts);
+    expect([p.OrderDetailList[0]!.WeightUnits, p.OrderDetailList[0]!.LWHUnit]).toEqual(['2', '4']);
+    expect(p.ComingFrom).toBe('SMTA');
   });
 
   it('falls back to the default weight and box when a product has none', () => {

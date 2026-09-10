@@ -1,20 +1,20 @@
 /**
- * Smooth Parcel client against a stubbed fetch: the login and token reuse, the
- * single retry on an expired token, and every label reply shape we accept.
- * No live HTTP.
+ * Smooth Parcel client against a stubbed fetch: the API key header, the reply
+ * wrapper the ETS integration documented, every label reply shape we accept,
+ * and account registration. No live HTTP.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   SmoothParcelApiError,
   SmoothParcelClient,
   SmoothParcelUnreadableOrderError,
+  generateApiAccessKey,
   type SmoothParcelClientOptions,
 } from './smooth-parcel-client.js';
 import type { SmoothParcelOrderPayload } from '../../modules/shipping/smooth-parcel-mapper.js';
 
-const BASE = 'https://api-beta.smoothparcel.example';
-const USERNAME = 'labels@example.invalid';
-const PASSWORD = 'correct-horse-battery';
+const BASE = 'https://api.smoothparcel.com';
+const KEY = 'k3yK3yK3yK3yK3yK3yK3yA';
 const PDF = Buffer.from('%PDF-1.4\n% label\n');
 const payload = { TransactionID: 'STORE-1' } as unknown as SmoothParcelOrderPayload;
 
@@ -43,12 +43,12 @@ function stubFetch(...replies: Array<() => Response>): Call[] {
 
 const json = (body: unknown, status = 200) => () =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-const loginOk = (token = 'jwt-1') => json({ EmailAddress: USERNAME, token });
 const pdf = () => () =>
   new Response(new Uint8Array(PDF), { status: 200, headers: { 'Content-Type': 'application/pdf' } });
+const status = (code: number) => () => new Response('', { status: code });
 
 const client = (over: SmoothParcelClientOptions = {}) =>
-  new SmoothParcelClient({ baseUrl: BASE, timeoutMs: 5000, username: USERNAME, password: PASSWORD, ...over });
+  new SmoothParcelClient({ baseUrl: BASE, timeoutMs: 5000, apiKey: KEY, ...over });
 
 const ORIGINAL_FETCH = globalThis.fetch;
 afterEach(() => {
@@ -56,121 +56,199 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('login', () => {
-  it('logs in with the account email and password, then sends the token as a bearer', async () => {
-    const calls = stubFetch(loginOk('jwt-1'), json({ OrderCode: 555001 }));
+describe('authentication', () => {
+  it('sends the API key as the raw Authorization header, with no login', async () => {
+    const calls = stubFetch(json({ IsSuccess: true, ShipmentCode: 555001 }));
     await client().addNewOrder(payload);
-    expect(calls[0]).toMatchObject({
-      url: `${BASE}/api/users/authenticate`,
-      method: 'POST',
-      body: { EmailAddress: USERNAME, password: PASSWORD },
-    });
-    expect(calls[0]!.headers.Authorization).toBeUndefined();
-    expect(calls[1]).toMatchObject({ url: `${BASE}/api/APIAccess/AddNewOrder`, method: 'POST', body: payload });
-    expect(calls[1]!.headers.Authorization).toBe('Bearer jwt-1');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ url: `${BASE}/api/APIAccess/AddNewOrder`, method: 'POST', body: payload });
+    expect(calls[0]!.headers.Authorization).toBe(KEY);
   });
 
-  it('logs in once for a shipment and its label', async () => {
-    const calls = stubFetch(loginOk(), json({ OrderCode: 555001 }), pdf());
-    const c = client();
-    const { orderCode } = await c.addNewOrder(payload);
-    await c.getShipmentLabel(orderCode);
-    expect(calls.map((x) => new URL(x.url).pathname)).toEqual([
-      '/api/users/authenticate',
-      '/api/APIAccess/AddNewOrder',
-      '/api/APIAccess/GetShipmentLabel',
-    ]);
-  });
-
-  it('logs in again, once, when the token has expired', async () => {
-    const calls = stubFetch(loginOk('old'), json({}, 401), loginOk('new'), json({ OrderCode: 7 }));
-    expect((await client().addNewOrder(payload)).orderCode).toBe('7');
-    expect(calls).toHaveLength(4);
-    expect(calls[3]!.headers.Authorization).toBe('Bearer new');
-  });
-
-  it('reports a rejected login without echoing the password', async () => {
-    stubFetch(json({ message: `wrong password ${PASSWORD}` }, 400));
-    const err = await client().addNewOrder(payload).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(SmoothParcelApiError);
-    expect((err as Error).message).toMatch(/login was rejected \(400\)/);
-    expect((err as Error).message).not.toContain(PASSWORD);
-  });
-
-  it('treats a 200 reply with status false as a rejected login', async () => {
-    // How Smooth Parcel actually answers a wrong password.
-    stubFetch(json({ status: false, message: 'Username or password is incorrect' }));
-    await expect(client().addNewOrder(payload)).rejects.toThrow(
-      /login was rejected: Username or password is incorrect/,
-    );
-  });
-
-  it('makes no request at all without credentials', async () => {
-    const calls = stubFetch(loginOk());
-    await expect(client({ password: '' }).addNewOrder(payload)).rejects.toThrow(/username and password are not set/);
+  it('makes no request without a key', async () => {
+    const calls = stubFetch(json({}));
+    await expect(client({ apiKey: '' }).addNewOrder(payload)).rejects.toThrow(/API key is not set/);
     expect(calls).toHaveLength(0);
+  });
+
+  it('reports a refused key clearly', async () => {
+    stubFetch(status(401));
+    await expect(client().addNewOrder(payload)).rejects.toThrow(/refused the API key \(401\)/);
   });
 });
 
 describe('addNewOrder', () => {
-  it('reads the order code and tracking number from the reply', async () => {
-    stubFetch(loginOk(), json({ OrderCode: 555001, SmoothParcelTrackingNumber: 'A1B2-C3D4' }));
-    expect(await client().addNewOrder(payload)).toMatchObject({ orderCode: '555001', trackingNumber: 'A1B2-C3D4' });
+  it('reads the shipment code, tracking number and label from the wrapper', async () => {
+    stubFetch(
+      json({
+        IsSuccess: true,
+        Message: 'Label generated',
+        OrderCode: 0,
+        ShipmentCode: 555001,
+        TrackingNumber: 'A1B2-C3D4',
+        shipmentLabelList: [{ FilePath: 'Labels/555001.pdf', TrackNumber: 'A1B2-C3D4' }],
+      }),
+    );
+    expect(await client().addNewOrder(payload)).toMatchObject({
+      orderCode: '555001',
+      trackingNumber: 'A1B2-C3D4',
+      labelPath: 'Labels/555001.pdf',
+    });
   });
 
-  it('accepts a reply that is only the order code', async () => {
-    stubFetch(loginOk(), json(555001));
+  it('reads the same wrapper in camelCase', async () => {
+    stubFetch(json({ isSuccess: true, shipmentCode: 7, smoothTrackingNo: 'Z9Y8-X7W6', path: 'https://api.smoothparcel.com/Labels/7.pdf' }));
+    expect(await client().addNewOrder(payload)).toMatchObject({
+      orderCode: '7',
+      trackingNumber: 'Z9Y8-X7W6',
+      labelPath: 'https://api.smoothparcel.com/Labels/7.pdf',
+    });
+  });
+
+  it('accepts a reply that is only the code', async () => {
+    stubFetch(json(555001));
     expect((await client().addNewOrder(payload)).orderCode).toBe('555001');
   });
 
-  it('flags a success reply with no order code as unreadable, keeping the reply', async () => {
-    stubFetch(loginOk(), json({ Success: true, Message: 'Saved' }));
+  it('treats IsSuccess false with no code as a plain refusal, not an unreadable reply', async () => {
+    stubFetch(json({ IsSuccess: false, Message: 'Invalid postcode', OrderCode: 0 }));
+    const err = await client().addNewOrder(payload).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SmoothParcelApiError);
+    expect(err).not.toBeInstanceOf(SmoothParcelUnreadableOrderError);
+    expect((err as Error).message).toMatch(/refused the shipment: Invalid postcode/);
+  });
+
+  it('flags a reply that is neither a refusal nor readable', async () => {
+    stubFetch(json({ Saved: true }));
     const err = await client().addNewOrder(payload).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SmoothParcelUnreadableOrderError);
-    expect((err as SmoothParcelUnreadableOrderError).body).toEqual({ Success: true, Message: 'Saved' });
+    expect((err as SmoothParcelUnreadableOrderError).body).toEqual({ Saved: true });
   });
 });
 
 describe('getShipmentLabel', () => {
   it('returns a PDF reply as it is, sending the order code as a number', async () => {
-    const calls = stubFetch(loginOk(), pdf());
+    const calls = stubFetch(pdf());
     expect((await client().getShipmentLabel('555001')).equals(PDF)).toBe(true);
-    expect(calls[1]!.body).toEqual({ OrderCode: 555001 });
+    expect(calls[0]!.body).toEqual({ OrderCode: 555001 });
   });
 
   it('decodes a label sent as base64', async () => {
-    stubFetch(loginOk(), json({ Label: PDF.toString('base64') }));
+    stubFetch(json({ IsSuccess: true, Value: PDF.toString('base64') }));
     expect((await client().getShipmentLabel('1')).equals(PDF)).toBe(true);
   });
 
-  it('fetches a label sent as a path, from the API host, with the token', async () => {
-    const calls = stubFetch(loginOk('jwt-1'), json({ LabelPath: 'Labels\\555001.pdf' }), pdf());
-    expect((await client().getShipmentLabel('555001')).equals(PDF)).toBe(true);
-    expect(calls[2]).toMatchObject({ url: `${BASE}/Labels/555001.pdf`, method: 'GET' });
-    expect(calls[2]!.headers.Authorization).toBe('Bearer jwt-1');
+  it('downloads the file named in the wrapper, sending the key to the API host', async () => {
+    const calls = stubFetch(json({ IsSuccess: true, Path: 'https://api.smoothparcel.com/Labels/1.pdf' }), pdf());
+    expect((await client().getShipmentLabel('1')).equals(PDF)).toBe(true);
+    expect(calls[1]).toMatchObject({ url: `${BASE}/Labels/1.pdf`, method: 'GET' });
+    expect(calls[1]!.headers.Authorization).toBe(KEY);
   });
 
-  it('refuses to fetch a label from any other host', async () => {
-    const calls = stubFetch(loginOk(), json({ url: 'https://elsewhere.example/label.pdf' }));
-    await expect(client().getShipmentLabel('1')).rejects.toThrow(/another host/);
-    expect(calls).toHaveLength(2);
+  it('passes on the reason when Smooth Parcel cannot produce the label', async () => {
+    stubFetch(json({ IsSuccess: false, Message: 'No service for this postcode' }));
+    await expect(client().getShipmentLabel('1')).rejects.toThrow(/could not produce the label: No service for this postcode/);
   });
 
   it('rejects a reply that is not a label', async () => {
-    stubFetch(loginOk(), () => new Response('<html>error</html>', { status: 200 }));
+    stubFetch(() => new Response('<html>error</html>', { status: 200 }));
     await expect(client().getShipmentLabel('1')).rejects.toThrow(/something other than a label PDF/);
   });
 });
 
-describe('checkConnection', () => {
-  it('logs in and makes a tracking lookup, creating nothing', async () => {
-    const calls = stubFetch(loginOk(), json({ message: 'not found' }, 404));
-    expect(await client().checkConnection()).toEqual({ apiStatus: 404 });
-    expect(calls.map((x) => new URL(x.url).pathname)).toEqual(['/api/users/authenticate', '/api/APIAccess/Tracking']);
+describe('downloadLabel', () => {
+  it('retries under /api/ when the path as given is not found', async () => {
+    const calls = stubFetch(status(404), pdf());
+    expect((await client().downloadLabel('Labels\\555001.pdf')).equals(PDF)).toBe(true);
+    expect(calls.map((c) => c.url)).toEqual([`${BASE}/Labels/555001.pdf`, `${BASE}/api/Labels/555001.pdf`]);
   });
 
-  it('fails when the API does not accept the token', async () => {
-    stubFetch(loginOk(), json({}, 401));
-    await expect(client().checkConnection()).rejects.toThrow(/refused API access/);
+  it('fetches from another Smooth Parcel host without sending it the key', async () => {
+    const calls = stubFetch(pdf());
+    await client().downloadLabel('https://app.smoothparcel.com/api/Labels/1.pdf');
+    expect(calls[0]!.headers.Authorization).toBeUndefined();
+  });
+
+  it('refuses any host that is not Smooth Parcel', async () => {
+    const calls = stubFetch(pdf());
+    await expect(client().downloadLabel('https://elsewhere.example/label.pdf')).rejects.toThrow(/another host/);
+    await expect(client().downloadLabel('https://smoothparcel.com.evil.example/label.pdf')).rejects.toThrow(/another host/);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('checkConnection', () => {
+  it('makes one tracking lookup with the key, creating nothing', async () => {
+    const calls = stubFetch(json({ IsSuccess: false, Message: 'not found' }));
+    expect(await client().checkConnection()).toEqual({ apiStatus: 200 });
+    expect(calls).toHaveLength(1);
+    expect(new URL(calls[0]!.url).pathname).toBe('/api/APIAccess/Tracking');
+    expect(calls[0]!.headers.Authorization).toBe(KEY);
+  });
+
+  it('fails when the key is refused', async () => {
+    stubFetch(status(401));
+    await expect(client().checkConnection()).rejects.toThrow(/refused the API key/);
+  });
+});
+
+describe('account registration', () => {
+  const input = {
+    name: 'CleverDeals Filament Store',
+    email: 'labels@example.invalid',
+    password: 'correct-horse-battery',
+    apiKey: KEY,
+    country: 'United Kingdom',
+    address1: '1 Test Street',
+    city: 'Stoke-on-Trent',
+    region: 'Staffordshire',
+    postcode: 'ST1 1AA',
+  };
+
+  it('checks an email address without a key', async () => {
+    const calls = stubFetch(json({ IsSuccess: true, Message: 'Email available' }));
+    expect(await client({ apiKey: '' }).checkCustomer(input.email)).toEqual({ isSuccess: true, message: 'Email available' });
+    expect(calls[0]).toMatchObject({ url: `${BASE}/api/APIAccess/CheckCustomer`, body: { EmailAddress: input.email } });
+    expect(calls[0]!.headers.Authorization).toBeUndefined();
+  });
+
+  it('creates the account holding the key, as ETS did', async () => {
+    const calls = stubFetch(json({ IsSuccess: true, Message: 'Customer created' }));
+    expect(await client({ apiKey: '' }).createCustomer(input)).toEqual({ created: true, message: 'Customer created' });
+    expect(calls[0]).toMatchObject({
+      url: `${BASE}/api/APIAccess/CreateCustomer`,
+      body: {
+        FirstName: input.name,
+        EmailAddress: input.email,
+        Password: input.password,
+        APIAccessKey: KEY,
+        Country: 'United Kingdom',
+        HouseNameNumber: '1 Test Street',
+        City: 'Stoke-on-Trent',
+        Region: 'Staffordshire',
+        PostalCode: 'ST1 1AA',
+      },
+    });
+  });
+
+  it('reports a refusal without repeating a credential', async () => {
+    stubFetch(json({ IsSuccess: false, Message: `Email already exist for password ${input.password}` }));
+    const result = await client({ apiKey: '' }).createCustomer(input);
+    expect(result.created).toBe(false);
+    expect(result.message).not.toContain(input.password);
+  });
+
+  it('throws when the answer is unclear, because the account may exist', async () => {
+    stubFetch(status(502));
+    await expect(client({ apiKey: '' }).createCustomer(input)).rejects.toThrow(/no clear answer/);
+  });
+});
+
+describe('generateApiAccessKey', () => {
+  it('makes a letters-and-digits key in the shape ETS used, different every time', () => {
+    const a = generateApiAccessKey();
+    const b = generateApiAccessKey();
+    expect(a).toMatch(/^[A-Za-z0-9]{18,22}$/);
+    expect(a).not.toBe(b);
   });
 });

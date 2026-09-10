@@ -51,13 +51,16 @@ const envSchema = z.object({
   LUCA_API_TIMEOUT_MS: z.coerce.number().default(10000),
 
   // Smooth Parcel shipping labels. OFF by default, like Luca: with it off, a
-  // paid order records a DISABLED label and nothing is bought. The API logs in
-  // with the Smooth Parcel account's email address and password and uses the
-  // token that returns (see smooth-parcel-client.ts). LIVE by default: a label
-  // costs nothing unless the parcel is actually sent, so there is no need to
-  // start on BETA (https://api-beta.smoothparcel.com).
+  // paid order records a DISABLED label and nothing is bought. The label API
+  // authenticates with the account's API access key, sent as the raw
+  // Authorization header — the web login token is refused there. The key is set
+  // when the account is created (scripts/register-smooth-parcel-account.ts);
+  // the email address and password are that account's login, used to register
+  // it and by the connection check. LIVE by default: a label costs nothing
+  // unless the parcel is actually sent (BETA is https://api-beta.smoothparcel.com).
   SMOOTH_PARCEL_ENABLED: envBool(false),
   SMOOTH_PARCEL_API_BASE_URL: z.string().default('https://api.smoothparcel.com'),
+  SMOOTH_PARCEL_API_KEY: z.string().default(''),
   SMOOTH_PARCEL_USERNAME: z.string().default(''),
   SMOOTH_PARCEL_PASSWORD: z.string().default(''),
   SMOOTH_PARCEL_TIMEOUT_MS: z.coerce.number().default(15000),

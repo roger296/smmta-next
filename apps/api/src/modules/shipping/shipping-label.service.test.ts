@@ -214,6 +214,35 @@ describe('ShippingLabelService.requestLabel', () => {
     expect(rows).toHaveLength(1);
   });
 
+  it('uses the label that comes back with the shipment, without asking again', async () => {
+    const orderId = await makeOrder();
+    const calls = { addNewOrder: 0, getShipmentLabel: 0, downloadLabel: 0 };
+    const client = {
+      async addNewOrder() {
+        calls.addNewOrder++;
+        return { orderCode: '555002', trackingNumber: 'B1C2-D3E4', labelPath: 'Labels/555002.pdf', raw: {} };
+      },
+      async getShipmentLabel() {
+        calls.getShipmentLabel++;
+        return PDF;
+      },
+      async downloadLabel(path: string) {
+        calls.downloadLabel++;
+        expect(path).toBe('Labels/555002.pdf');
+        return PDF;
+      },
+    };
+    const label = await new ShippingLabelService({ client, labelsDir, enabled: true }).requestLabel(orderId, COMPANY_ID);
+    expect(label.status).toBe('CREATED');
+    expect(calls).toEqual({ addNewOrder: 1, getShipmentLabel: 0, downloadLabel: 1 });
+
+    const [order] = await getDb()
+      .select({ trackingLink: customerOrders.trackingLink })
+      .from(customerOrders)
+      .where(eq(customerOrders.id, orderId));
+    expect(order?.trackingLink).toBe('https://app.smoothparcel.com/trackmyshipments/B1C2-D3E4');
+  });
+
   it('never resends a shipment whose reply could not be read', async () => {
     // Smooth Parcel said yes but we could not read an order code: the shipment
     // may exist. It is left for a person, not retried into a second purchase.
