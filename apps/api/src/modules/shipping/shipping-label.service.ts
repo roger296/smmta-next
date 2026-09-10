@@ -36,7 +36,8 @@ import {
 } from './smooth-parcel-mapper.js';
 
 export const SMOOTH_PARCEL_PROVIDER = 'SMOOTH_PARCEL';
-export const SMOOTH_PARCEL_TRACKING_URL = 'https://app.smoothparcel.com/ListShipment/TrackMyParcel';
+/** Followed by the tracking number. */
+export const SMOOTH_PARCEL_TRACKING_URL = 'https://app.smoothparcel.com/trackmyshipments/';
 
 /** Filenames are always a server-generated UUID; anything else is refused. */
 const LABEL_FILENAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/;
@@ -51,7 +52,12 @@ export class ShippingLabelNotFoundError extends Error {
   }
 }
 
-type LabelClient = Pick<SmoothParcelClient, 'addNewOrder' | 'getShipmentLabel'>;
+interface LabelClient {
+  addNewOrder: SmoothParcelClient['addNewOrder'];
+  getShipmentLabel: SmoothParcelClient['getShipmentLabel'];
+  /** Optional so a test double need not implement it. */
+  downloadLabel?: SmoothParcelClient['downloadLabel'];
+}
 type LabelRow = typeof shippingLabels.$inferSelect;
 
 export interface ShippingLabelServiceDeps {
@@ -142,6 +148,7 @@ export class ShippingLabelService {
     }
 
     const client = this.client();
+    let pdf: Buffer | null = null;
     try {
       if (!row.providerOrderCode) {
         // A reply was stored but no order code came out of it: the shipment
@@ -156,9 +163,15 @@ export class ShippingLabelService {
           requestPayload: payload,
           responsePayload: created.raw ?? null,
         });
+        // Smooth Parcel normally returns the label with the shipment, so fetch
+        // that file rather than asking again. If the download fails, the retry
+        // asks for the label by shipment code instead.
+        if (created.labelPath && client.downloadLabel) {
+          pdf = await client.downloadLabel(created.labelPath);
+        }
       }
 
-      const pdf = await client.getShipmentLabel(row.providerOrderCode!);
+      pdf ??= await client.getShipmentLabel(row.providerOrderCode!);
       const filename = `${randomUUID()}.pdf`;
       await mkdir(this.labelsDir, { recursive: true });
       await writeFile(join(this.labelsDir, filename), pdf);
@@ -170,7 +183,7 @@ export class ShippingLabelService {
           .update(customerOrders)
           .set({
             trackingNumber: row.trackingNumber,
-            trackingLink: SMOOTH_PARCEL_TRACKING_URL,
+            trackingLink: `${SMOOTH_PARCEL_TRACKING_URL}${encodeURIComponent(row.trackingNumber)}`,
             updatedAt: new Date(),
           })
           .where(eq(customerOrders.id, orderId));

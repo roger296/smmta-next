@@ -65,12 +65,12 @@ export interface SmoothParcelItem {
   Quantity: number;
   Price: number;
   Weight: number;
-  /** A string in the published contract: "kg" or "lb". */
+  /** A coded string. "2" is what the ETS integration sent, for kilograms. */
   WeightUnits: string;
   Height: number;
   Width: number;
   Length: number;
-  /** A string in the published contract: "cm" or "in". */
+  /** A coded string. "4" is what the ETS integration sent, for centimetres. */
   LWHUnit: string;
   ShippingCost: number;
 }
@@ -110,6 +110,7 @@ export interface SmoothParcelOrderPayload {
   /** DeliveryDuty: 1 = DDU, 2 = DDP. */
   ddlDD: number;
   SenderName: string;
+  ComingFrom: string;
 }
 
 export class LabelDataError extends Error {
@@ -184,11 +185,13 @@ export function buildSmoothParcelOrder(
     Quantity: Math.max(1, Math.round(l.quantity)),
     Price: round2(l.unitPriceGbp),
     Weight: round3(positive(l.weightKg) ?? opts.defaultWeightKg),
-    WeightUnits: 'kg',
+    // Coded units, copied from the ETS integration that shipped through this
+    // API in production. Smooth Parcel re-weighs and measures every parcel.
+    WeightUnits: '2',
     Height: positive(l.heightCm) ?? opts.defaultBoxCm.height,
     Width: positive(l.widthCm) ?? opts.defaultBoxCm.width,
     Length: positive(l.lengthCm) ?? opts.defaultBoxCm.length,
-    LWHUnit: 'cm',
+    LWHUnit: '4',
     ShippingCost: 0,
   }));
 
@@ -233,5 +236,8 @@ export function buildSmoothParcelOrder(
     // but the field is a non-nullable integer and 0 is not a documented value.
     ddlDD: 2,
     SenderName: opts.senderName,
+    // The source tag the ETS integration sent; kept so Smooth Parcel treats
+    // these shipments the way it treated that integration's.
+    ComingFrom: 'SMTA',
   };
 }
