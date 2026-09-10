@@ -15,6 +15,7 @@
 import Link from 'next/link';
 import { listGroups } from '@/lib/smmta';
 import { LEGAL } from '@/lib/legal';
+import { CookieSettingsButton } from '@/components/cookie-settings-button';
 
 const STORE_NAME = 'Filament Store';
 const ABOUT_BLURB =
@@ -109,6 +110,9 @@ export async function SiteFooter() {
               >
                 Privacy policy
               </Link>
+            </li>
+            <li>
+              <CookieSettingsButton className="cursor-pointer text-left transition-colors hover:text-[var(--brand-ink)]" />
             </li>
             <li>
               <a

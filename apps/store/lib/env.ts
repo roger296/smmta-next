@@ -44,6 +44,10 @@ const envSchema = z.object({
     .regex(/^(0(\.\d+)?|1(\.0+)?)$/)
     .default('0'),
 
+  // Google Analytics (lib/analytics.ts) is on unless this is exactly 'true'.
+  // CI sets it so a consent banner can never cover what the checkout tests click.
+  STORE_ANALYTICS_DISABLED: z.string().default(''),
+
   // Public storefront origin — used for canonical URLs / OG images.
   STORE_BASE_URL: z.string().default('http://localhost:3000'),
 

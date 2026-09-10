@@ -170,10 +170,17 @@ export default function PrivacyPage() {
 
       <LegalSection id="cookies" heading="9. Cookies">
         <p>
-          This site uses cookies to keep your basket working, to remember your preferences, and to
-          help us understand how the site is used so we can improve it. You can remove or disable
-          cookies in your browser at any time, but if you disable the essential ones the basket and
-          checkout will not work.
+          This site uses cookies and similar browser storage to keep your basket working and to
+          remember your choices, including your cookie preference. These are essential and always
+          on; if you block them in your browser, the basket and checkout will not work.
+        </p>
+        <p>
+          With your permission, we also use Google Analytics to understand how the site is used so
+          we can improve it. It sets cookies (named <code>_ga</code> and <code>_ga_</code> followed
+          by an ID) that record which pages are visited and how visitors arrived, without
+          identifying you by name. These cookies are only set if you choose &ldquo;Accept&rdquo; on
+          the cookie banner. You can change your mind at any time with &ldquo;Cookie settings&rdquo;
+          at the foot of every page; if you withdraw permission, we remove them.
         </p>
       </LegalSection>
 

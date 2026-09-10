@@ -159,6 +159,8 @@ jobs:
           SMMTA_API_KEY: ${{ steps.store-key.outputs.KEY }}
           # Storefront DB env name is `DATABASE_URL` per apps/store/lib/env.ts
           DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
+          # No Google Analytics, so no consent banner over what the tests click.
+          STORE_ANALYTICS_DISABLED: 'true'
         run: npm run build -w @smmta/store
 
       - name: Prepare apps/store standalone bundle
@@ -182,6 +184,8 @@ jobs:
           # outbound Mollie client respects MOLLIE_API_BASE_URL, so we
           # point it at the mock for the duration of the run.
           MOLLIE_API_BASE_URL: http://127.0.0.1:4000/v2/
+          # No Google Analytics, so no consent banner over what the tests click.
+          STORE_ANALYTICS_DISABLED: 'true'
           # The Next.js standalone server reads PORT and HOSTNAME from env.
           PORT: '3000'
           HOSTNAME: '0.0.0.0'
@@ -244,7 +248,7 @@ jobs:
           npx vitest run src/modules/storefront/volume-pricing.test.ts src/modules/storefront/catalogue-image.test.ts src/modules/products/upload-limits.test.ts src/modules/products/remote-image.test.ts src/shared/utils/search-term.test.ts src/modules/orders/order-list.test.ts src/modules/shipping/smooth-parcel-mapper.test.ts src/modules/shipping/shipping-label.service.test.ts src/integrations/smooth-parcel/smooth-parcel-client.test.ts --root apps/api
       - name: Run storefront cart and pricing tests
         run: |
-          npx vitest run lib/cart.test.ts lib/variants.test.ts --root apps/store
+          npx vitest run lib/cart.test.ts lib/variants.test.ts lib/analytics.test.ts --root apps/store
         env:
           DATABASE_URL: ${{ env.STORE_DATABASE_URL }}
 

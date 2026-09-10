@@ -44,10 +44,15 @@ const csp = [
   // long-term fix is nonce-based CSP via middleware (issue #TBD); for now
   // 'unsafe-inline' matches dev mode and is the same fix used by most Next 15
   // RSC production deployments.
+  //
+  // Google Analytics (components/analytics-consent.tsx) loads gtag.js from
+  // googletagmanager.com — only after the visitor accepts cookies — and sends
+  // hits to the google-analytics.com / analytics.google.com collection hosts,
+  // which vary by region, hence the wildcards. img-src already allows https:.
   isProd
-    ? `script-src 'self' 'unsafe-inline'`
-    : `script-src 'self' 'unsafe-inline' 'unsafe-eval'`,
-  `connect-src 'self' https://api.mollie.com https://*.sentry.io ${publicApiOrigin()}`.trim(),
+    ? `script-src 'self' 'unsafe-inline' https://www.googletagmanager.com`
+    : `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com`,
+  `connect-src 'self' https://api.mollie.com https://*.sentry.io https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com ${publicApiOrigin()}`.trim(),
   `object-src 'none'`,
   `worker-src 'self' blob:`,
 ].join('; ');

@@ -336,8 +336,10 @@ The home-page H1 assertion is regex `/filament/i` — survives copy tweaks but s
 
 The storefront sets:
 - `Strict-Transport-Security` — set in nginx (always), redundantly in `next.config.js` for prod
-- `script-src 'self' 'unsafe-inline'` — required because Next 15 RSC inlines hydration scripts. Long-term fix is nonce-based CSP via middleware (TODO).
-- `connect-src 'self' https://api.mollie.com https://*.sentry.io <api host>`
+- `script-src 'self' 'unsafe-inline' https://www.googletagmanager.com` — `'unsafe-inline'` is required because Next 15 RSC inlines hydration scripts (long-term fix is nonce-based CSP via middleware, TODO); googletagmanager.com serves gtag.js for Google Analytics.
+- `connect-src 'self' https://api.mollie.com https://*.sentry.io https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com <api host>`
+
+**Google Analytics** (`apps/store/lib/analytics.ts`, `components/analytics-consent.tsx`): GA4 Measurement ID `G-3RJWFM59VV` is tenant config in `lib/analytics.ts`. Nothing from Google loads until the visitor accepts the cookie banner (UK PECR); "Cookie settings" in the footer reopens it, and a refusal deletes the `_ga` cookies. `STORE_ANALYTICS_DISABLED=true` turns analytics and the banner off — CI's e2e job sets it so the banner cannot cover elements Playwright clicks.
 - `img-src` covers picsum + the catalogue image hosts (app.etailsupport.com, i.ebayimg.com)
 - `frame-ancestors 'none'`, `object-src 'none'`, `form-action 'self' https://www.mollie.com`
 
