@@ -208,7 +208,18 @@ export class SmoothParcelClient {
             res.status,
           );
         }
-        const token = pickString(safeJson(text), ['token', 'Token', 'access_token', 'accessToken']);
+        const reply = safeJson(text);
+        // A wrong password is answered 200 with { status: false, message }, not
+        // with an error status.
+        if (reply && typeof reply === 'object' && (reply as Record<string, unknown>).status === false) {
+          const said = pickString(reply, ['message', 'Message']);
+          const detail = said && !said.includes(this.password) ? `: ${said.slice(0, 200)}` : '';
+          throw new SmoothParcelApiError(
+            `Smooth Parcel login was rejected${detail} — check SMOOTH_PARCEL_USERNAME and SMOOTH_PARCEL_PASSWORD`,
+            res.status,
+          );
+        }
+        const token = pickString(reply, ['token', 'Token', 'access_token', 'accessToken']);
         if (!token) throw new SmoothParcelApiError('Smooth Parcel login succeeded but returned no token', res.status);
         this.token = token;
         return token;
