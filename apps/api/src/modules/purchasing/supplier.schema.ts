@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { paginationSchema } from '../../shared/utils/pagination.js';
+import { paginationSchema, searchTermSchema } from '../../shared/utils/pagination.js';
 
 // ============================================================
 // Supplier Zod Schemas
@@ -82,7 +82,7 @@ export const upsertSupplierMappingsSchema = z.object({
 });
 
 export const supplierQuerySchema = paginationSchema.extend({
-  search: z.string().optional(),
+  search: searchTermSchema,
   type: z.string().optional(),
 });
 

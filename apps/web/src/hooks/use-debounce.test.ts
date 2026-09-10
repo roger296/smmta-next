@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { useDebounce } from './use-debounce';
+import { useDebounce, useDebouncedSearch } from './use-debounce';
 
 describe('useDebounce', () => {
   it('returns initial value immediately', () => {
@@ -51,5 +51,40 @@ describe('useDebounce', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('useDebouncedSearch', () => {
+  it('strips leading and trailing whitespace', () => {
+    const { result } = renderHook(() => useDebouncedSearch('  V3-PLA-BAS-BLACK  ', 300));
+    expect(result.current).toBe('V3-PLA-BAS-BLACK');
+  });
+
+  it('treats a whitespace-only term as empty', () => {
+    // Callers pass `term || undefined`, so this is what stops a search for
+    // spaces being sent as a real query that matches nothing.
+    const { result } = renderHook(() => useDebouncedSearch('   ', 300));
+    expect(result.current).toBe('');
+  });
+
+  it('leaves whitespace inside the term alone', () => {
+    const { result } = renderHook(() => useDebouncedSearch('  matte black  ', 300));
+    expect(result.current).toBe('matte black');
+  });
+
+  it('does not emit a new value when only trailing whitespace changes', () => {
+    // Trimming before the debounce means typing a trailing space costs no
+    // request at all. Trimming afterwards would still fire one.
+    const { result, rerender } = renderHook(({ value }) => useDebouncedSearch(value, 300), {
+      initialProps: { value: 'pla' },
+    });
+    const first = result.current;
+    rerender({ value: 'pla ' });
+    expect(result.current).toBe(first);
+  });
+
+  it('passes an already-clean term through unchanged', () => {
+    const { result } = renderHook(() => useDebouncedSearch('petg', 300));
+    expect(result.current).toBe('petg');
   });
 });

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { paginationSchema } from '../../shared/utils/pagination.js';
+import { paginationSchema, searchTermSchema } from '../../shared/utils/pagination.js';
 
 // ============================================================
 // Product Zod Schemas (validation + OpenAPI generation)
@@ -89,7 +89,7 @@ export const updateProductGroupSchema = createProductGroupSchema.partial();
 export const updateProductSchema = createProductSchema.partial();
 
 export const productQuerySchema = paginationSchema.extend({
-  search: z.string().optional(),
+  search: searchTermSchema,
   categoryId: z.string().uuid().optional(),
   manufacturerId: z.string().uuid().optional(),
   productType: z.enum(['PHYSICAL', 'SERVICE']).optional(),

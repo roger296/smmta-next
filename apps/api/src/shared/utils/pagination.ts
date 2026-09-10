@@ -21,3 +21,22 @@ export function paginationMeta(total: number, page: number, pageSize: number) {
 export function paginationOffset(page: number, pageSize: number): number {
   return (page - 1) * pageSize;
 }
+
+/**
+ * A free-text search term from a query string.
+ *
+ * Trims, and treats a term that was only whitespace as absent. A padded term
+ * is otherwise fatal rather than merely untidy: every search here becomes
+ * ILIKE '%<term>%', so a trailing space from a paste or a phone keyboard
+ * matches nothing and reads as "no results" rather than as a typo.
+ *
+ * Applied at the schema so it holds for every client, not only the admin SPA
+ * — which trims before sending, but is not the only thing that can call this.
+ */
+export const searchTermSchema = z
+  .string()
+  .optional()
+  .transform((v) => {
+    const trimmed = v?.trim();
+    return trimmed ? trimmed : undefined;
+  });

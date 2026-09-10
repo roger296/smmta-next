@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DELIVERY_STATUSES, usePurchaseOrdersList } from '@/features/purchasing/use-purchasing';
-import { useDebounce } from '@/hooks/use-debounce';
+import { useDebouncedSearch } from '@/hooks/use-debounce';
 import type { PODeliveryStatus, PurchaseOrder } from '@/lib/api-types';
 import { formatDate, formatMoney } from '@/lib/format';
 import { Plus, Receipt } from 'lucide-react';
@@ -55,7 +55,7 @@ const columns: ColumnDef<PurchaseOrder>[] = [
 function PurchaseOrdersListPage() {
   const navigate = useNavigate();
   const [search, setSearch] = React.useState('');
-  const debounced = useDebounce(search, 300);
+  const debounced = useDebouncedSearch(search, 300);
   const [status, setStatus] = React.useState<PODeliveryStatus | ''>('');
   const [page, setPage] = React.useState(1);
   const pageSize = 25;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { paginationSchema } from '../../shared/utils/pagination.js';
+import { paginationSchema, searchTermSchema } from '../../shared/utils/pagination.js';
 
 // ============================================================
 // Purchase Order Zod Schemas
@@ -48,7 +48,7 @@ export const poQuerySchema = paginationSchema.extend({
   supplierId: z.string().uuid().optional(),
   deliveryStatus: z.enum(['PENDING', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'CANCELLED']).optional(),
   invoicedStatus: z.enum(['NOT_INVOICED', 'PARTIALLY_INVOICED', 'FULLY_INVOICED']).optional(),
-  search: z.string().optional(),
+  search: searchTermSchema,
 });
 
 // ── GRN Book-In ──

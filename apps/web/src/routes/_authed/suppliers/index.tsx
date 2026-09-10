@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DataTable, Pagination } from '@/components/data-table/data-table';
 import { EmptyState } from '@/components/empty-state';
 import { useSuppliersList } from '@/features/suppliers/use-suppliers';
-import { useDebounce } from '@/hooks/use-debounce';
+import { useDebouncedSearch } from '@/hooks/use-debounce';
 import type { Supplier } from '@/lib/api-types';
 import { formatMoney } from '@/lib/format';
 import { Plus, Truck } from 'lucide-react';
@@ -32,7 +32,7 @@ const columns: ColumnDef<Supplier>[] = [
 function SuppliersListPage() {
   const navigate = useNavigate();
   const [search, setSearch] = React.useState('');
-  const debounced = useDebounce(search, 300);
+  const debounced = useDebouncedSearch(search, 300);
   const [page, setPage] = React.useState(1);
   const pageSize = 25;
 

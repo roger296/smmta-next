@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { paginationSchema } from '../../shared/utils/pagination.js';
+import { paginationSchema, searchTermSchema } from '../../shared/utils/pagination.js';
 
 // ============================================================
 // Customer Zod Schemas
@@ -28,7 +28,7 @@ export const createCustomerSchema = z.object({
 export const updateCustomerSchema = createCustomerSchema.partial();
 
 export const customerQuerySchema = paginationSchema.extend({
-  search: z.string().optional(),
+  search: searchTermSchema,
   typeId: z.string().uuid().optional(),
 });
 
