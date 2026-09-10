@@ -64,12 +64,14 @@ services:
       # a mounted volume: a container filesystem does not survive a redeploy,
       # and every uploaded photograph would 404 after the next deploy.
       UPLOADS_DIR: /app/uploads
-      # Smooth Parcel shipping labels. OFF until the API developer pack is in
-      # hand; with it off, paid orders record a DISABLED label and nothing is
-      # bought. Set the credentials here in Coolify, never in the repo.
+      # Smooth Parcel shipping labels. OFF until SMOOTH_PARCEL_ENABLED is set;
+      # with it off, paid orders record a DISABLED label and nothing is bought.
+      # BETA unless told otherwise — LIVE is https://api.smoothparcel.com. Set
+      # the username (account email) and password in Coolify, never the repo.
       SMOOTH_PARCEL_ENABLED: ${SMOOTH_PARCEL_ENABLED:-false}
-      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-http://app.smoothparcel.com:8091}
-      SMOOTH_PARCEL_API_KEY: ${SMOOTH_PARCEL_API_KEY:-}
+      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api-beta.smoothparcel.com}
+      SMOOTH_PARCEL_USERNAME: ${SMOOTH_PARCEL_USERNAME:-}
+      SMOOTH_PARCEL_PASSWORD: ${SMOOTH_PARCEL_PASSWORD:-}
       SMOOTH_PARCEL_SENDER_NAME: ${SMOOTH_PARCEL_SENDER_NAME:-}
       SMOOTH_PARCEL_DEFAULT_PHONE: ${SMOOTH_PARCEL_DEFAULT_PHONE:-}
       SMOOTH_PARCEL_FALLBACK_EMAIL: ${SMOOTH_PARCEL_FALLBACK_EMAIL:-}
@@ -111,12 +113,14 @@ services:
       SENDGRID_SANDBOX: ${SENDGRID_SANDBOX:-true}
       UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
       WORKER_HEALTH_PORT: '3100'
-      # Smooth Parcel shipping labels. OFF until the API developer pack is in
-      # hand; with it off, paid orders record a DISABLED label and nothing is
-      # bought. Set the credentials here in Coolify, never in the repo.
+      # Smooth Parcel shipping labels. OFF until SMOOTH_PARCEL_ENABLED is set;
+      # with it off, paid orders record a DISABLED label and nothing is bought.
+      # BETA unless told otherwise — LIVE is https://api.smoothparcel.com. Set
+      # the username (account email) and password in Coolify, never the repo.
       SMOOTH_PARCEL_ENABLED: ${SMOOTH_PARCEL_ENABLED:-false}
-      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-http://app.smoothparcel.com:8091}
-      SMOOTH_PARCEL_API_KEY: ${SMOOTH_PARCEL_API_KEY:-}
+      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api-beta.smoothparcel.com}
+      SMOOTH_PARCEL_USERNAME: ${SMOOTH_PARCEL_USERNAME:-}
+      SMOOTH_PARCEL_PASSWORD: ${SMOOTH_PARCEL_PASSWORD:-}
       SMOOTH_PARCEL_SENDER_NAME: ${SMOOTH_PARCEL_SENDER_NAME:-}
       SMOOTH_PARCEL_DEFAULT_PHONE: ${SMOOTH_PARCEL_DEFAULT_PHONE:-}
       SMOOTH_PARCEL_FALLBACK_EMAIL: ${SMOOTH_PARCEL_FALLBACK_EMAIL:-}

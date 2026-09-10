@@ -24,7 +24,10 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { getEnv } from '../../config/env.js';
 import { customerOrders, orderLines, shippingLabels } from '../../db/schema/index.js';
-import { SmoothParcelClient } from '../../integrations/smooth-parcel/smooth-parcel-client.js';
+import {
+  SmoothParcelClient,
+  SmoothParcelUnreadableOrderError,
+} from '../../integrations/smooth-parcel/smooth-parcel-client.js';
 import {
   LabelDataError,
   buildSmoothParcelOrder,
@@ -141,6 +144,9 @@ export class ShippingLabelService {
     const client = this.client();
     try {
       if (!row.providerOrderCode) {
+        // A reply was stored but no order code came out of it: the shipment
+        // may exist and be charged for. A person has to check before any resend.
+        if (row.responsePayload !== null) return summarise(row);
         const created = await client.addNewOrder(payload);
         // Saved before the label is fetched: this is what stops a retry from
         // buying a second shipment if the fetch below fails.
@@ -171,6 +177,19 @@ export class ShippingLabelService {
       }
       return summarise(row);
     } catch (err) {
+      if (err instanceof SmoothParcelUnreadableOrderError) {
+        // Recorded and NOT rethrown, so the worker does not retry it.
+        row = await this.update(row.id, {
+          status: 'FAILED',
+          requestPayload: payload,
+          responsePayload: err.body ?? '',
+          errorMessage:
+            `Smooth Parcel accepted a shipment for order ${input.orderNumber} but its reply could not be read, ` +
+            `so it will not be sent again automatically. Check the Smooth Parcel portal. ${err.message}`.slice(0, 2000),
+          retryCount: row.retryCount + 1,
+        });
+        return summarise(row);
+      }
       const message = err instanceof Error ? err.message : String(err);
       await this.update(row.id, {
         status: 'FAILED',

@@ -53,12 +53,10 @@ const order = (overrides: Partial<LabelOrderInput> = {}): LabelOrderInput => ({
 });
 
 describe('buildSmoothParcelOrder', () => {
-  it('uses the order number as transaction, record and reference', () => {
+  it('uses the order number as transaction and reference', () => {
     const p = buildSmoothParcelOrder(order(), opts);
     expect(p.TransactionID).toBe('STORE-EBE1CE630088');
-    expect(p.RecordNumber).toBe('STORE-EBE1CE630088');
     expect(p.OrderReference).toBe('STORE-EBE1CE630088');
-    expect(p.OrderCurrencyName).toBe('GBP');
   });
 
   it('splits the recipient into first and last name', () => {
@@ -102,6 +100,7 @@ describe('buildSmoothParcelOrder', () => {
     const [item] = buildSmoothParcelOrder(order(), opts).OrderDetailList;
     expect(item).toMatchObject({
       ItemID: 'V3-PLA-BAS-BROWN',
+      ProductSKU: 'V3-PLA-BAS-BROWN',
       Quantity: 2,
       Price: 12.28,
       Weight: 1,
@@ -111,6 +110,11 @@ describe('buildSmoothParcelOrder', () => {
     });
   });
 
+  it('sends units as the strings the API contract expects', () => {
+    const [item] = buildSmoothParcelOrder(order(), opts).OrderDetailList;
+    expect([item!.WeightUnits, item!.LWHUnit]).toEqual(['kg', 'cm']);
+  });
+
   it('falls back to the default weight and box when a product has none', () => {
     const o = order();
     const bare = { ...o.lines[0]!, weightKg: null, lengthCm: null, widthCm: 0, heightCm: null };
@@ -118,8 +122,10 @@ describe('buildSmoothParcelOrder', () => {
     expect(item).toMatchObject({ Weight: 1.3, Length: 20, Width: 20, Height: 8 });
   });
 
-  it('requests tracked delivery', () => {
-    expect(buildSmoothParcelOrder(order(), opts).TrackedRequired).toBe(true);
+  it('requests tracked delivery, duty paid', () => {
+    const p = buildSmoothParcelOrder(order(), opts);
+    expect(p.TrackedRequired).toBe(true);
+    expect(p.ddlDD).toBe(2);
   });
 
   it('refuses an order missing essentials, naming what is missing', () => {

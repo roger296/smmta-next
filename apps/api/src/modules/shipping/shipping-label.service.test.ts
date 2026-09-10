@@ -20,6 +20,7 @@ import {
   shippingLabels,
 } from '../../db/schema/index.js';
 import { wipeCompany } from '../../../test/fixtures/stock.js';
+import { SmoothParcelUnreadableOrderError } from '../../integrations/smooth-parcel/smooth-parcel-client.js';
 import { ShippingLabelService } from './shipping-label.service.js';
 
 const COMPANY_ID = '77777777-7777-4777-8777-777777777777';
@@ -211,5 +212,30 @@ describe('ShippingLabelService.requestLabel', () => {
     await svc.requestLabel(orderId, COMPANY_ID);
     const rows = await getDb().select({ id: shippingLabels.id }).from(shippingLabels).where(eq(shippingLabels.orderId, orderId));
     expect(rows).toHaveLength(1);
+  });
+
+  it('never resends a shipment whose reply could not be read', async () => {
+    // Smooth Parcel said yes but we could not read an order code: the shipment
+    // may exist. It is left for a person, not retried into a second purchase.
+    const orderId = await makeOrder();
+    let addNewOrderCalls = 0;
+    const client = {
+      async addNewOrder(): Promise<never> {
+        addNewOrderCalls++;
+        throw new SmoothParcelUnreadableOrderError(200, { Success: true });
+      },
+      async getShipmentLabel() {
+        return PDF;
+      },
+    };
+    const svc = new ShippingLabelService({ client, labelsDir, enabled: true });
+
+    const first = await svc.requestLabel(orderId, COMPANY_ID);
+    expect(first.status).toBe('FAILED');
+    expect(first.errorMessage).toMatch(/Smooth Parcel portal/);
+
+    const again = await svc.requestLabel(orderId, COMPANY_ID);
+    expect(again.status).toBe('FAILED');
+    expect(addNewOrderCalls).toBe(1);
   });
 });
