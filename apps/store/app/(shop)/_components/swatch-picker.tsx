@@ -15,7 +15,7 @@ import * as React from 'react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { FullVariant } from '@/lib/api-types';
-import { resolveInitialVariant } from '@/lib/variants';
+import { resolveInitialVariant, swatchPriceText } from '@/lib/variants';
 import { DISPATCH_COPY, effectiveStockState, isSellable } from '@/lib/dispatch-copy';
 import { AddToCartButton } from '@/components/add-to-cart-button';
 import { PriceBand } from '@/components/price-band';
@@ -23,9 +23,12 @@ import { PriceBand } from '@/components/price-band';
 export interface SwatchPickerProps {
   groupName: string;
   variants: FullVariant[];
+  /** The range's band: cheapest floor to dearest ceiling across every colour.
+   *  The same figures the catalogue card shows. */
+  priceRange?: { min: string; max: string } | null;
 }
 
-export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
+export function SwatchPicker({ groupName, variants, priceRange }: SwatchPickerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queriedColour = searchParams.get('colour');
@@ -56,11 +59,6 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
   const selectedState = effectiveStockState(selected);
   const sellable = isSellable(selectedState);
   const inStock = sellable; // back-compat for the AddToCartButton prop
-  // Only show per-swatch prices when colours actually differ in price —
-  // repeating the same figure on every chip is noise. On this catalogue
-  // they often DO differ (Green £7.25 vs Grey £9.25 on the same range),
-  // which the customer previously discovered only after clicking.
-  const pricesVary = new Set(variants.map((v) => v.priceGbp ?? '')).size > 1;
   const lowStock =
     selectedState === 'IN_STOCK' && selected.availableQty > 0 && selected.availableQty <= 5;
 
@@ -136,9 +134,12 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
             )}
           </div>
 
+          {/* The range's band, not the selected colour's. Showing the selected
+              colour's figures claimed "From £6.50" on a range whose cheapest
+              colours are £6.00. Each colour's own prices are on its swatch. */}
           <PriceBand
-            priceGbp={selected.priceGbp}
-            maxPriceGbp={selected.maxPriceGbp}
+            priceGbp={priceRange?.min ?? selected.priceGbp}
+            maxPriceGbp={priceRange?.max ?? selected.maxPriceGbp}
             className="border-y border-[var(--brand-border)] py-5"
           />
 
@@ -168,11 +169,10 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
                 // had no way to find the one they could actually buy.
                 // Dimmed, desaturated, and struck through the swatch dot.
                 const unavailableClass = sellable ? '' : ' opacity-55 saturate-50';
-                // Show the price on the swatch when colours differ in
-                // price — otherwise the customer discovers a £2 delta
-                // only after clicking.
-                const swatchPrice =
-                  pricesVary && v.priceGbp ? `£${v.priceGbp}` : null;
+                // Both ends of this colour's price on the chip itself, so the volume
+                // saving is visible before clicking, and colours that differ in price
+                // are told apart without a round trip.
+                const swatchPrice = swatchPriceText(v.priceGbp, v.maxPriceGbp);
                 return (
                   <button
                     key={v.id}
@@ -262,7 +262,7 @@ export function SwatchPicker({ groupName, variants }: SwatchPickerProps) {
               productId={selected.id}
               inStock={inStock}
               showQuantity
-              bulkHint="10+ spools of the same colour: discount applied at checkout."
+              bulkHint="The price per roll drops with every roll you add, in any colour. Best price at 10 or more."
             />
           </div>
         </div>

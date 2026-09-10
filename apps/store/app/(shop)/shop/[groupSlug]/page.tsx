@@ -194,7 +194,7 @@ export default async function GroupPage({
         </ol>
       </nav>
 
-      <SwatchPicker groupName={group.name} variants={group.variants} />
+      <SwatchPicker groupName={group.name} variants={group.variants} priceRange={group.priceRange} />
 
       {/*
         SEO 09: unique per-range copy.
