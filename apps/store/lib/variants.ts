@@ -13,7 +13,7 @@
  * sorted by `sortOrderInGroup` / colour name (which is what the API
  * does). The helper does not re-sort.
  */
-import { effectiveStockState } from './dispatch-copy';
+import { effectiveStockState, isSellable } from './dispatch-copy';
 import type { StockState } from './api-types';
 
 export interface PickableVariant {
@@ -87,4 +87,57 @@ export function variantFloorGbp(v: { priceGbp: string | null }): number | null {
   if (v.priceGbp == null) return null;
   const n = Number.parseFloat(v.priceGbp);
   return Number.isFinite(n) ? n : null;
+}
+
+export interface ColourLink {
+  colour: string;
+  /** Null only when neither the variant nor its group has a slug to link to. */
+  href: string | null;
+  /** Buyable now, from the warehouse or the supplier. */
+  inStock: boolean;
+}
+
+/**
+ * The colours a group card lists beneath it, each linked to its own page.
+ *
+ * Lists every published colour, in stock or not: a customer looking for a
+ * particular colour should learn the range carries it even when it is sold
+ * out, rather than conclude it does not exist. Links go to the variant's own
+ * /shop/p/ page, which is indexable and self-canonical, so each one is also a
+ * crawlable path to a page that ranks for "<colour> <material> filament".
+ *
+ * Falls back to the group page's ?colour= toggle for a variant with no slug,
+ * matching what the card itself does.
+ */
+export function colourLinks(group: {
+  slug: string | null;
+  variants: Array<{
+    slug: string | null;
+    colour: string | null;
+    stockState?: StockState;
+    availableQty?: number;
+  }>;
+}): ColourLink[] {
+  const byColour = new Map<string, ColourLink>();
+  for (const v of group.variants) {
+    const colour = v.colour?.trim();
+    if (!colour) continue;
+    const inStock = isSellable(effectiveStockState(v));
+    const key = colour.toLowerCase();
+    const existing = byColour.get(key);
+    if (existing) {
+      // Two variants sharing a colour: in stock if either is, and prefer a
+      // real product page over the group-toggle fallback.
+      existing.inStock = existing.inStock || inStock;
+      if (!existing.href?.startsWith('/shop/p/') && v.slug) existing.href = `/shop/p/${v.slug}`;
+      continue;
+    }
+    const href = v.slug
+      ? `/shop/p/${v.slug}`
+      : group.slug
+        ? `/shop/${group.slug}?colour=${encodeURIComponent(colour)}`
+        : null;
+    byColour.set(key, { colour, href, inStock });
+  }
+  return Array.from(byColour.values());
 }
