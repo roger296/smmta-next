@@ -1,5 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
+import { getEnv } from '../../config/env.js';
+import {
+  RemoteImageError,
+  downloadImageToUploads,
+  isAlreadyLocal,
+} from './remote-image.js';
 import { ProductService, ProductValidationError } from './product.service.js';
 import {
   createProductSchema,
@@ -84,7 +90,25 @@ export async function productRoutes(app: FastifyInstance) {
   app.post('/products/:id/images', async (request, reply) => {
     const { id } = request.params as { id: string };
     const input = productImageSchema.parse(request.body);
-    const image = await productService.addImage(id, input.imageUrl, input.priority);
+
+    // Copy the bytes here rather than storing someone else's URL. The
+    // catalogue then depends on nothing outside this server — see the note at
+    // the top of remote-image.ts for what went wrong when it did.
+    let imageUrl = input.imageUrl;
+    if (!isAlreadyLocal(imageUrl, getEnv().APP_BASE_URL)) {
+      try {
+        imageUrl = await downloadImageToUploads(imageUrl);
+      } catch (err) {
+        if (err instanceof RemoteImageError) {
+          // Surface the reason instead of quietly saving a link that will not
+          // render. The operator can then fix the URL or upload the file.
+          return reply.status(err.status).send({ success: false, error: err.message });
+        }
+        throw err;
+      }
+    }
+
+    const image = await productService.addImage(id, imageUrl, input.priority);
     return reply.status(201).send({ success: true, data: image });
   });
 
