@@ -2,7 +2,9 @@
  * Builds a Smooth Parcel shipment from an order.
  *
  * Pure: no database, no network, no clock except what is passed in, so every
- * field rule is unit-testable. Rules come from the Smooth Parcel user guide:
+ * field rule is unit-testable. Field names and types follow the API's published
+ * contract (RequestSaveOrder3 in <api>/swagger/v1/swagger.json); the rules come
+ * from the Smooth Parcel user guide:
  *
  *   - address lines should stay under 35 characters to avoid truncation;
  *   - Region is required — repeat the town when there is none;
@@ -13,10 +15,8 @@
  * any API call, so an operator sees "missing postcode" rather than a vague
  * carrier rejection, and a pointless retry is never queued.
  *
- * Unconfirmed until the developer pack: whether an item's Price and Weight are
- * per unit or per line (treated here as per unit, since the item carries its
- * own Quantity), and the numeric codes for WeightUnits / LWHUnit (0 is taken as
- * the guide's defaults, kg and cm).
+ * Still unconfirmed: whether an item's Price and Weight are per unit or per line
+ * (treated here as per unit, since the item carries its own Quantity).
  */
 
 export interface LabelOrderLine {
@@ -61,14 +61,18 @@ export interface MapperOptions {
 export interface SmoothParcelItem {
   ItemID: string;
   ItemName: string;
+  ProductSKU: string;
   Quantity: number;
   Price: number;
   Weight: number;
-  WeightUnits: number;
+  /** A string in the published contract: "kg" or "lb". */
+  WeightUnits: string;
   Height: number;
   Width: number;
   Length: number;
-  LWHUnit: number;
+  /** A string in the published contract: "cm" or "in". */
+  LWHUnit: string;
+  ShippingCost: number;
 }
 
 export interface SmoothParcelOrderPayload {
@@ -76,9 +80,7 @@ export interface SmoothParcelOrderPayload {
   SignatureOnDelivery: boolean;
   OrderDate: string;
   TransactionID: string;
-  RecordNumber: string;
   OrderReference: string;
-  OrderCurrencyName: string;
   Company: string;
   FirstName: string;
   MiddleName: string;
@@ -105,6 +107,8 @@ export interface SmoothParcelOrderPayload {
   ContainsBatteries: boolean;
   ContainsFragile: boolean;
   TrackedRequired: boolean;
+  /** DeliveryDuty: 1 = DDU, 2 = DDP. */
+  ddlDD: number;
   SenderName: string;
 }
 
@@ -176,14 +180,16 @@ export function buildSmoothParcelOrder(
   const items: SmoothParcelItem[] = input.lines.map((l) => ({
     ItemID: clip(l.sku || l.name, 50),
     ItemName: clip(l.name, 100),
+    ProductSKU: clip(l.sku, 50),
     Quantity: Math.max(1, Math.round(l.quantity)),
     Price: round2(l.unitPriceGbp),
     Weight: round3(positive(l.weightKg) ?? opts.defaultWeightKg),
-    WeightUnits: 0,
+    WeightUnits: 'kg',
     Height: positive(l.heightCm) ?? opts.defaultBoxCm.height,
     Width: positive(l.widthCm) ?? opts.defaultBoxCm.width,
     Length: positive(l.lengthCm) ?? opts.defaultBoxCm.length,
-    LWHUnit: 0,
+    LWHUnit: 'cm',
+    ShippingCost: 0,
   }));
 
   return {
@@ -191,10 +197,10 @@ export function buildSmoothParcelOrder(
     SignatureOnDelivery: false,
     OrderDate: new Date(`${input.orderDate}T00:00:00.000Z`).toISOString(),
     // One parcel per order, so the order number is unique for the transaction.
+    // The guide makes TransactionID unique, so Smooth Parcel itself refuses a
+    // second shipment for the same order number.
     TransactionID: input.orderNumber,
-    RecordNumber: input.orderNumber,
     OrderReference: input.orderNumber,
-    OrderCurrencyName: 'GBP',
     Company: '',
     FirstName: clip(first),
     MiddleName: '',
@@ -223,6 +229,9 @@ export function buildSmoothParcelOrder(
     ContainsBatteries: false,
     ContainsFragile: false,
     TrackedRequired: true,
+    // DDP, the guide's default. Duty does not arise for UK domestic parcels,
+    // but the field is a non-nullable integer and 0 is not a documented value.
+    ddlDD: 2,
     SenderName: opts.senderName,
   };
 }
