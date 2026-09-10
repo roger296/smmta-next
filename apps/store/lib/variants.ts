@@ -13,6 +13,7 @@
  * sorted by `sortOrderInGroup` / colour name (which is what the API
  * does). The helper does not re-sort.
  */
+import { VOLUME_PRICE_BEST_QTY, tieredUnitPricePence } from '@smmta/shared-types';
 import { effectiveStockState, isSellable } from './dispatch-copy';
 import type { StockState } from './api-types';
 
@@ -140,4 +141,28 @@ export function colourLinks(group: {
     byColour.set(key, { colour, href, inStock });
   }
   return Array.from(byColour.values());
+}
+
+/**
+ * The price shown on a colour swatch: what one roll costs and what it costs at
+ * the best-price quantity, e.g. "£13.00 for one roll, £6.50 when you buy 10".
+ *
+ * Both ends come from tieredUnitPricePence — the function the cart and the
+ * order-commit reconciliation use — so a swatch cannot advertise a price the
+ * basket will not charge. A product that does not slide shows its one price.
+ */
+export function swatchPriceText(
+  priceGbp: string | null,
+  maxPriceGbp: string | null,
+): string | null {
+  if (priceGbp == null || priceGbp.trim() === '') return null;
+  const floor = Math.round(Number(priceGbp) * 100);
+  if (!Number.isFinite(floor)) return null;
+  const rawCeiling = maxPriceGbp != null && maxPriceGbp.trim() !== '' ? Number(maxPriceGbp) : NaN;
+  const ceiling = Number.isFinite(rawCeiling) ? Math.round(rawCeiling * 100) : null;
+  const single = tieredUnitPricePence(floor, ceiling, 1);
+  const best = tieredUnitPricePence(floor, ceiling, VOLUME_PRICE_BEST_QTY);
+  const money = (pence: number) => `£${(pence / 100).toFixed(2)}`;
+  if (single <= best) return money(best);
+  return `${money(single)} for one roll, ${money(best)} when you buy ${VOLUME_PRICE_BEST_QTY}`;
 }

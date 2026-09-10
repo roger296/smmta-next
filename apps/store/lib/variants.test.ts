@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickDefaultVariant, resolveInitialVariant, variantCeilingGbp, variantFloorGbp, colourLinks } from './variants';
+import { pickDefaultVariant, resolveInitialVariant, variantCeilingGbp, variantFloorGbp, colourLinks, swatchPriceText } from './variants';
 import type { StockState } from './api-types';
 
 const v = (
@@ -164,5 +164,32 @@ describe('colourLinks', () => {
     });
     expect(links).toHaveLength(1);
     expect(links[0]).toEqual({ colour: 'Black', href: '/shop/p/black-2', inStock: true });
+  });
+});
+
+describe('swatchPriceText', () => {
+  it('shows the single-roll price and the best price for a sliding product', () => {
+    // Sky Blue on PLA Basic: £6.50 floor, £13.00 ceiling.
+    expect(swatchPriceText('6.50', '13.00')).toBe('£13.00 for one roll, £6.50 when you buy 10');
+  });
+
+  it('shows one price when the product does not slide', () => {
+    expect(swatchPriceText('6.00', null)).toBe('£6.00');
+    expect(swatchPriceText('6.00', '6.00')).toBe('£6.00');
+  });
+
+  it('does not advertise a discount when the ceiling is below the floor', () => {
+    // Bad data must not produce "£5.00 for one roll, £9.00 when you buy 10".
+    expect(swatchPriceText('9.00', '5.00')).toBe('£9.00');
+  });
+
+  it('returns nothing when there is no usable price', () => {
+    expect(swatchPriceText(null, '13.00')).toBeNull();
+    expect(swatchPriceText('', null)).toBeNull();
+    expect(swatchPriceText('n/a', null)).toBeNull();
+  });
+
+  it('ignores an unparseable ceiling rather than inventing a band', () => {
+    expect(swatchPriceText('6.00', 'n/a')).toBe('£6.00');
   });
 });
