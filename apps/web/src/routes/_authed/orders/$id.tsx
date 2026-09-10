@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatDate, formatMoney } from '@/lib/format';
 import { ArrowLeft, FileText, PackageCheck, PackageX, Trash2, XCircle } from 'lucide-react';
 import { orderTotalLabels } from '@/features/orders/order-totals';
+import { ShippingLabelCard } from '@/features/orders/shipping-label-card';
 
 export const Route = createFileRoute('/_authed/orders/$id')({
   component: OrderDetailPage,
@@ -190,6 +191,8 @@ function OrderDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ShippingLabelCard orderId={data.id} />
 
       <Tabs defaultValue="lines">
         <TabsList>

@@ -549,3 +549,20 @@ export interface StockReportRow {
   quantity: number;
   totalValue: string;
 }
+
+export type ShippingLabelStatus = 'PENDING' | 'CREATED' | 'FAILED' | 'DISABLED';
+
+/** An order's shipping label record, from GET /orders/:id/shipping-label. */
+export interface ShippingLabel {
+  id: string;
+  orderId: string;
+  provider: string;
+  status: ShippingLabelStatus;
+  trackingNumber: string | null;
+  providerOrderCode: string | null;
+  errorMessage: string | null;
+  retryCount: number;
+  hasLabelFile: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
