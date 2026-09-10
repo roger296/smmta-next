@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickDefaultVariant, resolveInitialVariant, variantCeilingGbp, variantFloorGbp } from './variants';
+import { pickDefaultVariant, resolveInitialVariant, variantCeilingGbp, variantFloorGbp, colourLinks } from './variants';
 import type { StockState } from './api-types';
 
 const v = (
@@ -112,5 +112,57 @@ describe('variantCeilingGbp / variantFloorGbp', () => {
     // the product visible at every filter setting.
     expect(variantCeilingGbp({ priceGbp: 'n/a', maxPriceGbp: null })).toBeNull();
     expect(variantFloorGbp({ priceGbp: '' })).toBeNull();
+  });
+});
+
+describe('colourLinks', () => {
+  const v = (colour: string | null, slug: string | null, stockState: 'IN_STOCK' | 'AVAILABLE_FROM_SUPPLIER' | 'OUT_OF_STOCK' = 'IN_STOCK') => ({
+    colour,
+    slug,
+    stockState,
+    availableQty: stockState === 'IN_STOCK' ? 5 : 0,
+  });
+
+  it('links each colour to its own product page, in the order given', () => {
+    expect(
+      colourLinks({ slug: 'landau-tpu-95a', variants: [v('Black', 'tpu-black'), v('White', 'tpu-white')] }),
+    ).toEqual([
+      { colour: 'Black', href: '/shop/p/tpu-black', inStock: true },
+      { colour: 'White', href: '/shop/p/tpu-white', inStock: true },
+    ]);
+  });
+
+  it('lists out-of-stock colours too, marked as such', () => {
+    // A sold-out colour still belongs on the list: the customer should learn
+    // the range carries it rather than assume it does not exist.
+    const links = colourLinks({ slug: 'g', variants: [v('Clear', 'tpu-clear', 'OUT_OF_STOCK')] });
+    expect(links).toEqual([{ colour: 'Clear', href: '/shop/p/tpu-clear', inStock: false }]);
+  });
+
+  it('counts supplier stock as in stock', () => {
+    const links = colourLinks({ slug: 'g', variants: [v('Red', 'r', 'AVAILABLE_FROM_SUPPLIER')] });
+    expect(links[0]!.inStock).toBe(true);
+  });
+
+  it('falls back to the group colour toggle when a variant has no slug', () => {
+    const links = colourLinks({ slug: 'landau-pla', variants: [v('Sky Blue', null)] });
+    expect(links[0]!.href).toBe('/shop/landau-pla?colour=Sky%20Blue');
+  });
+
+  it('gives no link when neither variant nor group has a slug', () => {
+    expect(colourLinks({ slug: null, variants: [v('Grey', null)] })[0]!.href).toBeNull();
+  });
+
+  it('skips variants with no colour', () => {
+    expect(colourLinks({ slug: 'g', variants: [v(null, 'x'), v('  ', 'y')] })).toEqual([]);
+  });
+
+  it('merges variants sharing a colour, in stock if either is', () => {
+    const links = colourLinks({
+      slug: 'g',
+      variants: [v('Black', null, 'OUT_OF_STOCK'), v('black', 'black-2', 'IN_STOCK')],
+    });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toEqual({ colour: 'Black', href: '/shop/p/black-2', inStock: true });
   });
 });

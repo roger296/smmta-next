@@ -23,7 +23,7 @@ import * as React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { GroupListItem, ThinVariant } from '@/lib/api-types';
-import { variantCeilingGbp } from '@/lib/variants';
+import { colourLinks, variantCeilingGbp } from '@/lib/variants';
 
 export interface CatalogueGridProps {
   groups: GroupListItem[];
@@ -265,7 +265,7 @@ export function CatalogueGrid({
           </p>
           <ul className="grid gap-px bg-[var(--brand-border)] sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map(({ group, matchingVariants }, i) => (
-              <li key={group.id} className="bg-[var(--brand-paper)]">
+              <li key={group.id} className="flex flex-col bg-[var(--brand-paper)]">
                 <CatalogueCard
                   group={group}
                   activeColour={colour}
@@ -351,7 +351,8 @@ function CatalogueCard({
     group.variants.length > 0 && group.variants.every((v) => v.stockState === 'OUT_OF_STOCK');
 
   return (
-    <Link href={href} className="group block h-full transition-colors hover:bg-[var(--brand-bone)]">
+    <>
+    <Link href={href} className="group block flex-1 transition-colors hover:bg-[var(--brand-bone)]">
       <div className="relative aspect-square overflow-hidden bg-[var(--brand-bone)]">
         {group.heroImageUrl ? (
           <Image
@@ -392,5 +393,70 @@ function CatalogueCard({
         )}
       </div>
     </Link>
+    <ColourList group={group} />
+    </>
+  );
+}
+
+/**
+ * Every colour in the range, each linked to its own page.
+ *
+ * Sits beside the card link rather than inside it: nesting an <a> in an <a> is
+ * invalid HTML, and browsers repair it by splitting the card apart.
+ *
+ * prefetch is off. Next prefetches each <Link> as it scrolls into view, and
+ * /shop renders over a hundred of these — that would be a hundred background
+ * requests on every page view for pages most visitors never open.
+ *
+ * Out-of-stock colours carry a visible asterisk as well as muted text, so the
+ * distinction does not rest on seeing contrast alone; screen readers get it in
+ * the link label, which also names the range — a page of fifteen links all
+ * reading "Black" means nothing out of context.
+ */
+function ColourList({ group }: { group: GroupListItem }) {
+  const links = colourLinks(group);
+  if (links.length === 0) return null;
+  const anySoldOut = links.some((l) => !l.inStock);
+
+  return (
+    <nav
+      aria-label={`${group.name} colours`}
+      className="border-t border-[var(--brand-border)] px-5 pb-5 pt-3"
+      data-test="card-colours"
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--brand-muted)]">
+        {links.length === 1 ? 'Colour' : `${links.length} colours`}
+      </p>
+      <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-sm">
+        {links.map((l) => {
+          const label = `${group.name} — ${l.colour}${l.inStock ? '' : ', out of stock'}`;
+          const text = (
+            <>
+              {l.colour}
+              {!l.inStock && <span aria-hidden="true">*</span>}
+            </>
+          );
+          const tone = l.inStock
+            ? 'text-[var(--brand-ink)] underline decoration-[var(--brand-border)] underline-offset-2 hover:decoration-[var(--brand-ink)]'
+            : 'text-[var(--brand-muted)] underline decoration-transparent underline-offset-2 hover:decoration-[var(--brand-muted)]';
+          return (
+            <li key={l.colour}>
+              {l.href ? (
+                <Link href={l.href} prefetch={false} aria-label={label} className={tone}>
+                  {text}
+                </Link>
+              ) : (
+                <span aria-label={label} className={tone}>
+                  {text}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {anySoldOut && (
+        <p className="mt-2 text-xs text-[var(--brand-muted)]">* Currently out of stock</p>
+      )}
+    </nav>
   );
 }
