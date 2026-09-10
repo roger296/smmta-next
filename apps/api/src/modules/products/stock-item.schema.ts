@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { paginationSchema } from '../../shared/utils/pagination.js';
+import { paginationSchema, searchTermSchema } from '../../shared/utils/pagination.js';
 
 // ============================================================
 // Stock Item Zod Schemas
@@ -13,7 +13,7 @@ export const stockItemQuerySchema = paginationSchema.extend({
   /** Free-text match against the stock item's product — name, stock code or
    *  EAN. Stock rows carry no searchable text of their own, so an operator
    *  looking for "the green PLA" has to reach it through the product. */
-  search: z.string().optional(),
+  search: searchTermSchema,
 });
 
 export const stockAdjustmentSchema = z.object({

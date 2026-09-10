@@ -19,7 +19,7 @@ import type { StockItem, StockItemStatus } from '@/lib/api-types';
 import { formatMoney } from '@/lib/format';
 import { Warehouse } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { useDebounce } from '@/hooks/use-debounce';
+import { useDebouncedSearch } from '@/hooks/use-debounce';
 
 export const Route = createFileRoute('/_authed/stock/')({
   component: StockItemsListPage,
@@ -64,7 +64,7 @@ const columns: ColumnDef<StockItem>[] = [
 function StockItemsListPage() {
   const { data: warehouses } = useWarehouses();
   const [search, setSearch] = React.useState('');
-  const debounced = useDebounce(search, 300);
+  const debounced = useDebouncedSearch(search, 300);
   const [warehouseId, setWarehouseId] = React.useState<string>('');
   const [status, setStatus] = React.useState<StockItemStatus | ''>('');
   const [page, setPage] = React.useState(1);

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { paginationSchema } from '../../shared/utils/pagination.js';
+import { paginationSchema, searchTermSchema } from '../../shared/utils/pagination.js';
 
 // ============================================================
 // Order Zod Schemas
@@ -61,7 +61,7 @@ export const orderQuerySchema = paginationSchema.extend({
   sourceChannel: z.enum([
     'MANUAL', 'SHOPIFY', 'AMAZON', 'EBAY', 'ETSY', 'WOOCOMMERCE', 'CSV', 'API',
   ]).optional(),
-  search: z.string().optional(),
+  search: searchTermSchema,
   dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });

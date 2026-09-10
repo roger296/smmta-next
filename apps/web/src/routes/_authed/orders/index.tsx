@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ORDER_STATUSES, useOrdersList } from '@/features/orders/use-orders';
-import { useDebounce } from '@/hooks/use-debounce';
+import { useDebouncedSearch } from '@/hooks/use-debounce';
 import type { Order, OrderStatus } from '@/lib/api-types';
 import { formatDate, formatMoney } from '@/lib/format';
 import { Plus, ShoppingCart } from 'lucide-react';
@@ -57,7 +57,7 @@ function OrdersListPage() {
   const navigate = useNavigate();
   const [search, setSearch] = React.useState('');
   const [status, setStatus] = React.useState<OrderStatus | ''>('');
-  const debounced = useDebounce(search, 300);
+  const debounced = useDebouncedSearch(search, 300);
   const [page, setPage] = React.useState(1);
   const pageSize = 25;
 

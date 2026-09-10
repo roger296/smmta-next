@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { DataTable, Pagination } from '@/components/data-table/data-table';
 import { EmptyState } from '@/components/empty-state';
 import { useProductsList } from '@/features/products/use-products';
-import { useDebounce } from '@/hooks/use-debounce';
+import { useDebouncedSearch } from '@/hooks/use-debounce';
 import type { Product } from '@/lib/api-types';
 import { formatMoney } from '@/lib/format';
 import { Package, Plus } from 'lucide-react';
@@ -45,7 +45,7 @@ const columns: ColumnDef<Product>[] = [
 function ProductsListPage() {
   const navigate = useNavigate();
   const [search, setSearch] = React.useState('');
-  const debounced = useDebounce(search, 300);
+  const debounced = useDebouncedSearch(search, 300);
   const [page, setPage] = React.useState(1);
   const pageSize = 25;
 
