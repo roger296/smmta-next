@@ -25,6 +25,7 @@ import {
   stockReservations,
   type ReservationMetadata,
 } from '../../db/schema/index.js';
+import { emitDomainEvent } from '../../shared/events/emit.js';
 
 // ---------------------------------------------------------------------------
 // Types and errors
@@ -335,6 +336,19 @@ export class ReservationService {
       if (lineRows.length > 0) {
         await tx.insert(orderLines).values(lineRows);
       }
+
+      // A storefront order only exists once Mollie has confirmed payment, so this
+      // is the moment it is paid. Emitted inside the same transaction: if the
+      // order rolls back, the event never happened. Reactions (a shipping label
+      // today) run from the outbox dispatcher, so a slow or failing carrier API
+      // can never delay or break checkout.
+      await emitDomainEvent(tx, {
+        companyId,
+        eventType: 'order.paid',
+        aggregateType: 'order',
+        aggregateId: order.id,
+        payload: { orderId: order.id, orderNumber: inputs.orderNumber, source: 'storefront' },
+      });
 
       // Flip stock items to ALLOCATED, link to the order, clear reservation.
       await tx

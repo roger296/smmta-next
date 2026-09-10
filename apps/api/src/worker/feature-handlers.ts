@@ -17,6 +17,7 @@ import { NotificationService } from '../modules/notification/notification.servic
 import { MarketingService } from '../modules/marketing/marketing.service.js';
 import { SubscriptionService } from '../modules/subscriptions/subscription.service.js';
 import { DigestService } from '../modules/digest/digest.service.js';
+import { ShippingLabelService } from '../modules/shipping/shipping-label.service.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
@@ -28,6 +29,7 @@ export function installFeatureHandlers(logger: Logger): void {
   const marketing = new MarketingService();
   const subs = new SubscriptionService();
   const digest = new DigestService();
+  const shippingLabels = new ShippingLabelService();
 
   // threshold-check (Prompt 7): count flags for a prospective product on
   // interest.flag_created; emit interest.threshold_crossed exactly once.
@@ -118,5 +120,23 @@ export function installFeatureHandlers(logger: Logger): void {
       .limit(1);
     const userId = (event?.payload as { userId?: string })?.userId;
     if (userId) logger.info({ n: await notify.cancelDraftsForUser(userId) }, 'cancel-user-drafts ran');
+  });
+
+  // create-shipping-label: buy and store a Smooth Parcel label for a paid
+  // storefront order. Idempotent, so the retry policy can never buy a second
+  // label. Pre-order payments also emit order.paid but ship later, so only
+  // events tagged source: 'storefront' are acted on.
+  setHandler('create-shipping-label', async (data) => {
+    const { eventId } = (data ?? {}) as { eventId?: string };
+    if (!eventId) return;
+    const [event] = await getDb()
+      .select({ payload: domainEvents.payload, companyId: domainEvents.companyId })
+      .from(domainEvents)
+      .where(eq(domainEvents.id, eventId))
+      .limit(1);
+    const payload = event?.payload as { orderId?: string; source?: string } | undefined;
+    if (!event || !payload?.orderId || payload.source !== 'storefront') return;
+    const label = await shippingLabels.requestLabel(payload.orderId, event.companyId);
+    logger.info({ orderId: payload.orderId, status: label.status }, 'create-shipping-label ran');
   });
 }

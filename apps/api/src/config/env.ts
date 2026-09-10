@@ -50,6 +50,26 @@ const envSchema = z.object({
   LUCA_API_BASE_URL: z.string().default('http://localhost:4000'),
   LUCA_API_TIMEOUT_MS: z.coerce.number().default(10000),
 
+  // Smooth Parcel shipping labels. OFF by default, like Luca: with it off, a
+  // paid order records a DISABLED label and nothing is bought. The auth scheme
+  // is not in the 2018 user guide — confirm SMOOTH_PARCEL_API_KEY's use against
+  // the API developer pack (see smooth-parcel-client.ts headers()).
+  SMOOTH_PARCEL_ENABLED: envBool(false),
+  SMOOTH_PARCEL_API_BASE_URL: z.string().default('http://app.smoothparcel.com:8091'),
+  SMOOTH_PARCEL_API_KEY: z.string().default(''),
+  SMOOTH_PARCEL_TIMEOUT_MS: z.coerce.number().default(15000),
+  SMOOTH_PARCEL_SENDER_NAME: z.string().default(''),
+  // Smooth Parcel requires a phone and email on every shipment and accepts a
+  // placeholder when the customer gave none.
+  SMOOTH_PARCEL_DEFAULT_PHONE: z.string().default(''),
+  SMOOTH_PARCEL_FALLBACK_EMAIL: z.string().default(''),
+  // Per spool, used when a product has no weight recorded. Smooth Parcel
+  // re-weighs every parcel, so this only needs to be a fair estimate.
+  SMOOTH_PARCEL_DEFAULT_WEIGHT_KG: z.coerce.number().default(1.3),
+  // Label PDFs. PRIVATE — they carry customer names and addresses, so this must
+  // never be a directory the static /uploads route serves.
+  LABELS_DIR: z.string().default('./labels'),
+
   // Redis (for BullMQ)
   REDIS_URL: z.string().default('redis://localhost:6379'),
 

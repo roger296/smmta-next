@@ -118,3 +118,10 @@ export const auditTimestamps = {
 
 /** Legacy ID for migration cross-reference */
 export const oldId = () => bigint('old_id', { mode: 'number' });
+
+// Lifecycle of a shipping label. DISABLED records that a label was due but the
+// carrier integration is switched off, so an operator can see why nothing was
+// bought and retry once it is connected.
+export const shippingLabelStatusEnum = pgEnum('shipping_label_status', [
+  'PENDING', 'CREATED', 'FAILED', 'DISABLED',
+]);

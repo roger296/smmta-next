@@ -24,6 +24,7 @@ export const HANDLER_QUEUES = [
   'notify-eta-changed',
   'notify-arrival',
   'cancel-user-drafts',
+  'create-shipping-label',
 ] as const;
 
 export type HandlerQueue = (typeof HANDLER_QUEUES)[number];
@@ -43,6 +44,8 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'shipment.eta_changed': ['notify-eta-changed'],
   'shipment.arrived': ['notify-arrival'],
   'consent.revoked': ['cancel-user-drafts'],
+  // A paid storefront order gets a shipping label (Smooth Parcel).
+  'order.paid': ['create-shipping-label'],
 };
 
 export function handlersFor(eventType: string): HandlerQueue[] {
@@ -75,6 +78,9 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
 export const RETRY_POLICY: Record<string, { retryLimit: number; retryDelay: number }> = {
   'compose-message': { retryLimit: 3, retryDelay: 30 },
   'send-message': { retryLimit: 5, retryDelay: 15 },
+  // External carrier API: back off long enough for an outage to clear. Safe to
+  // retry because the handler is idempotent - a retry never buys a second label.
+  'create-shipping-label': { retryLimit: 6, retryDelay: 120 },
 };
 
 export const DEFAULT_RETRY = { retryLimit: 3, retryDelay: 15 } as const;

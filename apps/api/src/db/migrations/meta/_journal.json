@@ -197,6 +197,13 @@
       "when": 1788364367702,
       "tag": "0027_knowledge_base",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789047183769,
+      "tag": "0028_smooth_parcel_labels",
+      "breakpoints": true
     }
   ]
 }
