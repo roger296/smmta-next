@@ -9,6 +9,22 @@ import { roundMoney } from '../../shared/utils/currency.js';
 import { StockItemService } from '../products/stock-item.service.js';
 
 /**
+ * Adds the customer's name as a top-level field.
+ *
+ * The admin SPA reads `customerName` on orders — the list, the detail page,
+ * the dashboard and the bulk-integrations page all do — but the API only ever
+ * returned the customer nested under `customer`. Every one of those screens
+ * therefore fell back to a slice of the customer UUID, which looked enough
+ * like data that nobody noticed. The nested object is kept for anything that
+ * already reads it.
+ */
+function withCustomerName<T extends { customer?: { name: string } | null }>(
+  order: T,
+): T & { customerName: string | null } {
+  return { ...order, customerName: order.customer?.name ?? null };
+}
+
+/**
  * OrderService — Customer order lifecycle CRUD with stock allocation.
  *
  * Source: Libraries/DSB.Service/Orders/CustomerOrderServices.cs (200+ methods)
@@ -32,8 +48,13 @@ export class OrderService {
     if (status) conditions.push(eq(customerOrders.status, status));
     if (sourceChannel) conditions.push(eq(customerOrders.sourceChannel, sourceChannel));
     if (search) {
+      const pattern = `%${search}%`;
+      // Customer name is matched through a subquery rather than a join so the
+      // same condition serves both the count and the page of rows below —
+      // a join on one and not the other would make "5 total" disagree with
+      // the rows actually shown.
       conditions.push(
-        sql`(${ilike(customerOrders.orderNumber, `%${search}%`)} OR ${ilike(customerOrders.customerOrderNumber, `%${search}%`)})`,
+        sql`(${ilike(customerOrders.orderNumber, pattern)} OR ${ilike(customerOrders.customerOrderNumber, pattern)} OR ${customerOrders.customerId} IN (SELECT ${customers.id} FROM ${customers} WHERE ${ilike(customers.name, pattern)}))`,
       );
     }
     if (dateFrom) conditions.push(gte(customerOrders.orderDate, dateFrom));
@@ -52,7 +73,10 @@ export class OrderService {
       }),
     ]);
 
-    return { data: rows, ...paginationMeta(Number(totalResult[0]?.count ?? 0), page, pageSize) };
+    return {
+      data: rows.map(withCustomerName),
+      ...paginationMeta(Number(totalResult[0]?.count ?? 0), page, pageSize),
+    };
   }
 
   // ================================================================
@@ -60,7 +84,7 @@ export class OrderService {
   // ================================================================
 
   async getById(id: string, companyId: string) {
-    return this.db.query.customerOrders.findFirst({
+    const order = await this.db.query.customerOrders.findFirst({
       where: and(eq(customerOrders.id, id), eq(customerOrders.companyId, companyId), isNull(customerOrders.deletedAt)),
       with: {
         customer: true,
@@ -81,6 +105,7 @@ export class OrderService {
         },
       },
     });
+    return order ? withCustomerName(order) : order;
   }
 
   // ================================================================
