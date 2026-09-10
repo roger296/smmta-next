@@ -7,7 +7,7 @@ import {
   pk, companyId, auditTimestamps, oldId,
   orderStatusEnum, sourceChannelEnum, invoiceStatusEnum,
   creditNoteStatusEnum, allocationItemTypeEnum, vatTreatmentEnum,
-  fulfilmentSourceEnum,
+  fulfilmentSourceEnum, shippingLabelStatusEnum,
 } from './common.js';
 import { customers, customerContacts, customerDeliveryAddresses, customerInvoiceAddresses } from './customers.js';
 import { products } from './products.js';
@@ -238,6 +238,7 @@ export const customerOrdersRelations = relations(customerOrders, ({ one, many })
   lines: many(orderLines),
   notes: many(orderNotes),
   invoices: many(invoices),
+  shippingLabels: many(shippingLabels),
 }));
 
 export const orderLinesRelations = relations(orderLines, ({ one }) => ({
@@ -270,4 +271,46 @@ export const creditNoteLinesRelations = relations(creditNoteLines, ({ one }) => 
 
 export const orderNotesRelations = relations(orderNotes, ({ one }) => ({
   order: one(customerOrders, { fields: [orderNotes.orderId], references: [customerOrders.id] }),
+}));
+
+// ============================================================
+// Shipping Labels
+// ============================================================
+
+/**
+ * A carrier label bought for an order, and the audit trail of buying it.
+ *
+ * Modelled on gl_posting_log: one row per (provider, order) keyed by a unique
+ * idempotency key, with status, error, retry count and the request/response
+ * kept for debugging. The key matters more here than for a GL posting —
+ * a duplicate label is money spent twice — so providerOrderCode is written the
+ * moment the carrier accepts the shipment, and a retry resumes from it rather
+ * than creating another.
+ *
+ * labelPath is a bare server-generated filename inside LABELS_DIR, never a
+ * path, so it cannot be steered outside that directory.
+ *
+ * ON DELETE CASCADE: orders are soft-deleted in normal use, so this only fires
+ * on the hard deletes the seed and test cleanup perform, which would otherwise
+ * be blocked by this foreign key.
+ */
+export const shippingLabels = pgTable('shipping_labels', {
+  id: pk(),
+  companyId: companyId(),
+  orderId: uuid('order_id').notNull().references(() => customerOrders.id, { onDelete: 'cascade' }),
+  provider: varchar('provider', { length: 30 }).notNull().default('SMOOTH_PARCEL'),
+  idempotencyKey: varchar('idempotency_key', { length: 200 }).notNull().unique(),
+  status: shippingLabelStatusEnum('status').notNull().default('PENDING'),
+  providerOrderCode: varchar('provider_order_code', { length: 100 }),
+  trackingNumber: varchar('tracking_number', { length: 100 }),
+  labelPath: varchar('label_path', { length: 255 }),
+  errorMessage: text('error_message'),
+  retryCount: integer('retry_count').notNull().default(0),
+  requestPayload: jsonb('request_payload'),
+  responsePayload: jsonb('response_payload'),
+  ...auditTimestamps,
+});
+
+export const shippingLabelsRelations = relations(shippingLabels, ({ one }) => ({
+  order: one(customerOrders, { fields: [shippingLabels.orderId], references: [customerOrders.id] }),
 }));

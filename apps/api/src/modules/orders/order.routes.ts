@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
+import {
+  ShippingLabelNotFoundError,
+  ShippingLabelService,
+} from '../shipping/shipping-label.service.js';
 import { OrderService, OrderValidationError } from './order.service.js';
 import { InvoiceService, InvoiceError } from './invoice.service.js';
 import {
@@ -12,6 +16,8 @@ import { paginationSchema } from '../../shared/utils/pagination.js';
 
 const orderService = new OrderService();
 const invoiceService = new InvoiceService();
+
+const shippingLabelService = new ShippingLabelService();
 
 export async function orderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
@@ -135,6 +141,43 @@ export async function orderRoutes(app: FastifyInstance) {
   // ═══════════════════════════════════════════════════════════════
   // INVOICES LIST / DETAIL
   // ═══════════════════════════════════════════════════════════════
+
+  // -- Shipping labels ------------------------------------------------
+  // Behind requireAuth like every route here. The PDF route is the only way a
+  // label leaves the server: labels hold customer addresses and are stored
+  // outside the public /uploads directory for exactly that reason.
+  app.get('/orders/:id/shipping-label', async (request) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    return { success: true, data: await shippingLabelService.latestForOrder(id, user.companyId) };
+  });
+
+  app.post('/orders/:id/shipping-label', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    try {
+      const label = await shippingLabelService.requestLabel(id, user.companyId);
+      return { success: true, data: label };
+    } catch (err) {
+      if (err instanceof ShippingLabelNotFoundError) {
+        return reply.status(404).send({ success: false, error: err.message });
+      }
+      const message = err instanceof Error ? err.message : 'Label request failed';
+      return reply.status(502).send({ success: false, error: message });
+    }
+  });
+
+  app.get('/orders/:id/shipping-label/pdf', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    const file = await shippingLabelService.readLabelFile(id, user.companyId);
+    if (!file) return reply.status(404).send({ success: false, error: 'No label file for this order' });
+    return reply
+      .header('Content-Type', 'application/pdf')
+      .header('Content-Disposition', 'inline; filename="' + file.filename + '"')
+      .header('Cache-Control', 'private, no-store')
+      .send(file.buffer);
+  });
 
   app.get('/invoices', async (request) => {
     const user = getAuthUser(request);

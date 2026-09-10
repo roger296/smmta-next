@@ -74,6 +74,10 @@ export const customerDeliveryAddresses = pgTable('customer_delivery_addresses', 
   region: varchar('region', { length: 100 }),
   postCode: varchar('post_code', { length: 50 }),
   country: varchar('country', { length: 50 }),
+  // Recipient phone for this address. Carriers text delivery updates to it,
+  // and Smooth Parcel requires one on every shipment. Checkout collected it
+  // all along but had nowhere to keep it.
+  phone: varchar('phone', { length: 50 }),
   isDefault: boolean('is_default').notNull().default(false),
   oldId: oldId(),
   ...auditTimestamps,

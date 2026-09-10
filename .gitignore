@@ -13,3 +13,8 @@ coverage/
 .tmp.*/
 .tmp-*
 *.docx
+
+# Shipping label PDFs written by a local run (LABELS_DIR defaults to ./labels).
+# They contain customer names and addresses: never commit them.
+labels/
+apps/api/labels/

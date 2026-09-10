@@ -298,6 +298,8 @@ export class OrderCommitService {
         region: input.deliveryAddress.region ?? null,
         postCode: input.deliveryAddress.postCode,
         country: input.deliveryAddress.country,
+        // Collected at checkout; carriers need it to contact the recipient.
+        phone: input.customer.phone?.trim() || null,
       })
       .returning();
     if (!delivery) throw new Error('Failed to insert delivery address');
