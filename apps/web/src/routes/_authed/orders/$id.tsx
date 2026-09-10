@@ -22,6 +22,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { formatDate, formatMoney } from '@/lib/format';
 import { ArrowLeft, FileText, PackageCheck, PackageX, Trash2, XCircle } from 'lucide-react';
+import { orderTotalLabels } from '@/features/orders/order-totals';
 
 export const Route = createFileRoute('/_authed/orders/$id')({
   component: OrderDetailPage,
@@ -68,6 +69,10 @@ function OrderDetailPage() {
     data.status,
   );
   const canCancel = !['CANCELLED', 'COMPLETED', 'INVOICED'].includes(data.status);
+
+  // Titles follow how this order's figures were stored: storefront orders
+  // include tax in goods and delivery, admin-created orders add it on top.
+  const totalLabels = orderTotalLabels(data);
 
   return (
     <div className="space-y-6">
@@ -143,15 +148,25 @@ function OrderDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-[var(--color-muted-foreground)]">
-              Subtotal
+              {totalLabels.goods}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">{formatMoney(data.orderTotal, data.currencyCode)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-[var(--color-muted-foreground)]">
+              {totalLabels.delivery}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{formatMoney(data.deliveryCharge, data.currencyCode)}</div>
           </CardContent>
         </Card>
         <Card>

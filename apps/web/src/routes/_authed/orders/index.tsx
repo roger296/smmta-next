@@ -87,7 +87,7 @@ function OrdersListPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Search by order number or customer PO…"
+          placeholder="Search by order number, customer name or PO…"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);

@@ -22,6 +22,7 @@ on:
       - 'apps/store/**'
       - 'apps/api/src/modules/storefront/**'
       - 'apps/api/src/modules/products/**'
+      - 'apps/api/src/modules/orders/**'
       - 'packages/shared-types/**'
       - 'apps/web/**'
       - 'docker/**'
@@ -237,7 +238,7 @@ jobs:
       # are the tests that catch a divergence, so they must actually run.
       - name: Run catalogue pricing and image tests
         run: |
-          npx vitest run src/modules/storefront/volume-pricing.test.ts src/modules/storefront/catalogue-image.test.ts src/modules/products/upload-limits.test.ts src/modules/products/remote-image.test.ts src/shared/utils/search-term.test.ts --root apps/api
+          npx vitest run src/modules/storefront/volume-pricing.test.ts src/modules/storefront/catalogue-image.test.ts src/modules/products/upload-limits.test.ts src/modules/products/remote-image.test.ts src/shared/utils/search-term.test.ts src/modules/orders/order-list.test.ts --root apps/api
       - name: Run storefront cart and pricing tests
         run: |
           npx vitest run lib/cart.test.ts lib/variants.test.ts --root apps/store

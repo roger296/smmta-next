@@ -1,4 +1,4 @@
-import { eq, and, isNull, ilike, sql, count, gte, lte } from 'drizzle-orm';
+import { eq, and, or, isNull, ilike, inArray, count, gte, lte } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
   customerOrders, orderLines, orderNotes, customers,
@@ -7,6 +7,22 @@ import type { CreateOrderInput, OrderQueryInput } from './order.schema.js';
 import { paginationOffset, paginationMeta } from '../../shared/utils/pagination.js';
 import { roundMoney } from '../../shared/utils/currency.js';
 import { StockItemService } from '../products/stock-item.service.js';
+
+/**
+ * Adds the customer's name as a top-level field.
+ *
+ * The admin SPA reads `customerName` on orders — the list, the detail page,
+ * the dashboard and the bulk-integrations page all do — but the API only ever
+ * returned the customer nested under `customer`. Every one of those screens
+ * therefore fell back to a slice of the customer UUID, which looked enough
+ * like data that nobody noticed. The nested object is kept for anything that
+ * already reads it.
+ */
+function withCustomerName<T extends { customer?: { name: string } | null }>(
+  order: T,
+): T & { customerName: string | null } {
+  return { ...order, customerName: order.customer?.name ?? null };
+}
 
 /**
  * OrderService — Customer order lifecycle CRUD with stock allocation.
@@ -32,9 +48,28 @@ export class OrderService {
     if (status) conditions.push(eq(customerOrders.status, status));
     if (sourceChannel) conditions.push(eq(customerOrders.sourceChannel, sourceChannel));
     if (search) {
-      conditions.push(
-        sql`(${ilike(customerOrders.orderNumber, `%${search}%`)} OR ${ilike(customerOrders.customerOrderNumber, `%${search}%`)})`,
-      );
+      const pattern = `%${search}%`;
+      // Customer name is matched by resolving the matching customer ids first,
+      // then filtering orders by those ids — NOT by a raw subquery. Inside a
+      // relational findMany, Drizzle aliases the root table as "customerOrders"
+      // and rewrites column references in raw sql to that alias, so a subquery's
+      // "customers"."name" was emitted as "customerOrders"."name", a column that
+      // does not exist. Plain queries avoid the rewrite, and the one resulting
+      // condition still drives both the count and the rows.
+      const matchingCustomers = await this.db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(and(eq(customers.companyId, companyId), ilike(customers.name, pattern)));
+      const terms = [
+        ilike(customerOrders.orderNumber, pattern),
+        ilike(customerOrders.customerOrderNumber, pattern),
+      ];
+      // Only when something matched: an empty IN list is not safe to rely on
+      // across Drizzle versions.
+      if (matchingCustomers.length > 0) {
+        terms.push(inArray(customerOrders.customerId, matchingCustomers.map((c) => c.id)));
+      }
+      conditions.push(or(...terms)!);
     }
     if (dateFrom) conditions.push(gte(customerOrders.orderDate, dateFrom));
     if (dateTo) conditions.push(lte(customerOrders.orderDate, dateTo));
@@ -52,7 +87,10 @@ export class OrderService {
       }),
     ]);
 
-    return { data: rows, ...paginationMeta(Number(totalResult[0]?.count ?? 0), page, pageSize) };
+    return {
+      data: rows.map(withCustomerName),
+      ...paginationMeta(Number(totalResult[0]?.count ?? 0), page, pageSize),
+    };
   }
 
   // ================================================================
@@ -60,7 +98,7 @@ export class OrderService {
   // ================================================================
 
   async getById(id: string, companyId: string) {
-    return this.db.query.customerOrders.findFirst({
+    const order = await this.db.query.customerOrders.findFirst({
       where: and(eq(customerOrders.id, id), eq(customerOrders.companyId, companyId), isNull(customerOrders.deletedAt)),
       with: {
         customer: true,
@@ -81,6 +119,7 @@ export class OrderService {
         },
       },
     });
+    return order ? withCustomerName(order) : order;
   }
 
   // ================================================================
