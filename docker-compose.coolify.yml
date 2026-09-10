@@ -66,10 +66,10 @@ services:
       UPLOADS_DIR: /app/uploads
       # Smooth Parcel shipping labels. OFF until SMOOTH_PARCEL_ENABLED is set;
       # with it off, paid orders record a DISABLED label and nothing is bought.
-      # BETA unless told otherwise — LIVE is https://api.smoothparcel.com. Set
+      # LIVE by default: a label costs nothing unless the parcel is sent. Set
       # the username (account email) and password in Coolify, never the repo.
       SMOOTH_PARCEL_ENABLED: ${SMOOTH_PARCEL_ENABLED:-false}
-      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api-beta.smoothparcel.com}
+      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api.smoothparcel.com}
       SMOOTH_PARCEL_USERNAME: ${SMOOTH_PARCEL_USERNAME:-}
       SMOOTH_PARCEL_PASSWORD: ${SMOOTH_PARCEL_PASSWORD:-}
       SMOOTH_PARCEL_SENDER_NAME: ${SMOOTH_PARCEL_SENDER_NAME:-}
@@ -115,10 +115,10 @@ services:
       WORKER_HEALTH_PORT: '3100'
       # Smooth Parcel shipping labels. OFF until SMOOTH_PARCEL_ENABLED is set;
       # with it off, paid orders record a DISABLED label and nothing is bought.
-      # BETA unless told otherwise — LIVE is https://api.smoothparcel.com. Set
+      # LIVE by default: a label costs nothing unless the parcel is sent. Set
       # the username (account email) and password in Coolify, never the repo.
       SMOOTH_PARCEL_ENABLED: ${SMOOTH_PARCEL_ENABLED:-false}
-      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api-beta.smoothparcel.com}
+      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api.smoothparcel.com}
       SMOOTH_PARCEL_USERNAME: ${SMOOTH_PARCEL_USERNAME:-}
       SMOOTH_PARCEL_PASSWORD: ${SMOOTH_PARCEL_PASSWORD:-}
       SMOOTH_PARCEL_SENDER_NAME: ${SMOOTH_PARCEL_SENDER_NAME:-}
