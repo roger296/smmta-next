@@ -117,12 +117,12 @@ export function ProductImagesTab({ productId }: { productId: string }) {
 
           <div className="grid gap-3 md:grid-cols-[1fr_120px]">
             <div className="space-y-1">
-              <Label htmlFor="img-url">Image URL</Label>
+              <Label htmlFor="img-url">Copy from a web address</Label>
               <Input
                 id="img-url"
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://cdn.example.com/image.jpg"
+                placeholder="https://supplier.example.com/photo.jpg"
               />
             </div>
             <div className="space-y-1">
@@ -160,6 +160,8 @@ export function ProductImagesTab({ productId }: { productId: string }) {
           </div>
           <p className="text-xs text-muted-foreground">
             The first image by priority becomes the product&rsquo;s hero image on the storefront.
+            A web address is downloaded and stored here once, so the picture keeps working even if
+            the original is moved or removed.
           </p>
         </CardContent>
       </Card>
