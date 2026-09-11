@@ -26,6 +26,7 @@ export const HANDLER_QUEUES = [
   'cancel-user-drafts',
   'create-shipping-label',
   'create-pick-note',
+  'send-dispatch-email',
 ] as const;
 
 export type HandlerQueue = (typeof HANDLER_QUEUES)[number];
@@ -50,6 +51,8 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   // Every other new order gets a pick note, and a changed order a fresh one.
   'order.created': ['create-pick-note'],
   'order.lines_changed': ['create-pick-note'],
+  // A shipped order tells the customer, with the courier and tracking number.
+  'order.dispatched': ['send-dispatch-email'],
 };
 
 export function handlersFor(eventType: string): HandlerQueue[] {
@@ -87,6 +90,9 @@ export const RETRY_POLICY: Record<string, { retryLimit: number; retryDelay: numb
   'create-shipping-label': { retryLimit: 6, retryDelay: 120 },
   // Local PDF rendering: a failure is rarely transient, so a few quick retries.
   'create-pick-note': { retryLimit: 3, retryDelay: 30 },
+  // Hands the email to the storefront's outbox, which is idempotent per order,
+  // so a retry after a lost response cannot send the customer two emails.
+  'send-dispatch-email': { retryLimit: 5, retryDelay: 60 },
 };
 
 export const DEFAULT_RETRY = { retryLimit: 3, retryDelay: 15 } as const;

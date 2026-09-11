@@ -83,7 +83,8 @@ describe('handler registry', () => {
   it('handlersFor returns the mapped queues and [] for unmapped events', () => {
     expect(handlersFor('interest.flag_created')).toEqual(['threshold-check']);
     expect(handlersFor('stock.replenished')).toEqual(['back-in-stock-fanout']);
-    expect(handlersFor('order.dispatched')).toEqual([]);
+    expect(handlersFor('order.dispatched')).toEqual(['send-dispatch-email']);
+    expect(handlersFor('order.refunded')).toEqual([]);
     expect(handlersFor('order.paid')).toEqual(['create-shipping-label', 'create-pick-note']);
     expect(handlersFor('order.created')).toEqual(['create-pick-note']);
     expect(handlersFor('order.lines_changed')).toEqual(['create-pick-note']);

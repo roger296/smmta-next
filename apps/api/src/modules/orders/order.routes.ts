@@ -6,6 +6,8 @@ import {
   ShippingLabelService,
 } from '../shipping/shipping-label.service.js';
 import { PickNoteNotFoundError, PickNoteService } from '../shipping/pick-note.service.js';
+import { ShipOrderError, ShipOrderNotFoundError, ShipOrderService } from '../shipping/ship-order.service.js';
+import { InvoiceDocumentService } from './invoice-document.service.js';
 import { OrderService, OrderValidationError } from './order.service.js';
 import { InvoiceService, InvoiceError } from './invoice.service.js';
 import {
@@ -20,6 +22,8 @@ const invoiceService = new InvoiceService();
 
 const shippingLabelService = new ShippingLabelService();
 const pickNoteService = new PickNoteService();
+const shipOrderService = new ShipOrderService();
+const invoiceDocumentService = new InvoiceDocumentService();
 
 export async function orderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
@@ -221,6 +225,54 @@ export async function orderRoutes(app: FastifyInstance) {
     }
   });
 
+  // -- Shipping -------------------------------------------------------
+  // What stands between this order and the Ship button, in words.
+  app.get('/orders/:id/ship-readiness', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    try {
+      return { success: true, data: await shipOrderService.readiness(id, user.companyId) };
+    } catch (err) {
+      if (err instanceof ShipOrderNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      throw err;
+    }
+  });
+
+  app.post('/orders/:id/ship', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    try {
+      return { success: true, data: await shipOrderService.ship(id, user.companyId) };
+    } catch (err) {
+      if (err instanceof ShipOrderNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      if (err instanceof ShipOrderError) {
+        return reply
+          .status(409)
+          .send({ success: false, error: [err.message, ...err.reasons].join(' '), details: { reasons: err.reasons } });
+      }
+      if (err instanceof InvoiceError) return reply.status(422).send({ success: false, error: err.message });
+      throw err;
+    }
+  });
+
+  // The pick note and label as one PDF, for printing together.
+  app.get('/orders/:id/dispatch-documents/pdf', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    try {
+      const file = await shipOrderService.dispatchDocuments(id, user.companyId);
+      if (!file) return reply.status(404).send({ success: false, error: 'This order needs both a pick note and a shipping label' });
+      return reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', 'inline; filename="' + file.filename + '"')
+        .header('Cache-Control', 'private, no-store')
+        .send(file.buffer);
+    } catch (err) {
+      if (err instanceof ShipOrderNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      throw err;
+    }
+  });
+
   app.get('/invoices', async (request) => {
     const user = getAuthUser(request);
     const query = paginationSchema.extend({
@@ -237,6 +289,19 @@ export async function orderRoutes(app: FastifyInstance) {
     const data = await invoiceService.getById(id, user.companyId);
     if (!data) return reply.status(404).send({ success: false, error: 'Invoice not found' });
     return { success: true, data };
+  });
+
+  // The invoice PDF, made and stored the first time it is asked for.
+  app.get('/invoices/:id/pdf', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    const file = await invoiceDocumentService.readPdf(id, user.companyId);
+    if (!file) return reply.status(404).send({ success: false, error: 'Invoice not found' });
+    return reply
+      .header('Content-Type', 'application/pdf')
+      .header('Content-Disposition', 'inline; filename="' + file.filename + '"')
+      .header('Cache-Control', 'private, no-store')
+      .send(file.buffer);
   });
 
   // ═══════════════════════════════════════════════════════════════

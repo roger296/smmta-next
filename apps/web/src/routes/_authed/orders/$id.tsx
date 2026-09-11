@@ -21,10 +21,12 @@ import {
 } from '@/features/orders/order-action-dialogs';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate, formatMoney } from '@/lib/format';
-import { ArrowLeft, FileText, PackageCheck, PackageX, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, FileText, PackageCheck, PackageX, Printer, Send, Trash2, XCircle } from 'lucide-react';
 import { orderTotalLabels } from '@/features/orders/order-totals';
 import { ShippingLabelCard } from '@/features/orders/shipping-label-card';
 import { PickNoteCard } from '@/features/orders/pick-note-card';
+import { InvoiceCard } from '@/features/orders/invoice-card';
+import { printDispatchDocuments, useShipOrder, useShipReadiness } from '@/features/orders/use-ship-order';
 
 export const Route = createFileRoute('/_authed/orders/$id')({
   component: OrderDetailPage,
@@ -40,11 +42,15 @@ function OrderDetailPage() {
   const deallocateMutation = useDeallocateStock();
   const invoiceMutation = useCreateInvoiceFromOrder();
   const deleteMutation = useDeleteOrder();
+  const shipMutation = useShipOrder();
+  const { data: readiness } = useShipReadiness(id);
 
   const [allocateOpen, setAllocateOpen] = React.useState(false);
   const [invoiceOpen, setInvoiceOpen] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const [confirmShip, setConfirmShip] = React.useState(false);
+  const [printing, setPrinting] = React.useState(false);
 
   if (isLoading) return <Skeleton className="h-96 w-full" />;
   if (isError || !data) {
@@ -67,10 +73,27 @@ function OrderDetailPage() {
 
   const statusMeta = ORDER_STATUSES.find((s) => s.value === data.status);
   const canAllocate = ['CONFIRMED', 'PARTIALLY_ALLOCATED', 'BACK_ORDERED'].includes(data.status);
-  const canInvoice = ['ALLOCATED', 'SHIPPED', 'READY_TO_SHIP', 'PARTIALLY_SHIPPED'].includes(
-    data.status,
-  );
+  // One invoice per order: shipping creates it, so the button goes once one exists.
+  const invoice = data.invoices?.[0];
+  const canInvoice =
+    !invoice && ['ALLOCATED', 'SHIPPED', 'READY_TO_SHIP', 'PARTIALLY_SHIPPED'].includes(data.status);
   const canCancel = !['CANCELLED', 'COMPLETED', 'INVOICED'].includes(data.status);
+  const isShipped = ['SHIPPED', 'PARTIALLY_SHIPPED', 'COMPLETED'].includes(data.status);
+
+  const onPrintDispatch = async () => {
+    setPrinting(true);
+    try {
+      await printDispatchDocuments(data.id);
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not open the documents to print',
+        description: err instanceof Error ? err.message : 'Unknown error',
+      });
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   // Titles follow how this order's figures were stored: storefront orders
   // include tax in goods and delivery, admin-created orders add it on top.
@@ -129,6 +152,23 @@ function OrderDetailPage() {
               Deallocate
             </Button>
           )}
+          {isShipped ? (
+            <Button size="sm" variant="outline" onClick={onPrintDispatch} disabled={printing}>
+              <Printer className="h-4 w-4" />
+              {printing ? 'Opening…' : 'Print dispatch documents'}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={() => setConfirmShip(true)}
+              disabled={!readiness?.ready || shipMutation.isPending}
+              title={readiness && !readiness.ready ? readiness.reasons.join('\n') : undefined}
+              data-test="ship-order"
+            >
+              <Send className="h-4 w-4" />
+              Ship order
+            </Button>
+          )}
           {canInvoice && (
             <Button size="sm" onClick={() => setInvoiceOpen(true)}>
               <FileText className="h-4 w-4" />
@@ -149,6 +189,17 @@ function OrderDetailPage() {
           )}
         </div>
       </div>
+
+      {!isShipped && readiness && !readiness.ready && readiness.reasons.length > 0 && (
+        <div className="text-sm text-[var(--color-muted-foreground)]" data-test="ship-blockers">
+          <p className="font-medium">Ship order is unavailable until:</p>
+          <ul className="list-disc pl-5">
+            {readiness.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -193,9 +244,10 @@ function OrderDetailPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className={invoice ? 'grid gap-4 lg:grid-cols-3' : 'grid gap-4 lg:grid-cols-2'}>
         <PickNoteCard orderId={data.id} />
         <ShippingLabelCard orderId={data.id} />
+        {invoice && <InvoiceCard invoice={invoice} currencyCode={data.currencyCode} />}
       </div>
 
       <Tabs defaultValue="lines">
@@ -315,6 +367,30 @@ function OrderDetailPage() {
             });
             throw err;
           }
+        }}
+      />
+      <ConfirmDialog
+        open={confirmShip}
+        onOpenChange={setConfirmShip}
+        title="Ship this order?"
+        description="This marks the allocated stock as shipped, sets the order to Shipped, creates the invoice and emails the customer their courier and tracking number. The pick note and label then open, ready to print."
+        confirmLabel="Ship order"
+        onConfirm={async () => {
+          try {
+            const result = await shipMutation.mutateAsync(data.id);
+            toast({
+              title: 'Order shipped',
+              description: result.invoiceNumber ? `Invoice ${result.invoiceNumber} created` : undefined,
+            });
+          } catch (err) {
+            toast({
+              variant: 'destructive',
+              title: 'Could not ship the order',
+              description: err instanceof Error ? err.message : 'Unknown error',
+            });
+            throw err;
+          }
+          await onPrintDispatch();
         }}
       />
       <ConfirmDialog

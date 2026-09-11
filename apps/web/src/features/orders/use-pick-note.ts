@@ -20,7 +20,8 @@ export function useRecreatePickNote() {
   return useMutation({
     mutationFn: (orderId: string) => apiFetch<PickNote>(`/orders/${orderId}/pick-note`, { method: 'POST' }),
     onSettled: (_data, _err, orderId) => {
-      qc.invalidateQueries({ queryKey: pickNoteKey(orderId) });
+      // Whole order detail, so the Ship button sees the new pick note too.
+      qc.invalidateQueries({ queryKey: ['orders', 'detail', orderId] });
     },
   });
 }

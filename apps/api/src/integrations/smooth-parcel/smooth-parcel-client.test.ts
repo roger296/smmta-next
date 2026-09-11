@@ -8,6 +8,7 @@ import {
   SmoothParcelApiError,
   SmoothParcelClient,
   SmoothParcelUnreadableOrderError,
+  courierNameFrom,
   generateApiAccessKey,
   type SmoothParcelClientOptions,
 } from './smooth-parcel-client.js';
@@ -241,6 +242,18 @@ describe('account registration', () => {
   it('throws when the answer is unclear, because the account may exist', async () => {
     stubFetch(status(502));
     await expect(client({ apiKey: '' }).createCustomer(input)).rejects.toThrow(/no clear answer/);
+  });
+});
+
+describe('courierNameFrom', () => {
+  it('reads the carrier from the reply, in either casing, preferring the provider name', () => {
+    expect(courierNameFrom({ IsSuccess: true, ShipingMethodProviderName: 'Evri', ShippingMethodName: 'Evri 48' })).toBe('Evri');
+    expect(courierNameFrom({ shippingMethodName: 'Royal Mail Tracked 48' })).toBe('Royal Mail Tracked 48');
+  });
+
+  it('is null when the reply does not say', () => {
+    expect(courierNameFrom({ IsSuccess: true, ShipmentCode: 1 })).toBeNull();
+    expect(courierNameFrom(null)).toBeNull();
   });
 });
 
