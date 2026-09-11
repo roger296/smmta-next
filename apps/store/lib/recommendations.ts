@@ -21,7 +21,7 @@ export interface Recommendation {
   /** Path on this store, e.g. `/shop/landau-pla-silk-1-75mm-1kg`. */
   path: string;
   imageUrl: string | null;
-  /** The lowest price of a single spool, e.g. "£14.99". */
+  /** The lowest min price of the range's products, e.g. "£11.99". */
   priceFrom: string | null;
   /** Why it was picked, e.g. "Try TPU". */
   eyebrow: string;
@@ -61,14 +61,10 @@ function buyable(g: GroupListItem): boolean {
   );
 }
 
-/** A single spool's price: the higher of the volume floor and its ceiling. */
+/** The lowest min price (priceGbp, the products' min selling price) in the range. */
 function priceFrom(g: GroupListItem): string | null {
   const prices = g.variants
-    .map((v) => {
-      // A null ceiling means the price does not slide, so the floor is the price.
-      const both = [v.priceGbp, v.maxPriceGbp].map((p) => Number.parseFloat(p ?? '')).filter(Number.isFinite);
-      return both.length > 0 ? Math.max(...both) : NaN;
-    })
+    .map((v) => Number.parseFloat(v.priceGbp ?? ''))
     .filter((n) => Number.isFinite(n) && n > 0);
   return prices.length > 0 ? `£${Math.min(...prices).toFixed(2)}` : null;
 }
