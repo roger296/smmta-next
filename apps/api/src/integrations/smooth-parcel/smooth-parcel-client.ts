@@ -404,6 +404,20 @@ function bareCode(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * The carrier Smooth Parcel chose for a shipment, read from its reply, for
+ * telling the customer who is delivering. Null when the reply does not say.
+ */
+export function courierNameFrom(raw: unknown): string | null {
+  return pickString(raw, [
+    'ShipingMethodProviderName',
+    'ShippingMethodProviderName',
+    'ShipmentProviderName',
+    'CourierName',
+    'ShippingMethodName',
+  ]);
+}
+
 function messageOf(raw: unknown): string | null {
   return pickString(raw, ['Message', 'title']);
 }

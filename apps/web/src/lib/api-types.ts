@@ -353,7 +353,9 @@ export interface Order {
   trackingNumber: string | null;
   trackingLink: string | null;
   courierName: string | null;
+  shippedDate?: string | null;
   lines?: OrderLine[];
+  invoices?: Invoice[];
   createdAt: string;
   updatedAt: string;
 }
@@ -583,4 +585,28 @@ export interface PickNote {
   isStale: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** From GET /orders/:id/ship-readiness. */
+export interface ShipReadiness {
+  ready: boolean;
+  alreadyShipped: boolean;
+  /** Why the order cannot be shipped yet, in words for the dispatcher. */
+  reasons: string[];
+  hasLabel: boolean;
+  hasPickNote: boolean;
+  allocated: boolean;
+  unallocated: Array<{ sku: string | null; name: string; needed: number; allocated: number }>;
+}
+
+/** From POST /orders/:id/ship. */
+export interface ShipResult {
+  orderId: string;
+  status: 'SHIPPED';
+  shippedDate: string;
+  courierName: string;
+  trackingNumber: string | null;
+  invoiceId: string;
+  invoiceNumber: string | null;
+  invoicePdfError: string | null;
 }

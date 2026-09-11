@@ -1,12 +1,16 @@
 /**
- * POST /api/internal/order-status — receiver for SMMTA-NEXT to ping when
- * an order's status changes (SHIPPED, CANCELLED). When that wiring lands
- * on the SMMTA side, this stub will translate into the right outbox
- * enqueue and the cron will deliver the email on its next pass.
+ * POST /api/internal/order-status — SMMTA-NEXT tells the storefront an order's
+ * status changed (SHIPPED, CANCELLED), and the matching email is enqueued. The
+ * outbox cron delivers it on its next pass.
  *
- * For now this is a documented stub: it accepts the JSON body, validates
- * shape, and enqueues the matching template if the order is one we know
- * about (i.e. we have a local checkouts row with that smmta_order_id).
+ * Storefront orders are matched to their local checkouts row, whose captured
+ * customer email is used. Orders the storefront never saw — created in the
+ * admin — have no checkouts row, so SMMTA sends the customer's email, first
+ * name and order number in the body instead, and the same branded email goes
+ * out for them.
+ *
+ * The enqueue is idempotent per (orderId, template), so SMMTA retrying after a
+ * lost response cannot send the customer the email twice.
  *
  * Auth: `Authorization: Bearer <ADMIN_API_KEY>` — same convention as
  * the outbox processor, since both endpoints are operator-only.
@@ -31,6 +35,10 @@ const bodySchema = z.object({
   trackingLink: z.string().url().optional(),
   courierName: z.string().optional(),
   cancelReason: z.string().optional(),
+  // For orders with no local checkouts row (created in the admin).
+  orderNumber: z.string().max(100).optional(),
+  customerEmail: z.string().email().optional(),
+  customerFirstName: z.string().max(100).optional(),
 });
 
 function authorised(request: NextRequest): boolean {
@@ -62,66 +70,70 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { orderId, status, shippedDate, trackingNumber, trackingLink, courierName, cancelReason } =
-    parsed.data;
+  const body = parsed.data;
 
-  // Cross-reference the SMMTA order against our checkouts table to find
-  // the customer's email + order number.
+  // A storefront order's checkouts row holds the email the customer gave at
+  // checkout, which is preferred over anything sent in the body.
   const db = getDb();
   const checkout = await db.query.checkouts.findFirst({
-    where: eq(checkouts.smmtaOrderId, orderId),
+    where: eq(checkouts.smmtaOrderId, body.orderId),
   });
-  if (!checkout) {
+  if (!checkout && !body.customerEmail) {
     return NextResponse.json(
-      { error: 'Unknown order — no local checkout row' },
+      { error: 'Unknown order — no local checkout row and no customer email supplied' },
       { status: 404 },
     );
   }
-  const customer = checkout.customer as
+  const captured = checkout?.customer as
     | { email?: string; firstName?: string; lastName?: string }
     | null
     | undefined;
-  if (!customer?.email) {
+  const email = captured?.email ?? body.customerEmail;
+  if (!email) {
     return NextResponse.json(
       { error: 'No customer email captured for this order' },
       { status: 422 },
     );
   }
+  const firstName = captured?.firstName ?? body.customerFirstName;
+  // SMMTA's own order number when it sends one; otherwise the public reference
+  // the storefront derives for its orders, as the confirmation page shows.
+  const orderNumber =
+    body.orderNumber ??
+    (checkout
+      ? `STORE-${(checkout.idempotencyKey ?? checkout.id).slice(-12).toUpperCase()}`
+      : body.orderId.slice(0, 8).toUpperCase());
 
-  const env = getEnv();
-  const baseUrl = env.STORE_BASE_URL;
+  const baseUrl = getEnv().STORE_BASE_URL;
 
-  if (status === 'SHIPPED') {
+  if (body.status === 'SHIPPED') {
     await enqueue(
       'order_shipped',
       {
-        orderId,
-        // We don't know the SMMTA order number here without an API hop.
-        // Use the local idempotencyKey-derived public ref the
-        // confirmation page already shows.
-        orderNumber: `STORE-${(checkout.idempotencyKey ?? checkout.id).slice(-12).toUpperCase()}`,
-        firstName: customer.firstName,
+        orderId: body.orderId,
+        orderNumber,
+        firstName,
         storeBaseUrl: baseUrl,
-        shippedDate,
-        trackingNumber,
-        trackingLink,
-        courierName,
+        shippedDate: body.shippedDate,
+        trackingNumber: body.trackingNumber,
+        trackingLink: body.trackingLink,
+        courierName: body.courierName,
       },
-      customer.email,
-      { orderId },
+      email,
+      { orderId: body.orderId },
     );
   } else {
     await enqueue(
       'order_cancelled',
       {
-        orderId,
-        orderNumber: `STORE-${(checkout.idempotencyKey ?? checkout.id).slice(-12).toUpperCase()}`,
-        firstName: customer.firstName,
+        orderId: body.orderId,
+        orderNumber,
+        firstName,
         storeBaseUrl: baseUrl,
-        reason: cancelReason,
+        reason: body.cancelReason,
       },
-      customer.email,
-      { orderId },
+      email,
+      { orderId: body.orderId },
     );
   }
 

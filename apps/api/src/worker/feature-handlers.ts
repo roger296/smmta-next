@@ -19,6 +19,7 @@ import { SubscriptionService } from '../modules/subscriptions/subscription.servi
 import { DigestService } from '../modules/digest/digest.service.js';
 import { ShippingLabelService } from '../modules/shipping/shipping-label.service.js';
 import { PickNoteNotFoundError, PickNoteService } from '../modules/shipping/pick-note.service.js';
+import { DispatchEmailRejectedError, sendDispatchEmail } from '../modules/shipping/dispatch-email.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
@@ -162,6 +163,31 @@ export function installFeatureHandlers(logger: Logger): void {
       // A deleted order will never have a pick note; retrying cannot help.
       if (err instanceof PickNoteNotFoundError) {
         logger.warn({ orderId }, 'create-pick-note: order not found');
+        return;
+      }
+      throw err;
+    }
+  });
+
+  // send-dispatch-email: tell the customer their order has shipped, with the
+  // courier and tracking number. Triggered by order.dispatched.
+  setHandler('send-dispatch-email', async (data) => {
+    const { eventId } = (data ?? {}) as { eventId?: string };
+    if (!eventId) return;
+    const [event] = await getDb()
+      .select({ payload: domainEvents.payload, companyId: domainEvents.companyId })
+      .from(domainEvents)
+      .where(eq(domainEvents.id, eventId))
+      .limit(1);
+    const orderId = (event?.payload as { orderId?: string } | undefined)?.orderId;
+    if (!event || !orderId) return;
+    try {
+      const outcome = await sendDispatchEmail(orderId, event.companyId);
+      logger.info({ orderId, outcome }, 'send-dispatch-email ran');
+    } catch (err) {
+      // The storefront refused this request; sending it again cannot help.
+      if (err instanceof DispatchEmailRejectedError) {
+        logger.error({ orderId, status: err.status, body: err.body }, 'send-dispatch-email: storefront refused the email');
         return;
       }
       throw err;

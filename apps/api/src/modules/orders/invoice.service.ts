@@ -9,6 +9,8 @@ import {
 import { LucaGLService } from '../../integrations/luca/luca-gl.service.js';
 import { StockItemService } from '../products/stock-item.service.js';
 import { roundMoney } from '../../shared/utils/currency.js';
+import type { DbTx } from '../../shared/events/emit.js';
+import { fromPence, invoiceFigures } from './invoice-figures.js';
 import type { VatTreatment } from '@smmta/shared-types';
 
 /**
@@ -99,157 +101,164 @@ export class InvoiceService {
     userId: string,
     input: { dateOfInvoice?: string; dueDateOfInvoice?: string },
   ) {
-    const pool = getPool();
-    const client = await pool.connect();
+    const invoice = await this.db.transaction((tx) =>
+      this.createFromOrderInTx(tx, orderId, companyId, input, { orderStatus: 'INVOICED' }),
+    );
+    return this.getById(invoice.id, companyId);
+  }
 
-    try {
-      await client.query('BEGIN');
-      const txDb = drizzle(client, { schema });
+  /**
+   * Invoice-from-order inside the caller's transaction. Shipping calls this
+   * with orderStatus null, because a shipped order stays SHIPPED.
+   *
+   * Refuses an order that already has an invoice, so pressing Create invoice
+   * twice, or invoicing an order that shipping already invoiced, can never bill
+   * the customer twice. Refuses an order whose totals do not reconcile rather
+   * than issue an invoice for the wrong amount.
+   */
+  async createFromOrderInTx(
+    tx: DbTx,
+    orderId: string,
+    companyId: string,
+    input: { dateOfInvoice?: string; dueDateOfInvoice?: string },
+    opts: { orderStatus: 'INVOICED' | null },
+  ) {
+    const order = await tx.query.customerOrders.findFirst({
+      where: and(eq(customerOrders.id, orderId), eq(customerOrders.companyId, companyId)),
+      with: {
+        customer: true,
+        lines: { where: isNull(orderLines.deletedAt), with: { product: true } },
+      },
+    });
+    if (!order) throw new InvoiceError('Order not found');
 
-      // Load order with all relations
-      const order = await txDb.query.customerOrders.findFirst({
-        where: and(eq(schema.customerOrders.id, orderId), eq(schema.customerOrders.companyId, companyId)),
-        with: {
-          customer: true,
-          lines: { where: isNull(schema.orderLines.deletedAt), with: { product: true } },
-        },
-      });
-      if (!order) throw new InvoiceError('Order not found');
+    const [existing] = await tx
+      .select({ invoiceNumber: invoices.invoiceNumber })
+      .from(invoices)
+      .where(and(eq(invoices.orderId, orderId), eq(invoices.companyId, companyId), isNull(invoices.deletedAt)))
+      .limit(1);
+    if (existing) throw new InvoiceError(`This order already has invoice ${existing.invoiceNumber ?? ''}`.trim());
 
-      // Generate invoice number
-      const invoiceNumber = await this.generateInvoiceNumber(txDb, companyId);
-      const dateOfInvoice = input.dateOfInvoice ?? new Date().toISOString().slice(0, 10);
-      const dueDateOfInvoice = input.dueDateOfInvoice
-        ?? this.addDays(dateOfInvoice, order.customer.creditTermDays ?? 30);
-
-      // Calculate totals from order lines
-      let lineTotal = 0;
-      let taxTotal = 0;
-      let cogsTotal = 0;
-
-      const invLineData = order.lines.map((ol) => {
-        const lt = Number(ol.lineTotal);
-        const tv = Number(ol.taxValue ?? 0);
-        lineTotal += lt;
-        taxTotal += tv;
-
-        // COGS = expected cost × quantity
-        const expectedCost = Number(ol.product.expectedNextCost ?? 0);
-        const lineCogs = roundMoney(expectedCost * ol.quantity);
-        cogsTotal += lineCogs;
-
-        return {
-          productId: ol.productId,
-          quantity: ol.quantity,
-          pricePerUnit: ol.pricePerUnit,
-          taxName: ol.taxName,
-          taxRate: ol.taxRate ?? 0,
-          taxValue: ol.taxValue ?? '0',
-          lineTotal: ol.lineTotal,
-        };
-      });
-
-      const deliveryCharge = Number(order.deliveryCharge ?? 0);
-      const grandTotal = roundMoney(lineTotal + taxTotal + deliveryCharge);
-
-      // Create invoice
-      const [invoice] = await txDb
-        .insert(invoices)
-        .values({
-          companyId,
-          orderId,
-          customerId: order.customerId,
-          contactId: order.contactId,
-          invoiceAddressId: order.invoiceAddressId,
-          deliveryAddressId: order.deliveryAddressId,
-          currencyCode: order.currencyCode,
-          invoiceNumber,
-          deliveryCharge: deliveryCharge.toString(),
-          lineTotal: lineTotal.toString(),
-          taxTotal: taxTotal.toString(),
-          grandTotal: grandTotal.toString(),
-          amountOutstanding: grandTotal.toString(),
-          status: 'ISSUED',
-          vatTreatment: order.vatTreatment,
-          dateOfInvoice,
-          dueDateOfInvoice,
-        })
-        .returning();
-
-      // Create invoice lines
-      const invLines = invLineData.map((il) => ({
-        invoiceId: invoice.id,
-        productId: il.productId,
-        quantity: il.quantity,
-        pricePerUnit: il.pricePerUnit,
-        taxName: il.taxName,
-        taxRate: il.taxRate,
-        taxValue: il.taxValue,
-        lineTotal: il.lineTotal,
-      }));
-      await txDb.insert(invoiceLines).values(invLines);
-
-      // Mark allocated stock as SOLD
-      await txDb
-        .update(stockItems)
-        .set({
-          status: 'SOLD',
-          bookedOutDate: dateOfInvoice,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(stockItems.salesOrderId, orderId),
-            eq(stockItems.companyId, companyId),
-            eq(stockItems.status, 'ALLOCATED'),
-            isNull(stockItems.deletedAt),
-          ),
-        );
-
-      // Update order: revenue, cogs, margin, status
-      await txDb
-        .update(customerOrders)
-        .set({
-          status: 'INVOICED',
-          revenue: lineTotal.toString(),
-          cogs: cogsTotal.toString(),
-          margin: roundMoney(lineTotal - cogsTotal).toString(),
-          updatedAt: new Date(),
-        })
-        .where(eq(customerOrders.id, orderId));
-
-      // ── GL POSTING 1: CUSTOMER_INVOICE ──
-      // Luca auto-expands: Debit 1100 (AR), Credit 4000 (Revenue), Credit 2100 (VAT)
-      await this.lucaGL.postCustomerInvoice(txDb as any, {
-        companyId,
-        invoiceId: invoice.id,
-        invoiceNumber,
-        orderNumber: order.orderNumber,
-        invoiceDate: new Date(dateOfInvoice),
-        grandTotal,
-        vatTreatment: order.vatTreatment as VatTreatment,
-        customerName: order.customer.name,
-        customerId: order.customerId,
-      });
-
-      // ── GL POSTING 2: COGS / Stock journal ──
-      // Debit 5000 (COGS), Credit 1150 (Stock)
-      await this.lucaGL.postInvoiceCOGS(txDb as any, {
-        companyId,
-        invoiceId: invoice.id,
-        invoiceNumber,
-        invoiceDate: new Date(dateOfInvoice),
-        cogsTotal,
-      });
-
-      await client.query('COMMIT');
-      return this.getById(invoice.id, companyId);
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+    // Net, VAT and gross as an invoice must state them, whether the order's
+    // prices include VAT (storefront) or have it added (admin).
+    const figures = invoiceFigures(
+      order,
+      order.lines.map((l) => ({ quantity: l.quantity, lineTotal: l.lineTotal, taxValue: l.taxValue, taxRate: l.taxRate })),
+    );
+    if (!figures.reconciles) {
+      throw new InvoiceError(
+        `Order ${order.orderNumber}'s totals do not add up (${fromPence(figures.grossPence)} worked out, ${order.grandTotal} recorded), so no invoice was created`,
+      );
     }
+
+    const invoiceNumber = await this.generateInvoiceNumber(tx, companyId);
+    const dateOfInvoice = input.dateOfInvoice ?? new Date().toISOString().slice(0, 10);
+    const dueDateOfInvoice = input.dueDateOfInvoice
+      ?? this.addDays(dateOfInvoice, order.customer.creditTermDays ?? 30);
+
+    // COGS = expected cost × quantity
+    let cogsTotal = 0;
+    for (const ol of order.lines) {
+      cogsTotal += roundMoney(Number(ol.product.expectedNextCost ?? 0) * ol.quantity);
+    }
+    const revenue = figures.goodsNetPence / 100;
+
+    const [invoice] = await tx
+      .insert(invoices)
+      .values({
+        companyId,
+        orderId,
+        customerId: order.customerId,
+        contactId: order.contactId,
+        invoiceAddressId: order.invoiceAddressId,
+        deliveryAddressId: order.deliveryAddressId,
+        currencyCode: order.currencyCode,
+        invoiceNumber,
+        deliveryCharge: fromPence(figures.deliveryNetPence),
+        lineTotal: fromPence(figures.goodsNetPence),
+        taxTotal: fromPence(figures.totalVatPence),
+        grandTotal: fromPence(figures.grossPence),
+        amountOutstanding: fromPence(figures.grossPence),
+        status: 'ISSUED',
+        vatTreatment: order.vatTreatment,
+        dateOfInvoice,
+        dueDateOfInvoice,
+      })
+      .returning();
+    if (!invoice) throw new Error('Invoice insert returned no row');
+
+    if (order.lines.length > 0) {
+      await tx.insert(invoiceLines).values(
+        order.lines.map((ol, i) => {
+          const f = figures.lines[i]!;
+          return {
+            invoiceId: invoice.id,
+            productId: ol.productId,
+            quantity: ol.quantity,
+            pricePerUnit: fromPence(f.unitNetPence),
+            taxName: ol.taxName ?? `VAT ${f.taxRate}%`,
+            taxRate: f.taxRate,
+            taxValue: fromPence(f.vatPence),
+            lineTotal: fromPence(f.netPence),
+          };
+        }),
+      );
+    }
+
+    // Mark allocated stock as SOLD
+    await tx
+      .update(stockItems)
+      .set({
+        status: 'SOLD',
+        bookedOutDate: dateOfInvoice,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(stockItems.salesOrderId, orderId),
+          eq(stockItems.companyId, companyId),
+          eq(stockItems.status, 'ALLOCATED'),
+          isNull(stockItems.deletedAt),
+        ),
+      );
+
+    // Update order: revenue (net of VAT), cogs, margin, and status when asked
+    await tx
+      .update(customerOrders)
+      .set({
+        ...(opts.orderStatus ? { status: opts.orderStatus } : {}),
+        revenue: fromPence(figures.goodsNetPence),
+        cogs: cogsTotal.toString(),
+        margin: roundMoney(revenue - cogsTotal).toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(customerOrders.id, orderId));
+
+    // ── GL POSTING 1: CUSTOMER_INVOICE ──
+    // Luca auto-expands: Debit 1100 (AR), Credit 4000 (Revenue), Credit 2100 (VAT)
+    await this.lucaGL.postCustomerInvoice(tx as any, {
+      companyId,
+      invoiceId: invoice.id,
+      invoiceNumber,
+      orderNumber: order.orderNumber,
+      invoiceDate: new Date(dateOfInvoice),
+      grandTotal: figures.grossPence / 100,
+      vatTreatment: order.vatTreatment as VatTreatment,
+      customerName: order.customer.name,
+      customerId: order.customerId,
+    });
+
+    // ── GL POSTING 2: COGS / Stock journal ──
+    // Debit 5000 (COGS), Credit 1150 (Stock)
+    await this.lucaGL.postInvoiceCOGS(tx as any, {
+      companyId,
+      invoiceId: invoice.id,
+      invoiceNumber,
+      invoiceDate: new Date(dateOfInvoice),
+      cogsTotal,
+    });
+
+    return invoice;
   }
 
   // ================================================================
