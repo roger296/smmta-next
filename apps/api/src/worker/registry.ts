@@ -25,6 +25,7 @@ export const HANDLER_QUEUES = [
   'notify-arrival',
   'cancel-user-drafts',
   'create-shipping-label',
+  'create-pick-note',
 ] as const;
 
 export type HandlerQueue = (typeof HANDLER_QUEUES)[number];
@@ -44,8 +45,11 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'shipment.eta_changed': ['notify-eta-changed'],
   'shipment.arrived': ['notify-arrival'],
   'consent.revoked': ['cancel-user-drafts'],
-  // A paid storefront order gets a shipping label (Smooth Parcel).
-  'order.paid': ['create-shipping-label'],
+  // A paid storefront order gets a shipping label (Smooth Parcel) and a pick note.
+  'order.paid': ['create-shipping-label', 'create-pick-note'],
+  // Every other new order gets a pick note, and a changed order a fresh one.
+  'order.created': ['create-pick-note'],
+  'order.lines_changed': ['create-pick-note'],
 };
 
 export function handlersFor(eventType: string): HandlerQueue[] {
@@ -81,6 +85,8 @@ export const RETRY_POLICY: Record<string, { retryLimit: number; retryDelay: numb
   // External carrier API: back off long enough for an outage to clear. Safe to
   // retry because the handler is idempotent - a retry never buys a second label.
   'create-shipping-label': { retryLimit: 6, retryDelay: 120 },
+  // Local PDF rendering: a failure is rarely transient, so a few quick retries.
+  'create-pick-note': { retryLimit: 3, retryDelay: 30 },
 };
 
 export const DEFAULT_RETRY = { retryLimit: 3, retryDelay: 15 } as const;

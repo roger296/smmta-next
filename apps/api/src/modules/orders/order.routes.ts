@@ -5,6 +5,7 @@ import {
   ShippingLabelNotFoundError,
   ShippingLabelService,
 } from '../shipping/shipping-label.service.js';
+import { PickNoteNotFoundError, PickNoteService } from '../shipping/pick-note.service.js';
 import { OrderService, OrderValidationError } from './order.service.js';
 import { InvoiceService, InvoiceError } from './invoice.service.js';
 import {
@@ -18,6 +19,7 @@ const orderService = new OrderService();
 const invoiceService = new InvoiceService();
 
 const shippingLabelService = new ShippingLabelService();
+const pickNoteService = new PickNoteService();
 
 export async function orderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
@@ -177,6 +179,46 @@ export async function orderRoutes(app: FastifyInstance) {
       .header('Content-Disposition', 'inline; filename="' + file.filename + '"')
       .header('Cache-Control', 'private, no-store')
       .send(file.buffer);
+  });
+
+  // -- Pick notes -----------------------------------------------------
+  // Same privacy as labels: a pick note carries the customer's name and
+  // postcode, so the PDF leaves the server only through this authenticated route.
+  app.get('/orders/:id/pick-note', async (request) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    return { success: true, data: await pickNoteService.getForOrder(id, user.companyId) };
+  });
+
+  // Re-creates the note even when nothing has changed — for a lost or damaged print.
+  app.post('/orders/:id/pick-note', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    try {
+      return { success: true, data: await pickNoteService.generate(id, user.companyId, { force: true }) };
+    } catch (err) {
+      if (err instanceof PickNoteNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      const message = err instanceof Error ? err.message : 'Pick note failed';
+      return reply.status(500).send({ success: false, error: message });
+    }
+  });
+
+  // Serves the note, re-creating it first if the order has changed since it was made.
+  app.get('/orders/:id/pick-note/pdf', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    try {
+      const file = await pickNoteService.readFile(id, user.companyId);
+      if (!file) return reply.status(404).send({ success: false, error: 'No pick note for this order' });
+      return reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', 'inline; filename="' + file.filename + '"')
+        .header('Cache-Control', 'private, no-store')
+        .send(file.buffer);
+    } catch (err) {
+      if (err instanceof PickNoteNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      throw err;
+    }
   });
 
   app.get('/invoices', async (request) => {

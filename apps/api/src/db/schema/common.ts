@@ -125,3 +125,9 @@ export const oldId = () => bigint('old_id', { mode: 'number' });
 export const shippingLabelStatusEnum = pgEnum('shipping_label_status', [
   'PENDING', 'CREATED', 'FAILED', 'DISABLED',
 ]);
+
+// Lifecycle of an order's pick note. FAILED covers both a rendering error and
+// an order with nothing to pick (every item drop-shipped).
+export const pickNoteStatusEnum = pgEnum('pick_note_status', [
+  'PENDING', 'CREATED', 'FAILED',
+]);
