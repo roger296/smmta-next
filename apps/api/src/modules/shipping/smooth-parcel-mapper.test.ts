@@ -59,6 +59,12 @@ describe('buildSmoothParcelOrder', () => {
     expect(p.OrderReference).toBe('STORE-EBE1CE630088');
   });
 
+  it('gives a replacement shipment its own transaction reference, keeping the order reference', () => {
+    const p = buildSmoothParcelOrder(order(), { ...opts, shipmentAttempt: 2 });
+    expect(p.TransactionID).toBe('STORE-EBE1CE630088-2');
+    expect(p.OrderReference).toBe('STORE-EBE1CE630088');
+  });
+
   it('splits the recipient into first and last name', () => {
     const p = buildSmoothParcelOrder(order(), opts);
     expect([p.FirstName, p.LastName]).toEqual(['Roger', 'Test']);

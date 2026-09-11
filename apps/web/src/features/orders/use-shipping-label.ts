@@ -14,13 +14,19 @@ export function useShippingLabel(orderId: string | undefined) {
   });
 }
 
-/** Buys a label for the order (or retries a failed one). Idempotent server-side. */
+/**
+ * Creates the order's label, or asks for an existing shipment's label again.
+ * With newShipment, replaces a shipment whose label cannot be produced.
+ */
 export function useCreateShippingLabel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (orderId: string) =>
-      apiFetch<ShippingLabel>(`/orders/${orderId}/shipping-label`, { method: 'POST' }),
-    onSettled: (_data, _err, orderId) => {
+    mutationFn: ({ orderId, newShipment }: { orderId: string; newShipment?: boolean }) =>
+      apiFetch<ShippingLabel>(`/orders/${orderId}/shipping-label`, {
+        method: 'POST',
+        body: newShipment ? { newShipment: true } : undefined,
+      }),
+    onSettled: (_data, _err, { orderId }) => {
       qc.invalidateQueries({ queryKey: labelKey(orderId) });
       // A created label writes the tracking number onto the order itself.
       qc.invalidateQueries({ queryKey: ['orders', 'detail', orderId] });

@@ -1,0 +1,2 @@
+ALTER TABLE "shipping_labels" ADD COLUMN "shipment_attempt" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE "shipping_labels" ADD COLUMN "previous_shipments" jsonb DEFAULT '[]'::jsonb NOT NULL;
