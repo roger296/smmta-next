@@ -10,6 +10,7 @@ import {
   SmoothParcelUnreadableOrderError,
   courierNameFrom,
   generateApiAccessKey,
+  shippingServiceFrom,
   type SmoothParcelClientOptions,
 } from './smooth-parcel-client.js';
 import type { SmoothParcelOrderPayload } from '../../modules/shipping/smooth-parcel-mapper.js';
@@ -254,6 +255,21 @@ describe('courierNameFrom', () => {
   it('is null when the reply does not say', () => {
     expect(courierNameFrom({ IsSuccess: true, ShipmentCode: 1 })).toBeNull();
     expect(courierNameFrom(null)).toBeNull();
+  });
+
+  it('reads courier and service from a real AddNewOrder reply', () => {
+    // Field names and values as Smooth Parcel returned them for STORE-D98D388E7288.
+    const reply = {
+      IsSuccess: true,
+      Message: 'Label successfully generated',
+      ShipmentCode: 749640,
+      ShipingMethodProviderName: 'DPD',
+      ShippingMethodName: 'DPD UK',
+      TrackingNumber: '15503215399048',
+      SmoothTrackingNo: 'SISM-MQES',
+    };
+    expect(courierNameFrom(reply)).toBe('DPD');
+    expect(shippingServiceFrom(reply)).toBe('DPD UK');
   });
 });
 

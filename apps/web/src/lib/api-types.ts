@@ -565,6 +565,10 @@ export interface ShippingLabel {
   errorMessage: string | null;
   retryCount: number;
   hasLabelFile: boolean;
+  /** The carrier Smooth Parcel chose, e.g. "DPD". */
+  courierName: string | null;
+  /** The service it booked, e.g. "DPD UK". */
+  shippingService: string | null;
   shipmentAttempt: number;
   /** Smooth Parcel codes of shipments this label replaced. */
   previousShipmentCodes: string[];

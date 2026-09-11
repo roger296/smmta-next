@@ -318,6 +318,12 @@ function OrderDetailPage() {
               </div>
               <div>
                 <dt className="text-xs font-medium text-[var(--color-muted-foreground)]">
+                  Courier
+                </dt>
+                <dd>{data.courierName ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-[var(--color-muted-foreground)]">
                   Delivery date
                 </dt>
                 <dd>{data.deliveryDate ? formatDate(data.deliveryDate) : '—'}</dd>

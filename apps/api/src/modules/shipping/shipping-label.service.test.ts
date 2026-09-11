@@ -269,6 +269,67 @@ describe('ShippingLabelService.requestLabel', () => {
   });
 });
 
+describe('ShippingLabelService — courier and label download', () => {
+  it('records the courier Smooth Parcel chose, on the label and on the order', async () => {
+    const orderId = await makeOrder();
+    const client = {
+      async addNewOrder() {
+        return {
+          orderCode: '749640',
+          trackingNumber: '15503215399048',
+          raw: {
+            IsSuccess: true,
+            ShipmentCode: 749640,
+            ShipingMethodProviderName: 'DPD',
+            ShippingMethodName: 'DPD UK',
+            TrackingNumber: '15503215399048',
+            SmoothTrackingNo: 'SISM-MQES',
+          },
+        };
+      },
+      async getShipmentLabel() {
+        return PDF;
+      },
+    };
+    const label = await new ShippingLabelService({ client, labelsDir, enabled: true }).requestLabel(orderId, COMPANY_ID);
+    expect(label).toMatchObject({ status: 'CREATED', courierName: 'DPD', shippingService: 'DPD UK' });
+
+    const [order] = await getDb()
+      .select({ courierName: customerOrders.courierName, trackingNumber: customerOrders.trackingNumber })
+      .from(customerOrders)
+      .where(eq(customerOrders.id, orderId));
+    expect(order).toEqual({ courierName: 'DPD', trackingNumber: '15503215399048' });
+  });
+
+  it("gets the label by shipment code in the same attempt when the reply's file link does not work", async () => {
+    // Smooth Parcel's reply links the label on its old :8091 address, which no
+    // longer answers. That must not cost a failed attempt and a retry.
+    const orderId = await makeOrder();
+    const calls = { downloadLabel: 0, getShipmentLabel: 0 };
+    const client = {
+      async addNewOrder() {
+        return {
+          orderCode: '749641',
+          trackingNumber: '15503215399049',
+          labelPath: 'https://app.smoothparcel.com:8091/api/Shipment/PrintLabel?SmoothParcelTrackingNo=SISM-MQET',
+          raw: {},
+        };
+      },
+      async getShipmentLabel() {
+        calls.getShipmentLabel++;
+        return PDF;
+      },
+      async downloadLabel(): Promise<Buffer> {
+        calls.downloadLabel++;
+        throw new Error('fetch failed');
+      },
+    };
+    const label = await new ShippingLabelService({ client, labelsDir, enabled: true }).requestLabel(orderId, COMPANY_ID);
+    expect(label).toMatchObject({ status: 'CREATED', retryCount: 0, hasLabelFile: true });
+    expect(calls).toEqual({ downloadLabel: 1, getShipmentLabel: 1 });
+  });
+});
+
 describe('ShippingLabelService — creating a new shipment', () => {
   const orderNumberOf = async (orderId: string) =>
     (await getDb().select({ n: customerOrders.orderNumber }).from(customerOrders).where(eq(customerOrders.id, orderId)))[0]!.n;
