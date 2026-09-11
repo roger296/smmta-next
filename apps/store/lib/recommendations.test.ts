@@ -66,7 +66,8 @@ describe('pickRecommendations', () => {
     expect(picks[0]).toMatchObject({
       path: `/shop/${PLA_SILK}`,
       imageUrl: `https://img.example/${PLA_SILK}.jpg`,
-      priceFrom: '£14.99',
+      // The lowest min price, not the single-spool ceiling of £14.99.
+      priceFrom: '£11.99',
       material: 'PLA',
       blurb: 'High-gloss, near-metallic sheen. Prints best slightly hotter and slower.',
     });
@@ -80,6 +81,16 @@ describe('pickRecommendations', () => {
       catalogue(),
     );
     expect(picks.map((p) => p.name)).toEqual(['Landau TPU 95A 1.75mm 1kg', 'Landau PETG 1.75mm 1kg']);
+  });
+
+  it('prices a range from the lowest min price of its products', () => {
+    const silk = group(PLA_SILK, 'Landau PLA Silk 1.75mm 1kg', { sortOrder: 1, price: '13.50', maxPrice: '16.00' });
+    silk.variants.push(
+      { ...silk.variants[0]!, id: 'variant-silk-gold', priceGbp: '10.25', maxPriceGbp: '15.00', availableQty: 0 },
+      { ...silk.variants[0]!, id: 'variant-silk-unpriced', priceGbp: null, maxPriceGbp: null },
+    );
+    const [pick] = pickRecommendations({ lines: [] }, [silk]);
+    expect(pick?.priceFrom).toBe('£10.25');
   });
 
   it('skips ranges that cannot be bought now', () => {
