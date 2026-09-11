@@ -246,6 +246,29 @@ export function getPublicOrder(
   });
 }
 
+/** GET /storefront/orders/:id/invoice/pdf — the order's VAT invoice, or null
+ *  while it has none. Never cached: an invoice issued a moment ago must show. */
+export async function getOrderInvoicePdf(
+  orderId: string,
+): Promise<{ bytes: ArrayBuffer; filename: string } | null> {
+  const env = getEnv();
+  const url = new URL(
+    `storefront/orders/${encodeURIComponent(orderId)}/invoice/pdf`,
+    ensureTrailingSlash(env.SMMTA_API_BASE_URL),
+  );
+  const headers: Record<string, string> = { Accept: 'application/pdf' };
+  if (env.SMMTA_API_KEY) headers.Authorization = `Bearer ${env.SMMTA_API_KEY}`;
+
+  const res = await fetch(url, { headers, cache: 'no-store' });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new SmmtaApiError(`Invoice request failed with ${res.status}`, res.status, await safeJson(res));
+  }
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `invoice-${orderId.slice(0, 8)}.pdf`;
+  return { bytes: await res.arrayBuffer(), filename };
+}
+
 /** GET /storefront/products?ids=<csv> — batch lookup for cart price snapshots. */
 export function getProductsByIds(
   ids: string[],

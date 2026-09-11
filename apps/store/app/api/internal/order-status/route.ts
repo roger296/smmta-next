@@ -23,6 +23,7 @@ import { getDb } from '@/lib/db';
 import { getEnv } from '@/lib/env';
 import { checkouts } from '@/drizzle/schema';
 import { enqueue } from '@/lib/email';
+import { shippedEmailExtras } from '@/lib/order-adverts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -107,6 +108,10 @@ export async function POST(request: NextRequest) {
   const baseUrl = getEnv().STORE_BASE_URL;
 
   if (body.status === 'SHIPPED') {
+    // Ranges picked for this customer, and whether their VAT invoice can be
+    // downloaded yet. Captured now, so the email sent is the one chosen at
+    // dispatch; simply left out if SMMTA cannot supply them.
+    const { recommendations, invoiceAvailable } = await shippedEmailExtras(body.orderId);
     await enqueue(
       'order_shipped',
       {
@@ -118,6 +123,8 @@ export async function POST(request: NextRequest) {
         trackingNumber: body.trackingNumber,
         trackingLink: body.trackingLink,
         courierName: body.courierName,
+        recommendations,
+        invoiceAvailable,
       },
       email,
       { orderId: body.orderId },

@@ -60,32 +60,109 @@ describe('order_confirmation', () => {
 });
 
 describe('order_shipped', () => {
-  it('mentions tracking number + courier when present', () => {
+  const THANKS =
+    'Thanks for your order, we appreciate all of our customers and we hope to see you again soon.';
+  const recommendations = [
+    {
+      groupId: 'g-silk',
+      name: 'Landau PLA Silk 1.75mm 1kg',
+      path: '/shop/landau-pla-silk-1-75mm-1kg',
+      imageUrl: 'https://img.example/silk.jpg',
+      priceFrom: '£14.99',
+      eyebrow: 'Your next PLA',
+      blurb: 'High-gloss, near-metallic sheen.',
+      material: 'PLA',
+    },
+    {
+      groupId: 'g-tpu',
+      name: 'Landau TPU 95A 1.75mm 1kg',
+      path: '/shop/landau-tpu-95a-1-75mm-1kg',
+      imageUrl: '/uploads/tpu.jpg',
+      priceFrom: '£19.99',
+      eyebrow: 'Try TPU',
+      blurb: 'Flexible 95A.',
+      material: 'TPU',
+    },
+  ];
+
+  it('says who it shipped with and the tracking number, and thanks the customer', () => {
     const r = renderTemplate('order_shipped', {
       orderId: 'ord-2',
       orderNumber: 'STORE-SHIP1',
       firstName: 'Pat',
       storeBaseUrl: STORE,
-      courierName: 'Royal Mail',
-      trackingNumber: 'AA123456789GB',
-      trackingLink: 'https://royalmail.example/track/AA123',
-      shippedDate: '2026-04-28',
+      courierName: 'DPD',
+      trackingNumber: '15503215399048',
+      trackingLink: 'https://app.smoothparcel.com/trackmyshipments/15503215399048',
+      shippedDate: '11 September 2026',
     });
     expect(r.subject).toMatch(/STORE-SHIP1/);
-    expect(r.html).toContain('AA123456789GB');
-    expect(r.html).toContain('Royal Mail');
-    expect(r.html).toContain('https://royalmail.example/track/AA123');
-    expect(r.text).toContain('AA123456789GB');
+    expect(r.preheader).toContain('DPD');
+    expect(r.preheader.length).toBeLessThan(120);
+    expect(r.text).toContain('Your order shipped with DPD and the tracking number is 15503215399048.');
+    expect(r.html).toContain('Your order shipped with <strong>DPD</strong> and the tracking number is');
+    expect(r.html).toContain('https://app.smoothparcel.com/trackmyshipments/15503215399048');
+    expect(r.html).toContain('Track your parcel');
+    expect(r.html).toContain('Pat');
+    expect(r.html).toContain(THANKS);
+    expect(r.text).toContain(THANKS);
+    expect(r.text).toContain(`${STORE}/track/ord-2`);
+    // Its coloured bands run edge to edge, so the body is not padded.
+    expect(r.html).toContain('padding:0;font-size:15px');
   });
 
-  it('still renders without tracking', () => {
+  it('names the courier when there is no tracking number', () => {
+    const r = renderTemplate('order_shipped', {
+      orderId: 'ord-2',
+      orderNumber: 'STORE-NONUMBER',
+      storeBaseUrl: STORE,
+      courierName: 'DPD',
+    });
+    expect(r.text).toContain('Your order shipped with DPD.');
+  });
+
+  it('still renders without tracking or courier', () => {
     const r = renderTemplate('order_shipped', {
       orderId: 'ord-2',
       orderNumber: 'STORE-NOTRACK',
       storeBaseUrl: STORE,
     });
     expect(r.html).toContain('STORE-NOTRACK');
-    expect(r.text).not.toContain('Tracking number:');
+    expect(r.text).toContain('Your order shipped.');
+    expect(r.text).not.toContain('tracking number');
+    expect(r.html).not.toContain('Track your parcel');
+    expect(r.html).not.toContain('VAT invoice');
+  });
+
+  it('advertises the ranges picked for the customer and both stores', () => {
+    const r = renderTemplate('order_shipped', {
+      orderId: 'ord-2',
+      orderNumber: 'STORE-ADS',
+      storeBaseUrl: STORE,
+      recommendations,
+      invoiceAvailable: true,
+    });
+    expect(r.html).toContain(`${STORE}/shop/landau-pla-silk-1-75mm-1kg`);
+    expect(r.html).toContain('https://img.example/silk.jpg');
+    // A relative image cannot load in a mail client, so it is left out.
+    expect(r.html).not.toContain('/uploads/tpu.jpg');
+    expect(r.html).toContain('Try TPU');
+    expect(r.html).toContain('From £14.99');
+    expect(r.html).toContain('https://clothes.cleverdeals.net');
+    expect(r.html).toContain('Clothes Shop');
+    expect(r.html).toContain('VAT invoice');
+    expect(r.text).toContain(`${STORE}/shop/landau-tpu-95a-1-75mm-1kg`);
+    expect(r.text).toContain('https://clothes.cleverdeals.net');
+  });
+
+  it('escapes names that come from the catalogue', () => {
+    const r = renderTemplate('order_shipped', {
+      orderId: 'ord-2',
+      orderNumber: 'STORE-ESC',
+      storeBaseUrl: STORE,
+      recommendations: [{ ...recommendations[0]!, name: 'PLA <script>alert(1)</script>' }],
+    });
+    expect(r.html).not.toContain('<script>');
   });
 });
 

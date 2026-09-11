@@ -19,10 +19,12 @@ export function escapeHtml(s: string): string {
 export interface WrapperInput {
   preheader: string;
   body: string; // HTML, already escaped where needed
+  /** Drop the body padding, for a template that lays out its own full-width bands. */
+  fullBleed?: boolean;
 }
 
 /** Email-safe HTML wrapper with the preheader trick (hidden span first). */
-export function htmlWrapper({ preheader, body }: WrapperInput): string {
+export function htmlWrapper({ preheader, body, fullBleed = false }: WrapperInput): string {
   const safePre = escapeHtml(preheader);
   return `<!doctype html>
 <html lang="en">
@@ -30,6 +32,13 @@ export function htmlWrapper({ preheader, body }: WrapperInput): string {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
     <title>${escapeHtml(BRAND_NAME)}</title>
+    <style>
+      @media only screen and (max-width: 620px) {
+        .stack { display: block !important; width: 100% !important; box-sizing: border-box; }
+        .stack-gap { padding: 0 0 16px 0 !important; }
+        .px { padding-left: 20px !important; padding-right: 20px !important; }
+      }
+    </style>
   </head>
   <body style="margin:0;padding:0;background:#ECECE8;color:#15161A;font-family:Arial,Helvetica,sans-serif;">
     <span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden;mso-hide:all;">
@@ -45,7 +54,7 @@ export function htmlWrapper({ preheader, body }: WrapperInput): string {
               </td>
             </tr>
             <tr>
-              <td style="padding:32px;font-size:15px;line-height:1.55;color:#15161A;">
+              <td style="padding:${fullBleed ? '0' : '32px'};font-size:15px;line-height:1.55;color:#15161A;">
                 ${body}
               </td>
             </tr>

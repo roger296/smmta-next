@@ -19,6 +19,7 @@ import {
   customerOrders,
   customers,
   customerDeliveryAddresses,
+  invoices,
   orderLines,
   productGroups,
   products,
@@ -55,6 +56,7 @@ async function wipeAndSeed(): Promise<Seeded> {
     await db.delete(orderLines).where(inArray(orderLines.orderId, ids));
     await db.delete(stockItems).where(inArray(stockItems.salesOrderId, ids));
   }
+  await db.delete(invoices).where(eq(invoices.companyId, COMPANY_ID));
   await db.delete(customerOrders).where(eq(customerOrders.companyId, COMPANY_ID));
   await db.delete(stockItems).where(eq(stockItems.companyId, COMPANY_ID));
   await db.delete(stockReservations).where(eq(stockReservations.companyId, COMPANY_ID));
@@ -237,6 +239,7 @@ afterAll(async () => {
   if (finalOrders.length > 0) {
     await db.delete(orderLines).where(inArray(orderLines.orderId, finalOrders.map((o) => o.id)));
   }
+  await db.delete(invoices).where(eq(invoices.companyId, COMPANY_ID));
   await db.delete(customerOrders).where(eq(customerOrders.companyId, COMPANY_ID));
   await db.delete(stockItems).where(eq(stockItems.companyId, COMPANY_ID));
   await db.delete(stockReservations).where(eq(stockReservations.companyId, COMPANY_ID));
@@ -568,6 +571,49 @@ describe('GET /storefront/orders/:id', () => {
       headers: { authorization: `Bearer ${writeKey}` },
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /storefront/orders/:id/invoice/pdf
+// ---------------------------------------------------------------------------
+
+describe('GET /storefront/orders/:id/invoice/pdf', () => {
+  it('offers the VAT invoice once the order has one', async () => {
+    const { reservationId } = await reserve({ [seeded.smokeProductId]: 1 });
+    const commitRes = await commit('IDEMP-INVOICE-001', reservationId, '24.00');
+    const orderId = (commitRes.json() as { data: { orderId: string } }).data.orderId;
+    const headers = { authorization: `Bearer ${writeKey}` };
+    const pdfUrl = `/api/v1/storefront/orders/${orderId}/invoice/pdf`;
+    const projection = async () =>
+      (await app.inject({ method: 'GET', url: `/api/v1/storefront/orders/${orderId}`, headers })).json() as {
+        data: { invoice: { invoiceNumber: string | null } | null; lines: Array<{ groupId: string | null }> };
+      };
+
+    expect((await projection()).data.invoice).toBeNull();
+    expect((await app.inject({ method: 'GET', url: pdfUrl, headers })).statusCode).toBe(404);
+
+    const order = await getDb().query.customerOrders.findFirst({ where: eq(customerOrders.id, orderId) });
+    await getDb().insert(invoices).values({
+      companyId: COMPANY_ID,
+      orderId,
+      customerId: order!.customerId!,
+      invoiceNumber: 'INV-STOREFRONT-1',
+      grandTotal: '24.00',
+      amountOutstanding: '0',
+      dateOfInvoice: '2026-09-11',
+    });
+
+    const after = await projection();
+    expect(after.data.invoice).toEqual({ invoiceNumber: 'INV-STOREFRONT-1' });
+    // The seeded products belong to no range.
+    expect(after.data.lines[0]).toHaveProperty('groupId', null);
+
+    const pdf = await app.inject({ method: 'GET', url: pdfUrl, headers });
+    expect(pdf.statusCode).toBe(200);
+    expect(pdf.headers['content-type']).toBe('application/pdf');
+    expect(pdf.headers['content-disposition']).toBe('attachment; filename="invoice-INV-STOREFRONT-1.pdf"');
+    expect(pdf.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
   });
 });
 

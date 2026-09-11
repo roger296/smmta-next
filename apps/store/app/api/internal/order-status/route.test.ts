@@ -10,9 +10,14 @@
  *   - an unknown order with no email is refused
  *   - the enqueue is idempotent, so a retry sends nothing twice
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
+
+// The order and catalogue come from SMMTA. Which ranges get picked is tested
+// in lib/recommendations.test.ts; here only that they reach the email.
+const smmta = vi.hoisted(() => ({ getPublicOrder: vi.fn(), listGroups: vi.fn() }));
+vi.mock('@/lib/smmta', () => smmta);
 
 const ADMIN_KEY = 'order-status-test-key-0123456789abcdef';
 process.env.ADMIN_API_KEY = ADMIN_KEY;
@@ -43,7 +48,12 @@ async function clean() {
 }
 
 beforeAll(clean);
-beforeEach(clean);
+beforeEach(async () => {
+  await clean();
+  // SMMTA unreachable unless a test says otherwise: the email still goes.
+  smmta.getPublicOrder.mockReset().mockRejectedValue(new Error('SMMTA unavailable'));
+  smmta.listGroups.mockReset().mockResolvedValue([]);
+});
 afterAll(async () => {
   await clean();
   await closeDatabase();
@@ -106,6 +116,53 @@ describe('POST /api/internal/order-status', () => {
       firstName: 'Sam',
       courierName: 'Royal Mail',
       trackingNumber: 'Z9Y8-X7W6',
+    });
+  });
+
+  it('adds the ranges picked for the customer, and the invoice, to the shipped email', async () => {
+    const range = (id: string, slug: string, name: string, sortOrder: number) => ({
+      id,
+      slug,
+      name,
+      shortDescription: null,
+      heroImageUrl: `https://img.example/${slug}.jpg`,
+      galleryImageUrls: null,
+      seoTitle: null,
+      seoDescription: null,
+      sortOrder,
+      priceRange: { min: '12.99', max: '12.99' },
+      totalAvailableQty: 5,
+      variants: [],
+    });
+    smmta.getPublicOrder.mockResolvedValue({
+      id: ADMIN_ORDER_ID,
+      lines: [{ groupId: 'group-pla-basic', productName: 'Landau PLA Basic 1.75mm 1kg — Green' }],
+      invoice: { invoiceNumber: 'INV-000123' },
+    });
+    smmta.listGroups.mockResolvedValue([
+      range('group-pla-basic', 'landau-pla-basic-1-75mm-1kg', 'Landau PLA Basic 1.75mm 1kg', 1),
+      range('group-tpu', 'landau-tpu-95a-1-75mm-1kg', 'Landau TPU 95A 1.75mm 1kg', 2),
+    ]);
+
+    const res = await POST(
+      request({
+        orderId: ADMIN_ORDER_ID,
+        status: 'SHIPPED',
+        orderNumber: 'SO-000143',
+        customerEmail: 'trade-buyer@example.invalid',
+      }),
+    );
+    expect(res.status).toBe(200);
+    const [row] = await outboxFor(ADMIN_ORDER_ID);
+    expect(row?.payload).toMatchObject({
+      invoiceAvailable: true,
+      recommendations: [
+        expect.objectContaining({
+          name: 'Landau TPU 95A 1.75mm 1kg',
+          path: '/shop/landau-tpu-95a-1-75mm-1kg',
+          eyebrow: 'Try TPU',
+        }),
+      ],
     });
   });
 
