@@ -5,6 +5,8 @@
  *   - status timeline (Confirmed → Allocated → Shipped → Delivered),
  *   - line items with quantities,
  *   - tracking number / link if the courier has one,
+ *   - the VAT invoice download (/track/[orderId]/invoice) once one is issued,
+ *   - the same range suggestions and store adverts as the shipped email,
  *   - a "Re-send confirmation email" form pointing at /api/track/resend-email.
  *
  * `robots: noindex` — order URLs contain a UUID that should never be
@@ -14,8 +16,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getEnv } from '@/lib/env';
+import { recommendationsForOrder } from '@/lib/order-adverts';
 import { getPublicOrder } from '@/lib/smmta';
 import { SmmtaApiError } from '@/lib/smmta';
+import { OrderAdverts } from './_components/order-adverts';
 import { ResendConfirmationButton } from './_components/resend-confirmation-button';
 
 export const dynamic = 'force-dynamic';
@@ -86,6 +91,7 @@ export default async function TrackOrderPage({ params }: PageProps) {
 
   const reachedIndex = timelineIndex(order.status);
   const isCancelled = order.status === 'CANCELLED';
+  const recommendations = await recommendationsForOrder(order);
 
   // Build a quick lookup of "when did we reach status X" from the API's
   // statusHistory. CONFIRMED → orderDate; SHIPPED → shippedDate (if any).
@@ -217,6 +223,36 @@ export default async function TrackOrderPage({ params }: PageProps) {
           </p>
         </div>
       </section>
+
+      {!isCancelled ? (
+        <section
+          aria-labelledby="invoice-heading"
+          className="flex flex-wrap items-center justify-between gap-4 border border-[var(--brand-border)] bg-[var(--brand-bone)] p-5"
+        >
+          <div className="space-y-1">
+            <h2 id="invoice-heading" className="text-lg font-medium">
+              VAT invoice
+            </h2>
+            <p className="text-sm text-[var(--brand-muted)]">
+              {order.invoice
+                ? order.invoice.invoiceNumber
+                  ? `Invoice ${order.invoice.invoiceNumber} for this order, as a PDF.`
+                  : 'The invoice for this order, as a PDF.'
+                : 'Your VAT invoice will be ready to download here once your order has shipped.'}
+            </p>
+          </div>
+          {order.invoice ? (
+            <a
+              href={`/track/${order.id}/invoice`}
+              className="inline-flex items-center bg-[var(--brand-accent)] px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              Download VAT invoice
+            </a>
+          ) : null}
+        </section>
+      ) : null}
+
+      <OrderAdverts recommendations={recommendations} storeBaseUrl={getEnv().STORE_BASE_URL} />
 
       <section aria-labelledby="resend-heading" className="space-y-2">
         <h2 id="resend-heading" className="text-lg font-medium">

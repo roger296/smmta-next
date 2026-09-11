@@ -15,6 +15,7 @@ import { apiKeyAuth, getApiKeyContext } from '../../shared/middleware/api-key.js
 import { CatalogueService } from './catalogue.service.js';
 import { CategoryService, type CategoryFilters, type SortKey } from './category.service.js';
 import type { StockState } from './availability.js';
+import { InvoiceDocumentService } from '../orders/invoice-document.service.js';
 import { OrderCommitService } from './order-commit.service.js';
 import { SearchService } from './search/search.service.js';
 import {
@@ -470,6 +471,33 @@ export async function storefrontWriteRoutes(app: FastifyInstance) {
         return reply.status(404).send({ success: false, error: 'Order not found' });
       }
       return reply.send({ success: true, data: order });
+    },
+  );
+
+  // GET /storefront/orders/:id/invoice/pdf — the order's VAT invoice, for the
+  // customer's track page. As for the projection above, the unguessable order
+  // id is the key. 404 until an invoice has been issued.
+  const invoiceDocumentService = new InvoiceDocumentService();
+  app.get(
+    '/storefront/orders/:id/invoice/pdf',
+    {
+      schema: {
+        tags: ['storefront'],
+        summary: "Download an order's VAT invoice as a PDF",
+      },
+    },
+    async (request, reply) => {
+      const ctx = getApiKeyContext(request);
+      const { id } = idParamSchema.parse(request.params);
+      const file = await invoiceDocumentService.readPdfForOrder(id, ctx.companyId);
+      if (!file) {
+        return reply.status(404).send({ success: false, error: 'No invoice for this order' });
+      }
+      return reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', `attachment; filename="${file.filename}"`)
+        .header('Cache-Control', 'private, no-store')
+        .send(file.buffer);
     },
   );
 

@@ -97,6 +97,8 @@ export interface PublicOrderLine {
   productSlug: string | null;
   productName: string | null;
   colour: string | null;
+  /** The product's range. Absent from API versions before v1.13.0. */
+  groupId?: string | null;
   quantity: number;
   pricePerUnit: string;
   lineTotal: string;
@@ -124,6 +126,9 @@ export interface PublicOrder {
     trackingLink: string | null;
     courierName: string | null;
   } | null;
+  /** The order's VAT invoice, downloadable from the track page; null until one
+   *  is issued. Absent from API versions before v1.13.0. */
+  invoice?: { invoiceNumber: string | null } | null;
   /** Status changes the API can prove from columns it has today. JSON-
    *  serialised, so `at` arrives as an ISO string over the wire. */
   statusHistory: Array<{ status: string; at: string }>;

@@ -15,7 +15,7 @@
  *
  * Does **not** post to Luca GL — GL postings remain at invoice / payment time.
  */
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { tieredUnitPricePence } from '@smmta/shared-types';
 import { getDb } from '../../config/database.js';
 import {
@@ -23,6 +23,7 @@ import {
   customerInvoiceAddresses,
   customerOrders,
   customers,
+  invoices,
   products,
   storefrontIdempotency,
   stockReservations,
@@ -406,11 +407,20 @@ export class OrderCommitService {
         isNull(customerOrders.deletedAt),
       ),
       with: {
-        lines: { with: { product: { columns: { slug: true, colour: true, name: true } } } },
+        lines: { with: { product: { columns: { slug: true, colour: true, name: true, groupId: true } } } },
         deliveryAddress: true,
       },
     });
     if (!order) return null;
+
+    // The customer can download the VAT invoice from the track page once one
+    // has been issued, normally when the order ships.
+    const [invoice] = await this.db
+      .select({ invoiceNumber: invoices.invoiceNumber })
+      .from(invoices)
+      .where(and(eq(invoices.orderId, order.id), eq(invoices.companyId, companyId), isNull(invoices.deletedAt)))
+      .orderBy(desc(invoices.createdAt))
+      .limit(1);
 
     return {
       id: order.id,
@@ -429,6 +439,7 @@ export class OrderCommitService {
         productSlug: l.product?.slug ?? null,
         productName: l.product?.name ?? null,
         colour: l.product?.colour ?? null,
+        groupId: l.product?.groupId ?? null,
         quantity: Number(l.quantity),
         pricePerUnit: l.pricePerUnit,
         lineTotal: l.lineTotal,
@@ -448,6 +459,7 @@ export class OrderCommitService {
               courierName: order.courierName ?? null,
             }
           : null,
+      invoice: invoice ? { invoiceNumber: invoice.invoiceNumber ?? null } : null,
       // v1: there is no order_status_history table. Surface the status-change
       // dates we do have on customer_orders so the client can render a basic
       // timeline. Full audit history is a follow-up.
@@ -512,6 +524,8 @@ export interface PublicOrderLine {
   productSlug: string | null;
   productName: string | null;
   colour: string | null;
+  /** The product's range, so the storefront can suggest ranges not bought. */
+  groupId: string | null;
   quantity: number;
   pricePerUnit: string;
   lineTotal: string;
@@ -537,5 +551,7 @@ export interface PublicOrder {
     trackingLink: string | null;
     courierName: string | null;
   } | null;
+  /** The order's VAT invoice once issued; the PDF is at .../invoice/pdf. */
+  invoice: { invoiceNumber: string | null } | null;
   statusHistory: Array<{ status: string; at: Date }>;
 }

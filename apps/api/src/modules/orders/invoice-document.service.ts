@@ -13,7 +13,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { getEnv } from '../../config/env.js';
 import {
@@ -80,6 +80,17 @@ export class InvoiceDocumentService {
   /** Makes sure the PDF has been made and stored, e.g. straight after shipping. */
   async ensurePdf(invoiceId: string, companyId: string): Promise<void> {
     await this.readPdf(invoiceId, companyId);
+  }
+
+  /** The PDF of an order's invoice, or null while the order has none. */
+  async readPdfForOrder(orderId: string, companyId: string): Promise<{ buffer: Buffer; filename: string } | null> {
+    const [invoice] = await this.db
+      .select({ id: invoices.id })
+      .from(invoices)
+      .where(and(eq(invoices.orderId, orderId), eq(invoices.companyId, companyId), isNull(invoices.deletedAt)))
+      .orderBy(desc(invoices.createdAt))
+      .limit(1);
+    return invoice ? this.readPdf(invoice.id, companyId) : null;
   }
 
   private load(invoiceId: string, companyId: string) {
