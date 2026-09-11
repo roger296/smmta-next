@@ -21,7 +21,7 @@ import {
 } from '../../db/schema/index.js';
 import { wipeCompany } from '../../../test/fixtures/stock.js';
 import { SmoothParcelUnreadableOrderError } from '../../integrations/smooth-parcel/smooth-parcel-client.js';
-import { ShippingLabelService } from './shipping-label.service.js';
+import { ShippingLabelConflictError, ShippingLabelService } from './shipping-label.service.js';
 
 const COMPANY_ID = '77777777-7777-4777-8777-777777777777';
 const PDF = Buffer.from('%PDF-1.4\n% test label\n');
@@ -266,5 +266,84 @@ describe('ShippingLabelService.requestLabel', () => {
     const again = await svc.requestLabel(orderId, COMPANY_ID);
     expect(again.status).toBe('FAILED');
     expect(addNewOrderCalls).toBe(1);
+  });
+});
+
+describe('ShippingLabelService — creating a new shipment', () => {
+  const orderNumberOf = async (orderId: string) =>
+    (await getDb().select({ n: customerOrders.orderNumber }).from(customerOrders).where(eq(customerOrders.id, orderId)))[0]!.n;
+
+  it('asks for the label again first, and creates a new shipment with a new reference only when told to', async () => {
+    const orderId = await makeOrder();
+    const orderNumber = await orderNumberOf(orderId);
+    const sent: string[] = [];
+    const labelRequests: string[] = [];
+    const client = {
+      async addNewOrder(payload: { TransactionID: string }) {
+        sent.push(payload.TransactionID);
+        const code = `55500${sent.length}`;
+        return { orderCode: code, trackingNumber: `TRK-${sent.length}`, raw: { OrderCode: Number(code) } };
+      },
+      async getShipmentLabel(code: string) {
+        labelRequests.push(code);
+        // The first shipment can never produce a label; a new one can.
+        if (code === '555001') throw new Error('No route was matched');
+        return PDF;
+      },
+    };
+    const svc = new ShippingLabelService({ client, labelsDir, enabled: true });
+
+    await expect(svc.requestLabel(orderId, COMPANY_ID)).rejects.toThrow('No route was matched');
+    const failed = await svc.latestForOrder(orderId, COMPANY_ID);
+    expect(failed).toMatchObject({ status: 'FAILED', providerOrderCode: '555001', canCreateNewShipment: true });
+
+    // Try again asks for that shipment's label; it does not send the order again.
+    await expect(svc.requestLabel(orderId, COMPANY_ID)).rejects.toThrow('No route was matched');
+    expect(sent).toEqual([orderNumber]);
+    expect(labelRequests).toEqual(['555001', '555001']);
+
+    const replaced = await svc.requestLabel(orderId, COMPANY_ID, { newShipment: true });
+    expect(replaced).toMatchObject({
+      status: 'CREATED',
+      providerOrderCode: '555002',
+      trackingNumber: 'TRK-2',
+      shipmentAttempt: 2,
+      previousShipmentCodes: ['555001'],
+      canCreateNewShipment: false,
+      hasLabelFile: true,
+    });
+    expect(sent).toEqual([orderNumber, `${orderNumber}-2`]);
+  });
+
+  it('refuses a new shipment for an order that already has a label', async () => {
+    const orderId = await makeOrder();
+    const carrier = fakeCarrier();
+    const svc = service(carrier.client);
+    await svc.requestLabel(orderId, COMPANY_ID);
+    await expect(svc.requestLabel(orderId, COMPANY_ID, { newShipment: true })).rejects.toBeInstanceOf(ShippingLabelConflictError);
+    expect(carrier.calls.addNewOrder).toBe(1);
+  });
+
+  it('lets the user resend a shipment whose reply could not be read, once they choose to', async () => {
+    const orderId = await makeOrder();
+    let addNewOrderCalls = 0;
+    const client = {
+      async addNewOrder() {
+        addNewOrderCalls++;
+        if (addNewOrderCalls === 1) throw new SmoothParcelUnreadableOrderError(200, { Success: true });
+        return { orderCode: '555010', trackingNumber: 'TRK-10', raw: {} };
+      },
+      async getShipmentLabel() {
+        return PDF;
+      },
+    };
+    const svc = new ShippingLabelService({ client, labelsDir, enabled: true });
+
+    const held = await svc.requestLabel(orderId, COMPANY_ID);
+    expect(held).toMatchObject({ status: 'FAILED', canCreateNewShipment: true });
+
+    const resent = await svc.requestLabel(orderId, COMPANY_ID, { newShipment: true });
+    expect(resent).toMatchObject({ status: 'CREATED', providerOrderCode: '555010', shipmentAttempt: 2 });
+    expect(addNewOrderCalls).toBe(2);
   });
 });

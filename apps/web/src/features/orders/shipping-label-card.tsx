@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { FileText, Truck } from 'lucide-react';
+import { FilePlus, FileText, RefreshCw, Truck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -15,8 +15,12 @@ const STATUS_COPY: Record<ShippingLabel['status'], string> = {
 
 /**
  * Shipping label for an order: its status, tracking number, the stored PDF,
- * and a button to create one. Paid storefront orders get a label automatically;
- * this button covers admin-created orders and retries.
+ * and the buttons to get one.
+ *
+ * Paid storefront orders get a label automatically. When an attempt fails
+ * after Smooth Parcel has created the shipment, "Try again" asks for that
+ * shipment's label again, and "Create new shipment" is offered as the
+ * deliberate alternative when that keeps failing.
  */
 export function ShippingLabelCard({ orderId }: { orderId: string }) {
   const { toast } = useToast();
@@ -40,13 +44,9 @@ export function ShippingLabelCard({ orderId }: { orderId: string }) {
     }
   };
 
-  const onCreate = async () => {
-    // A label costs money, so the operator confirms before one is bought.
-    if (!window.confirm('Create a shipping label? This buys a label from Smooth Parcel and charges your Smooth Parcel balance.')) {
-      return;
-    }
+  const run = async (newShipment: boolean) => {
     try {
-      const result = await create.mutateAsync(orderId);
+      const result = await create.mutateAsync({ orderId, newShipment });
       toast(
         result.status === 'CREATED'
           ? { title: 'Label created', description: result.trackingNumber ? `Tracking ${result.trackingNumber}` : undefined }
@@ -56,10 +56,32 @@ export function ShippingLabelCard({ orderId }: { orderId: string }) {
       toast({
         variant: 'destructive',
         title: 'Label failed',
-        description: err instanceof Error ? err.message : 'Unknown error',
+        description: `${err instanceof Error ? err.message : 'Unknown error'}${
+          label?.canCreateNewShipment || label?.providerOrderCode ? ' You can create a new shipment instead.' : ''
+        }`,
       });
     }
   };
+
+  const onCreate = () => {
+    if (!window.confirm('Create a shipping label? This sends the order to Smooth Parcel.')) return;
+    void run(false);
+  };
+
+  const onNewShipment = () => {
+    const next = (label?.shipmentAttempt ?? 1) + 1;
+    const old = label?.providerOrderCode ? ` The current shipment (${label.providerOrderCode}) stays in Smooth Parcel: delete it in the Smooth Parcel portal if it isn’t needed.` : '';
+    if (
+      !window.confirm(
+        `Create a new shipment in Smooth Parcel for this order? It will be sent with the order number followed by -${next}.${old}`,
+      )
+    ) {
+      return;
+    }
+    void run(true);
+  };
+
+  const failedWithShipment = !!label && label.status !== 'CREATED' && label.canCreateNewShipment;
 
   return (
     <Card>
@@ -82,8 +104,24 @@ export function ShippingLabelCard({ orderId }: { orderId: string }) {
                 Tracking number: <span className="font-mono">{label.trackingNumber}</span>
               </p>
             )}
+            {label.providerOrderCode && (
+              <p className="text-[var(--color-muted-foreground)]">
+                Smooth Parcel shipment: <span className="font-mono">{label.providerOrderCode}</span>
+              </p>
+            )}
             {(label.status === 'FAILED' || label.status === 'DISABLED') && label.errorMessage && (
               <p className="text-[var(--color-destructive)]">{label.errorMessage}</p>
+            )}
+            {failedWithShipment && (
+              <p className="text-[var(--color-muted-foreground)]">
+                Try again asks Smooth Parcel for this shipment’s label again. If that keeps failing, create a new
+                shipment instead.
+              </p>
+            )}
+            {label.previousShipmentCodes.length > 0 && (
+              <p className="text-[var(--color-muted-foreground)]">
+                Replaced shipments in Smooth Parcel: <span className="font-mono">{label.previousShipmentCodes.join(', ')}</span>
+              </p>
             )}
           </div>
         )}
@@ -94,9 +132,15 @@ export function ShippingLabelCard({ orderId }: { orderId: string }) {
               {opening ? 'Opening…' : 'View label'}
             </Button>
           ) : (
-            <Button size="sm" variant="outline" onClick={onCreate} disabled={create.isPending || isLoading}>
-              <Truck className="h-4 w-4" />
-              {create.isPending ? 'Creating…' : label ? 'Try again' : 'Create label'}
+            <Button size="sm" variant="outline" onClick={label ? () => void run(false) : onCreate} disabled={create.isPending || isLoading}>
+              {label ? <RefreshCw className="h-4 w-4" /> : <Truck className="h-4 w-4" />}
+              {create.isPending ? 'Working…' : label ? 'Try again' : 'Create label'}
+            </Button>
+          )}
+          {failedWithShipment && (
+            <Button size="sm" variant="outline" onClick={onNewShipment} disabled={create.isPending} data-test="new-shipment">
+              <FilePlus className="h-4 w-4" />
+              Create new shipment
             </Button>
           )}
         </div>

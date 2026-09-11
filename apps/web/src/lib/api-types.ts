@@ -565,6 +565,11 @@ export interface ShippingLabel {
   errorMessage: string | null;
   retryCount: number;
   hasLabelFile: boolean;
+  shipmentAttempt: number;
+  /** Smooth Parcel codes of shipments this label replaced. */
+  previousShipmentCodes: string[];
+  /** A shipment exists but no label came of it, so a new shipment may be started. */
+  canCreateNewShipment: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
 import {
+  ShippingLabelConflictError,
   ShippingLabelNotFoundError,
   ShippingLabelService,
 } from '../shipping/shipping-label.service.js';
@@ -161,12 +162,18 @@ export async function orderRoutes(app: FastifyInstance) {
   app.post('/orders/:id/shipping-label', async (request, reply) => {
     const user = getAuthUser(request);
     const { id } = request.params as { id: string };
+    // { newShipment: true } replaces a shipment whose label cannot be produced;
+    // without it, an existing shipment's label is simply requested again.
+    const { newShipment } = z.object({ newShipment: z.boolean().optional() }).parse(request.body ?? {});
     try {
-      const label = await shippingLabelService.requestLabel(id, user.companyId);
+      const label = await shippingLabelService.requestLabel(id, user.companyId, { newShipment });
       return { success: true, data: label };
     } catch (err) {
       if (err instanceof ShippingLabelNotFoundError) {
         return reply.status(404).send({ success: false, error: err.message });
+      }
+      if (err instanceof ShippingLabelConflictError) {
+        return reply.status(409).send({ success: false, error: err.message });
       }
       const message = err instanceof Error ? err.message : 'Label request failed';
       return reply.status(502).send({ success: false, error: message });

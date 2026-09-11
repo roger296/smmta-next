@@ -295,6 +295,13 @@ export const orderNotesRelations = relations(orderNotes, ({ one }) => ({
  * on the hard deletes the seed and test cleanup perform, which would otherwise
  * be blocked by this foreign key.
  */
+export interface PreviousShipment {
+  providerOrderCode: string | null;
+  trackingNumber: string | null;
+  errorMessage: string | null;
+  replacedAt: string;
+}
+
 export const shippingLabels = pgTable('shipping_labels', {
   id: pk(),
   companyId: companyId(),
@@ -307,6 +314,14 @@ export const shippingLabels = pgTable('shipping_labels', {
   labelPath: varchar('label_path', { length: 255 }),
   errorMessage: text('error_message'),
   retryCount: integer('retry_count').notNull().default(0),
+  /**
+   * 1 for the order's first shipment. Each "create new shipment" adds one, and
+   * shipments after the first are sent as <orderNumber>-<attempt>, because
+   * Smooth Parcel refuses a transaction reference it has already seen.
+   */
+  shipmentAttempt: integer('shipment_attempt').notNull().default(1),
+  /** Shipments this label replaced, so they can be found and deleted in the Smooth Parcel portal. */
+  previousShipments: jsonb('previous_shipments').$type<PreviousShipment[]>().notNull().default([]),
   requestPayload: jsonb('request_payload'),
   responsePayload: jsonb('response_payload'),
   ...auditTimestamps,

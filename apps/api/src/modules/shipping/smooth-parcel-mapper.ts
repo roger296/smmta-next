@@ -56,6 +56,8 @@ export interface MapperOptions {
   defaultWeightKg: number;
   defaultBoxCm: { length: number; width: number; height: number };
   shippingDate: Date;
+  /** Which shipment this is for the order: 1 unless an earlier one was replaced. */
+  shipmentAttempt?: number;
 }
 
 export interface SmoothParcelItem {
@@ -201,8 +203,10 @@ export function buildSmoothParcelOrder(
     OrderDate: new Date(`${input.orderDate}T00:00:00.000Z`).toISOString(),
     // One parcel per order, so the order number is unique for the transaction.
     // The guide makes TransactionID unique, so Smooth Parcel itself refuses a
-    // second shipment for the same order number.
-    TransactionID: input.orderNumber,
+    // second shipment for the same order number. A deliberate replacement
+    // shipment appends its attempt, as the guide suggests for a second parcel.
+    TransactionID:
+      (opts.shipmentAttempt ?? 1) > 1 ? `${input.orderNumber}-${opts.shipmentAttempt}` : input.orderNumber,
     OrderReference: input.orderNumber,
     Company: '',
     FirstName: clip(first),

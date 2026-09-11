@@ -52,6 +52,14 @@ export class ShippingLabelNotFoundError extends Error {
   }
 }
 
+/** The request conflicts with the label's state, e.g. a new shipment for an order that has a label. */
+export class ShippingLabelConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ShippingLabelConflictError';
+  }
+}
+
 interface LabelClient {
   addNewOrder: SmoothParcelClient['addNewOrder'];
   getShipmentLabel: SmoothParcelClient['getShipmentLabel'];
@@ -77,6 +85,14 @@ export interface ShippingLabelSummary {
   errorMessage: string | null;
   retryCount: number;
   hasLabelFile: boolean;
+  shipmentAttempt: number;
+  /** Smooth Parcel codes of shipments this label replaced. */
+  previousShipmentCodes: string[];
+  /**
+   * A shipment already exists in Smooth Parcel but no label came of it, so as
+   * well as asking for its label again the user may start a new shipment.
+   */
+  canCreateNewShipment: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -98,7 +114,7 @@ export class ShippingLabelService {
     return this.deps.client ?? new SmoothParcelClient();
   }
 
-  private mapperOptions(): MapperOptions {
+  private mapperOptions(shipmentAttempt: number): MapperOptions {
     const env = getEnv();
     return {
       senderName: env.SMOOTH_PARCEL_SENDER_NAME,
@@ -107,6 +123,7 @@ export class ShippingLabelService {
       defaultWeightKg: env.SMOOTH_PARCEL_DEFAULT_WEIGHT_KG,
       defaultBoxCm: DEFAULT_BOX_CM,
       shippingDate: this.deps.now?.() ?? new Date(),
+      shipmentAttempt,
     };
   }
 
@@ -117,10 +134,47 @@ export class ShippingLabelService {
   /**
    * Ensures an order has a label, buying one if needed. Safe to call any number
    * of times, from the worker or the admin button.
+   *
+   * By default an order that already has a Smooth Parcel shipment only asks for
+   * that shipment's label again: a retry never creates a second shipment by
+   * itself. `newShipment` is the user's deliberate alternative when that keeps
+   * failing: the existing shipment is recorded as replaced and the order is
+   * sent to Smooth Parcel again under a new transaction reference.
    */
-  async requestLabel(orderId: string, companyId: string): Promise<ShippingLabelSummary> {
+  async requestLabel(
+    orderId: string,
+    companyId: string,
+    opts: { newShipment?: boolean } = {},
+  ): Promise<ShippingLabelSummary> {
     const input = await this.loadOrderInput(orderId, companyId);
     let row = await this.ensureRow(orderId, companyId);
+
+    if (opts.newShipment) {
+      if (row.status === 'CREATED' && row.labelPath) {
+        throw new ShippingLabelConflictError('This order already has a label, so a new shipment was not created.');
+      }
+      if (row.providerOrderCode || row.responsePayload !== null) {
+        row = await this.update(row.id, {
+          previousShipments: [
+            ...row.previousShipments,
+            {
+              providerOrderCode: row.providerOrderCode,
+              trackingNumber: row.trackingNumber,
+              errorMessage: row.errorMessage,
+              replacedAt: (this.deps.now?.() ?? new Date()).toISOString(),
+            },
+          ],
+          shipmentAttempt: row.shipmentAttempt + 1,
+          status: 'PENDING',
+          providerOrderCode: null,
+          trackingNumber: null,
+          labelPath: null,
+          errorMessage: null,
+          requestPayload: null,
+          responsePayload: null,
+        });
+      }
+    }
 
     if (row.status === 'CREATED' && row.labelPath) return summarise(row);
 
@@ -134,7 +188,7 @@ export class ShippingLabelService {
 
     let payload;
     try {
-      payload = buildSmoothParcelOrder(input, this.mapperOptions());
+      payload = buildSmoothParcelOrder(input, this.mapperOptions(row.shipmentAttempt));
     } catch (err) {
       if (err instanceof LabelDataError) {
         row = await this.update(row.id, {
@@ -339,6 +393,11 @@ function summarise(row: LabelRow): ShippingLabelSummary {
     errorMessage: row.errorMessage,
     retryCount: row.retryCount,
     hasLabelFile: row.status === 'CREATED' && !!row.labelPath,
+    shipmentAttempt: row.shipmentAttempt,
+    previousShipmentCodes: row.previousShipments
+      .map((s) => s.providerOrderCode)
+      .filter((code): code is string => !!code),
+    canCreateNewShipment: row.status !== 'CREATED' && (row.providerOrderCode !== null || row.responsePayload !== null),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
