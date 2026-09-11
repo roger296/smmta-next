@@ -27,6 +27,8 @@ import { customerOrders, orderLines, shippingLabels } from '../../db/schema/inde
 import {
   SmoothParcelClient,
   SmoothParcelUnreadableOrderError,
+  courierNameFrom,
+  shippingServiceFrom,
 } from '../../integrations/smooth-parcel/smooth-parcel-client.js';
 import {
   LabelDataError,
@@ -85,6 +87,10 @@ export interface ShippingLabelSummary {
   errorMessage: string | null;
   retryCount: number;
   hasLabelFile: boolean;
+  /** The carrier Smooth Parcel chose, e.g. "DPD". */
+  courierName: string | null;
+  /** The service it booked, e.g. "DPD UK". */
+  shippingService: string | null;
   shipmentAttempt: number;
   /** Smooth Parcel codes of shipments this label replaced. */
   previousShipmentCodes: string[];
@@ -221,7 +227,11 @@ export class ShippingLabelService {
         // that file rather than asking again. If the download fails, the retry
         // asks for the label by shipment code instead.
         if (created.labelPath && client.downloadLabel) {
-          pdf = await client.downloadLabel(created.labelPath);
+          // The reply's file link can point at an address Smooth Parcel no
+          // longer serves (its old :8091 host). Rather than fail this attempt
+          // and wait for the retry, fall through to asking for the label by
+          // shipment code below.
+          pdf = await client.downloadLabel(created.labelPath).catch(() => null);
         }
       }
 
@@ -232,12 +242,21 @@ export class ShippingLabelService {
 
       row = await this.update(row.id, { status: 'CREATED', labelPath: filename, errorMessage: null });
 
-      if (row.trackingNumber) {
+      // The order carries the courier and tracking number from the moment the
+      // label exists: some sales channels need the courier, and the shipped
+      // email quotes both.
+      const courierName = courierNameFrom(row.responsePayload);
+      if (row.trackingNumber || courierName) {
         await this.db
           .update(customerOrders)
           .set({
-            trackingNumber: row.trackingNumber,
-            trackingLink: `${SMOOTH_PARCEL_TRACKING_URL}${encodeURIComponent(row.trackingNumber)}`,
+            ...(row.trackingNumber
+              ? {
+                  trackingNumber: row.trackingNumber,
+                  trackingLink: `${SMOOTH_PARCEL_TRACKING_URL}${encodeURIComponent(row.trackingNumber)}`,
+                }
+              : {}),
+            ...(courierName ? { courierName } : {}),
             updatedAt: new Date(),
           })
           .where(eq(customerOrders.id, orderId));
@@ -393,6 +412,8 @@ function summarise(row: LabelRow): ShippingLabelSummary {
     errorMessage: row.errorMessage,
     retryCount: row.retryCount,
     hasLabelFile: row.status === 'CREATED' && !!row.labelPath,
+    courierName: courierNameFrom(row.responsePayload),
+    shippingService: shippingServiceFrom(row.responsePayload),
     shipmentAttempt: row.shipmentAttempt,
     previousShipmentCodes: row.previousShipments
       .map((s) => s.providerOrderCode)

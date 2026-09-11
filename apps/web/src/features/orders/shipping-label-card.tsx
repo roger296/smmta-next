@@ -99,6 +99,12 @@ export function ShippingLabelCard({ orderId }: { orderId: string }) {
         ) : (
           <div className="space-y-1" data-test="shipping-label-status" data-status={label.status}>
             <p>{STATUS_COPY[label.status]}</p>
+            {label.courierName && (
+              <p>
+                Courier: <span className="font-medium">{label.courierName}</span>
+                {label.shippingService && label.shippingService !== label.courierName ? ` (${label.shippingService})` : ''}
+              </p>
+            )}
             {label.trackingNumber && (
               <p>
                 Tracking number: <span className="font-mono">{label.trackingNumber}</span>

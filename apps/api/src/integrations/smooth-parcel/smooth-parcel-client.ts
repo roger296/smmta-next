@@ -418,6 +418,11 @@ export function courierNameFrom(raw: unknown): string | null {
   ]);
 }
 
+/** The service Smooth Parcel booked for a shipment, e.g. "DPD UK", read from its reply. */
+export function shippingServiceFrom(raw: unknown): string | null {
+  return pickString(raw, ['ShippingMethodName']);
+}
+
 function messageOf(raw: unknown): string | null {
   return pickString(raw, ['Message', 'title']);
 }
