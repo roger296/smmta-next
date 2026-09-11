@@ -80,7 +80,7 @@ export function storesHtml(storeBaseUrl: string): string {
   const cards = storeAdverts(storeBaseUrl).map((s) => {
     const font = s.serif ? "Georgia,'Times New Roman',serif" : 'Arial,Helvetica,sans-serif';
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${s.colours.background};">
-        ${s.spoolStrip ? `<tr><td>${spoolStripHtml(5)}</td></tr>` : ''}
+        ${s.spoolStrip ? `<tr><td width="100%" style="width:100%;padding:0;">${spoolStripHtml(5)}</td></tr>` : ''}
         <tr><td style="padding:22px 20px 24px 20px;background:${s.colours.background};">
           <p style="margin:0 0 6px 0;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${s.colours.muted};">${escapeHtml(s.host)}</p>
           <p style="margin:0 0 8px 0;font-size:24px;line-height:1.2;font-weight:800;color:${s.colours.text};font-family:${font};">${escapeHtml(s.name)}</p>
