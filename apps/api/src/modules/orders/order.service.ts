@@ -1,5 +1,6 @@
 import { eq, and, or, isNull, ilike, inArray, count, gte, lte } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
+import { emitDomainEvent } from '../../shared/events/emit.js';
 import {
   customerOrders, orderLines, orderNotes, customers,
 } from '../../db/schema/index.js';
@@ -148,7 +149,11 @@ export class OrderService {
     const deliveryCharge = input.deliveryCharge ?? 0;
     const grandTotal = roundMoney(orderTotal + taxTotal + deliveryCharge);
 
-    const [order] = await this.db
+    // One transaction for the order, its lines and the order.created event: the
+    // event must never exist for an order that failed to save, and an order
+    // must never exist without the event that gets it a pick note.
+    const order = await this.db.transaction(async (tx) => {
+    const [order] = await tx
       .insert(customerOrders)
       .values({
         companyId,
@@ -190,7 +195,17 @@ export class OrderService {
       remainingQuantity: Math.ceil(line.quantity),
     }));
 
-    await this.db.insert(orderLines).values(lineInserts);
+    await tx.insert(orderLines).values(lineInserts);
+
+    await emitDomainEvent(tx, {
+      companyId,
+      eventType: 'order.created',
+      aggregateType: 'order',
+      aggregateId: order.id,
+      payload: { orderId: order.id, orderNumber, source: input.sourceChannel ?? 'MANUAL' },
+    });
+    return order;
+    });
 
     return this.getById(order.id, companyId);
   }

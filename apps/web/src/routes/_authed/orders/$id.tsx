@@ -24,6 +24,7 @@ import { formatDate, formatMoney } from '@/lib/format';
 import { ArrowLeft, FileText, PackageCheck, PackageX, Trash2, XCircle } from 'lucide-react';
 import { orderTotalLabels } from '@/features/orders/order-totals';
 import { ShippingLabelCard } from '@/features/orders/shipping-label-card';
+import { PickNoteCard } from '@/features/orders/pick-note-card';
 
 export const Route = createFileRoute('/_authed/orders/$id')({
   component: OrderDetailPage,
@@ -192,7 +193,10 @@ function OrderDetailPage() {
         </Card>
       </div>
 
-      <ShippingLabelCard orderId={data.id} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <PickNoteCard orderId={data.id} />
+        <ShippingLabelCard orderId={data.id} />
+      </div>
 
       <Tabs defaultValue="lines">
         <TabsList>

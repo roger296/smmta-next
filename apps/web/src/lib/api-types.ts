@@ -566,3 +566,21 @@ export interface ShippingLabel {
   createdAt: string;
   updatedAt: string;
 }
+
+export type PickNoteStatus = 'PENDING' | 'CREATED' | 'FAILED';
+
+/** An order's pick note record, from GET /orders/:id/pick-note. */
+export interface PickNote {
+  id: string;
+  orderId: string;
+  status: PickNoteStatus;
+  errorMessage: string | null;
+  lineCount: number;
+  unitCount: number;
+  generatedAt: string | null;
+  hasFile: boolean;
+  /** The order has changed since the note was made; opening it re-creates it. */
+  isStale: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

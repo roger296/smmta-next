@@ -18,6 +18,7 @@ import { MarketingService } from '../modules/marketing/marketing.service.js';
 import { SubscriptionService } from '../modules/subscriptions/subscription.service.js';
 import { DigestService } from '../modules/digest/digest.service.js';
 import { ShippingLabelService } from '../modules/shipping/shipping-label.service.js';
+import { PickNoteNotFoundError, PickNoteService } from '../modules/shipping/pick-note.service.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
@@ -30,6 +31,7 @@ export function installFeatureHandlers(logger: Logger): void {
   const subs = new SubscriptionService();
   const digest = new DigestService();
   const shippingLabels = new ShippingLabelService();
+  const pickNotes = new PickNoteService();
 
   // threshold-check (Prompt 7): count flags for a prospective product on
   // interest.flag_created; emit interest.threshold_crossed exactly once.
@@ -138,5 +140,31 @@ export function installFeatureHandlers(logger: Logger): void {
     if (!event || !payload?.orderId || payload.source !== 'storefront') return;
     const label = await shippingLabels.requestLabel(payload.orderId, event.companyId);
     logger.info({ orderId: payload.orderId, status: label.status }, 'create-shipping-label ran');
+  });
+
+  // create-pick-note: make or refresh the order's pick note. Triggered by
+  // order.paid, order.created and order.lines_changed. Unchanged orders are a
+  // no-op (the content hash matches), so repeated or retried events are cheap.
+  setHandler('create-pick-note', async (data) => {
+    const { eventId } = (data ?? {}) as { eventId?: string };
+    if (!eventId) return;
+    const [event] = await getDb()
+      .select({ payload: domainEvents.payload, companyId: domainEvents.companyId })
+      .from(domainEvents)
+      .where(eq(domainEvents.id, eventId))
+      .limit(1);
+    const orderId = (event?.payload as { orderId?: string } | undefined)?.orderId;
+    if (!event || !orderId) return;
+    try {
+      const note = await pickNotes.generate(orderId, event.companyId);
+      logger.info({ orderId, status: note.status }, 'create-pick-note ran');
+    } catch (err) {
+      // A deleted order will never have a pick note; retrying cannot help.
+      if (err instanceof PickNoteNotFoundError) {
+        logger.warn({ orderId }, 'create-pick-note: order not found');
+        return;
+      }
+      throw err;
+    }
   });
 }

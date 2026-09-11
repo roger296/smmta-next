@@ -1,13 +1,13 @@
 import {
   pgTable, varchar, decimal, boolean, integer, text, uuid,
-  jsonb, doublePrecision, date as pgDate,
+  jsonb, doublePrecision, date as pgDate, timestamp,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import {
   pk, companyId, auditTimestamps, oldId,
   orderStatusEnum, sourceChannelEnum, invoiceStatusEnum,
   creditNoteStatusEnum, allocationItemTypeEnum, vatTreatmentEnum,
-  fulfilmentSourceEnum, shippingLabelStatusEnum,
+  fulfilmentSourceEnum, shippingLabelStatusEnum, pickNoteStatusEnum,
 } from './common.js';
 import { customers, customerContacts, customerDeliveryAddresses, customerInvoiceAddresses } from './customers.js';
 import { products } from './products.js';
@@ -239,6 +239,7 @@ export const customerOrdersRelations = relations(customerOrders, ({ one, many })
   notes: many(orderNotes),
   invoices: many(invoices),
   shippingLabels: many(shippingLabels),
+  pickNotes: many(pickNotes),
 }));
 
 export const orderLinesRelations = relations(orderLines, ({ one }) => ({
@@ -313,4 +314,38 @@ export const shippingLabels = pgTable('shipping_labels', {
 
 export const shippingLabelsRelations = relations(shippingLabels, ({ one }) => ({
   order: one(customerOrders, { fields: [shippingLabels.orderId], references: [customerOrders.id] }),
+}));
+
+// ============================================================
+// Pick Notes
+// ============================================================
+
+/**
+ * The current pick note for an order: one row per order, re-pointed at a new
+ * file each time the note is re-created.
+ *
+ * contentHash fingerprints what the stored PDF lists. When the order's items no
+ * longer produce the same hash, the note is stale and is re-created before it
+ * is served, so an out-of-date list can never be printed.
+ *
+ * filePath is a bare server-generated filename inside LABELS_DIR/pick-notes,
+ * never a path. ON DELETE CASCADE for the same reason as shipping_labels: it
+ * only fires on the hard deletes the seed and tests perform.
+ */
+export const pickNotes = pgTable('pick_notes', {
+  id: pk(),
+  companyId: companyId(),
+  orderId: uuid('order_id').notNull().unique().references(() => customerOrders.id, { onDelete: 'cascade' }),
+  status: pickNoteStatusEnum('status').notNull().default('PENDING'),
+  filePath: varchar('file_path', { length: 255 }),
+  contentHash: varchar('content_hash', { length: 64 }),
+  lineCount: integer('line_count').notNull().default(0),
+  unitCount: doublePrecision('unit_count').notNull().default(0),
+  errorMessage: text('error_message'),
+  generatedAt: timestamp('generated_at', { withTimezone: true }),
+  ...auditTimestamps,
+});
+
+export const pickNotesRelations = relations(pickNotes, ({ one }) => ({
+  order: one(customerOrders, { fields: [pickNotes.orderId], references: [customerOrders.id] }),
 }));

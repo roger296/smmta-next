@@ -10,6 +10,10 @@
 export const DOMAIN_EVENT_TYPES = [
   // Commerce
   'order.placed',
+  // An order was created with its lines (admin, API or marketplace import).
+  'order.created',
+  // Items were added to, removed from or changed on an existing order.
+  'order.lines_changed',
   'order.paid',
   'order.dispatched',
   'order.cancelled',
