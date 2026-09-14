@@ -30,7 +30,8 @@ export const SHIPPING_FAQ: FaqEntry[] = [
       'Items from different suppliers are posted separately, so a larger order can arrive in more than one parcel. You pay one delivery charge for the whole order.',
   },
   {
-    question: 'What&rsquo;s your returns policy?',
+    // Questions are rendered as text, so they use the character, not an entity.
+    question: 'What’s your returns policy?',
     answer:
       'Unworn, unwashed items with their tags attached can be returned within 28 days of delivery for a full refund of the item price. Email sales@cleverdeals.net first for a returns reference and the address to send it to. Return postage is yours to pay unless the item is faulty or we sent the wrong thing. The full policy is on our returns page.',
   },
@@ -45,7 +46,7 @@ export const SHIPPING_FAQ: FaqEntry[] = [
       'We do our best to match the on-screen colour to the real garment — every product page swatch is the supplier&rsquo;s published colour. Screens vary, so there may be a small shift; if a colour matters (e.g. matching a uniform), order one piece first to check.',
   },
   {
-    question: 'What if my item doesn&rsquo;t fit?',
+    question: 'What if my item doesn’t fit?',
     answer:
       'Send it back unworn with its tags attached within 28 days for a full refund of the item price — email sales@cleverdeals.net first for a returns reference. Return postage is yours to pay unless the item is faulty or not as described.',
   },
