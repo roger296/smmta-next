@@ -1,0 +1,86 @@
+name: API checks
+
+# Typecheck and unit/integration tests for apps/api on every pull request that
+# touches it.
+#
+# The E2E workflow only triggers on a hand-picked set of API folders and runs a
+# hand-picked set of test files, so a PR confined to (say) the catalogue module
+# or the supplier connectors used to get no checks at all. This workflow is the
+# catch-all: any apps/api change typechecks the API and runs its whole Vitest
+# suite against a freshly migrated Postgres.
+#
+# Two suites are left to e2e.yml, which already runs them with the setup they
+# need: the reservation concurrency stress test (slow, 100 × 50) and the
+# product image upload tests (need the seeded storefront catalogue).
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'packages/shared-types/**'
+      - '.github/workflows/api-checks.yml'
+  workflow_dispatch:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: smmta
+          POSTGRES_PASSWORD: smmta
+          POSTGRES_DB: smmta_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smmta -d smmta_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://smmta:smmta@localhost:5432/smmta_test
+      JWT_SECRET: ci-jwt-secret-32bytes-padding-padding
+      LOG_LEVEL: warn
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # apps/api imports @smmta/shared-types, whose package.json points at
+      # dist/ — which does not exist until the package is built.
+      - name: Build shared types
+        run: npm run build -w @smmta/shared-types
+
+      - name: Typecheck apps/api
+        run: npx tsc --noEmit -p apps/api
+
+      - name: Run API migrations
+        run: npm run db:migrate -w @smmta/api
+
+      # Runs from apps/api rather than with --root: env.coverage.test.ts finds
+      # .env.example relative to the working directory.
+      #
+      # agent.service.test.ts is excluded because it fails on main: its
+      # afterEach deletes chat_sessions before chat_classifications (a foreign
+      # key violation), so it also leaves llm_log spend behind that pushes
+      # marketing.service.test.ts over the daily OpenRouter cap. Remove the
+      # exclusion once that test is fixed.
+      - name: Run API tests
+        working-directory: apps/api
+        run: |
+          npx vitest run \
+            --exclude 'src/modules/storefront/reservation.concurrency.test.ts' \
+            --exclude 'src/modules/products/image-upload.routes.test.ts' \
+            --exclude 'src/modules/agent/agent.service.test.ts'

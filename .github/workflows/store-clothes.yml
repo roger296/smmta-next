@@ -1,0 +1,68 @@
+name: Clothes Shop checks
+
+# Typecheck, unit tests and a production build of @smmta/store-clothes on every
+# pull request that touches it. Neither e2e.yml nor lhci.yml looks at this app,
+# so without this workflow a Clothes Shop change got no checks at all.
+
+on:
+  pull_request:
+    paths:
+      - 'apps/store-clothes/**'
+      - 'packages/shared-types/**'
+      - '.github/workflows/store-clothes.yml'
+  workflow_dispatch:
+
+jobs:
+  store-clothes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # The cart, checkout, email, refund and resend-email tests read and write
+    # the storefront database, so they need a real, migrated Postgres.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: smmta
+          POSTGRES_PASSWORD: smmta
+          POSTGRES_DB: smmta_store
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smmta -d smmta_store"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://smmta:smmta@localhost:5432/smmta_store
+      # Stub API origin: nothing is fetched at build time that the pages
+      # cannot survive without.
+      SMMTA_API_BASE_URL: http://localhost:9999/api/v1
+      STORE_BASE_URL: http://localhost:5000
+      STORE_COOKIE_SECRET: ci-cookie-secret-32bytes-min-padding
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck apps/store-clothes
+        run: npx tsc --noEmit -p apps/store-clothes
+
+      - name: Run Clothes Shop migrations
+        run: npm run db:migrate -w @smmta/store-clothes
+
+      - name: Run Clothes Shop unit tests
+        run: npx vitest run --root apps/store-clothes
+
+      - name: Build apps/store-clothes
+        env:
+          NODE_ENV: production
+        run: npm run build -w @smmta/store-clothes
