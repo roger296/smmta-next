@@ -54,6 +54,7 @@ import type {
   SupplierOrderStatus,
   SupplierStockSnapshot,
 } from './types.js';
+import { countryCodeFor, countryNameFor } from './country.js';
 
 // ============================================================
 // Endpoint paths + tunables
@@ -680,6 +681,7 @@ export function mapOrderRequestToRalawise(req: SupplierOrderRequest): RalawiseOr
   }
   return {
     contactName: req.shipping.name,
+    ...(req.contactPhone ? { contactPhone: req.contactPhone } : {}),
     orderReference,
     acceptTerms: true,
     lineItems: req.lines.map((l) => ({
@@ -695,8 +697,9 @@ export function mapOrderRequestToRalawise(req: SupplierOrderRequest): RalawiseOr
         addressLine2: req.shipping.line2,
         townCity: req.shipping.city,
         postcode: req.shipping.postCode,
-        countryCode: req.shipping.country,
-        countryName: req.shipping.region,
+        countryCode: countryCodeFor(req.shipping.country),
+        // The country, not the county: `region` used to be sent here.
+        countryName: countryNameFor(req.shipping.country),
       },
       deliveryOption: {
         plainCover: true,

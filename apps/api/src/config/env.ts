@@ -140,6 +140,21 @@ const envSchema = z.object({
   /** Worker health-check HTTP port (0 disables the server). */
   WORKER_HEALTH_PORT: z.coerce.number().int().default(0),
 
+  // Drop-ship suppliers (worker). Both OFF by default. Polling keeps supplier
+  // stock and cost prices current. Order placing sends paid orders' drop-ship
+  // lines to the supplier: those are real orders, so it stays off until a test
+  // order has been checked end to end.
+  SUPPLIER_POLL_ENABLED: envBool(false),
+  SUPPLIER_ORDER_PLACING_ENABLED: envBool(false),
+  /** Who is emailed when a supplier order fails and needs a person. */
+  SUPPLIER_ORDER_ALERT_EMAIL: z.string().default('roger@etailsupport.com'),
+  /** The contact email given to suppliers on each order (Uneek asks for one).
+   *  Ours, not the customer's: orders go in plain cover under our name. */
+  SUPPLIER_ORDER_CONTACT_EMAIL: z.string().default('sales@cleverdeals.net'),
+  /** Uneek's deliveryMethod code. Uneek's API documentation does not list the
+   *  values; empty sends a blank field. Confirm the code with Uneek. */
+  UNEEK_DELIVERY_METHOD: z.string().default(''),
+
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications
   // triggered by a GRN). Empty string disables the call (the queue
