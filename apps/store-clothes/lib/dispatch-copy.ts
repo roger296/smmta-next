@@ -17,13 +17,16 @@ export interface DispatchCopy {
 }
 
 export const DISPATCH_COPY: Record<StockState, DispatchCopy> = {
+  // Same-day dispatch on working days for orders placed before 14:00 UK
+  // time (Roger, 2026-09-14). Supplier orders are sent within a minute of
+  // payment, so this holds while the suppliers' own cut-offs are 14:00 or later.
   IN_STOCK: {
     badgeLabel: 'In stock',
-    primary: 'Dispatched within 1 working day.',
+    primary: 'Order by 2pm (UK time) on a working day and it ships the same day.',
   },
   AVAILABLE_FROM_SUPPLIER: {
     badgeLabel: 'Available from supplier',
-    primary: 'Ships in 2 working days from our supplier partner.',
+    primary: 'Order by 2pm (UK time) on a working day and it ships the same day from our supplier partner.',
   },
   OUT_OF_STOCK: {
     badgeLabel: 'Out of stock',
