@@ -519,6 +519,7 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
             companyId: input.companyId,
             name: gp.name,
             groupType: gp.groupType,
+            categoryHints: gp.categoryHints,
             slug: gp.slug,
             shortDescription: gp.shortDescription,
             longDescription: gp.longDescription,

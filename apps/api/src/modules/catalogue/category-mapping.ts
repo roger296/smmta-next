@@ -11,19 +11,28 @@
  *      Workwear → Hi-vis tops, not Tops → Polo shirts. Wear context
  *      is more useful to the customer than the literal garment.
  *
- *   2. **Age wins over context for kids.** A kid's hoodie lives in
+ *   2. **Accessories before age.** A kids' cap is still headwear and a
+ *      junior backpack is still a bag: the accessory categories serve
+ *      every age, while the kids' categories are for clothing.
+ *
+ *   3. **Age wins over context for kids.** A kid's hoodie lives in
  *      Kids & Schoolwear → Kids' tops, not Tops → Hoodies. Kids and
  *      adults shop on different pages.
  *
- *   3. **Garment-type fallthrough at the bottom.** Once context and
+ *   4. **Garment-type fallthrough at the bottom.** Once context and
  *      age are exhausted, the regex on `productType` does the bulk
  *      of the work for ordinary apparel.
  *
- *   4. **Last rule must be a catch-all? No.** We deliberately don't
+ *   5. **Last rule must be a catch-all? No.** We deliberately don't
  *      add a last-resort rule — anything unmatched lands in
  *      `Uncategorised`, which is the signal to add more rules. The
  *      backfill's end-of-run summary tells the operator how big that
  *      bucket is.
+ *
+ * Supplier types are plural ("Hoodies", "Bags", "Scarves"), so type and
+ * name patterns allow plurals. Categorisation tokens match whole words:
+ * the full Ralawise Categorisation is a long list of collection names,
+ * in which a substring such as "pe" or "tie" turns up everywhere.
  *
  * `assignTo` is a slug path like `workwear-and-safety/hi-vis-tops-and-vests`
  * matching the taxonomy in `taxonomy.ts`. The evaluator validates
@@ -47,7 +56,7 @@ export interface ProductFacts {
   /** `'Male' | 'Female' | 'Unisex' | 'Kids' | ...` — Ralawise col 29
    *  or whatever the Uneek equivalent ends up being. */
   gender?: string | null;
-  /** `'Adult' | 'Child' | 'Baby'` — Ralawise col 30. */
+  /** `'Adult' | 'Child' | 'Baby'` — Ralawise col 30, via normaliseAgeGroup. */
   ageGroup?: string | null;
   /** Product name — fallback when nothing else fires (e.g. "rugby
    *  shirt" → tops/shirts). */
@@ -87,11 +96,12 @@ export interface MappingRule {
    *  named supplier. Most rules apply to both. */
   source?: 'ralawise' | 'uneek';
   productType?: RegExp;
-  /** Case-insensitive substring against the Ralawise `Categorisation`
-   *  pipe-separated string. Multiple tokens with `|` are OR-ed. */
+  /** Whole words against the supplier's categorisation string, case-
+   *  insensitive, a plural allowed ("Tie" matches "Ties" but not
+   *  "Varieties"). Multiple tokens with `|` are OR-ed. */
   categorisationContains?: string;
-  /** Case-insensitive substring against the product name — last-resort
-   *  matching for products with no structured type. */
+  /** Regex against the product name — last-resort matching for products
+   *  with no structured type. */
   nameContains?: RegExp;
   /** Exact-match (case-insensitive). */
   ageGroupEquals?: 'Adult' | 'Child' | 'Baby' | 'Teen';
@@ -109,9 +119,7 @@ export const RULES: MappingRule[] = [
   // ───────────────────────────────────────────────────────────
   // 1. Hi-vis / safety context wins over garment type.
   //    Hi-vis signals can come from the supplier's categorisation
-  //    column OR straight from the product name. We check both
-  //    because the importer stored only the FIRST segment of
-  //    Ralawise's pipe-separated Categorisation.
+  //    or straight from the product name, so both are checked.
   // ───────────────────────────────────────────────────────────
   {
     nameContains: /hi.?vis.*(jacket|coat|bomber|softshell|parka)/i,
@@ -128,9 +136,18 @@ export const RULES: MappingRule[] = [
     rationale: 'Hi-vis tops + vests detected by name',
   },
   {
+    productType: /\bSafety Vests?\b/i,
+    assignTo: 'workwear-and-safety/hi-vis-tops-and-vests',
+    rationale: 'Safety vests are hi-vis by definition',
+  },
+  {
     categorisationContains: 'Hi-Vis|Hi Vis|HiVis|High Visibility',
     assignTo: 'workwear-and-safety/hi-vis-tops-and-vests',
     rationale: 'Hi-vis fallback via categorisation column',
+  },
+  {
+    productType: /\b(Coveralls?|Overalls?|Boiler ?suits?)\b/i,
+    assignTo: 'workwear-and-safety/overalls-and-coveralls',
   },
   {
     categorisationContains: 'Coverall|Overall|Boilersuit',
@@ -158,13 +175,49 @@ export const RULES: MappingRule[] = [
   },
 
   // ───────────────────────────────────────────────────────────
-  // 2. Kids & Schoolwear — age wins over garment type.
-  //    ageGroup data isn't always available (the importer doesn't
-  //    capture it for every row), so we also detect by name patterns
-  //    (Kids/Junior/Children/Schoolwear/Toddler/Baby).
+  // 2. Bags & Accessories — whatever the age. Matched on the
+  //    supplier's product type only: accessory words in a long
+  //    categorisation string are too often collection names.
   // ───────────────────────────────────────────────────────────
   {
-    nameContains: /\b(baby|toddler|infant|newborn)\b/i,
+    productType: /\b(Rucksacks?|Backpacks?|Holdalls?|Duffel|Duffle|Kit Bags?|Sports Bags?|Gymsacs?|Drawstring Bags?)\b/i,
+    assignTo: 'bags-and-accessories/rucksacks-and-holdalls',
+  },
+  {
+    productType: /\b(Totes?|Shoppers?|Cotton Bags?|Canvas Bags?)\b/i,
+    assignTo: 'bags-and-accessories/tote-and-shopper-bags',
+  },
+  {
+    productType: /\bBags?\b/i,
+    nameContains: /\b(totes?|shoppers?|shopping)\b/i,
+    assignTo: 'bags-and-accessories/tote-and-shopper-bags',
+    rationale: 'Generic "Bags" type named as a tote or shopper',
+  },
+  {
+    productType: /\bBags?\b/i,
+    assignTo: 'bags-and-accessories/rucksacks-and-holdalls',
+    rationale: 'Generic "Bags" fallback into rucksacks-and-holdalls',
+  },
+  {
+    productType: /\b(Caps?|Hats?|Beanies?|Bobbles?|Headwear|Visors?|Snapbacks?|Headbands?)\b/i,
+    assignTo: 'bags-and-accessories/headwear',
+  },
+  {
+    productType: /\b(Gloves?|Scarf|Scarfs|Scarves|Snoods?|Neck ?warmers?|Mittens?)\b/i,
+    assignTo: 'bags-and-accessories/gloves-and-scarves',
+  },
+  {
+    productType: /\b(Belts?|Socks?|Ties?|Cufflinks|Braces)\b/i,
+    assignTo: 'bags-and-accessories/belts-and-socks',
+  },
+
+  // ───────────────────────────────────────────────────────────
+  // 3. Kids & Schoolwear — age wins over garment type.
+  //    Age group isn't always available (Uneek has none), so we
+  //    also detect by name patterns (Kids/Junior/Children/Toddler/Baby).
+  // ───────────────────────────────────────────────────────────
+  {
+    nameContains: /\b(baby|babies|toddlers?|infants?|newborns?)\b/i,
     assignTo: 'kids-and-schoolwear/baby-and-toddler',
     rationale: 'Baby / toddler — by name',
   },
@@ -178,19 +231,14 @@ export const RULES: MappingRule[] = [
     rationale: 'School sports kit — by name',
   },
   {
-    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior)\b.*\b(jacket|coat|fleece|bodywarmer|gilet|softshell|waterproof|anorak|parka)\b/i,
+    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior)\b.*\b(jackets?|coats?|fleeces?|bodywarmers?|gilets?|softshells?|waterproofs?|anoraks?|parkas?|windbreakers?)\b/i,
     assignTo: 'kids-and-schoolwear/kids-outerwear',
     rationale: "Kids' outerwear — by name",
   },
   {
-    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior)\b.*\b(trouser|short|jogger|legging|skirt|pant)\b/i,
+    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior)\b.*\b(trousers?|shorts?|joggers?|leggings?|skirts?|pants?|sweatpants?|jeans)\b/i,
     assignTo: 'kids-and-schoolwear/kids-bottoms',
     rationale: "Kids' bottoms — by name",
-  },
-  {
-    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior|school|cardigan)\b/i,
-    assignTo: 'kids-and-schoolwear/kids-tops',
-    rationale: "Kids' tops + general kids' wear — by name",
   },
   {
     ageGroupEquals: 'Child',
@@ -200,30 +248,35 @@ export const RULES: MappingRule[] = [
   },
   {
     ageGroupEquals: 'Child',
-    productType: /T-Shirt|Polo|Hoodie|Sweatshirt|Shirt|Tank|Vest|Jumper/i,
-    assignTo: 'kids-and-schoolwear/kids-tops',
-    rationale: "Kids' upper-body wear",
+    productType: /Jacket|Coat|Fleece|Bodywarmer|Body Warmer|Gilet|Softshell|Waterproof|Anorak|Rain/i,
+    assignTo: 'kids-and-schoolwear/kids-outerwear',
+    rationale: "Kids' outer layers",
   },
   {
     ageGroupEquals: 'Child',
-    productType: /Trouser|Short|Jogger|Legging|Skirt|Pant/i,
+    productType: /Trouser|Short|Jogger|Legging|Skirt|Pant|Jean|Chino/i,
     assignTo: 'kids-and-schoolwear/kids-bottoms',
     rationale: "Kids' lower-body wear",
   },
   {
     ageGroupEquals: 'Child',
-    productType: /Jacket|Coat|Fleece|Hoodie|Bodywarmer|Gilet|Softshell|Waterproof|Anorak/i,
-    assignTo: 'kids-and-schoolwear/kids-outerwear',
-    rationale: "Kids' outer layers",
+    productType: /T-Shirt|Polo|Hoodie|Sweatshirt|Shirt|Tank|Vest|Jumper|Blouse|Cardigan|Top/i,
+    assignTo: 'kids-and-schoolwear/kids-tops',
+    rationale: "Kids' upper-body wear",
   },
   {
     ageGroupEquals: 'Child',
     assignTo: 'kids-and-schoolwear/kids-tops',
     rationale: "Catch-all for remaining kids' apparel → tops",
   },
+  {
+    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior|school)\b/i,
+    assignTo: 'kids-and-schoolwear/kids-tops',
+    rationale: "Kids' wear with no age group or garment signal — by name",
+  },
 
   // ───────────────────────────────────────────────────────────
-  // 3. Sport & Active.
+  // 4. Sport & Active.
   // ───────────────────────────────────────────────────────────
   {
     categorisationContains: 'Performance|Cooltex|Wicking|Quick Dry',
@@ -232,15 +285,15 @@ export const RULES: MappingRule[] = [
     rationale: 'Technical performance tops',
   },
   {
+    productType: /\b(Rugby Shirts?|Football Shirts?|Jerseys?)\b/i,
+    assignTo: 'sport-and-active/team-kit',
+    rationale: 'Team-sport shirts by type',
+  },
+  {
     categorisationContains: 'Football|Rugby|Cricket|Tennis|Basketball|Hockey',
     productType: /T-Shirt|Polo|Shirt|Top|Tank|Vest|Jersey/i,
     assignTo: 'sport-and-active/team-kit',
     rationale: 'Team-sport upper-body kit',
-  },
-  {
-    categorisationContains: 'Football|Rugby|Cricket|Tennis|Basketball|Hockey',
-    assignTo: 'sport-and-active/team-kit',
-    rationale: 'Team-sport fallback',
   },
   {
     categorisationContains: 'Training|Tracksuit',
@@ -249,14 +302,30 @@ export const RULES: MappingRule[] = [
     rationale: 'Tracksuit / training bottoms',
   },
   {
+    productType: /\bTrackwear\b/i,
+    nameContains: /\b(pants?|bottoms?|joggers?|trousers?)\b/i,
+    assignTo: 'sport-and-active/training-bottoms',
+    rationale: 'Tracksuit bottoms',
+  },
+  {
+    productType: /\b(Trackwear|Track Jackets?)\b/i,
+    assignTo: 'sport-and-active/sports-jackets',
+    rationale: 'Tracksuit tops and track jackets',
+  },
+  {
     categorisationContains: 'Sport|Sports|Active',
     productType: /Jacket/i,
     assignTo: 'sport-and-active/sports-jackets',
     rationale: 'Sports-context jackets',
   },
+  {
+    productType: /\b(Sports Overtops?|Baselayers?|Base Layers?|Sports Bras?)\b/i,
+    assignTo: 'sport-and-active/performance-tops',
+    rationale: 'Sports overtops, baselayers and sports bras',
+  },
 
   // ───────────────────────────────────────────────────────────
-  // 4. Outerwear — by type, after the sport/safety contexts.
+  // 5. Outerwear — by type, after the sport/safety contexts.
   // ───────────────────────────────────────────────────────────
   {
     productType: /Bodywarmer|Body Warmer|Gilet/i,
@@ -283,7 +352,7 @@ export const RULES: MappingRule[] = [
     assignTo: 'outerwear/softshells',
   },
   {
-    productType: /Waterproof|Rainwear|Rain Jacket|Rain Coat|Cagoule|Anorak/i,
+    productType: /Waterproof|Rainwear|Rain Jacket|Rain Coat|Rain Suit|Cagoule|Anorak/i,
     assignTo: 'outerwear/waterproofs',
   },
   {
@@ -297,55 +366,6 @@ export const RULES: MappingRule[] = [
   {
     categorisationContains: 'Jacket|Coat',
     assignTo: 'outerwear/jackets-and-coats',
-  },
-
-  // ───────────────────────────────────────────────────────────
-  // 5. Bags & Accessories.
-  // ───────────────────────────────────────────────────────────
-  {
-    productType: /Rucksack|Backpack|Holdall|Duffel|Duffle|Kit Bag|Sports Bag/i,
-    assignTo: 'bags-and-accessories/rucksacks-and-holdalls',
-  },
-  {
-    categorisationContains: 'Rucksack|Backpack|Holdall',
-    assignTo: 'bags-and-accessories/rucksacks-and-holdalls',
-  },
-  {
-    productType: /Tote|Shopper|Cotton Bag|Canvas Bag/i,
-    assignTo: 'bags-and-accessories/tote-and-shopper-bags',
-  },
-  {
-    categorisationContains: 'Tote|Shopper',
-    assignTo: 'bags-and-accessories/tote-and-shopper-bags',
-  },
-  {
-    productType: /Cap|Hat|Beanie|Bobble|Bucket Hat|Headwear|Visor|Snapback/i,
-    assignTo: 'bags-and-accessories/headwear',
-  },
-  {
-    categorisationContains: 'Headwear|Cap|Hat|Beanie',
-    assignTo: 'bags-and-accessories/headwear',
-  },
-  {
-    productType: /Glove|Scarf|Snood|Neckwarmer|Neck Warmer|Mitten/i,
-    assignTo: 'bags-and-accessories/gloves-and-scarves',
-  },
-  {
-    categorisationContains: 'Glove|Scarf|Snood',
-    assignTo: 'bags-and-accessories/gloves-and-scarves',
-  },
-  {
-    productType: /Belt|Sock|Tie|Cufflinks/i,
-    assignTo: 'bags-and-accessories/belts-and-socks',
-  },
-  {
-    categorisationContains: 'Belt|Sock|Tie',
-    assignTo: 'bags-and-accessories/belts-and-socks',
-  },
-  {
-    productType: /Bag\b/i,
-    assignTo: 'bags-and-accessories/rucksacks-and-holdalls',
-    rationale: 'Generic "Bag" fallback into rucksacks-and-holdalls',
   },
 
   // ───────────────────────────────────────────────────────────
@@ -368,7 +388,7 @@ export const RULES: MappingRule[] = [
     assignTo: 'bottoms/shorts',
   },
   {
-    productType: /Trouser|Pant\b|Pants|Chino/i,
+    productType: /Trouser|Pant\b|Pants|Chino|Jeans?\b/i,
     assignTo: 'bottoms/trousers',
   },
 
@@ -381,7 +401,7 @@ export const RULES: MappingRule[] = [
     assignTo: 'tops/hoodies',
   },
   {
-    productType: /Sweatshirt|Crew Neck|Crewneck|Sweater|Jumper/i,
+    productType: /Sweatshirt|Crew Neck|Crewneck|Sweater|Jumper|Cardigan/i,
     assignTo: 'tops/sweatshirts',
   },
   {
@@ -397,7 +417,7 @@ export const RULES: MappingRule[] = [
     assignTo: 'tops/t-shirts',
   },
   {
-    productType: /\bShirt\b/i,
+    productType: /\b(Shirts?|Blouses?|Tunics?)\b/i,
     assignTo: 'tops/shirts',
   },
 
@@ -468,10 +488,10 @@ export function evaluateRules(facts: ProductFacts, rules: MappingRule[] = RULES)
       if (!r.productType.test(got)) continue;
     }
     if (r.categorisationContains) {
-      const got = (facts.categorisation ?? '').toLowerCase();
+      const got = facts.categorisation ?? '';
       if (!got) continue;
-      const tokens = r.categorisationContains.toLowerCase().split('|');
-      if (!tokens.some((tok) => got.includes(tok))) continue;
+      const tokens = r.categorisationContains.split('|');
+      if (!tokens.some((tok) => containsWord(got, tok))) continue;
     }
     if (r.nameContains) {
       const got = (facts.name ?? '').trim();
@@ -490,4 +510,23 @@ export function evaluateRules(facts: ProductFacts, rules: MappingRule[] = RULES)
 
 function equalIgnoreCase(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
+}
+
+const wordPatterns = new Map<string, RegExp>();
+
+/**
+ * True when `token` appears in `text` as a whole word or phrase, case-
+ * insensitive, optionally pluralised: "Tie" matches "Ties" and "Silk Tie",
+ * not "Varieties"; "PE" matches "PE Kit", not "Performance".
+ */
+export function containsWord(text: string, token: string): boolean {
+  const t = token.trim();
+  if (!t) return false;
+  let pattern = wordPatterns.get(t);
+  if (!pattern) {
+    const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    pattern = new RegExp(`(^|[^a-z0-9])${escaped}(e?s)?(?=[^a-z0-9]|$)`, 'i');
+    wordPatterns.set(t, pattern);
+  }
+  return pattern.test(text);
 }

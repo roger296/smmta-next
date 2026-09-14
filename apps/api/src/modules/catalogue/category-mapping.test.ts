@@ -14,7 +14,7 @@
  *      relevant scenario test should change with it.
  */
 import { describe, expect, it } from 'vitest';
-import { evaluateRules, normaliseAgeGroup, RULES } from './category-mapping.js';
+import { containsWord, evaluateRules, normaliseAgeGroup, RULES } from './category-mapping.js';
 import { TAXONOMY, findTaxonomyEntry } from './taxonomy.js';
 
 describe('normaliseAgeGroup', () => {
@@ -248,6 +248,110 @@ describe('evaluateRules — accessories', () => {
     expect(
       evaluateRules({ source: 'ralawise', productType: 'Apron', name: 'Bib Apron with Pocket' }),
     ).toBe('workwear-and-safety/aprons-and-tabards');
+  });
+});
+
+describe('containsWord', () => {
+  it('matches whole words and phrases, case-insensitively, with a plural', () => {
+    expect(containsWord('Workwear|Silk Ties', 'Tie')).toBe(true);
+    expect(containsWord('Schoolwear|PE Kit', 'PE')).toBe(true);
+    expect(containsWord('jackets & coats', 'Jacket')).toBe(true);
+    expect(containsWord('Outerwear - Cargo Trousers', 'Cargo Trouser')).toBe(true);
+  });
+
+  it('does not match inside another word', () => {
+    expect(containsWord('Novelties & Varieties', 'Tie')).toBe(false);
+    expect(containsWord('Performance|Speed', 'PE')).toBe(false);
+    expect(containsWord('What to wear', 'Hat')).toBe(false);
+  });
+
+  it('never matches an empty token', () => {
+    expect(containsWord('anything', '')).toBe(false);
+    expect(containsWord('anything', '  ')).toBe(false);
+  });
+});
+
+describe('evaluateRules — real Ralawise product types', () => {
+  it('files a kids cap under headwear, not kids tops', () => {
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Caps', ageGroup: 'Child', name: 'Junior classic cap' }),
+    ).toBe('bags-and-accessories/headwear');
+  });
+
+  it('files kids shorts and a kids windbreaker by garment', () => {
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Shorts', ageGroup: 'Child', name: 'Kids cool shorts' }),
+    ).toBe('kids-and-schoolwear/kids-bottoms');
+    expect(
+      evaluateRules({
+        source: 'ralawise',
+        productType: 'Jackets',
+        ageGroup: 'Child',
+        name: 'B&C #Reset windbreaker /kids',
+      }),
+    ).toBe('kids-and-schoolwear/kids-outerwear');
+  });
+
+  it('keeps a polo out of belts and socks when its collections mention ties', () => {
+    expect(
+      evaluateRules({
+        source: 'ralawise',
+        productType: 'Polos',
+        categorisation: 'Workwear|Novelties & Varieties|Ties & Accessories',
+        name: "Men's polycotton blend polo",
+      }),
+    ).toBe('tops/polo-shirts');
+  });
+
+  it('does not treat a performance collection as school PE kit', () => {
+    expect(
+      evaluateRules({
+        source: 'ralawise',
+        productType: 'Polos',
+        ageGroup: 'Child',
+        categorisation: 'Performance|Schoolwear',
+        name: 'Kids cool polo',
+      }),
+    ).toBe('kids-and-schoolwear/kids-tops');
+  });
+
+  it('files the plural "Bags" type, sending totes to totes', () => {
+    expect(evaluateRules({ source: 'ralawise', productType: 'Bags', name: 'Athleisure gymsac' })).toBe(
+      'bags-and-accessories/rucksacks-and-holdalls',
+    );
+    expect(evaluateRules({ source: 'ralawise', productType: 'Bags', name: 'Original carryall tote bag' })).toBe(
+      'bags-and-accessories/tote-and-shopper-bags',
+    );
+  });
+
+  it('files scarves and jeans', () => {
+    expect(evaluateRules({ source: 'ralawise', productType: 'Scarves', name: 'Classic knitted scarf' })).toBe(
+      'bags-and-accessories/gloves-and-scarves',
+    );
+    expect(evaluateRules({ source: 'ralawise', productType: 'Jeans', name: 'Leo straight jeans' })).toBe(
+      'bottoms/trousers',
+    );
+  });
+
+  it('splits trackwear into training bottoms and sports jackets', () => {
+    expect(evaluateRules({ source: 'ralawise', productType: 'Trackwear', name: 'Active track pants' })).toBe(
+      'sport-and-active/training-bottoms',
+    );
+    expect(evaluateRules({ source: 'ralawise', productType: 'Trackwear', name: 'Active track jacket' })).toBe(
+      'sport-and-active/sports-jackets',
+    );
+  });
+
+  it('files an adult cardigan as a sweatshirt, not kids wear', () => {
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Cardigans', ageGroup: 'Adult', name: "Women's cardigan" }),
+    ).toBe('tops/sweatshirts');
+  });
+
+  it('files rugby shirts as team kit', () => {
+    expect(evaluateRules({ source: 'ralawise', productType: 'Rugby Shirts', name: 'Classic rugby shirt' })).toBe(
+      'sport-and-active/team-kit',
+    );
   });
 });
 
