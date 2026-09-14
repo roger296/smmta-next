@@ -11,9 +11,9 @@
  *      Workwear → Hi-vis tops, not Tops → Polo shirts. Wear context
  *      is more useful to the customer than the literal garment.
  *
- *   2. **Accessories before age.** A kids' cap is still headwear and a
- *      junior backpack is still a bag: the accessory categories serve
- *      every age, while the kids' categories are for clothing.
+ *   2. **Accessories and footwear before age.** A kids' cap is still
+ *      headwear and a junior backpack is still a bag: those categories
+ *      serve every age, while the kids' categories are for clothing.
  *
  *   3. **Age wins over context for kids.** A kid's hoodie lives in
  *      Kids & Schoolwear → Kids' tops, not Tops → Hoodies. Kids and
@@ -214,7 +214,32 @@ export const RULES: MappingRule[] = [
   },
 
   // ───────────────────────────────────────────────────────────
-  // 3. Kids & Schoolwear — age wins over garment type.
+  // 3. Footwear — whatever the age. Safety footwear first: the
+  //    supplier's own type says only Boots, Trainers or Shoes, so
+  //    safety is read from the name ("safety", a steel or composite
+  //    toe, or an EN ISO 20345 rating such as S1P, S3 or SB).
+  // ───────────────────────────────────────────────────────────
+  {
+    productType: /\b(Boots?|Trainers?|Shoes?|Clogs?|Footwear)\b/i,
+    nameContains: /\b(safety|S1P?|S2|S3|S4|S5|S6|S7|SB|SBP|steel|steelite|composite|toe ?caps?)\b/i,
+    assignTo: 'footwear/safety-footwear',
+    rationale: 'Safety boots, trainers and shoes — by name or safety rating',
+  },
+  {
+    productType: /\bTrainers?\b/i,
+    assignTo: 'footwear/trainers',
+  },
+  {
+    productType: /\b(Sliders?|Slides?|Slippers?|Sandals?|Flip ?flops?)\b/i,
+    assignTo: 'footwear/sliders-and-slippers',
+  },
+  {
+    productType: /\b(Boots?|Shoes?|Clogs?|Footwear)\b/i,
+    assignTo: 'footwear/boots-and-shoes',
+  },
+
+  // ───────────────────────────────────────────────────────────
+  // 4. Kids & Schoolwear — age wins over garment type.
   //    Age group isn't always available (Uneek has none), so we
   //    also detect by name patterns (Kids/Junior/Children/Toddler/Baby).
   // ───────────────────────────────────────────────────────────
@@ -279,7 +304,16 @@ export const RULES: MappingRule[] = [
   },
 
   // ───────────────────────────────────────────────────────────
-  // 4. Sport & Active.
+  // 5. Dresses — after the kids' rules, so children's dresses stay
+  //    with kids' clothing.
+  // ───────────────────────────────────────────────────────────
+  {
+    productType: /\b(Dress|Dresses)\b/i,
+    assignTo: 'dresses',
+  },
+
+  // ───────────────────────────────────────────────────────────
+  // 6. Sport & Active.
   // ───────────────────────────────────────────────────────────
   {
     categorisationContains: 'Performance|Cooltex|Wicking|Quick Dry',
@@ -322,7 +356,7 @@ export const RULES: MappingRule[] = [
   },
 
   // ───────────────────────────────────────────────────────────
-  // 5. Outerwear — by type, after the sport/safety contexts.
+  // 7. Outerwear — by type, after the sport/safety contexts.
   // ───────────────────────────────────────────────────────────
   {
     productType: /Bodywarmer|Body Warmer|Gilet/i,
@@ -366,7 +400,7 @@ export const RULES: MappingRule[] = [
   },
 
   // ───────────────────────────────────────────────────────────
-  // 6. Bottoms — by garment type.
+  // 8. Bottoms — by garment type.
   // ───────────────────────────────────────────────────────────
   {
     productType: /Jogger|Joggers|Track Pant|Tracksuit Bottom|Sweatpant|Loungewear Bottom|Lounge Pant/i,
@@ -390,7 +424,7 @@ export const RULES: MappingRule[] = [
   },
 
   // ───────────────────────────────────────────────────────────
-  // 7. Tops — by garment type. Hoodies and sweatshirts before
+  // 9. Tops — by garment type. Hoodies and sweatshirts before
   //    generic "shirt" so they don't get misfiled.
   // ───────────────────────────────────────────────────────────
   {
@@ -419,7 +453,7 @@ export const RULES: MappingRule[] = [
   },
 
   // ───────────────────────────────────────────────────────────
-  // 8. Categorisation fallbacks for the long tail.
+  // 10. Categorisation fallbacks for the long tail.
   // ───────────────────────────────────────────────────────────
   {
     categorisationContains: 'Hoodie',

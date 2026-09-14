@@ -1,9 +1,11 @@
 /**
  * Clothes Shop category taxonomy.
  *
- * The seven top-tier categories + their subcategories + a hidden
- * `Uncategorised` bucket. Hand-curated; matches the brief in
- * `.tmp-claude-code-briefs-6.md` §I.
+ * The nine top-tier categories + their subcategories + a hidden
+ * `Uncategorised` bucket. Hand-curated from the brief in
+ * `.tmp-claude-code-briefs-6.md` §I; Dresses and Footwear were added in
+ * September 2026 for the Ralawise catalogue. A top-tier may have no
+ * subcategories (Dresses), in which case products sit on it directly.
  *
  * Used by:
  *   - `seed-categories.ts` (idempotent upsert into the `categories` table)
@@ -108,6 +110,25 @@ export const TAXONOMY: TaxonomyTop[] = [
       { slug: 'headwear', name: 'Headwear' },
       { slug: 'gloves-and-scarves', name: 'Gloves & scarves' },
       { slug: 'belts-and-socks', name: 'Belts & socks' },
+    ],
+  },
+  {
+    slug: 'dresses',
+    name: 'Dresses',
+    sortOrder: 35,
+    description: "Women's dresses, from t-shirt dresses to fitness dresses.",
+    children: [],
+  },
+  {
+    slug: 'footwear',
+    name: 'Footwear',
+    sortOrder: 65,
+    description: 'Safety boots and trainers, everyday trainers, boots and shoes, sliders and slippers.',
+    children: [
+      { slug: 'safety-footwear', name: 'Safety footwear' },
+      { slug: 'trainers', name: 'Trainers' },
+      { slug: 'boots-and-shoes', name: 'Boots & shoes' },
+      { slug: 'sliders-and-slippers', name: 'Sliders & slippers' },
     ],
   },
   {
