@@ -118,6 +118,18 @@ services:
       SENDGRID_SANDBOX: ${SENDGRID_SANDBOX:-true}
       UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
       WORKER_HEALTH_PORT: '3100'
+      # Supplier API credentials are stored encrypted with a key derived from
+      # JWT_SECRET (no ENCRYPTION_KEY is set), so the worker needs the api's value
+      # to read them.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      # Drop-ship suppliers. Both OFF by default. Polling keeps supplier stock
+      # and cost prices current. Order placing sends paid orders to Uneek and
+      # Ralawise as REAL orders, so turn it on only after a test order.
+      SUPPLIER_POLL_ENABLED: ${SUPPLIER_POLL_ENABLED:-false}
+      SUPPLIER_ORDER_PLACING_ENABLED: ${SUPPLIER_ORDER_PLACING_ENABLED:-false}
+      SUPPLIER_ORDER_ALERT_EMAIL: ${SUPPLIER_ORDER_ALERT_EMAIL:-roger@etailsupport.com}
+      SUPPLIER_ORDER_CONTACT_EMAIL: ${SUPPLIER_ORDER_CONTACT_EMAIL:-sales@cleverdeals.net}
+      UNEEK_DELIVERY_METHOD: ${UNEEK_DELIVERY_METHOD:-}
       # Smooth Parcel shipping labels. OFF until SMOOTH_PARCEL_ENABLED is set;
       # with it off, paid orders record a DISABLED label and nothing is bought.
       # LIVE by default: a label costs nothing unless the parcel is sent. The

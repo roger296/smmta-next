@@ -79,6 +79,9 @@ export interface RunSupplierPollOptions {
   /** Skip the per-supplier cadence check — equivalent to setting
    *  `lastPolledAt = null` for every product. */
   ignoreCadence?: boolean;
+  /** With `onlySupplierId`, still honour the supplier's poll interval.
+   *  The worker's per-supplier loops use this; "Poll now" does not. */
+  respectCadence?: boolean;
 }
 
 export interface SupplierPollOutcome {
@@ -147,7 +150,7 @@ async function pollOneSupplier(
     }
 
     // Cadence check (unless we're told to ignore it).
-    if (!opts.ignoreCadence && !opts.onlySupplierId) {
+    if (!opts.ignoreCadence && (!opts.onlySupplierId || opts.respectCadence)) {
       const mostRecent = await db
         .select({ at: sql<Date | null>`MAX(${supplierProducts.lastPolledAt})` })
         .from(supplierProducts)

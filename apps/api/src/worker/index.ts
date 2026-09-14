@@ -20,6 +20,12 @@ import {
 import { installStubHandlers, workQueue } from './handlers.js';
 import { installFeatureHandlers } from './feature-handlers.js';
 import { runDispatchLoop, type DispatchLoopHandle } from './dispatcher.js';
+import {
+  startSupplierOrderPlacerLoop,
+  startSupplierPollLoops,
+  type SupplierLoopHandle,
+} from './supplier-loops.js';
+import { getEnv } from '../config/env.js';
 
 export { emitDomainEvent } from '../shared/events/index.js';
 export { getBoss, startBoss, stopBoss } from './pgboss.js';
@@ -103,8 +109,19 @@ export async function startWorker(opts: StartWorkerOptions = {}): Promise<Worker
     logger,
   });
 
+  // Drop-ship loops, each behind its own switch.
+  const env = getEnv();
+  const supplierLoops: SupplierLoopHandle[] = [];
+  if (env.SUPPLIER_POLL_ENABLED) supplierLoops.push(startSupplierPollLoops({ logger }));
+  if (env.SUPPLIER_ORDER_PLACING_ENABLED) supplierLoops.push(startSupplierOrderPlacerLoop({ logger }));
+
   logger.info(
-    { queues: HANDLER_QUEUES.length, scheduled: SCHEDULED_JOBS.length },
+    {
+      queues: HANDLER_QUEUES.length,
+      scheduled: SCHEDULED_JOBS.length,
+      supplierPolling: env.SUPPLIER_POLL_ENABLED,
+      supplierOrderPlacing: env.SUPPLIER_ORDER_PLACING_ENABLED,
+    },
     'worker started',
   );
 
@@ -112,6 +129,7 @@ export async function startWorker(opts: StartWorkerOptions = {}): Promise<Worker
     logger,
     stop: async () => {
       loop.stop();
+      for (const l of supplierLoops) l.stop();
       await stopBoss();
       logger.info('worker stopped');
     },

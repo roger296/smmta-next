@@ -267,9 +267,10 @@ npm run e2e -w @smmta/store
 cd ~/smmta-next
 DATABASE_URL=... npx tsx apps/api/scripts/run-supplier-poll.ts
 # Optional flags: --supplier-id <uuid> | --ignore-cadence
-# In production this script is fired by infra/systemd/smmta-supplier-poll.timer
-# every 3 hours; the worker checks each supplier's pollIntervalMinutes
-# vs lastPolledAt and skips suppliers polled too recently.
+# On Coolify the worker polls by itself when SUPPLIER_POLL_ENABLED=true:
+# one lane per supplier (apps/api/src/worker/supplier-loops.ts), each run
+# when that supplier's pollIntervalMinutes has passed, so a multi-hour
+# Ralawise sweep never holds up Uneek.
 ```
 
 **Run the supplier-order placer manually:**
@@ -277,9 +278,13 @@ DATABASE_URL=... npx tsx apps/api/scripts/run-supplier-poll.ts
 ```bash
 cd ~/smmta-next
 DATABASE_URL=... npx tsx apps/api/scripts/run-supplier-order-placer.ts
-# Picks up PENDING + retryable FAILED rows from supplier_orders, calls
-# the connector, applies exponential-backoff retry. In production it
-# runs continuously under smmta-supplier-order-placer.service (sleep 30s loop).
+# Sends PENDING supplier_orders rows. On Coolify the worker runs a pass every
+# minute when SUPPLIER_ORDER_PLACING_ENABLED=true (off by default: these are
+# real orders). Rows are queued by the create-supplier-orders handler on
+# order.paid, one per (order, supplier). An order is only resent when it
+# certainly never reached the supplier (connection refused, 429, 503); a
+# timeout or other 5xx is FAILED with an email to SUPPLIER_ORDER_ALERT_EMAIL,
+# for a person to check the supplier before pressing Retry in the admin.
 ```
 
 **(Re-)assign category IDs from the rule set:**

@@ -4,8 +4,7 @@
  * Implements `SupplierConnector` against https://api.uneekclothing.com/.
  * Endpoint paths and field mappings are in the constants block below so
  * they can be patched in one place. `UNEEK_API_NOTES.md` documents the
- * verified shapes (and where doc-driven assumptions still apply for the
- * order-side endpoints).
+ * verified shapes.
  *
  * Auth: HTTP Basic. The admin SPA's API-key field accepts either:
  *   - a pre-encoded `<base64(user:password)>` string, with `apiAuthScheme=basic`, OR
@@ -23,9 +22,17 @@
  *     `null`; the polling worker / pricing helpers fall back to the
  *     operator-entered value on `supplier_products.cost_gbp`.
  *
+ * Orders follow Uneek's Swagger 2.0 spec (/swagger/v1/swagger.json, read
+ * 2026-09-14): `POST /Order` with an `APIOrderRequest` body, and
+ * `GET /orders?reference=` to look one up. The spec declares no response
+ * bodies and no cancel endpoint, so the order reference is read defensively
+ * and cancelling is left to a person. Not yet exercised against the live API.
+ *
  * Timeouts: 30s default; order placement gets 60s because batched line
  * creation tends to be slow on the supplier's side.
  */
+import { getEnv } from '../../config/env.js';
+import { countryCodeFor, countryNameFor } from './country.js';
 import {
   SupplierAuthError,
   SupplierBadRequestError,
@@ -58,12 +65,12 @@ const ENDPOINTS = {
    *  `scripts/import-uneek-products.ts` to seed our own
    *  `products` / `product_groups` / `supplier_products` tables. */
   productData: '/productdata/all',
-  /** Order placement — path not yet verified against live API. */
-  ordersCreate: '/orders',
-  /** Order status read — path not yet verified. */
-  ordersStatus: '/orders',
-  /** Order cancel — path not yet verified. */
-  ordersCancel: '/orders',
+  /** Order placement, from the Swagger spec: POST, body `APIOrderRequest`.
+   *  Capital O, unlike every other path. */
+  orderCreate: '/Order',
+  /** Order search, from the Swagger spec: GET with `reference`, `date`,
+   *  `invoice_no`, `shipment_no` or `tracking_no` query parameters. */
+  ordersSearch: '/orders',
 } as const;
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -138,17 +145,6 @@ export interface UneekProductRow {
   Brand?: string | null;
 }
 
-interface UneekOrderResponse {
-  orderRef?: string;
-  reference?: string;
-  id?: string;
-  orderId?: string;
-  status?: string;
-  rejectionReason?: string;
-  etaMinDays?: number;
-  etaMaxDays?: number;
-}
-
 // ============================================================
 // Helpers
 // ============================================================
@@ -207,6 +203,67 @@ export function parseJsonBody(text: string): unknown {
     }
   }
   return v;
+}
+
+const ORDER_REF_KEYS = [
+  'orderNumber', 'OrderNumber', 'salesOrderNumber', 'SalesOrderNumber', 'soNumber', 'SONumber',
+  'orderRef', 'OrderRef', 'orderId', 'OrderId', 'id', 'Id',
+];
+
+/**
+ * Uneek's order number from a POST /Order reply. The spec gives no response
+ * shape, so look for the usual field names, one level of nesting deep, or a
+ * bare reference string. Null when none is found.
+ */
+export function orderRefFrom(body: unknown, depth = 0): string | null {
+  if (typeof body === 'number' && Number.isFinite(body)) return String(body);
+  if (typeof body === 'string') {
+    const t = body.trim();
+    return /^[\w-]{1,50}$/.test(t) ? t : null;
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const rec = body as Record<string, unknown>;
+  for (const key of ORDER_REF_KEYS) {
+    const v = rec[key];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  }
+  if (depth === 0) {
+    for (const key of ['order', 'Order', 'data', 'Data', 'result', 'Result']) {
+      const nested = rec[key];
+      if (nested && typeof nested === 'object') {
+        const ref = orderRefFrom(nested, 1);
+        if (ref) return ref;
+      }
+    }
+  }
+  return null;
+}
+
+/** A refusal reason when a 2xx reply still says the order was not taken. */
+export function rejectionFrom(body: unknown): string | null {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const rec = body as Record<string, unknown>;
+  const success = rec.success ?? rec.Success ?? rec.isSuccess ?? rec.IsSuccess;
+  const status = String(rec.status ?? rec.Status ?? '').toUpperCase();
+  if (success !== false && !['REJECTED', 'DECLINED', 'ERROR', 'FAILED', 'FAILURE'].includes(status)) {
+    return null;
+  }
+  const reason =
+    rec.rejectionReason ?? rec.message ?? rec.Message ?? rec.error ?? rec.Error ?? rec.errors ?? rec.Errors;
+  if (typeof reason === 'string' && reason.trim()) return reason.trim();
+  return reason !== undefined
+    ? `Uneek did not accept the order: ${JSON.stringify(reason).slice(0, 300)}`
+    : 'Uneek did not accept the order';
+}
+
+function firstString(rec: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const k of keys) {
+    const v = rec[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  }
+  return undefined;
 }
 
 // ============================================================
@@ -275,65 +332,48 @@ export class UneekConnector implements SupplierConnector {
   }
 
   async placeOrder(req: SupplierOrderRequest): Promise<SupplierOrderResponse> {
-    const url = joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.ordersCreate);
-    const body = mapOrderRequestToUpstream(req);
-    const upstream = await this.requestJson<UneekOrderResponse>('POST', url, body, {
+    const url = joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.orderCreate);
+    const body = mapOrderRequestToUpstream(req, { deliveryMethod: getEnv().UNEEK_DELIVERY_METHOD });
+    const upstream = await this.requestJson<unknown>('POST', url, body, {
       timeoutMs: ORDER_TIMEOUT_MS,
       idempotencyKey: req.idempotencyKey,
+      allowNonJson: true,
     });
-    const upstreamStatus = (upstream.status ?? '').toUpperCase();
-    const orderRef = upstream.orderRef ?? upstream.reference ?? upstream.id ?? upstream.orderId ?? '';
-    if (upstreamStatus === 'REJECTED' || upstreamStatus === 'DECLINED') {
-      throw new SupplierRejectedOrderError(
-        upstream.rejectionReason ?? `Order rejected by supplier${orderRef ? ` (ref ${orderRef})` : ''}`,
-        { raw: upstream },
-      );
+    const rejection = rejectionFrom(upstream);
+    if (rejection) {
+      throw new SupplierRejectedOrderError(rejection, { raw: upstream });
     }
     return {
-      orderRef,
+      // With no order number in the reply, our own reference still finds
+      // the order through GET /orders?reference=.
+      orderRef: orderRefFrom(upstream) ?? body.orderReference,
       status: 'ACCEPTED',
-      etaDays:
-        upstream.etaMinDays !== undefined && upstream.etaMaxDays !== undefined
-          ? { min: upstream.etaMinDays, max: upstream.etaMaxDays }
-          : undefined,
       raw: upstream,
     };
   }
 
+  /** Looks the order up by the reference we sent. Field names are guesses
+   *  until a live reply has been seen; unknown fields fall back to UNKNOWN. */
   async getOrderStatus(orderRef: string): Promise<SupplierOrderStatus> {
-    const url = joinUrl(this.ctx.apiBaseUrl, `${ENDPOINTS.ordersStatus}/${encodeURIComponent(orderRef)}`);
-    const body = await this.requestJson<{
-      status?: string;
-      trackingCarrier?: string;
-      trackingNumber?: string;
-      shippedAt?: string;
-      deliveredAt?: string;
-    }>('GET', url, undefined);
+    const url = `${joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.ordersSearch)}?reference=${encodeURIComponent(orderRef)}`;
+    const body = await this.requestJson<unknown>('GET', url, undefined, { allowNonJson: true });
+    const rows = Array.isArray(body) ? body : body && typeof body === 'object' ? [body] : [];
+    const row = (rows[0] ?? {}) as Record<string, unknown>;
     return {
       orderRef,
-      status: body.status ?? 'UNKNOWN',
-      trackingCarrier: body.trackingCarrier,
-      trackingNumber: body.trackingNumber,
-      shippedAt: body.shippedAt ? new Date(body.shippedAt) : undefined,
-      deliveredAt: body.deliveredAt ? new Date(body.deliveredAt) : undefined,
+      status: firstString(row, 'status', 'Status', 'orderStatus', 'OrderStatus') ?? 'UNKNOWN',
+      trackingCarrier: firstString(row, 'carrier', 'Carrier', 'courier', 'Courier'),
+      trackingNumber: firstString(row, 'trackingNo', 'TrackingNo', 'trackingNumber', 'TrackingNumber'),
       raw: body,
     };
   }
 
   async cancelOrder(orderRef: string): Promise<{ ok: boolean; reason?: string }> {
-    const url = joinUrl(
-      this.ctx.apiBaseUrl,
-      `${ENDPOINTS.ordersCancel}/${encodeURIComponent(orderRef)}/cancel`,
-    );
-    try {
-      await this.requestJson<unknown>('POST', url, {});
-      return { ok: true };
-    } catch (err) {
-      if (err instanceof SupplierBadRequestError) {
-        return { ok: false, reason: err.message };
-      }
-      throw err;
-    }
+    // Uneek's API has no cancel endpoint.
+    return {
+      ok: false,
+      reason: `Uneek's API cannot cancel orders; ask Uneek to cancel order ${orderRef}.`,
+    };
   }
 
   // ----------------------------------------------------------
@@ -344,7 +384,7 @@ export class UneekConnector implements SupplierConnector {
     method: 'GET' | 'POST',
     url: string,
     body: unknown,
-    opts: { timeoutMs?: number; idempotencyKey?: string } = {},
+    opts: { timeoutMs?: number; idempotencyKey?: string; allowNonJson?: boolean } = {},
   ): Promise<T> {
     const timeoutMs = opts.timeoutMs ?? this.ctx.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const ctrl = new AbortController();
@@ -382,6 +422,12 @@ export class UneekConnector implements SupplierConnector {
         raw: parsed ?? text,
       });
     }
+    if (res.status === 429) {
+      throw new SupplierUpstreamError('Uneek rate limit exceeded (429)', {
+        status: 429,
+        raw: parsed ?? text,
+      });
+    }
     if (res.status >= 400 && res.status < 500) {
       throw new SupplierBadRequestError(
         `Uneek bad request (${res.status}): ${text.slice(0, 200)}`,
@@ -395,6 +441,9 @@ export class UneekConnector implements SupplierConnector {
       });
     }
     if (parsed === undefined) {
+      // The order endpoints declare no response body, so a 2xx with plain
+      // text (or nothing) still means success there.
+      if (opts.allowNonJson) return text as T;
       throw new SupplierUpstreamError('Uneek returned a non-JSON body', {
         status: res.status,
         raw: text,
@@ -408,32 +457,74 @@ export class UneekConnector implements SupplierConnector {
 // Field mapping helpers (request side)
 // ============================================================
 
-interface UneekOrderRequestBody {
-  reference: string;
-  shipping: {
-    name: string;
-    addressLine1: string;
-    addressLine2?: string;
-    city: string;
-    region?: string;
-    postCode: string;
-    country: string;
+/** Uneek's `APIOrderRequest`, from the Swagger spec. No field is marked required. */
+export interface UneekOrderRequestBody {
+  email: string;
+  orderReference: string;
+  orderNotes: string;
+  specialInstructions: string;
+  lineItems: Array<{
+    sku: string;
+    orderLineRef: string;
+    quantity: number;
+    autoBackOrder: boolean;
+  }>;
+  delivery: {
+    deliveryAddress: {
+      deliveryAccountName: string;
+      addressLine1: string;
+      addressLine2: string;
+      townCity: string;
+      postcode: string;
+      countryCode: string;
+      countryName: string;
+    };
+    deliveryOption: {
+      plainCover: boolean;
+      deliveryMethod: string;
+    };
   };
-  lines: Array<{ sku: string; quantity: number }>;
 }
 
-export function mapOrderRequestToUpstream(req: SupplierOrderRequest): UneekOrderRequestBody {
+/**
+ * Map our neutral order onto Uneek's `APIOrderRequest`.
+ *
+ * - `plainCover: true`: the parcel carries no Uneek branding.
+ * - `autoBackOrder: false`: a line Uneek cannot fill fails now rather than
+ *   waiting silently at Uneek.
+ * - `email` is our contact address, not the customer's.
+ * - Uneek's address has no phone field, so the recipient's phone goes in
+ *   `specialInstructions` for the courier.
+ */
+export function mapOrderRequestToUpstream(
+  req: SupplierOrderRequest,
+  opts: { deliveryMethod?: string } = {},
+): UneekOrderRequestBody {
   return {
-    reference: req.customerOrderRef,
-    shipping: {
-      name: req.shipping.name,
-      addressLine1: req.shipping.line1,
-      addressLine2: req.shipping.line2,
-      city: req.shipping.city,
-      region: req.shipping.region,
-      postCode: req.shipping.postCode,
-      country: req.shipping.country,
+    email: req.contactEmail ?? '',
+    orderReference: req.customerOrderRef,
+    orderNotes: '',
+    specialInstructions: req.contactPhone ? `Recipient phone: ${req.contactPhone}` : '',
+    lineItems: req.lines.map((l, i) => ({
+      sku: l.supplierSku,
+      orderLineRef: String(i + 1),
+      quantity: l.qty,
+      autoBackOrder: false,
+    })),
+    delivery: {
+      deliveryAddress: {
+        deliveryAccountName: req.shipping.name,
+        addressLine1: req.shipping.line1,
+        addressLine2: req.shipping.line2 ?? '',
+        townCity: req.shipping.city,
+        postcode: req.shipping.postCode,
+        countryCode: countryCodeFor(req.shipping.country),
+        countryName: countryNameFor(req.shipping.country),
+      },
+      deliveryOption: {
+        plainCover: true,
+        deliveryMethod: opts.deliveryMethod ?? '',
+      },
     },
-    lines: req.lines.map((l) => ({ sku: l.supplierSku, quantity: l.qty })),
   };
 }

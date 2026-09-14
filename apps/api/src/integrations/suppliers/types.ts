@@ -53,6 +53,10 @@ export interface SupplierOrderRequest {
   customerOrderRef: string;
   shipping: SupplierOrderShippingAddress;
   lines: SupplierOrderLine[];
+  /** Our contact email for the supplier's queries about the order. */
+  contactEmail?: string;
+  /** The recipient's phone number, for the courier. */
+  contactPhone?: string;
 }
 
 export interface SupplierOrderResponse {

@@ -8,11 +8,11 @@ Documentation: <https://api.uneekclothing.com/docs/index.html> (account required
 |---|---|---|
 | `GET /stockLevel/all` | ✅ verified 2026-05-11 | full-catalogue stock; no per-SKU filter; double-JSON-encoded body |
 | `GET /productdata/all` | ✅ verified 2026-05-11 | full product catalogue (family + variants + prices + images); used by the importer |
-| `POST /orders` (placement) | ⚠️ unverified | assumed shape; path may differ |
-| `GET /orders/<ref>` (status) | ⚠️ unverified | |
-| `POST /orders/<ref>/cancel` | ⚠️ unverified | |
+| `POST /Order` (placement) | 📄 from the Swagger spec, 2026-09-14 | request shape documented; response not documented; not yet sent live |
+| `GET /orders?reference=` (lookup) | 📄 from the Swagger spec | response not documented |
+| cancel | ❌ none | the API has no cancel endpoint |
 
-When you next hit a real order endpoint with curl, share the request + response shape and we'll lock the rest of the connector down.
+The full spec is at <https://api.uneekclothing.com/swagger/v1/swagger.json>. The first live order should be checked by hand: what the reply looks like, and which `deliveryMethod` code Uneek expects.
 
 ## Authentication
 
@@ -140,29 +140,38 @@ DATABASE_URL=... npm run import:uneek-products -w @smmta/api -- \
 
 Always run `--dry-run` first to inspect the plan. See `apps/api/scripts/import-uneek-products.ts` for the full mapping logic.
 
-### `POST /orders` — order placement (unverified)
+### `POST /Order` — order placement
 
-Assumed request body:
+Capital O. Request body `APIOrderRequest`, as the connector sends it:
 
 ```json
 {
-  "reference": "<our customer order number>",
-  "shipping": {
-    "name": "...",
-    "addressLine1": "...",
-    "city": "...",
-    "postCode": "...",
-    "country": "GB"
-  },
-  "lines": [{ "sku": "X03WH2XL", "quantity": 2 }]
+  "email": "<SUPPLIER_ORDER_CONTACT_EMAIL — ours, not the customer's>",
+  "orderReference": "STORE-XXXXXXXXXXXX",
+  "orderNotes": "",
+  "specialInstructions": "Recipient phone: <phone, when given>",
+  "lineItems": [{ "sku": "X03WH2XL", "orderLineRef": "1", "quantity": 2, "autoBackOrder": false }],
+  "delivery": {
+    "deliveryAddress": {
+      "deliveryAccountName": "...", "addressLine1": "...", "addressLine2": "...",
+      "townCity": "...", "postcode": "...", "countryCode": "GB", "countryName": "United Kingdom"
+    },
+    "deliveryOption": { "plainCover": true, "deliveryMethod": "<UNEEK_DELIVERY_METHOD>" }
+  }
 }
 ```
 
-Assumed response: `{ orderRef, status: "ACCEPTED" | "REJECTED", rejectionReason?, etaMinDays?, etaMaxDays? }`. **Field names need verifying** against the live API.
+- The spec lists no values for `deliveryMethod`. It comes from the `UNEEK_DELIVERY_METHOD` env var (empty by default). **Ask Uneek for the code.**
+- The address has no county or phone field, so the county is dropped and the phone goes in `specialInstructions`.
+- The spec declares no response body. The connector takes the order number from the usual field names (`OrderNumber`, `SalesOrderNumber`, `orderRef`, `id`…) or a bare string, and otherwise records our `orderReference`, which `GET /orders?reference=` can find. A 2xx whose body says `success: false` or `status: REJECTED` is treated as a refusal.
 
-### `GET /orders/<ref>` and `POST /orders/<ref>/cancel`
+### `GET /orders?reference=` — lookup
 
-Both unverified. The connector's shape is reasonable for a REST API but needs confirming once Roger has the order-side docs.
+Also takes `date`, `invoice_no`, `shipment_no` and `tracking_no`. The response is undocumented; `getOrderStatus` reads `Status` and `TrackingNo`-style fields when present.
+
+### Cancelling
+
+Not possible through the API. `cancelOrder` returns `ok: false` with a note to ask Uneek.
 
 ## Error mapping
 
@@ -170,9 +179,10 @@ Both unverified. The connector's shape is reasonable for a REST API but needs co
 |---|---|---|
 | 401 / 403 | `SupplierAuthError` | Don't retry; alert ops; check the API key in admin |
 | 4xx (other) | `SupplierBadRequestError` | Don't retry; bug to investigate |
-| 5xx | `SupplierUpstreamError` | Retry with exponential backoff |
-| Network / timeout | `SupplierUnreachableError` | Retry with exponential backoff |
-| `status: "REJECTED"` body | `SupplierRejectedOrderError` | Don't retry; surface to ops |
+| 429 | `SupplierUpstreamError` (status 429) | Retry with exponential backoff |
+| 5xx | `SupplierUpstreamError` | Stock polls retry. Orders retry only on 503; any other 5xx may have created the order, so it is FAILED for a person to check |
+| Network / timeout | `SupplierUnreachableError` | Stock polls retry. Orders retry only when the connection never opened (refused, DNS); a timeout is FAILED for a person to check |
+| `success: false` / `status: "REJECTED"` body | `SupplierRejectedOrderError` | Don't retry; surface to ops |
 
 ## Verification checklist (run before declaring a deploy fully wired)
 
@@ -183,4 +193,5 @@ Both unverified. The connector's shape is reasonable for a REST API but needs co
 
 ## Last reviewed
 
-2026-05-11 — stock endpoint verified live; order endpoints still pending.
+2026-05-11 — stock endpoint verified live.
+2026-09-14 — order placement rewritten from the Swagger spec; not yet sent live.

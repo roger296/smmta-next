@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   UneekConnector,
   mapOrderRequestToUpstream,
+  orderRefFrom,
   parseJsonBody,
 } from './uneek.connector.js';
 import {
@@ -257,44 +258,72 @@ describe('UneekConnector — auth scheme variants', () => {
   });
 });
 
+const ORDER = {
+  idempotencyKey: 'idem-abc',
+  customerOrderRef: 'STORE-ABC123',
+  shipping: { name: 'Pat Buyer', line1: '1 Test St', city: 'London', postCode: 'SW1A 1AA', country: 'GB' },
+  lines: [{ supplierSku: 'SKU-A', qty: 2 }],
+  contactEmail: 'sales@example.invalid',
+};
+
 describe('UneekConnector.placeOrder', () => {
-  it('forwards the idempotency key; ACCEPTED upstream → ACCEPTED response', async () => {
-    const calls = mockFetch(() =>
-      jsonResponse({ orderRef: 'UNEEK-99', status: 'ACCEPTED', etaMinDays: 2, etaMaxDays: 5 }),
-    );
+  it('POSTs an APIOrderRequest to /Order and reads the order number', async () => {
+    const calls = mockFetch(() => jsonResponse({ OrderNumber: 'SO123456' }));
     const c = new UneekConnector(ctx);
-    const r = await c.placeOrder({
-      idempotencyKey: 'idem-abc',
-      customerOrderRef: 'CUST-1',
-      shipping: {
-        name: 'Pat Buyer',
-        line1: '1 Test St',
-        city: 'London',
-        postCode: 'SW1A 1AA',
-        country: 'GB',
-      },
-      lines: [{ supplierSku: 'SKU-A', qty: 2 }],
-    });
+    const r = await c.placeOrder(ORDER);
     expect(r.status).toBe('ACCEPTED');
-    expect(r.orderRef).toBe('UNEEK-99');
-    expect(r.etaDays).toEqual({ min: 2, max: 5 });
+    expect(r.orderRef).toBe('SO123456');
+    expect(calls[0]!.url).toBe('https://api.uneekclothing.example/Order');
+    expect(calls[0]!.init.method).toBe('POST');
+    const sent = JSON.parse(String(calls[0]!.init.body)) as { orderReference: string; email: string };
+    expect(sent.orderReference).toBe('STORE-ABC123');
+    expect(sent.email).toBe('sales@example.invalid');
     const h = calls[0]!.init.headers as Record<string, string>;
     expect(h['Idempotency-Key']).toBe('idem-abc');
   });
 
-  it('throws SupplierRejectedOrderError when upstream returns REJECTED', async () => {
-    mockFetch(() =>
-      jsonResponse({ orderRef: 'UNEEK-99', status: 'REJECTED', rejectionReason: 'OOS' }),
-    );
-    const c = new UneekConnector(ctx);
-    await expect(
-      c.placeOrder({
-        idempotencyKey: 'k',
-        customerOrderRef: 'CUST',
-        shipping: { name: 'X', line1: 'L', city: 'C', postCode: 'P', country: 'GB' },
-        lines: [{ supplierSku: 'X', qty: 1 }],
-      }),
-    ).rejects.toThrow(SupplierRejectedOrderError);
+  it('accepts a 200 with no JSON body and falls back to our reference', async () => {
+    mockFetch(() => rawResponse('', 200));
+    const r = await new UneekConnector(ctx).placeOrder(ORDER);
+    expect(r).toMatchObject({ status: 'ACCEPTED', orderRef: 'STORE-ABC123' });
+  });
+
+  it('reads a bare order number string', async () => {
+    mockFetch(() => rawResponse('SO-778', 200));
+    const r = await new UneekConnector(ctx).placeOrder(ORDER);
+    expect(r.orderRef).toBe('SO-778');
+  });
+
+  it('throws SupplierRejectedOrderError when a 200 reply says it failed', async () => {
+    mockFetch(() => jsonResponse({ success: false, message: 'SKU-A is discontinued' }));
+    await expect(new UneekConnector(ctx).placeOrder(ORDER)).rejects.toThrow(/discontinued/);
+    mockFetch(() => jsonResponse({ status: 'REJECTED', rejectionReason: 'OOS' }));
+    await expect(new UneekConnector(ctx).placeOrder(ORDER)).rejects.toThrow(SupplierRejectedOrderError);
+  });
+
+  it('429 → SupplierUpstreamError with status 429, safe for the placer to retry', async () => {
+    mockFetch(() => jsonResponse({ error: 'slow down' }, 429));
+    const err = await new UneekConnector(ctx).placeOrder(ORDER).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SupplierUpstreamError);
+    expect((err as SupplierUpstreamError).status).toBe(429);
+  });
+});
+
+describe('orderRefFrom', () => {
+  it('finds common order-number fields, one level deep', () => {
+    expect(orderRefFrom({ orderNumber: 42 })).toBe('42');
+    expect(orderRefFrom({ data: { SalesOrderNumber: 'SO9' } })).toBe('SO9');
+    expect(orderRefFrom({ message: 'Order created' })).toBeNull();
+    expect(orderRefFrom('Order created successfully')).toBeNull();
+  });
+});
+
+describe('UneekConnector.getOrderStatus', () => {
+  it('searches /orders by reference', async () => {
+    const calls = mockFetch(() => jsonResponse([{ Status: 'Despatched', TrackingNo: 'DPD123' }]));
+    const r = await new UneekConnector(ctx).getOrderStatus('STORE-ABC123');
+    expect(calls[0]!.url).toBe('https://api.uneekclothing.example/orders?reference=STORE-ABC123');
+    expect(r).toMatchObject({ status: 'Despatched', trackingNumber: 'DPD123' });
   });
 });
 
@@ -327,56 +356,60 @@ describe('UneekConnector — error classification', () => {
 });
 
 describe('mapOrderRequestToUpstream', () => {
-  it('maps shipping + line names into Uneek shape', () => {
-    const out = mapOrderRequestToUpstream({
-      idempotencyKey: 'k',
-      customerOrderRef: 'ORD-1',
-      shipping: {
-        name: 'Pat',
-        line1: 'A',
-        line2: 'B',
-        city: 'C',
-        region: 'R',
-        postCode: 'PC',
-        country: 'GB',
+  it('maps our order onto Uneek\'s APIOrderRequest', () => {
+    const out = mapOrderRequestToUpstream(
+      {
+        idempotencyKey: 'k',
+        customerOrderRef: 'ORD-1',
+        shipping: {
+          name: 'Pat',
+          line1: 'A',
+          line2: 'B',
+          city: 'C',
+          region: 'R',
+          postCode: 'PC',
+          country: 'UK',
+        },
+        lines: [
+          { supplierSku: 'X', qty: 2 },
+          { supplierSku: 'Y', qty: 5 },
+        ],
+        contactEmail: 'sales@example.invalid',
+        contactPhone: '07700 900123',
       },
-      lines: [
-        { supplierSku: 'X', qty: 2 },
-        { supplierSku: 'Y', qty: 5 },
-      ],
-    });
+      { deliveryMethod: 'STD' },
+    );
     expect(out).toEqual({
-      reference: 'ORD-1',
-      shipping: {
-        name: 'Pat',
-        addressLine1: 'A',
-        addressLine2: 'B',
-        city: 'C',
-        region: 'R',
-        postCode: 'PC',
-        country: 'GB',
-      },
-      lines: [
-        { sku: 'X', quantity: 2 },
-        { sku: 'Y', quantity: 5 },
+      email: 'sales@example.invalid',
+      orderReference: 'ORD-1',
+      orderNotes: '',
+      specialInstructions: 'Recipient phone: 07700 900123',
+      lineItems: [
+        { sku: 'X', orderLineRef: '1', quantity: 2, autoBackOrder: false },
+        { sku: 'Y', orderLineRef: '2', quantity: 5, autoBackOrder: false },
       ],
+      delivery: {
+        deliveryAddress: {
+          deliveryAccountName: 'Pat',
+          addressLine1: 'A',
+          addressLine2: 'B',
+          townCity: 'C',
+          postcode: 'PC',
+          countryCode: 'GB',
+          countryName: 'United Kingdom',
+        },
+        deliveryOption: { plainCover: true, deliveryMethod: 'STD' },
+      },
     });
   });
 });
 
 describe('UneekConnector.cancelOrder', () => {
-  it('returns ok=true on 200', async () => {
-    mockFetch(() => jsonResponse({}));
-    const c = new UneekConnector(ctx);
-    const r = await c.cancelOrder('UNEEK-1');
-    expect(r).toEqual({ ok: true });
-  });
-
-  it('returns ok=false with the reason when the supplier 4xxs', async () => {
-    mockFetch(() => jsonResponse({ error: 'already shipped' }, 409));
-    const c = new UneekConnector(ctx);
-    const r = await c.cancelOrder('UNEEK-1');
+  it('reports that Uneek cannot cancel through the API, without calling it', async () => {
+    const calls = mockFetch(() => jsonResponse({}));
+    const r = await new UneekConnector(ctx).cancelOrder('UNEEK-1');
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/already shipped/i);
+    expect(r.reason).toMatch(/cannot cancel/i);
+    expect(calls).toHaveLength(0);
   });
 });

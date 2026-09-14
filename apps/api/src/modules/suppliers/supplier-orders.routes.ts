@@ -76,6 +76,10 @@ export async function supplierOrdersRoutes(app: FastifyInstance) {
         retryCount: 0,
         nextRetryAt: null,
         errorMessage: null,
+        // A person has checked the supplier, so this is a fresh attempt: the
+        // placer treats a sent request with no recorded outcome as unknown.
+        requestPayload: null,
+        responsePayload: null,
         updatedAt: new Date(),
       })
       .where(eq(supplierOrders.id, id));

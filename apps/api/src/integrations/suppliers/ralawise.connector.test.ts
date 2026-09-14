@@ -682,9 +682,22 @@ describe('mapOrderRequestToRalawise', () => {
       townCity: 'C',
       postcode: 'PC',
       countryCode: 'GB',
-      countryName: 'R',
+      countryName: 'United Kingdom',
     });
     expect(out.lineItems[0]!.autoBackOrder).toBe(false);
+    expect(out).not.toHaveProperty('contactPhone');
+  });
+
+  it('passes the recipient phone as contactPhone', () => {
+    const out = mapOrderRequestToRalawise({
+      idempotencyKey: 'k',
+      customerOrderRef: 'ORD-1',
+      shipping: { name: 'X', line1: 'L', city: 'C', postCode: 'P', country: 'UK' },
+      lines: [{ supplierSku: 'X', qty: 1 }],
+      contactPhone: '07700 900123',
+    });
+    expect(out.contactPhone).toBe('07700 900123');
+    expect(out.delivery.deliveryAddress.countryCode).toBe('GB');
   });
 
   it('truncates a long customerOrderRef to 20 chars (Ralawise schema limit)', () => {
