@@ -24,6 +24,8 @@ import {
   products,
   shippingLabels,
   stockItems,
+  supplierOrders,
+  suppliers,
   warehouses,
 } from '../../db/schema/index.js';
 import { wipeCompany } from '../../../test/fixtures/stock.js';
@@ -116,8 +118,55 @@ async function makeOrder(opts: { allocate?: boolean; label?: boolean; pickNote?:
   return orderId;
 }
 
+const SUPPLIER_SLUG = 'ship-test-supplier';
+let supplierId: string;
+
+/** An order whose only line a supplier ships: no stock, label or pick note. */
+async function makeDropShipOrder() {
+  const db = getDb();
+  seq++;
+  const [order] = await db
+    .insert(customerOrders)
+    .values({
+      companyId: COMPANY_ID,
+      orderNumber: `TEST-SHIP-${seq}`,
+      customerId,
+      deliveryAddressId: addressId,
+      orderDate: '2026-09-10',
+      status: 'ALLOCATED',
+      sourceChannel: 'API',
+      orderTotal: '24.56',
+      taxTotal: '4.91',
+      deliveryCharge: '4.95',
+      grandTotal: '29.51',
+    })
+    .returning();
+  await db.insert(orderLines).values({
+    orderId: order!.id,
+    productId,
+    quantity: 2,
+    pricePerUnit: '12.28',
+    lineTotal: '24.56',
+    taxRate: 20,
+    taxValue: '4.09',
+    fulfilmentSource: 'SUPPLIER',
+    supplierId,
+  });
+  return order!.id;
+}
+
+async function addSupplierOrder(orderId: string, status: 'PLACED' | 'SHIPPED' | 'CANCELLED') {
+  const [row] = await getDb()
+    .insert(supplierOrders)
+    .values({ companyId: COMPANY_ID, customerOrderId: orderId, supplierId, idempotencyKey: randomUUID(), status })
+    .returning();
+  return row!.id;
+}
+
 async function cleanup() {
   const db = getDb();
+  await db.delete(supplierOrders).where(eq(supplierOrders.companyId, COMPANY_ID));
+  await db.delete(suppliers).where(eq(suppliers.slug, SUPPLIER_SLUG));
   const invs = await db.select({ id: invoices.id }).from(invoices).where(eq(invoices.companyId, COMPANY_ID));
   if (invs.length > 0) await db.delete(invoiceLines).where(inArray(invoiceLines.invoiceId, invs.map((i) => i.id)));
   await db.delete(invoices).where(eq(invoices.companyId, COMPANY_ID));
@@ -149,6 +198,8 @@ beforeAll(async () => {
   productId = product!.id;
   const [wh] = await db.insert(warehouses).values({ companyId: COMPANY_ID, name: 'Ship test warehouse' }).returning();
   warehouseId = wh!.id;
+  const [supplier] = await db.insert(suppliers).values({ companyId: COMPANY_ID, name: 'Ship test supplier', slug: SUPPLIER_SLUG }).returning();
+  supplierId = supplier!.id;
 });
 
 afterAll(async () => {
@@ -236,6 +287,52 @@ describe('ShipOrderService.ship', () => {
   });
 });
 
+describe('ShipOrderService.shipDropShipOrder', () => {
+  it('waits for every supplier order, then ships with the supplier tracking, invoice and event', async () => {
+    const orderId = await makeDropShipOrder();
+    await addSupplierOrder(orderId, 'SHIPPED');
+    const second = await addSupplierOrder(orderId, 'PLACED');
+    await addSupplierOrder(orderId, 'CANCELLED');
+    const { ship } = services();
+
+    expect(await ship.shipDropShipOrder(orderId, COMPANY_ID, { courierName: 'DPD', trackingNumber: 'DPD123' })).toEqual({
+      shipped: false,
+      reason: 'Waiting for 1 supplier order to ship.',
+    });
+
+    const db = getDb();
+    await db.update(supplierOrders).set({ status: 'SHIPPED' }).where(eq(supplierOrders.id, second));
+    const outcome = await ship.shipDropShipOrder(orderId, COMPANY_ID, { courierName: 'DPD', trackingNumber: 'DPD123' });
+    expect(outcome).toMatchObject({ shipped: true, result: { status: 'SHIPPED', courierName: 'DPD', trackingNumber: 'DPD123' } });
+
+    const [order] = await db.select().from(customerOrders).where(eq(customerOrders.id, orderId));
+    expect(order).toMatchObject({ status: 'SHIPPED', courierName: 'DPD', trackingNumber: 'DPD123' });
+    expect(await db.select().from(invoices).where(eq(invoices.orderId, orderId))).toHaveLength(1);
+    const events = await db
+      .select()
+      .from(domainEvents)
+      .where(and(eq(domainEvents.eventType, 'order.dispatched'), eq(domainEvents.aggregateId, orderId)));
+    expect(events).toHaveLength(1);
+
+    // Marking another supplier order shipped later changes nothing.
+    expect(await ship.shipDropShipOrder(orderId, COMPANY_ID, {})).toEqual({ shipped: false, reason: 'This order has already been shipped.' });
+  });
+
+  it('leaves an order with warehouse items to the Ship button', async () => {
+    const orderId = await makeOrder();
+    await addSupplierOrder(orderId, 'SHIPPED');
+    const outcome = await services().ship.shipDropShipOrder(orderId, COMPANY_ID, {});
+    expect(outcome).toMatchObject({ shipped: false, reason: expect.stringMatching(/Ship button/) });
+  });
+
+  it('names a fallback courier when the supplier gave none', async () => {
+    const orderId = await makeDropShipOrder();
+    await addSupplierOrder(orderId, 'SHIPPED');
+    const outcome = await services().ship.shipDropShipOrder(orderId, COMPANY_ID, { courierName: ' ', trackingNumber: null });
+    expect(outcome).toMatchObject({ shipped: true, result: { courierName: 'our delivery partner', trackingNumber: null } });
+  });
+});
+
 describe('dispatch documents', () => {
   it('combines the pick note and label into one PDF, pick note first', async () => {
     const orderId = await makeOrder();
@@ -298,5 +395,28 @@ describe('sendDispatchEmail', () => {
 
     const refusalErr = await sendDispatchEmail(orderId, COMPANY_ID, deps(refusal as unknown as typeof fetch)).catch((e: unknown) => e);
     expect(refusalErr).toBeInstanceOf(DispatchEmailRejectedError);
+  });
+
+  it('tries the next storefront when one does not know the order', async () => {
+    const orderId = await makeOrder();
+    await services().ship.ship(orderId, COMPANY_ID);
+    const storeBaseUrls = ['http://filament.test', 'http://clothes.test/'];
+    const fetchMock = vi.fn(async (url: string) =>
+      url.startsWith('http://filament.test')
+        ? new Response('{"error":"Unknown order — no local checkout row"}', { status: 404 })
+        : new Response('{"ok":true}', { status: 200 }),
+    );
+
+    expect(await sendDispatchEmail(orderId, COMPANY_ID, { fetch: fetchMock as unknown as typeof fetch, storeBaseUrls, storeKey: 'key' })).toBe('sent');
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+      'http://filament.test/api/internal/order-status',
+      'http://clothes.test/api/internal/order-status',
+    ]);
+
+    const nobody = vi.fn(async () => new Response('{"error":"Unknown order"}', { status: 404 }));
+    const err = await sendDispatchEmail(orderId, COMPANY_ID, { fetch: nobody as unknown as typeof fetch, storeBaseUrls, storeKey: 'key' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DispatchEmailRejectedError);
+    expect((err as DispatchEmailRejectedError).status).toBe(404);
+    expect(nobody).toHaveBeenCalledTimes(2);
   });
 });

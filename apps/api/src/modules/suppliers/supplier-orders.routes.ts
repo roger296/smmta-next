@@ -15,8 +15,10 @@ import { z } from 'zod';
 import { getDb } from '../../config/database.js';
 import { supplierOrders, suppliers } from '../../db/schema/index.js';
 import { requireAuth } from '../../shared/middleware/auth.js';
+import { ShipOrderNotFoundError, ShipOrderService } from '../shipping/ship-order.service.js';
 
 const idParamSchema = z.object({ id: z.string().uuid() });
+const shipOrders = new ShipOrderService();
 
 const listQuerySchema = z.object({
   status: z
@@ -112,16 +114,36 @@ export async function supplierOrdersRoutes(app: FastifyInstance) {
     const db = getDb();
     const row = await db.query.supplierOrders.findFirst({ where: eq(supplierOrders.id, id) });
     if (!row) return reply.status(404).send({ success: false, error: 'Not found' });
+    const trackingCarrier = parsed.data.trackingCarrier ?? row.trackingCarrier;
+    const trackingNumber = parsed.data.trackingNumber ?? row.trackingNumber;
     await db
       .update(supplierOrders)
       .set({
         status: 'SHIPPED',
         shippedAt: new Date(),
-        trackingCarrier: parsed.data.trackingCarrier ?? row.trackingCarrier,
-        trackingNumber: parsed.data.trackingNumber ?? row.trackingNumber,
+        trackingCarrier,
+        trackingNumber,
         updatedAt: new Date(),
       })
       .where(eq(supplierOrders.id, id));
-    return { success: true };
+
+    // An order made only of drop-shipped lines ships when its last supplier
+    // order does: invoice, SHIPPED status and the customer's shipped email.
+    const outcome = await shipOrders
+      .shipDropShipOrder(row.customerOrderId, row.companyId, { courierName: trackingCarrier, trackingNumber })
+      .catch((err: unknown) => {
+        if (err instanceof ShipOrderNotFoundError) {
+          return { shipped: false as const, reason: 'The customer order was not found.' };
+        }
+        throw err;
+      });
+    return {
+      success: true,
+      data: {
+        customerOrder: outcome.shipped
+          ? { shipped: true, orderId: outcome.result.orderId, invoiceNumber: outcome.result.invoiceNumber }
+          : { shipped: false, reason: outcome.reason },
+      },
+    };
   });
 }

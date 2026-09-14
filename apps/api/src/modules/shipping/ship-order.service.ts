@@ -15,7 +15,7 @@
  */
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
-import { customerOrders, invoices, shippingLabels, stockItems } from '../../db/schema/index.js';
+import { customerOrders, invoices, shippingLabels, stockItems, supplierOrders } from '../../db/schema/index.js';
 import { emitDomainEvent } from '../../shared/events/emit.js';
 import { courierNameFrom } from '../../integrations/smooth-parcel/smooth-parcel-client.js';
 import { InvoiceService } from '../orders/invoice.service.js';
@@ -26,6 +26,8 @@ import { ShippingLabelService } from './shipping-label.service.js';
 
 /** Shown to the customer when Smooth Parcel's reply does not name the carrier. */
 const COURIER_FALLBACK = 'Smooth Parcel';
+/** Shown when a supplier order is marked shipped without a carrier. */
+const DROP_SHIP_COURIER_FALLBACK = 'our delivery partner';
 
 const SHIPPED_STATUSES: readonly string[] = ['SHIPPED', 'PARTIALLY_SHIPPED', 'COMPLETED'];
 const BLOCKED_STATUSES: Record<string, string> = {
@@ -80,6 +82,10 @@ export interface ShipResult {
   /** Set if the invoice PDF could not be made now; it is made when first opened instead. */
   invoicePdfError: string | null;
 }
+
+export type DropShipShipOutcome =
+  | { shipped: true; result: ShipResult }
+  | { shipped: false; reason: string };
 
 export interface ShipOrderDeps {
   labels?: ShippingLabelService;
@@ -151,6 +157,56 @@ export class ShipOrderService {
 
     const label = await this.latestLabel(orderId, companyId);
     const courierName = courierNameFrom(label?.responsePayload) ?? COURIER_FALLBACK;
+    return this.commitShipment(orderId, companyId, { courierName, trackingNumber: label?.trackingNumber ?? null });
+  }
+
+  /**
+   * Ships an order made only of drop-shipped lines, once every supplier order
+   * for it has shipped. The supplier posts the parcel, so there is no label or
+   * pick note: this makes the invoice, marks the order SHIPPED with the
+   * supplier's courier and tracking number, and emits order.dispatched so the
+   * customer gets their shipped email. Called when a supplier order is marked
+   * shipped; anything not yet ready is reported, not thrown.
+   */
+  async shipDropShipOrder(
+    orderId: string,
+    companyId: string,
+    tracking: { courierName?: string | null; trackingNumber?: string | null },
+  ): Promise<DropShipShipOutcome> {
+    const order = await this.db.query.customerOrders.findFirst({
+      where: and(eq(customerOrders.id, orderId), eq(customerOrders.companyId, companyId), isNull(customerOrders.deletedAt)),
+      with: { lines: { where: (l, { isNull: isN }) => isN(l.deletedAt) } },
+    });
+    if (!order) throw new ShipOrderNotFoundError(orderId);
+    if (SHIPPED_STATUSES.includes(order.status)) return { shipped: false, reason: 'This order has already been shipped.' };
+    const blocked = BLOCKED_STATUSES[order.status];
+    if (blocked) return { shipped: false, reason: blocked };
+    if (order.lines.length === 0 || order.lines.some((l) => l.fulfilmentSource !== 'SUPPLIER')) {
+      return { shipped: false, reason: 'This order has items from the warehouse, so ship it with the Ship button.' };
+    }
+
+    const rows = await this.db
+      .select({ status: supplierOrders.status })
+      .from(supplierOrders)
+      .where(and(eq(supplierOrders.customerOrderId, orderId), isNull(supplierOrders.deletedAt)));
+    const live = rows.filter((r) => r.status !== 'CANCELLED');
+    if (live.length === 0) return { shipped: false, reason: 'This order has no supplier orders.' };
+    const waiting = live.filter((r) => r.status !== 'SHIPPED' && r.status !== 'DELIVERED').length;
+    if (waiting > 0) return { shipped: false, reason: `Waiting for ${plural(waiting, 'supplier order')} to ship.` };
+
+    const result = await this.commitShipment(orderId, companyId, {
+      courierName: tracking.courierName?.trim() || DROP_SHIP_COURIER_FALLBACK,
+      trackingNumber: tracking.trackingNumber?.trim() || null,
+    });
+    return { shipped: true, result };
+  }
+
+  /** The shipping transaction both kinds of order share, then the invoice PDF. */
+  private async commitShipment(
+    orderId: string,
+    companyId: string,
+    { courierName, trackingNumber }: { courierName: string; trackingNumber: string | null },
+  ): Promise<ShipResult> {
     const now = this.deps.now?.() ?? new Date();
     const shippedDate = now.toISOString().slice(0, 10);
 
@@ -192,7 +248,7 @@ export class ShipOrderService {
           status: 'SHIPPED',
           shippedDate,
           courierName,
-          trackingNumber: label?.trackingNumber ?? locked.trackingNumber,
+          trackingNumber: trackingNumber ?? locked.trackingNumber,
           updatedAt: now,
         })
         .where(eq(customerOrders.id, orderId));
@@ -221,7 +277,7 @@ export class ShipOrderService {
       status: 'SHIPPED',
       shippedDate,
       courierName,
-      trackingNumber: label?.trackingNumber ?? null,
+      trackingNumber,
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber ?? null,
       invoicePdfError,
