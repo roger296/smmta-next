@@ -102,6 +102,15 @@ describe('productLd', () => {
     expect(ld.offers.availability).toBe('https://schema.org/OutOfStock');
   });
 
+  it('marks InStock when only a supplier holds the item', () => {
+    const ld = productLd(
+      BASE,
+      { ...VARIANT, availableQty: 0, stockState: 'AVAILABLE_FROM_SUPPLIER' },
+      '/x',
+    ) as { offers: { availability: string } };
+    expect(ld.offers.availability).toBe('https://schema.org/InStock');
+  });
+
   it('omits price when priceGbp is null', () => {
     const ld = productLd(BASE, { ...VARIANT, priceGbp: null }, '/x') as {
       offers: { price?: string };
@@ -139,6 +148,21 @@ describe('groupProductLd', () => {
     expect(ld.offers.lowPrice).toBe('24.00');
     expect(ld.offers.highPrice).toBe('34.00');
     expect(ld.offers.offerCount).toBe(2);
+  });
+
+  it('marks the range InStock when a supplier holds any variant', () => {
+    const ld = groupProductLd(
+      BASE,
+      {
+        ...GROUP,
+        variants: [
+          { ...VARIANT, availableQty: 0, stockState: 'OUT_OF_STOCK' },
+          { ...VARIANT, id: 'v-2', availableQty: 0, stockState: 'AVAILABLE_FROM_SUPPLIER' },
+        ],
+      },
+      '/x',
+    ) as { offers: { availability: string } };
+    expect(ld.offers.availability).toBe('https://schema.org/InStock');
   });
 
   it('omits offers entirely when no variant has a price', () => {

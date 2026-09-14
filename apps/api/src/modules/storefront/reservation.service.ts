@@ -15,6 +15,12 @@
  *   HELD ── expireReservations  ──> EXPIRED, items back to IN_STOCK
  *
  * Anything not in HELD is a no-op for release and a hard failure for convert.
+ *
+ * Drop-ship lines
+ *   A product with no free warehouse stock can still be reserved when a
+ *   supplier holds enough above its stock buffer. No stock_items are held
+ *   for it; the chosen supplier is kept in `metadata.supplierLines` and the
+ *   order line is created with fulfilmentSource SUPPLIER on convert.
  */
 import { and, eq, inArray, isNull, lt } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
@@ -24,8 +30,10 @@ import {
   stockItems,
   stockReservations,
   type ReservationMetadata,
+  type ReservationSupplierLine,
 } from '../../db/schema/index.js';
 import { emitDomainEvent } from '../../shared/events/emit.js';
+import { bestSupplierAvailable, pickSupplierForProduct } from '../suppliers/pick-supplier.js';
 
 // ---------------------------------------------------------------------------
 // Types and errors
@@ -47,7 +55,11 @@ export interface CreateReservationInput {
 export interface ReservationLineResult {
   productId: string;
   quantity: number;
-  /** IDs of the stock_items rows held for this line. */
+  /** WAREHOUSE lines hold stock_items; SUPPLIER lines hold none. */
+  source: 'WAREHOUSE' | 'SUPPLIER';
+  /** The supplier a SUPPLIER line will be ordered from. */
+  supplierId?: string;
+  /** IDs of the stock_items rows held for this line (empty for SUPPLIER). */
   stockItemIds: string[];
 }
 
@@ -141,6 +153,17 @@ export class ReservationService {
     input: CreateReservationInput,
   ): Promise<ReservationResult> {
     const expiresAt = new Date(Date.now() + input.ttlSeconds * 1000);
+
+    // One line per product: all of a product's units come from one source,
+    // and the order is priced per product.
+    const qtyByProduct = new Map<string, number>();
+    for (const item of input.items) {
+      if (item.quantity <= 0 || !Number.isInteger(item.quantity)) {
+        throw new Error(`Invalid quantity for product ${item.productId}: ${item.quantity}`);
+      }
+      qtyByProduct.set(item.productId, (qtyByProduct.get(item.productId) ?? 0) + item.quantity);
+    }
+
     return this.db.transaction(async (tx) => {
       const [reservation] = await tx
         .insert(stockReservations)
@@ -155,12 +178,9 @@ export class ReservationService {
       if (!reservation) throw new Error('Failed to insert stock_reservations row');
 
       const lines: ReservationLineResult[] = [];
+      const supplierLines: ReservationSupplierLine[] = [];
 
-      for (const item of input.items) {
-        if (item.quantity <= 0 || !Number.isInteger(item.quantity)) {
-          throw new Error(`Invalid quantity for product ${item.productId}: ${item.quantity}`);
-        }
-
+      for (const [productId, quantity] of qtyByProduct) {
         // Atomically grab up to `quantity` IN_STOCK rows under
         // SELECT ... FOR UPDATE SKIP LOCKED, ordered by created_at to keep
         // FIFO behaviour with the rest of the codebase.
@@ -170,32 +190,58 @@ export class ReservationService {
           .where(
             and(
               eq(stockItems.companyId, companyId),
-              eq(stockItems.productId, item.productId),
+              eq(stockItems.productId, productId),
               eq(stockItems.status, 'IN_STOCK'),
               isNull(stockItems.deletedAt),
             ),
           )
           .orderBy(stockItems.createdAt)
-          .limit(item.quantity)
+          .limit(quantity)
           .for('update', { skipLocked: true });
 
-        if (picked.length < item.quantity) {
-          // The transaction rolls back automatically on throw; the
-          // reservation row insert is undone too.
-          throw new InsufficientStockError(item.productId, picked.length, item.quantity);
+        if (picked.length === quantity) {
+          const ids = picked.map((r) => r.id);
+          await tx
+            .update(stockItems)
+            .set({
+              status: 'RESERVED',
+              reservationId: reservation.id,
+              updatedAt: new Date(),
+            })
+            .where(inArray(stockItems.id, ids));
+
+          lines.push({ productId, quantity, source: 'WAREHOUSE', stockItemIds: ids });
+          continue;
         }
 
-        const ids = picked.map((r) => r.id);
-        await tx
-          .update(stockItems)
-          .set({
-            status: 'RESERVED',
-            reservationId: reservation.id,
-            updatedAt: new Date(),
-          })
-          .where(inArray(stockItems.id, ids));
+        // The transaction rolls back automatically on throw; the
+        // reservation row insert is undone too.
+        if (picked.length > 0) {
+          // V1 never splits a line between the warehouse and a supplier
+          // (spec §7.1), so a part-stocked line is refused.
+          throw new InsufficientStockError(productId, picked.length, quantity);
+        }
 
-        lines.push({ productId: item.productId, quantity: item.quantity, stockItemIds: ids });
+        const supplier = await pickSupplierForProduct(companyId, productId, quantity, tx);
+        if (!supplier) {
+          const available = await bestSupplierAvailable(companyId, productId, tx);
+          throw new InsufficientStockError(productId, available, quantity);
+        }
+        supplierLines.push({ productId, quantity, supplierId: supplier.supplierId });
+        lines.push({
+          productId,
+          quantity,
+          source: 'SUPPLIER',
+          supplierId: supplier.supplierId,
+          stockItemIds: [],
+        });
+      }
+
+      if (supplierLines.length > 0) {
+        await tx
+          .update(stockReservations)
+          .set({ metadata: { ...(input.metadata ?? {}), supplierLines } })
+          .where(eq(stockReservations.id, reservation.id));
       }
 
       return {
@@ -315,7 +361,7 @@ export class ReservationService {
         grouped.set(r.productId, arr);
       }
 
-      const lineRows = Array.from(grouped.entries()).map(([productId, ids]) => {
+      const lineRow = (productId: string, quantity: number) => {
         const price = inputs.linePrices[productId];
         if (!price) {
           throw new Error(
@@ -325,14 +371,26 @@ export class ReservationService {
         return {
           orderId: order.id,
           productId,
-          quantity: ids.length,
+          quantity,
           pricePerUnit: price.pricePerUnit,
           lineTotal: price.lineTotal,
           taxName: price.taxName ?? null,
           taxRate: price.taxRate ?? 0,
           taxValue: price.taxValue ?? '0',
         };
-      });
+      };
+      const lineRows: Array<typeof orderLines.$inferInsert> = Array.from(grouped.entries()).map(
+        ([productId, ids]) => ({ ...lineRow(productId, ids.length), fulfilmentSource: 'WAREHOUSE' }),
+      );
+      // Drop-shipped lines hold no stock; their supplier was chosen when the
+      // reservation was made, and the supplier order is placed from this line.
+      for (const line of reservation.metadata?.supplierLines ?? []) {
+        lineRows.push({
+          ...lineRow(line.productId, line.quantity),
+          fulfilmentSource: 'SUPPLIER',
+          supplierId: line.supplierId,
+        });
+      }
       if (lineRows.length > 0) {
         await tx.insert(orderLines).values(lineRows);
       }

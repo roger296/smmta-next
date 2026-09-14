@@ -52,6 +52,11 @@ export const suppliers = pgTable('suppliers', {
   pollIntervalMinutes: integer('poll_interval_minutes').notNull().default(180),
   dispatchSlaMinDays: integer('dispatch_sla_min_days').notNull().default(2),
   dispatchSlaMaxDays: integer('dispatch_sla_max_days').notNull().default(5),
+  /** Units of the supplier's reported stock we never sell. Their figure can
+   *  be minutes old and other retailers buy from the same pool, so an item
+   *  only shows as available, and can only be ordered, while the supplier
+   *  holds more than this many. */
+  stockBuffer: integer('stock_buffer').notNull().default(5),
   /** Published rate limit — what the supplier told us. The connector
    *  computes its inter-request delay from `(rate_limit_window_seconds
    *  * 1000 / rate_limit_requests) * SAFETY` so the operator never

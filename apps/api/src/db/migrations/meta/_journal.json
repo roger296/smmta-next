@@ -225,6 +225,13 @@
       "when": 1789397856638,
       "tag": "0031_supplier_category_hints",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789406123508,
+      "tag": "0032_supplier_stock_buffer",
+      "breakpoints": true
     }
   ]
 }

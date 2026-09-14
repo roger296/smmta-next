@@ -15,7 +15,7 @@
  *
  * Does **not** post to Luca GL — GL postings remain at invoice / payment time.
  */
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { tieredUnitPricePence } from '@smmta/shared-types';
 import { getDb } from '../../config/database.js';
 import {
@@ -163,9 +163,11 @@ export class OrderCommitService {
       });
     }
 
-    // Group held stock_items by product → line quantities.
+    // Line quantities: held stock_items for warehouse lines, plus the lines a
+    // supplier will ship, which hold no stock.
     const heldItems = reservation.stockItems.filter((s) => s.status === 'RESERVED');
-    if (heldItems.length === 0) {
+    const supplierLines = reservation.metadata?.supplierLines ?? [];
+    if (heldItems.length === 0 && supplierLines.length === 0) {
       return this.persist(companyId, idempotencyKey, 410, {
         success: false,
         error: 'Reservation has no held stock items',
@@ -175,12 +177,17 @@ export class OrderCommitService {
     for (const it of heldItems) {
       qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) ?? 0) + 1);
     }
+    for (const line of supplierLines) {
+      qtyByProduct.set(line.productId, (qtyByProduct.get(line.productId) ?? 0) + line.quantity);
+    }
 
     // -------- 3. Recompute totals from canonical product prices --------
     const productIds = Array.from(qtyByProduct.keys());
     const productRows = await this.db.query.products.findMany({
       where: and(
         eq(products.companyId, companyId),
+        // Only the reserved products: a supplier catalogue runs to 100k+ rows.
+        inArray(products.id, productIds),
         // We don't filter on isPublished here — even an unpublished product, once
         // reserved, can be committed. This protects in-flight checkouts when an
         // operator unpublishes mid-flow.

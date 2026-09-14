@@ -18,6 +18,7 @@ import { getEnv } from '@/lib/env';
 import { breadcrumbLd, productLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { Markdown } from '@/lib/markdown';
 import { AddToCartButton } from '@/components/add-to-cart-button';
+import { DISPATCH_COPY, effectiveStockState, isSellable } from '@/lib/dispatch-copy';
 
 export const revalidate = 60;
 
@@ -88,6 +89,8 @@ export default async function StandaloneProductPage({
     throw err;
   }
 
+  const stockState = effectiveStockState(product);
+  const sellable = isSellable(stockState);
   const url = `/shop/p/${product.slug ?? productSlug}`;
   const productJsonLd = stringifyJsonLd(productLd(baseUrl, product, url));
   const breadcrumb = stringifyJsonLd(
@@ -198,25 +201,26 @@ export default async function StandaloneProductPage({
 
           <p
             className={`text-sm font-medium ${
-              product.availableQty === 0
+              !sellable
                 ? 'text-[var(--brand-muted)]'
-                : product.availableQty <= 5
+                : stockState === 'IN_STOCK' && product.availableQty <= 5
                   ? 'text-[var(--brand-accent)]'
                   : 'text-[var(--brand-ink)]'
             }`}
             aria-live="polite"
           >
-            {product.availableQty > 0
+            {stockState === 'IN_STOCK'
               ? product.availableQty <= 5
                 ? `Only ${product.availableQty} left in stock.`
                 : `In stock — ${product.availableQty} available.`
-              : 'Out of stock — check back soon.'}
+              : stockState === 'AVAILABLE_FROM_SUPPLIER'
+                ? `${DISPATCH_COPY.AVAILABLE_FROM_SUPPLIER.badgeLabel} — ${DISPATCH_COPY.AVAILABLE_FROM_SUPPLIER.primary}`
+                : 'Out of stock — check back soon.'}
           </p>
 
-          <AddToCartButton
-            productId={product.id}
-            inStock={product.availableQty > 0}
-          />
+          {/* availableQty counts warehouse stock only; supplier-held items
+              are sellable too, so decide on the stock state. */}
+          <AddToCartButton productId={product.id} inStock={sellable} />
         </div>
       </div>
 

@@ -14,6 +14,7 @@ import {
   warehouses,
 } from '../../db/schema/index.js';
 import {
+  bestSupplierAvailable,
   decideLineFulfilment,
   getWarehouseFreeStock,
   pickSupplierForProduct,
@@ -60,13 +61,16 @@ beforeAll(async () => {
   const [g] = await db.insert(productGroups).values({ companyId: COMPANY, name: 'Pick Group', slug: 'pick-group' }).returning();
   const [p] = await db.insert(products).values({ companyId: COMPANY, name: 'Pick Product', slug: 'pick-product', groupId: g!.id, minSellingPrice: '10.00' }).returning();
   productId = p!.id;
+  // No stock buffer, so the routing tests read plainly; the buffer has its own tests.
   const [a] = await db.insert(suppliers).values({
     companyId: COMPANY, name: 'Supplier A (priority 50)', slug: SLUG_A,
     connectorKind: 'STUB', apiBaseUrl: 'https://stub.invalid/', apiKeyEnc: service.encryptApiKey('k'), isDropshipActive: true,
+    stockBuffer: 0,
   }).returning();
   const [b] = await db.insert(suppliers).values({
     companyId: COMPANY, name: 'Supplier B (priority 100)', slug: SLUG_B,
     connectorKind: 'STUB', apiBaseUrl: 'https://stub.invalid/', apiKeyEnc: service.encryptApiKey('k'), isDropshipActive: true,
+    stockBuffer: 0,
   }).returning();
   supplierAId = a!.id;
   supplierBId = b!.id;
@@ -182,6 +186,39 @@ describe('decideLineFulfilment', () => {
     const r = await decideLineFulfilment(COMPANY, [{ productId, qty: 1 }]);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason.error).toBe('insufficient_stock');
+  });
+});
+
+describe('supplier stock buffer', () => {
+  it('only offers what the supplier holds above its buffer', async () => {
+    const db = getDb();
+    await db.update(suppliers).set({ stockBuffer: 5 }).where(eq(suppliers.id, supplierAId));
+    await db.insert(supplierProducts).values({
+      companyId: COMPANY, productId, supplierId: supplierAId,
+      supplierSku: 'A', costGbp: '1.00', priority: 50, lastKnownStock: 8, isActive: true,
+    });
+    try {
+      expect(await pickSupplierForProduct(COMPANY, productId, 3)).toEqual({ supplierId: supplierAId, available: 3 });
+      expect(await pickSupplierForProduct(COMPANY, productId, 4)).toBeNull();
+      expect(await bestSupplierAvailable(COMPANY, productId)).toBe(3);
+    } finally {
+      await db.update(suppliers).set({ stockBuffer: 0 }).where(eq(suppliers.id, supplierAId));
+    }
+  });
+
+  it('treats stock at or below the buffer as none', async () => {
+    const db = getDb();
+    await db.update(suppliers).set({ stockBuffer: 5 }).where(eq(suppliers.id, supplierAId));
+    await db.insert(supplierProducts).values({
+      companyId: COMPANY, productId, supplierId: supplierAId,
+      supplierSku: 'A', costGbp: '1.00', priority: 50, lastKnownStock: 5, isActive: true,
+    });
+    try {
+      expect(await pickSupplierForProduct(COMPANY, productId, 1)).toBeNull();
+      expect(await bestSupplierAvailable(COMPANY, productId)).toBe(0);
+    } finally {
+      await db.update(suppliers).set({ stockBuffer: 0 }).where(eq(suppliers.id, supplierAId));
+    }
   });
 });
 
