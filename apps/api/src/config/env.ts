@@ -161,6 +161,10 @@ const envSchema = z.object({
   // stays pending and a subsequent trigger retries when the env is set).
   STORE_BASE_URL: z.string().default(''),
   STORE_INTERNAL_API_KEY: z.string().default(''),
+  /** The Clothes Shop's internal origin. Shipped emails go to whichever
+   *  storefront knows the order: STORE_BASE_URL first, then this. It checks
+   *  the same STORE_INTERNAL_API_KEY. Empty skips it. */
+  CLOTHES_STORE_INTERNAL_URL: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

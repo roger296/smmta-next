@@ -6,6 +6,11 @@
  * confirmations. Its enqueue is idempotent per order, so a retry after a lost
  * response cannot send the customer two emails.
  *
+ * Each storefront knows only its own orders (it looks the order up in its own
+ * checkouts) and answers 404 for anyone else's, so the request goes to the
+ * Filament Store (STORE_BASE_URL) first and then the Clothes Shop
+ * (CLOTHES_STORE_INTERNAL_URL) until one takes it.
+ *
  * Only orders we sold directly are emailed: storefront orders (source API) and
  * admin-created orders (MANUAL). Amazon, eBay and Etsy send their own shipping
  * notices and restrict contacting their buyers directly, and Shopify and
@@ -34,7 +39,10 @@ export class DispatchEmailRejectedError extends Error {
 
 export interface DispatchEmailDeps {
   fetch?: typeof fetch;
+  /** One storefront to try. */
   storeBaseUrl?: string;
+  /** Storefronts to try in order; wins over storeBaseUrl. */
+  storeBaseUrls?: string[];
   storeKey?: string;
   timeoutMs?: number;
 }
@@ -56,9 +64,14 @@ export async function sendDispatchEmail(
   if (!email) return 'no-customer-email';
 
   const env = getEnv();
-  const base = (deps.storeBaseUrl ?? env.STORE_BASE_URL).replace(/\/+$/, '');
+  const bases = (
+    deps.storeBaseUrls ??
+    (deps.storeBaseUrl !== undefined ? [deps.storeBaseUrl] : [env.STORE_BASE_URL, env.CLOTHES_STORE_INTERNAL_URL])
+  )
+    .map((b) => b.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
   const key = deps.storeKey ?? env.STORE_INTERNAL_API_KEY;
-  if (!base || !key) {
+  if (bases.length === 0 || !key) {
     throw new Error('STORE_BASE_URL / STORE_INTERNAL_API_KEY are not configured, so the shipped email cannot be handed to the storefront');
   }
 
@@ -75,21 +88,30 @@ export async function sendDispatchEmail(
     courierName: order.courierName ?? undefined,
   };
 
-  let res: Response;
-  try {
-    res = await (deps.fetch ?? fetch)(`${base}/api/internal/order-status`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(deps.timeoutMs ?? 15_000),
-    });
-  } catch (err) {
-    throw new Error(`Could not reach the storefront to send the shipped email: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  if (res.ok) return 'sent';
+  let notFound = '';
+  for (const base of bases) {
+    let res: Response;
+    try {
+      res = await (deps.fetch ?? fetch)(`${base}/api/internal/order-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(deps.timeoutMs ?? 15_000),
+      });
+    } catch (err) {
+      throw new Error(`Could not reach the storefront at ${base} to send the shipped email: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (res.ok) return 'sent';
 
-  const text = await res.text().catch(() => '');
-  // A storefront outage is worth retrying; a refusal of this request is not.
-  if (res.status >= 500) throw new Error(`The storefront returned ${res.status} for the shipped email: ${text.slice(0, 200)}`);
-  throw new DispatchEmailRejectedError(res.status, text);
+    const text = await res.text().catch(() => '');
+    // This storefront did not take the order; the next one may have.
+    if (res.status === 404) {
+      notFound = text;
+      continue;
+    }
+    // A storefront outage is worth retrying; a refusal of this request is not.
+    if (res.status >= 500) throw new Error(`The storefront at ${base} returned ${res.status} for the shipped email: ${text.slice(0, 200)}`);
+    throw new DispatchEmailRejectedError(res.status, text);
+  }
+  throw new DispatchEmailRejectedError(404, notFound || 'No storefront knows this order');
 }
