@@ -15,7 +15,7 @@
  *
  * Does **not** post to Luca GL — GL postings remain at invoice / payment time.
  */
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { tieredUnitPricePence } from '@smmta/shared-types';
 import { getDb } from '../../config/database.js';
 import {
@@ -181,6 +181,8 @@ export class OrderCommitService {
     const productRows = await this.db.query.products.findMany({
       where: and(
         eq(products.companyId, companyId),
+        // Only the reserved products: a supplier catalogue runs to 100k+ rows.
+        inArray(products.id, productIds),
         // We don't filter on isPublished here — even an unpublished product, once
         // reserved, can be committed. This protects in-flight checkouts when an
         // operator unpublishes mid-flow.
