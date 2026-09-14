@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parse as csvParse } from 'csv-parse/sync';
 import {
+  DEFAULT_MARKUP,
   applyMarkup,
   normaliseRow,
   parseDecimal,
@@ -58,6 +59,10 @@ describe('parseDecimal', () => {
 });
 
 describe('applyMarkup', () => {
+  it('defaults to cost × 1.35', () => {
+    expect(DEFAULT_MARKUP).toBe(1.35);
+    expect(applyMarkup(21.25, DEFAULT_MARKUP)).toBe('28.69'); // 28.6875 → 28.69
+  });
   it('applies markup and 2dp rounding', () => {
     expect(applyMarkup(21.25, 2.0)).toBe('42.50');
     expect(applyMarkup(7.95, 2.5)).toBe('19.88'); // 19.875 → 19.88

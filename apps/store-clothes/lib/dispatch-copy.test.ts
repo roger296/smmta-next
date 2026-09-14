@@ -7,8 +7,8 @@ describe('DISPATCH_COPY', () => {
     expect(DISPATCH_COPY.AVAILABLE_FROM_SUPPLIER.badgeLabel).toBe('Available from supplier');
     expect(DISPATCH_COPY.OUT_OF_STOCK.badgeLabel).toBe('Out of stock');
 
-    expect(DISPATCH_COPY.IN_STOCK.primary).toMatch(/1 working day/);
-    expect(DISPATCH_COPY.AVAILABLE_FROM_SUPPLIER.primary).toMatch(/2 working days/);
+    expect(DISPATCH_COPY.IN_STOCK.primary).toMatch(/by 2pm \(UK time\).*same day/);
+    expect(DISPATCH_COPY.AVAILABLE_FROM_SUPPLIER.primary).toMatch(/by 2pm \(UK time\).*same day/);
     expect(DISPATCH_COPY.OUT_OF_STOCK.primary).toMatch(/Notify me/i);
   });
 });

@@ -61,8 +61,8 @@
  *   Colour                 products.colour
  *   Hex                    products.colour_hex                 normalised via normaliseHex()
  *   Size                   products.attributes.size            JSONB axis
- *   MyPrice                supplier_products.cost_gbp          what we pay Uneek
- *   PriceSingle            products.min/max_selling_price      what customer pays
+ *   PriceSingle ?? MyPrice supplier_products.cost_gbp          what one unit costs us (see uneekPricing)
+ *   cost × markup          products.min/max_selling_price      what the customer pays (--markup, default 1.35)
  *   Image                  products.hero_image_url
  *   FullDescription        products.long_description           may be French; trimmed
  *   ShortDescription       products.short_description
@@ -97,6 +97,7 @@ interface CliOpts {
   dryRun: boolean;
   publish: boolean;
   channelSlug: string | null;
+  markup: number;
 }
 
 function parseArgs(argv: string[]): CliOpts {
@@ -106,9 +107,19 @@ function parseArgs(argv: string[]): CliOpts {
   let dryRun = false;
   let publish = false;
   let channelSlug: string | null = null;
+  // --markup flag wins; UNEEK_DEFAULT_MARKUP second; DEFAULT_MARKUP otherwise.
+  const envMarkup = Number(process.env.UNEEK_DEFAULT_MARKUP);
+  let markup = Number.isFinite(envMarkup) && envMarkup > 0 ? envMarkup : DEFAULT_MARKUP;
   for (const arg of argv) {
     if (arg === '--help' || arg === '-h') {
       printUsageAndExit(0);
+    } else if (arg.startsWith('--markup=')) {
+      const n = Number(arg.slice('--markup='.length));
+      if (!Number.isFinite(n) || n <= 0) {
+        console.error(`bad --markup value: ${arg}`);
+        process.exit(2);
+      }
+      markup = n;
     } else if (arg.startsWith('--supplier=')) {
       supplierSlug = arg.slice('--supplier='.length).trim();
     } else if (arg.startsWith('--category=')) {
@@ -135,7 +146,7 @@ function parseArgs(argv: string[]): CliOpts {
     console.error('--supplier=<slug> is required');
     printUsageAndExit(2);
   }
-  return { supplierSlug, category, limit, dryRun, publish, channelSlug };
+  return { supplierSlug, category, limit, dryRun, publish, channelSlug, markup };
 }
 
 function printUsageAndExit(code: number): never {
@@ -154,6 +165,7 @@ Flags:
                       everywhere" rule. Use this when running a
                       multi-store deploy.
   --limit=<n>         cap row count (after category filter)
+  --markup=<x.y>      retail = single-unit cost × markup. Default 1.35 (or UNEEK_DEFAULT_MARKUP)
   --dry-run           print plan, write nothing
   --publish           mark new products/groups as published (default: false)
   --help              this message
@@ -246,13 +258,37 @@ export function normaliseHex(raw: string | null | undefined): string | null {
   return named[key] ?? null;
 }
 
-/** Coerce Uneek's number-or-string price into a 2dp decimal string, or
- *  null if missing/unparseable. */
-function priceToDecimalString(raw: number | string | null | undefined): string | null {
+/** Retail = cost × 1.35 by default (Roger, 2026-09-14): enough to cover VAT
+ *  and some margin on a drop-shipped item. */
+export const DEFAULT_MARKUP = 1.35;
+
+/** A positive price from Uneek's number-or-string field, or null. */
+function positivePrice(raw: number | string | null | undefined): number | null {
   if (raw === null || raw === undefined || raw === '') return null;
   const n = typeof raw === 'number' ? raw : Number(raw);
-  if (!Number.isFinite(n)) return null;
-  return n.toFixed(2);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * What one drop-shipped unit costs us, and what we sell it for.
+ *
+ * The cost is Uneek's single-unit price (`PriceSingle`) when given, else
+ * `MyPrice`. In Uneek's product data `MyPrice` is the account's 1,000-unit
+ * price (TBV02: £3.75 against £4.55 single), and a drop-ship order is one or
+ * two units, so marking `MyPrice` up could sell near or below what Uneek
+ * charges for a single unit. `PriceSingle` used to be sold as-is, at cost.
+ */
+export function uneekPricing(
+  row: Pick<UneekProductRow, 'PriceSingle' | 'MyPrice'>,
+  markup: number,
+): { costPrice: string | null; sellingPrice: string | null } {
+  const cost = positivePrice(row.PriceSingle) ?? positivePrice(row.MyPrice);
+  if (cost === null) return { costPrice: null, sellingPrice: null };
+  if (!Number.isFinite(markup) || markup <= 0) return { costPrice: cost.toFixed(2), sellingPrice: null };
+  return {
+    costPrice: cost.toFixed(2),
+    sellingPrice: (Math.round(cost * markup * 100) / 100).toFixed(2),
+  };
 }
 
 /** Pre-categorise variants into family buckets keyed by `ProductCode`.
@@ -309,6 +345,8 @@ interface ImportInput {
   limit: number | null;
   dryRun: boolean;
   publish: boolean;
+  /** Retail = cost × markup. */
+  markup: number;
 }
 
 export async function importUneekProducts(input: ImportInput): Promise<ImportSummary> {
@@ -442,8 +480,7 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
       heroImageUrl: r.Image?.trim() || r.SMColourImage?.trim() || null,
       longDescription: longBits.length > 0 ? longBits.join('\n\n') : null,
       shortDescription: r.ShortDescription?.trim().slice(0, 280) || null,
-      sellingPrice: priceToDecimalString(r.PriceSingle),
-      costPrice: priceToDecimalString(r.MyPrice),
+      ...uneekPricing(r, input.markup),
       attributes: attrs,
     });
   }
@@ -766,9 +803,11 @@ async function main(): Promise<void> {
     limit: opts.limit,
     dryRun: opts.dryRun,
     publish: opts.publish,
+    markup: opts.markup,
   });
 
   console.log('');
+  console.log(`[import:uneek] markup: ${opts.markup.toFixed(2)}x single-unit cost`);
   console.log('[import:uneek] summary:');
   console.log(`  fetched                     : ${summary.fetched}`);
   console.log(`  skipped (no ShortCode)      : ${summary.skippedNoShortCode}`);

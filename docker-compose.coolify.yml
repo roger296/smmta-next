@@ -62,6 +62,8 @@ services:
       # sends. Internal URL — this call never leaves the Docker network.
       STORE_BASE_URL: ${STORE_INTERNAL_URL:-http://store:3000}
       STORE_INTERNAL_API_KEY: ${STORE_INTERNAL_API_KEY:-}
+      # The Clothes Shop, which checks the same key as its ADMIN_API_KEY.
+      CLOTHES_STORE_INTERNAL_URL: ${CLOTHES_STORE_INTERNAL_URL:-http://store-clothes:3000}
       # Uploaded product images live here and are served from /uploads. MUST be
       # a mounted volume: a container filesystem does not survive a redeploy,
       # and every uploaded photograph would 404 after the next deploy.
@@ -130,6 +132,12 @@ services:
       SUPPLIER_ORDER_ALERT_EMAIL: ${SUPPLIER_ORDER_ALERT_EMAIL:-roger@etailsupport.com}
       SUPPLIER_ORDER_CONTACT_EMAIL: ${SUPPLIER_ORDER_CONTACT_EMAIL:-sales@cleverdeals.net}
       UNEEK_DELIVERY_METHOD: ${UNEEK_DELIVERY_METHOD:-}
+      # The shipped email is sent from the worker (order.dispatched), handed to
+      # whichever storefront took the order. Same values as the api service;
+      # without them every shipped email fails as "not configured".
+      STORE_BASE_URL: ${STORE_INTERNAL_URL:-http://store:3000}
+      STORE_INTERNAL_API_KEY: ${STORE_INTERNAL_API_KEY:-}
+      CLOTHES_STORE_INTERNAL_URL: ${CLOTHES_STORE_INTERNAL_URL:-http://store-clothes:3000}
       # Smooth Parcel shipping labels. OFF until SMOOTH_PARCEL_ENABLED is set;
       # with it off, paid orders record a DISABLED label and nothing is bought.
       # LIVE by default: a label costs nothing unless the parcel is sent. The

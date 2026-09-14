@@ -23,14 +23,14 @@
  *
  *   DATABASE_URL=postgresql://...                                \
  *   RALAWISE_CSV_PATH=~/.tmp.Ralawise/CustomerDataFull.csv       \
- *   RALAWISE_DEFAULT_MARKUP=2.0                                  \
+ *   RALAWISE_DEFAULT_MARKUP=1.35                                 \
  *   npm run seed:ralawise-catalogue -w @smmta/api -- [flags]
  *
  * Flags:
  *   --limit=<n>         Process at most <n> rows (post-status filter).
  *                       Useful for dev smoke runs.
  *   --dry-run           Parse + validate but write nothing.
- *   --markup=<x.y>      Override the env var. Default 2.0.
+ *   --markup=<x.y>      Override the env var. Default 1.35.
  *   --channel=<slug>    Channel to attach products to via
  *                       product_channels. Default: 'clothes-shop'.
  *                       Pass empty string to skip channel rows.
@@ -63,6 +63,10 @@ import { getSingletonCompanyId } from '../src/shared/auth/company.js';
 // ============================================================
 // CLI
 // ============================================================
+
+/** Retail = the Ralawise single-unit price × 1.35 (Roger, 2026-09-14): enough
+ *  to cover VAT and some margin on a drop-shipped single item. */
+export const DEFAULT_MARKUP = 1.35;
 
 interface CliOpts {
   csvPath: string;
@@ -103,7 +107,7 @@ function parseArgs(argv: string[]): CliOpts {
   const csvDefault = path.join(os.homedir(), '.tmp.Ralawise', 'CustomerDataFull.csv');
   const csvPath = csvFromFlag ?? csvFromEnv ?? csvDefault;
 
-  // Markup: --markup flag wins; env second; 2.0 default.
+  // Markup: --markup flag wins; env second; DEFAULT_MARKUP otherwise.
   const markupFromFlag = typeof flags.get('markup') === 'string' ? Number(flags.get('markup')) : NaN;
   const markupFromEnv = process.env.RALAWISE_DEFAULT_MARKUP ? Number(process.env.RALAWISE_DEFAULT_MARKUP) : NaN;
   const markup =
@@ -111,7 +115,7 @@ function parseArgs(argv: string[]): CliOpts {
       ? markupFromFlag
       : Number.isFinite(markupFromEnv) && markupFromEnv > 0
         ? markupFromEnv
-        : 2.0;
+        : DEFAULT_MARKUP;
 
   const limitRaw = flags.get('limit');
   let limit: number | null = null;
@@ -150,7 +154,7 @@ Usage:
 Flags:
   --csv-path=<path>     Path to CustomerDataFull.csv (or set RALAWISE_CSV_PATH).
                         Default: ~/.tmp.Ralawise/CustomerDataFull.csv
-  --markup=<x.y>        Retail-price = cost × markup. Default 2.0 (or RALAWISE_DEFAULT_MARKUP).
+  --markup=<x.y>        Retail-price = cost × markup. Default 1.35 (or RALAWISE_DEFAULT_MARKUP).
   --channel=<slug>      Pin products to this channel via product_channels.
                         Default: 'clothes-shop'. Pass --channel= (empty) to skip.
   --limit=<n>           Process at most <n> rows (post Live filter). For smoke tests.

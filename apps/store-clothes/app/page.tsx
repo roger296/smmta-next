@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Clothes Shop — Everyday Wear, Easy Sizes',
   description:
-    'Friendly, simple clothing in real sizes. Reliable fit, fast UK delivery — pick a colour, pick a size, and we ship the next working day.',
+    'Friendly, simple clothing in real sizes. Reliable fit, fast UK delivery — order by 2pm on a working day and it ships the same day.',
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
@@ -79,7 +79,7 @@ export default async function HomePage() {
         </h1>
         <p className="max-w-2xl text-lg leading-relaxed text-[var(--brand-muted)]">
           Soft cotton, honest sizing, no hype. Pick your colour, pick your size,
-          and we'll ship it the next working day from our UK partners.
+          and order by 2pm on a working day for same-day dispatch from our UK partners.
         </p>
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <Link

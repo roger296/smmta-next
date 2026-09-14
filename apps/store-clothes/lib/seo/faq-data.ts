@@ -4,6 +4,9 @@
  *
  * Pure data — kept in `lib/seo/` so the same array drives the visible
  * markup and the FAQPage JSON-LD without drifting.
+ *
+ * Keep the answers consistent with /legal/returns and /legal/terms (and
+ * `lib/legal.ts`): the FAQ is a summary, the legal pages are the contract.
  */
 
 export interface FaqEntry {
@@ -15,46 +18,46 @@ export const SHIPPING_FAQ: FaqEntry[] = [
   {
     question: 'How long does delivery take?',
     answer:
-      'Orders placed before 2pm ship the next working day from our UK supplier partners. Standard tracked delivery arrives within 2–5 working days in most of the UK; remote postcodes can take an extra day or two.',
+      'Our supplier partners post every order from their UK warehouses. Order by 2pm (UK time) on a working day and it ships the same day; tracked delivery then normally takes 1–3 working days. Delivery is £7 per order, however many items you buy.',
   },
   {
     question: 'Do you ship outside the UK?',
-    answer:
-      'EU shipping is available at checkout for most items. Duties and import VAT are payable on arrival per your country&rsquo;s rules.',
+    answer: 'Not at the moment — we deliver to UK addresses only.',
   },
   {
-    question: 'What&rsquo;s your returns policy?',
+    question: 'Will my order arrive in one parcel?',
     answer:
-      'Unworn items can be returned within 30 days for a full refund — with original tags attached and in resaleable condition. We can&rsquo;t accept returns of worn or washed items, or anything that&rsquo;s had tags removed. Email orders@clothes.shop.cleverdeals.net for a prepaid label.',
+      'Items from different suppliers are posted separately, so a larger order can arrive in more than one parcel. You pay one delivery charge for the whole order.',
+  },
+  {
+    // Questions are rendered as text, so they use the character, not an entity.
+    question: 'What’s your returns policy?',
+    answer:
+      'Unworn, unwashed items with their tags attached can be returned within 28 days of delivery for a full refund of the item price. Email sales@cleverdeals.net first for a returns reference and the address to send it to. Return postage is yours to pay unless the item is faulty or we sent the wrong thing. The full policy is on our returns page.',
   },
   {
     question: 'How do I know what size to order?',
     answer:
-      'Each product page lists the size chart for that range. We stock real sizes — XS to 5XL on most adult ranges, and age bands on kids&rsquo; ranges. If you&rsquo;re between sizes, size up: it&rsquo;s easier to take in than to add fabric.',
+      'Each product page lists the sizes for that range, from the manufacturer&rsquo;s size guide. Sizes vary between brands, so check each range. If you&rsquo;re between sizes, size up.',
   },
   {
     question: 'Are the colours accurate?',
     answer:
-      'We do our best to match the on-screen colour to the real garment — every product page swatch is the supplier&rsquo;s published colour code. Monitors vary, so there may be a small shift; if a colour matters (e.g. matching a uniform), order one piece first to check.',
+      'We do our best to match the on-screen colour to the real garment — every product page swatch is the supplier&rsquo;s published colour. Screens vary, so there may be a small shift; if a colour matters (e.g. matching a uniform), order one piece first to check.',
   },
   {
-    question: 'How are items packaged?',
+    question: 'What if my item doesn’t fit?',
     answer:
-      'Each item is packed in a recyclable poly mailer or cardboard box, depending on size. We don&rsquo;t use plastic hangers, individual tissue paper, or branded ribbon — just the garment, its tag, and a simple delivery note.',
+      'Send it back unworn with its tags attached within 28 days for a full refund of the item price — email sales@cleverdeals.net first for a returns reference. Return postage is yours to pay unless the item is faulty or not as described.',
   },
   {
-    question: 'What if my item doesn&rsquo;t fit?',
+    question: 'Do you take uniform or team orders?',
     answer:
-      'Send it back unworn with tags attached within 30 days for a full refund or exchange. If the fit is off because the garment doesn&rsquo;t match the size chart, we cover return postage; otherwise it&rsquo;s a £4.95 return label.',
-  },
-  {
-    question: 'Do you offer trade / volume discounts?',
-    answer:
-      'Yes — orders of 10+ identical items get a discount applied at checkout. For uniform or team orders (logo embroidery, larger volumes), email orders@clothes.shop.cleverdeals.net and we&rsquo;ll quote.',
+      'Yes — for larger orders of the same items, email sales@cleverdeals.net with what you need and we&rsquo;ll get back to you.',
   },
   {
     question: 'Can I change my order after placing it?',
     answer:
-      'If your order hasn&rsquo;t shipped, email orders@clothes.shop.cleverdeals.net with your order number — we&rsquo;ll do our best to update it before it leaves the warehouse.',
+      'Orders go to our supplier partners within minutes of payment, so we usually can&rsquo;t change them. Email sales@cleverdeals.net with your order number straight away and we&rsquo;ll do what we can; otherwise you can return unwanted items under our returns policy.',
   },
 ];

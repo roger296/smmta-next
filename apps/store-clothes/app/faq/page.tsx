@@ -9,6 +9,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { faqPageLd, stringifyJsonLd } from '@/lib/seo/structured-data';
 import { SHIPPING_FAQ } from '@/lib/seo/faq-data';
+import { LEGAL } from '@/lib/legal';
 
 export const revalidate = 86_400; // 1 day — the FAQ rarely changes
 
@@ -61,14 +62,22 @@ export default function FaqPage() {
           The practical bits.
         </h1>
         <p className="max-w-2xl text-base text-[var(--brand-muted)]">
-          Shipping, returns, materials, tolerances, packaging.
+          Delivery, returns, sizing and orders.
           If your question isn&rsquo;t here, email{' '}
           <a
-            href="mailto:orders@clothes.shop.cleverdeals.net"
+            href={`mailto:${LEGAL.contactEmail}`}
             className="text-[var(--brand-ink)] underline-offset-2 hover:underline"
           >
-            orders@clothes.shop.cleverdeals.net
+            {LEGAL.contactEmail}
           </a>
+          . The full details are in our{' '}
+          <Link href="/legal/returns" className="text-[var(--brand-ink)] underline-offset-2 hover:underline">
+            returns policy
+          </Link>{' '}
+          and{' '}
+          <Link href="/legal/terms" className="text-[var(--brand-ink)] underline-offset-2 hover:underline">
+            terms &amp; conditions
+          </Link>
           .
         </p>
       </header>
