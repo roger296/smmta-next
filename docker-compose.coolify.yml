@@ -37,6 +37,8 @@ services:
       # missing (init scripts only run on a fresh volume) and runs the store's
       # own drizzle migrations against it before booting.
       STORE_DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
+      # Same for the Clothes Shop storefront's own database.
+      CLOTHES_STORE_DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store_clothes
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       COMPANY_ID: ${COMPANY_ID:-11111111-1111-4111-8111-111111111111}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
@@ -188,6 +190,52 @@ services:
       # anything that reads it at runtime.
       SMMTA_API_PUBLIC_URL: ${APP_BASE_URL:-http://localhost:3000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store
+      # Signs the cart cookie so a visitor cannot swap in another cart's id.
+      # Without it the store falls back to a development secret published in
+      # the repo. Any long random string (e.g. 64 hex characters); changing it
+      # empties carts in progress, nothing else.
+      STORE_COOKIE_SECRET: ${STORE_COOKIE_SECRET:?set STORE_COOKIE_SECRET to a long random string}
+    expose:
+      - '3000'
+
+  # The Clothes Shop storefront (apps/store-clothes). Same API and Postgres as
+  # the Filament Store, but its own storefront database (smmta_store_clothes)
+  # and its own API key, bound to the clothes-shop channel so it only sees the
+  # products offered there. In Coolify: set CLOTHES_SMMTA_API_KEY (from
+  # apps/api/scripts/bootstrap-clothes-shop.ts) and CLOTHES_STORE_BASE_URL, and
+  # give this service its domain. Both default to harmless values so a deploy
+  # never fails before the shop is set up; until then it shows no products.
+  store-clothes:
+    build:
+      context: .
+      dockerfile: docker/store-clothes.Dockerfile
+      args:
+        # Baked in at build, as for the Filament Store: next/image's allow-list.
+        SMMTA_API_PUBLIC_URL: ${APP_BASE_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      SMMTA_API_BASE_URL: ${SMMTA_API_BASE_URL:-http://api:3000/api/v1}
+      SMMTA_API_KEY: ${CLOTHES_SMMTA_API_KEY:-}
+      STORE_BASE_URL: ${CLOTHES_STORE_BASE_URL:-http://localhost:3000}
+      ADMIN_API_KEY: ${STORE_INTERNAL_API_KEY:-}
+      MOLLIE_API_KEY: ${MOLLIE_API_KEY:-}
+      # Mollie calls the storefront that created the payment, so this is the
+      # Clothes Shop's own public origin. Its code default is localhost, which
+      # Mollie refuses.
+      MOLLIE_WEBHOOK_URL_BASE: ${CLOTHES_STORE_BASE_URL:-http://localhost:3000}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      # Set explicitly: this app's code default is an unverified placeholder
+      # sender, which SendGrid rejects with a 403.
+      SENDGRID_FROM: ${SENDGRID_FROM:-sales@cleverdeals.net}
+      SMMTA_API_PUBLIC_URL: ${APP_BASE_URL:-http://localhost:3000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/smmta_store_clothes
+      STORE_COOKIE_SECRET: ${STORE_COOKIE_SECRET:?set STORE_COOKIE_SECRET to a long random string}
     expose:
       - '3000'
 
@@ -213,7 +261,9 @@ services:
     # left no trace anywhere and the queue looked simply idle. `|| true` keeps
     # the loop alive across a failed poll without hiding what happened.
     command:
-      - 'while true; do echo "[outbox] polling"; curl -sS -m 30 -X POST -H "Authorization: Bearer $${ADMIN_API_KEY}" http://store:3000/api/internal/process-outbox; echo; sleep $${OUTBOX_INTERVAL_SECONDS}; done'
+      # Each storefront drains its own outbox, so both are polled; a failure on
+      # one never stops the other.
+      - 'while true; do for s in store store-clothes; do echo "[outbox] polling $$s"; curl -sS -m 30 -X POST -H "Authorization: Bearer $${ADMIN_API_KEY}" http://$$s:3000/api/internal/process-outbox; echo; done; sleep $${OUTBOX_INTERVAL_SECONDS}; done'
 
   web:
     build:

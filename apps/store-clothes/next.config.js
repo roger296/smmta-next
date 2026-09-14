@@ -78,6 +78,18 @@ const nextConfig = {
             { protocol: 'http', hostname: 'localhost' },
             { protocol: 'http', hostname: '127.0.0.1' },
           ]),
+      // The API's PUBLIC origin. Uploaded product photographs are served from
+      // <origin>/uploads/, whereas SMMTA_API_BASE_URL above is the internal
+      // Docker address in production. Read by `next build`, so it arrives as a
+      // build arg (docker/store-clothes.Dockerfile); APP_BASE_URL is the fallback.
+      ...(() => {
+        try {
+          const u = new URL(process.env.SMMTA_API_PUBLIC_URL || process.env.APP_BASE_URL || '');
+          return [{ protocol: u.protocol.replace(':', ''), hostname: u.hostname }];
+        } catch {
+          return [];
+        }
+      })(),
       // picsum.photos for legacy placeholder images (kept for tests).
       { protocol: 'https', hostname: 'picsum.photos' },
       { protocol: 'https', hostname: 'fastly.picsum.photos' },
