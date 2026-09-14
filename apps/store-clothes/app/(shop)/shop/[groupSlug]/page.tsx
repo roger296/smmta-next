@@ -103,11 +103,13 @@ export default async function GroupPage({
     throw err;
   }
 
-  // Side-load the catalogue for "you may also like". Failure mustn't
-  // block the group page itself — the suggestion strip is a nice-to-have.
+  // Side-load a slice of the catalogue for "you may also like" (it shows
+  // three). Failure mustn't block the group page itself — the suggestion
+  // strip is a nice-to-have. Limited: the whole catalogue is thousands of
+  // ranges, far too much to load for three cards.
   let allGroups: Awaited<ReturnType<typeof listGroups>> = [];
   try {
-    allGroups = await listGroups();
+    allGroups = await listGroups({ limit: 24 });
   } catch {
     allGroups = [];
   }

@@ -119,7 +119,12 @@ export async function storefrontReadRoutes(app: FastifyInstance) {
   // All routes require an api key with storefront:read scope.
   app.addHook('preHandler', apiKeyAuth(['storefront:read']));
 
-  // GET /storefront/groups — published groups + thin variants
+  // GET /storefront/groups — published groups + thin variants.
+  // ?limit=N returns only the first N by sort order, for pages that show a few
+  // ranges from a catalogue that can run to thousands.
+  const groupsQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(5000).optional(),
+  });
   app.get(
     '/storefront/groups',
     {
@@ -130,7 +135,13 @@ export async function storefrontReadRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const ctx = getApiKeyContext(request);
-      const data = await service.listGroups(ctx.companyId, ctx.channelId);
+      const query = groupsQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        return reply
+          .status(400)
+          .send({ success: false, error: 'Invalid query', issues: query.error.issues });
+      }
+      const data = await service.listGroups(ctx.companyId, ctx.channelId, { limit: query.data.limit });
       return reply.header('Cache-Control', CACHE_HEADER).send({ success: true, data });
     },
   );

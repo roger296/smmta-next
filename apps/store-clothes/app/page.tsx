@@ -45,14 +45,15 @@ export default async function HomePage() {
 
   // Failure here mustn't break the home page — render the hero + brand
   // story even if the catalogue read fails (5xx, dropped connection, etc.).
+  // Up to 6 featured ranges — fills two rows on a 3-up grid for visual weight
+  // on a workshop-style home page. Asked for by limit: the whole catalogue is
+  // thousands of ranges.
   let groups: Awaited<ReturnType<typeof listGroups>> = [];
   try {
-    groups = await listGroups();
+    groups = await listGroups({ limit: 6 });
   } catch {
     groups = [];
   }
-  // Up to 6 featured ranges — fills two rows on a 3-up grid for visual weight
-  // on a workshop-style home page.
   const featured = groups.slice(0, 6);
 
   const websiteJsonLd = stringifyJsonLd(websiteLd(baseUrl));

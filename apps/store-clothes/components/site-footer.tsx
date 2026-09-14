@@ -1,37 +1,36 @@
 /**
- * Site footer — emits internal links to every published group plus the
- * static legal / FAQ pages. Surfacing the group list here gives every
- * page in the storefront a crawlable link to every category, which
- * helps with internal-link equity and is one of the cheapest SEO
- * wins available.
+ * Site footer — internal links to every top-level category plus the static
+ * help pages. Surfacing the categories here gives every page in the
+ * storefront a crawlable route into the whole catalogue, and the category
+ * pages link on to each range.
  *
- * Server component; reads `listGroups` directly. Failures fall back to
- * a footer with no category links so the page still renders.
+ * Categories rather than ranges: the drop-ship catalogues run to thousands of
+ * ranges, so a link per range would make an enormous footer and a full
+ * catalogue read on every page render.
+ *
+ * Server component; reads `listCategories` directly (cached for five
+ * minutes). Failures fall back to a footer with no category links so the
+ * page still renders.
  *
  * The "Powered by CleverDeals" link in the bottom strip acknowledges
  * the parent retailer relationship without requiring the storefront's
  * visual identity to inherit CleverDeals' yellow-on-black palette.
  */
 import Link from 'next/link';
-import { listGroups } from '@/lib/smmta';
+import { listCategories } from '@/lib/smmta';
 
 const STORE_NAME = 'Clothes Shop';
+const CONTACT_EMAIL = 'sales@cleverdeals.net';
 const ABOUT_BLURB =
   'Friendly, simple clothing for everyday wear. Real sizes, honest pricing, fast UK delivery from our supplier partners. Pick your colour, pick your size, and we ship the next working day.';
 
 export async function SiteFooter() {
-  let groups: Awaited<ReturnType<typeof listGroups>> = [];
+  let categories: Awaited<ReturnType<typeof listCategories>> = [];
   try {
-    groups = await listGroups();
+    categories = await listCategories();
   } catch {
-    groups = [];
+    categories = [];
   }
-  // Match the catalogue's sortOrder, then alphabetise as a stable
-  // tie-break so the footer order is deterministic across renders.
-  const sorted = [...groups].sort((a, b) => {
-    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-    return a.name.localeCompare(b.name);
-  });
 
   const year = new Date().getFullYear();
 
@@ -51,18 +50,18 @@ export async function SiteFooter() {
                 href="/shop"
                 className="transition-colors hover:text-[var(--brand-ink)]"
               >
-                All ranges
+                All categories
               </Link>
             </li>
-            {sorted
-              .filter((g): g is typeof g & { slug: string } => Boolean(g.slug))
-              .map((g) => (
-                <li key={g.id}>
+            {categories
+              .filter((c) => Boolean(c.slug))
+              .map((c) => (
+                <li key={c.slug}>
                   <Link
-                    href={`/shop/${g.slug}`}
+                    href={`/shop/c/${c.slug}`}
                     className="transition-colors hover:text-[var(--brand-ink)]"
                   >
-                    {g.name}
+                    {c.name}
                   </Link>
                 </li>
               ))}
@@ -87,10 +86,10 @@ export async function SiteFooter() {
             </li>
             <li>
               <a
-                href="mailto:orders@clothes.shop.cleverdeals.net"
+                href={`mailto:${CONTACT_EMAIL}`}
                 className="transition-colors hover:text-[var(--brand-ink)]"
               >
-                orders@clothes.shop.cleverdeals.net
+                {CONTACT_EMAIL}
               </a>
             </li>
           </ul>
