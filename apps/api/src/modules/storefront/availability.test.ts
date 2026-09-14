@@ -27,6 +27,7 @@ import { resetCryptoForTests } from '../../shared/crypto/encrypt.js';
 
 const COMPANY = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const SLUG = 'avail-test-supplier';
+const SLUG_2 = 'avail-test-supplier-2';
 const service = new DropshipSupplierService();
 
 let warehouseId: string;
@@ -37,7 +38,7 @@ let supplierId: string;
 
 async function wipe() {
   const db = getDb();
-  const supplierRows = await db.select({ id: suppliers.id }).from(suppliers).where(eq(suppliers.slug, SLUG));
+  const supplierRows = await db.select({ id: suppliers.id }).from(suppliers).where(inArray(suppliers.slug, [SLUG, SLUG_2]));
   for (const s of supplierRows) {
     await db.delete(supplierPollLog).where(eq(supplierPollLog.supplierId, s.id));
   }
@@ -49,7 +50,7 @@ async function wipe() {
   }
   await db.delete(productGroups).where(eq(productGroups.companyId, COMPANY));
   await db.delete(warehouses).where(eq(warehouses.companyId, COMPANY));
-  await db.delete(suppliers).where(eq(suppliers.slug, SLUG));
+  await db.delete(suppliers).where(inArray(suppliers.slug, [SLUG, SLUG_2]));
 }
 
 beforeAll(async () => {
@@ -84,6 +85,8 @@ beforeAll(async () => {
       apiBaseUrl: 'https://stub.invalid/',
       apiKeyEnc: service.encryptApiKey('k'),
       isDropshipActive: true,
+      // No buffer, so the three-state tests read plainly; the buffer has its own tests.
+      stockBuffer: 0,
     })
     .returning();
   supplierId = supplier!.id;
@@ -191,11 +194,12 @@ describe('getVariantAvailabilityBatch', () => {
       .values({
         companyId: COMPANY,
         name: 'Avail Test Supplier 2',
-        slug: 'avail-test-supplier-2',
+        slug: SLUG_2,
         connectorKind: 'STUB',
         apiBaseUrl: 'https://stub.invalid/',
         apiKeyEnc: service.encryptApiKey('k'),
         isDropshipActive: true,
+        stockBuffer: 0,
       })
       .returning();
     await db.insert(supplierProducts).values({
@@ -228,6 +232,36 @@ describe('getVariantAvailabilityBatch', () => {
       .update(supplierProducts)
       .set({ isActive: true })
       .where(eq(supplierProducts.productId, productBId));
+  });
+
+  it('counts only supplier stock above the supplier stock buffer', async () => {
+    const db = getDb();
+    await db.update(suppliers).set({ stockBuffer: 3 }).where(eq(suppliers.id, supplierId));
+    try {
+      // B's supplier holds 5 with a buffer of 3 → 2 sellable.
+      const b = (await getVariantAvailabilityBatch(COMPANY, [productBId])).get(productBId)!;
+      expect(b.supplierFreeStock).toBe(2);
+      expect(b.stockState).toBe('AVAILABLE_FROM_SUPPLIER');
+
+      await db.update(suppliers).set({ stockBuffer: 5 }).where(eq(suppliers.id, supplierId));
+      const atBuffer = (await getVariantAvailabilityBatch(COMPANY, [productBId])).get(productBId)!;
+      expect(atBuffer.supplierFreeStock).toBe(0);
+      expect(atBuffer.stockState).toBe('OUT_OF_STOCK');
+    } finally {
+      await db.update(suppliers).set({ stockBuffer: 0 }).where(eq(suppliers.id, supplierId));
+    }
+  });
+
+  it('ignores suppliers that are not taking drop-ship orders', async () => {
+    const db = getDb();
+    await db.update(suppliers).set({ isDropshipActive: false }).where(eq(suppliers.id, supplierId));
+    try {
+      const b = (await getVariantAvailabilityBatch(COMPANY, [productBId])).get(productBId)!;
+      expect(b.supplierFreeStock).toBe(0);
+      expect(b.stockState).toBe('OUT_OF_STOCK');
+    } finally {
+      await db.update(suppliers).set({ isDropshipActive: true }).where(eq(suppliers.id, supplierId));
+    }
   });
 
   it('returns OUT_OF_STOCK shape for unknown product ids', async () => {

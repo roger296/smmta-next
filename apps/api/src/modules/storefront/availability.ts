@@ -21,16 +21,17 @@
  *
  * Warehouse free stock is the same `IN_STOCK` count
  * `CatalogueService.availableQtyMap` already uses (excludes RESERVED
- * + ALLOCATED). Supplier free stock is `sum(lastKnownStock)` across
- * active mappings — we don't try to reserve supplier units in our DB,
- * so there's no in-flight to subtract.
+ * + ALLOCATED). Supplier free stock is what each active mapping holds
+ * above its supplier's `stockBuffer`, summed, counting only suppliers
+ * taking drop-ship orders — we don't try to reserve supplier units in
+ * our DB, so there's no in-flight to subtract; the buffer absorbs it.
  *
  * Both helpers do their work in single batched queries so the
  * storefront read endpoints stay O(1) regardless of catalogue size.
  */
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
-import { stockItems, supplierProducts } from '../../db/schema/index.js';
+import { stockItems, supplierProducts, suppliers } from '../../db/schema/index.js';
 import { chunkedQuery } from '../../shared/db/chunk.js';
 
 export type StockState = 'IN_STOCK' | 'AVAILABLE_FROM_SUPPLIER' | 'OUT_OF_STOCK';
@@ -84,20 +85,24 @@ export async function getVariantAvailabilityBatch(
   const warehouseMap = new Map<string, number>();
   for (const r of warehouseRows) warehouseMap.set(r.productId, Number(r.n));
 
-  // Supplier free-stock: sum(lastKnownStock) across active mappings.
-  // Same chunking concern.
+  // Supplier free-stock: what each active mapping holds above its supplier's
+  // stock buffer, summed. Only suppliers we can currently order from count,
+  // matching `pickSupplierForProduct`. Same chunking concern.
   const supplierRows = await chunkedQuery(productIds, (chunk) =>
     db
       .select({
         productId: supplierProducts.productId,
-        total: sql<number>`COALESCE(SUM(${supplierProducts.lastKnownStock}), 0)::int`,
+        total: sql<number>`COALESCE(SUM(GREATEST(COALESCE(${supplierProducts.lastKnownStock}, 0) - ${suppliers.stockBuffer}, 0)), 0)::int`,
       })
       .from(supplierProducts)
+      .innerJoin(suppliers, eq(supplierProducts.supplierId, suppliers.id))
       .where(
         and(
           inArray(supplierProducts.productId, chunk),
           eq(supplierProducts.isActive, true),
           isNull(supplierProducts.deletedAt),
+          eq(suppliers.isDropshipActive, true),
+          isNull(suppliers.deletedAt),
         ),
       )
       .groupBy(supplierProducts.productId),

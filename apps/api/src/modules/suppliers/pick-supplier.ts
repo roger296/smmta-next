@@ -2,8 +2,8 @@
  * Supplier-selection helpers for order routing (§D).
  *
  * V1 picks the first supplier — by `priority` ascending, `id` ascending
- * as tiebreaker — whose `lastKnownStock` covers the requested quantity.
- * Cheapest-first / fastest-first / quality-rated selection are V2.
+ * as tiebreaker — whose stock above its `stockBuffer` covers the requested
+ * quantity. Cheapest-first / fastest-first / quality-rated selection are V2.
  *
  * `decideLineFulfilment` is the higher-level helper the reservation
  * service calls: given a list of cart lines, it returns one decision
@@ -16,6 +16,9 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { stockItems, supplierProducts, suppliers } from '../../db/schema/index.js';
 import { sql } from 'drizzle-orm';
+import type { DbTx } from '../../shared/events/emit.js';
+
+type Db = ReturnType<typeof getDb>;
 
 export interface LineDecision {
   productId: string;
@@ -28,19 +31,44 @@ export type FulfilmentDecisionError =
   | { error: 'insufficient_stock'; productId: string; available: number; requested: number }
   | { error: 'mixed_source_unsupported'; productId: string };
 
+/**
+ * The supplier to order `qty` of a product from, or null when none can
+ * supply it. `available` is the most any one supplier could supply, so a
+ * refusal can tell the customer how many they can have.
+ *
+ * Pass `db` to read inside a caller's transaction.
+ */
 export async function pickSupplierForProduct(
   companyId: string,
   productId: string,
   qty: number,
-): Promise<{ supplierId: string } | null> {
-  const db = getDb();
-  const candidates = await db
+  db: Db | DbTx = getDb(),
+): Promise<{ supplierId: string; available: number } | null> {
+  const candidates = await listSupplierCandidates(companyId, productId, db);
+  const picked = candidates.find((c) => c.available >= qty);
+  return picked ? { supplierId: picked.supplierId, available: picked.available } : null;
+}
+
+/** The most one supplier can supply of a product, after its stock buffer. */
+export async function bestSupplierAvailable(
+  companyId: string,
+  productId: string,
+  db: Db | DbTx = getDb(),
+): Promise<number> {
+  const candidates = await listSupplierCandidates(companyId, productId, db);
+  return candidates.reduce((max, c) => Math.max(max, c.available), 0);
+}
+
+async function listSupplierCandidates(
+  companyId: string,
+  productId: string,
+  db: Db | DbTx,
+): Promise<Array<{ supplierId: string; available: number }>> {
+  const rows = await db
     .select({
-      id: supplierProducts.id,
       supplierId: supplierProducts.supplierId,
       lastKnownStock: supplierProducts.lastKnownStock,
-      priority: supplierProducts.priority,
-      createdAt: supplierProducts.createdAt,
+      stockBuffer: suppliers.stockBuffer,
     })
     .from(supplierProducts)
     .innerJoin(suppliers, eq(supplierProducts.supplierId, suppliers.id))
@@ -55,12 +83,10 @@ export async function pickSupplierForProduct(
       ),
     )
     .orderBy(asc(supplierProducts.priority), asc(supplierProducts.id));
-  for (const c of candidates) {
-    if ((c.lastKnownStock ?? 0) >= qty) {
-      return { supplierId: c.supplierId };
-    }
-  }
-  return null;
+  return rows.map((r) => ({
+    supplierId: r.supplierId,
+    available: Math.max((r.lastKnownStock ?? 0) - r.stockBuffer, 0),
+  }));
 }
 
 /**
