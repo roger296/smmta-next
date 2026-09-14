@@ -387,6 +387,52 @@ describe('evaluateRules — real Ralawise product types', () => {
   });
 });
 
+describe('evaluateRules — footwear and dresses', () => {
+  it('files safety footwear by name or safety rating, whatever the type', () => {
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Boots', name: 'Basestone S3 waterproof safety boots' }),
+    ).toBe('footwear/safety-footwear');
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Boots', name: 'Guardstone S7 waterproof hikers' }),
+    ).toBe('footwear/safety-footwear');
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Shoes', name: 'Steelite™ protector shoe S1P (FW14)' }),
+    ).toBe('footwear/safety-footwear');
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Trainers', name: 'All-black safety trainer' }),
+    ).toBe('footwear/safety-footwear');
+  });
+
+  it('files other trainers, shoes, clogs, sliders and slippers', () => {
+    expect(evaluateRules({ source: 'ralawise', productType: 'Trainers', name: 'Nike Roshe golf trainers 2.0' })).toBe(
+      'footwear/trainers',
+    );
+    expect(evaluateRules({ source: 'ralawise', productType: 'Shoes', name: 'AWDis Aero clogs' })).toBe(
+      'footwear/boots-and-shoes',
+    );
+    expect(evaluateRules({ source: 'ralawise', productType: 'Sliders', name: 'Cool sliders' })).toBe(
+      'footwear/sliders-and-slippers',
+    );
+    expect(evaluateRules({ source: 'ralawise', productType: 'Slippers', name: 'Waffle mule slippers' })).toBe(
+      'footwear/sliders-and-slippers',
+    );
+  });
+
+  it("files an adult dress under Dresses, and keeps a kids' dress with kids' clothing", () => {
+    expect(
+      evaluateRules({
+        source: 'ralawise',
+        productType: 'Dresses',
+        ageGroup: 'Adult',
+        name: "Women's heavy oversized tee dress",
+      }),
+    ).toBe('dresses');
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Dresses', ageGroup: 'Child', name: 'Kids tee dress' }),
+    ).toBe('kids-and-schoolwear/kids-tops');
+  });
+});
+
 describe('evaluateRules — falls through to null when no rule matches', () => {
   it('returns null for fully empty facts', () => {
     expect(evaluateRules({ source: 'ralawise' })).toBeNull();
