@@ -155,28 +155,97 @@ export function computePriceRange(
 export class CatalogueService {
   private db = getDb();
 
+  /**
+   * Published, grouped products offered on a channel, decided in the database
+   * with the same rules as channelDecisionMap: a row for this channel decides;
+   * no rows at all means offered everywhere; rows only for other channels mean
+   * not offered here.
+   *
+   * A plain select, not a relational findMany, because Drizzle rewrites column
+   * references inside raw sql in findMany onto the root table's alias.
+   */
+  private async offeredOnChannel(
+    companyId: string,
+    channelId: string,
+  ): Promise<{ productIds: string[]; groupIds: string[] }> {
+    const rows = await this.db
+      .select({ id: products.id, groupId: products.groupId })
+      .from(products)
+      .where(
+        and(
+          eq(products.companyId, companyId),
+          eq(products.isPublished, true),
+          isNull(products.deletedAt),
+          sql`${products.groupId} is not null and (
+            exists (
+              select 1 from ${productChannels}
+              where ${productChannels.productId} = ${products.id}
+                and ${productChannels.channelId} = ${channelId}
+                and ${productChannels.isOffered}
+                and ${productChannels.deletedAt} is null
+            )
+            or not exists (
+              select 1 from ${productChannels}
+              where ${productChannels.productId} = ${products.id}
+                and ${productChannels.deletedAt} is null
+            )
+          )`,
+        ),
+      );
+    return {
+      productIds: rows.map((r) => r.id),
+      groupIds: [...new Set(rows.map((r) => r.groupId).filter((id): id is string => id !== null))],
+    };
+  }
+
   async listGroups(companyId: string, channelId: string | null = null): Promise<GroupListItem[]> {
+    // A channel-bound storefront loads only what its channel offers. Loading
+    // every product and filtering afterwards would have the Filament Store
+    // fetch a 100k-product clothing catalogue to show its own few ranges.
+    const offered = channelId ? await this.offeredOnChannel(companyId, channelId) : null;
+    if (offered && offered.productIds.length === 0) return [];
+
     const groups = await this.db.query.productGroups.findMany({
       where: and(
         eq(productGroups.companyId, companyId),
         eq(productGroups.isPublished, true),
         isNull(productGroups.deletedAt),
+        ...(offered ? [inArray(productGroups.id, offered.groupIds)] : []),
       ),
       orderBy: (g, { asc }) => [asc(g.sortOrder), asc(g.name)],
     });
     if (groups.length === 0) return [];
 
     const groupIds = groups.map((g) => g.id);
+    const groupIdSet = new Set(groupIds);
 
-    const variantRows = await this.db.query.products.findMany({
-      where: and(
-        eq(products.companyId, companyId),
-        eq(products.isPublished, true),
-        isNull(products.deletedAt),
-        inArray(products.groupId, groupIds),
-      ),
-      orderBy: (p, { asc }) => [asc(p.sortOrderInGroup), asc(p.name)],
-    });
+    const variantRows = offered
+      ? (
+          await chunkedQuery(offered.productIds, (chunk) =>
+            this.db.query.products.findMany({
+              where: and(
+                eq(products.companyId, companyId),
+                eq(products.isPublished, true),
+                isNull(products.deletedAt),
+                inArray(products.id, chunk),
+              ),
+            }),
+          )
+        )
+          .filter((v) => v.groupId !== null && groupIdSet.has(v.groupId))
+          .sort(
+            (a, b) =>
+              (a.sortOrderInGroup ?? 0) - (b.sortOrderInGroup ?? 0) || a.name.localeCompare(b.name),
+          )
+      : await this.db.query.products.findMany({
+          where: and(
+            eq(products.companyId, companyId),
+            eq(products.isPublished, true),
+            isNull(products.deletedAt),
+            inArray(products.groupId, groupIds),
+          ),
+          orderBy: (p, { asc }) => [asc(p.sortOrderInGroup), asc(p.name)],
+        });
 
     const variantIds = variantRows.map((v) => v.id);
     const stockMap = await this.availableQtyMap(companyId, variantIds);
