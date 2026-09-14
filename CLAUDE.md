@@ -310,10 +310,10 @@ npm run assign-categories -w @smmta/api
 ```bash
 cd ~/smmta-next
 # CSV file ~204 MB at /home/smmta/.tmp.Ralawise/CustomerDataFull.csv on VPS.
-# Cost prices are CSV column 46 (`Single Price`); retail = cost × markup.
+# Cost prices are CSV column 46 (`Single Price`); retail = cost × markup,
+# 1.35 by default (Roger's rule; the Uneek importer uses the same default).
 DATABASE_URL=... \
   RALAWISE_CSV_PATH=/home/smmta/.tmp.Ralawise/CustomerDataFull.csv \
-  RALAWISE_DEFAULT_MARKUP=2.0 \
   npm run seed:ralawise-catalogue -w @smmta/api -- --publish
 # Optional flags: --limit=N | --dry-run | --markup=X.Y | --channel=<slug>
 # Streaming + batched (1000 rows/tx). Full 103k catalogue: ~30 min.

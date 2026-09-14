@@ -8,8 +8,30 @@
  * than here.
  */
 import { describe, expect, it } from 'vitest';
-import { bucketByFamily, normaliseHex, slugify } from './import-uneek-products.js';
+import { DEFAULT_MARKUP, bucketByFamily, normaliseHex, slugify, uneekPricing } from './import-uneek-products.js';
 import type { UneekProductRow } from '../src/integrations/suppliers/uneek.connector.js';
+
+describe('uneekPricing', () => {
+  it('sells at the single-unit price × 1.35 by default', () => {
+    expect(DEFAULT_MARKUP).toBe(1.35);
+    // TBV02's example row: £4.55 single, £3.75 at 1,000 units.
+    expect(uneekPricing({ PriceSingle: 4.55, MyPrice: 3.75 }, DEFAULT_MARKUP)).toEqual({
+      costPrice: '4.55',
+      sellingPrice: '6.14',
+    });
+  });
+
+  it('falls back to MyPrice when there is no single-unit price', () => {
+    expect(uneekPricing({ PriceSingle: null, MyPrice: '3.75' }, 1.35)).toEqual({ costPrice: '3.75', sellingPrice: '5.06' });
+    expect(uneekPricing({ PriceSingle: '', MyPrice: 3.75 }, 1.35).costPrice).toBe('3.75');
+  });
+
+  it('prices nothing without a usable cost or markup', () => {
+    expect(uneekPricing({ PriceSingle: null, MyPrice: 0 }, 1.35)).toEqual({ costPrice: null, sellingPrice: null });
+    expect(uneekPricing({ PriceSingle: 'n/a', MyPrice: undefined }, 1.35)).toEqual({ costPrice: null, sellingPrice: null });
+    expect(uneekPricing({ PriceSingle: 4, MyPrice: 3 }, 0)).toEqual({ costPrice: '4.00', sellingPrice: null });
+  });
+});
 
 describe('slugify', () => {
   it('lowercases + dashes', () => {
