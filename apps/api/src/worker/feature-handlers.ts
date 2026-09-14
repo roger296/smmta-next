@@ -20,6 +20,7 @@ import { DigestService } from '../modules/digest/digest.service.js';
 import { ShippingLabelService } from '../modules/shipping/shipping-label.service.js';
 import { PickNoteNotFoundError, PickNoteService } from '../modules/shipping/pick-note.service.js';
 import { DispatchEmailRejectedError, sendDispatchEmail } from '../modules/shipping/dispatch-email.js';
+import { orderHasWarehouseLines, queueSupplierOrders } from '../modules/suppliers/supplier-order-routing.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
@@ -139,6 +140,12 @@ export function installFeatureHandlers(logger: Logger): void {
       .limit(1);
     const payload = event?.payload as { orderId?: string; source?: string } | undefined;
     if (!event || !payload?.orderId || payload.source !== 'storefront') return;
+    // A supplier posts its own lines, so an order with nothing from our
+    // warehouse needs no label from us.
+    if (!(await orderHasWarehouseLines(payload.orderId))) {
+      logger.info({ orderId: payload.orderId }, 'create-shipping-label: no warehouse lines, no label needed');
+      return;
+    }
     const label = await shippingLabels.requestLabel(payload.orderId, event.companyId);
     logger.info({ orderId: payload.orderId, status: label.status }, 'create-shipping-label ran');
   });
@@ -167,6 +174,23 @@ export function installFeatureHandlers(logger: Logger): void {
       }
       throw err;
     }
+  });
+
+  // create-supplier-orders: queue one supplier order per supplier shipping
+  // part of a paid order. Idempotent per (order, supplier), so a replayed
+  // event queues nothing new. The placer loop sends them.
+  setHandler('create-supplier-orders', async (data) => {
+    const { eventId } = (data ?? {}) as { eventId?: string };
+    if (!eventId) return;
+    const [event] = await getDb()
+      .select({ payload: domainEvents.payload, companyId: domainEvents.companyId })
+      .from(domainEvents)
+      .where(eq(domainEvents.id, eventId))
+      .limit(1);
+    const orderId = (event?.payload as { orderId?: string } | undefined)?.orderId;
+    if (!event || !orderId) return;
+    const result = await queueSupplierOrders(orderId, event.companyId);
+    if (result.supplierIds.length > 0) logger.info({ orderId, ...result }, 'create-supplier-orders ran');
   });
 
   // send-dispatch-email: tell the customer their order has shipped, with the

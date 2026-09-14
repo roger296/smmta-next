@@ -27,6 +27,7 @@ export const HANDLER_QUEUES = [
   'create-shipping-label',
   'create-pick-note',
   'send-dispatch-email',
+  'create-supplier-orders',
 ] as const;
 
 export type HandlerQueue = (typeof HANDLER_QUEUES)[number];
@@ -46,8 +47,9 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'shipment.eta_changed': ['notify-eta-changed'],
   'shipment.arrived': ['notify-arrival'],
   'consent.revoked': ['cancel-user-drafts'],
-  // A paid storefront order gets a shipping label (Smooth Parcel) and a pick note.
-  'order.paid': ['create-shipping-label', 'create-pick-note'],
+  // A paid storefront order gets a shipping label (Smooth Parcel) and a pick
+  // note for its warehouse lines, and a supplier order for its drop-ship lines.
+  'order.paid': ['create-shipping-label', 'create-pick-note', 'create-supplier-orders'],
   // Every other new order gets a pick note, and a changed order a fresh one.
   'order.created': ['create-pick-note'],
   'order.lines_changed': ['create-pick-note'],
@@ -93,6 +95,9 @@ export const RETRY_POLICY: Record<string, { retryLimit: number; retryDelay: numb
   // Hands the email to the storefront's outbox, which is idempotent per order,
   // so a retry after a lost response cannot send the customer two emails.
   'send-dispatch-email': { retryLimit: 5, retryDelay: 60 },
+  // Local inserts only, idempotent per (order, supplier); the supplier API is
+  // called later by the placer loop, which has its own retry policy.
+  'create-supplier-orders': { retryLimit: 5, retryDelay: 30 },
 };
 
 export const DEFAULT_RETRY = { retryLimit: 3, retryDelay: 15 } as const;
