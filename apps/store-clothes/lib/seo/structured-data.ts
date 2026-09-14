@@ -9,7 +9,8 @@
  * `<script type="application/ld+json">` tag. Keeping the structure out
  * of JSX lets us unit-test it without a render harness.
  */
-import type { FullGroup, FullProduct, GroupListItem, ThinVariant } from '../api-types';
+import type { FullGroup, FullProduct, GroupListItem, StockState, ThinVariant } from '../api-types';
+import { effectiveStockState, isSellable } from '../dispatch-copy';
 
 export const ORG_NAME = 'Clothes Shop';
 
@@ -79,6 +80,7 @@ export function productLd(
     colour: string | null;
     priceGbp: string | null;
     availableQty: number;
+    stockState?: StockState;
     heroImageUrl: string | null;
     seoDescription: string | null;
     shortDescription: string | null;
@@ -89,10 +91,10 @@ export function productLd(
     '@type': 'Offer',
     url: new URL(url, baseUrl).toString(),
     priceCurrency: 'GBP',
-    availability:
-      product.availableQty > 0
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
+    // Supplier-held items can be bought, so they count as in stock.
+    availability: isSellable(effectiveStockState(product))
+      ? 'https://schema.org/InStock'
+      : 'https://schema.org/OutOfStock',
   };
   if (product.priceGbp !== null) offer.price = product.priceGbp;
 
@@ -120,7 +122,7 @@ export function groupProductLd(
   const prices = variants
     .map((v) => (v.priceGbp ? Number.parseFloat(v.priceGbp) : null))
     .filter((p): p is number => p !== null && Number.isFinite(p));
-  const totalAvailable = variants.reduce((s, v) => s + v.availableQty, 0);
+  const anySellable = variants.some((v) => isSellable(effectiveStockState(v)));
 
   const offers: Record<string, unknown> | undefined =
     prices.length > 0
@@ -130,10 +132,9 @@ export function groupProductLd(
           lowPrice: Math.min(...prices).toFixed(2),
           highPrice: Math.max(...prices).toFixed(2),
           offerCount: variants.length,
-          availability:
-            totalAvailable > 0
-              ? 'https://schema.org/InStock'
-              : 'https://schema.org/OutOfStock',
+          availability: anySellable
+            ? 'https://schema.org/InStock'
+            : 'https://schema.org/OutOfStock',
         }
       : undefined;
 
