@@ -195,8 +195,8 @@ export function CheckoutForm() {
       <fieldset className="space-y-3">
         <legend className="text-base font-medium">Shipping</legend>
         <p className="rounded-[var(--radius)] border border-[var(--brand-border)] p-3 text-sm">
-          Standard tracked delivery (1–2 working days from the workshop) — fixed rate shown in the
-          order summary.
+          Tracked UK delivery from our supplier partners — order by 2pm on a working day and it ships
+          the same day. One fixed charge per order, shown in the order summary.
         </p>
       </fieldset>
 
