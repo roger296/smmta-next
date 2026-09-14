@@ -17,7 +17,8 @@
  *
  *   3. **Age wins over context for kids.** A kid's hoodie lives in
  *      Kids & Schoolwear → Kids' tops, not Tops → Hoodies. Kids and
- *      adults shop on different pages.
+ *      adults shop on different pages. Only clothing goes there: a
+ *      soft toy with a children's age group stays uncategorised.
  *
  *   4. **Garment-type fallthrough at the bottom.** Once context and
  *      age are exhausted, the regex on `productType` does the bulk
@@ -32,7 +33,8 @@
  * Supplier types are plural ("Hoodies", "Bags", "Scarves"), so type and
  * name patterns allow plurals. Categorisation tokens match whole words:
  * the full Ralawise Categorisation is a long list of collection names,
- * in which a substring such as "pe" or "tie" turns up everywhere.
+ * in which a substring such as "pe" or "tie" turns up everywhere, and
+ * sport words there often name a merchandise collection rather than kit.
  *
  * `assignTo` is a slug path like `workwear-and-safety/hi-vis-tops-and-vests`
  * matching the taxonomy in `taxonomy.ts`. The evaluator validates
@@ -236,7 +238,7 @@ export const RULES: MappingRule[] = [
     rationale: "Kids' outerwear — by name",
   },
   {
-    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior)\b.*\b(trousers?|shorts?|joggers?|leggings?|skirts?|pants?|sweatpants?|jeans)\b/i,
+    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior)\b.*\b(trousers?|shorts?|joggers?|leggings?|skirts?|skorts?|pants?|sweatpants?|jeans)\b/i,
     assignTo: 'kids-and-schoolwear/kids-bottoms',
     rationale: "Kids' bottoms — by name",
   },
@@ -254,23 +256,24 @@ export const RULES: MappingRule[] = [
   },
   {
     ageGroupEquals: 'Child',
-    productType: /Trouser|Short|Jogger|Legging|Skirt|Pant|Jean|Chino/i,
+    productType: /Trouser|Short|Jogger|Legging|Skirt|Skort|Pant|Jean|Chino/i,
     assignTo: 'kids-and-schoolwear/kids-bottoms',
     rationale: "Kids' lower-body wear",
   },
   {
     ageGroupEquals: 'Child',
-    productType: /T-Shirt|Polo|Hoodie|Sweatshirt|Shirt|Tank|Vest|Jumper|Blouse|Cardigan|Top/i,
+    productType: /T-Shirt|Polo|Hoodie|Sweatshirt|Shirt|Tank|Vest|Jumper|Blouse|Cardigan|Top\b/i,
     assignTo: 'kids-and-schoolwear/kids-tops',
     rationale: "Kids' upper-body wear",
   },
   {
     ageGroupEquals: 'Child',
+    productType: /\b(Onesies?|All-in-ones?|Robes?|Ponchos?|Pyjamas?|Dress|Dresses|Baselayers?|Base Layers?|Trackwear)\b/i,
     assignTo: 'kids-and-schoolwear/kids-tops',
-    rationale: "Catch-all for remaining kids' apparel → tops",
+    rationale: "Kids' other clothing. Not a catch-all: toys and gifts stay uncategorised",
   },
   {
-    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior|school)\b/i,
+    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior|schoolwear)\b/i,
     assignTo: 'kids-and-schoolwear/kids-tops',
     rationale: "Kids' wear with no age group or garment signal — by name",
   },
@@ -287,13 +290,7 @@ export const RULES: MappingRule[] = [
   {
     productType: /\b(Rugby Shirts?|Football Shirts?|Jerseys?)\b/i,
     assignTo: 'sport-and-active/team-kit',
-    rationale: 'Team-sport shirts by type',
-  },
-  {
-    categorisationContains: 'Football|Rugby|Cricket|Tennis|Basketball|Hockey',
-    productType: /T-Shirt|Polo|Shirt|Top|Tank|Vest|Jersey/i,
-    assignTo: 'sport-and-active/team-kit',
-    rationale: 'Team-sport upper-body kit',
+    rationale: 'Team-sport shirts by type (sport words in collection names are too often merchandise)',
   },
   {
     categorisationContains: 'Training|Tracksuit',
@@ -319,9 +316,9 @@ export const RULES: MappingRule[] = [
     rationale: 'Sports-context jackets',
   },
   {
-    productType: /\b(Sports Overtops?|Baselayers?|Base Layers?|Sports Bras?)\b/i,
+    productType: /\b(Sports Overtops?|Baselayers?|Base Layers?|Bras?|Unitards?)\b/i,
     assignTo: 'sport-and-active/performance-tops',
-    rationale: 'Sports overtops, baselayers and sports bras',
+    rationale: 'Sports overtops, baselayers, bras and unitards (activewear in the supplier ranges)',
   },
 
   // ───────────────────────────────────────────────────────────
@@ -372,7 +369,7 @@ export const RULES: MappingRule[] = [
   // 6. Bottoms — by garment type.
   // ───────────────────────────────────────────────────────────
   {
-    productType: /Jogger|Joggers|Track Pant|Tracksuit Bottom|Sweatpant/i,
+    productType: /Jogger|Joggers|Track Pant|Tracksuit Bottom|Sweatpant|Loungewear Bottom|Lounge Pant/i,
     assignTo: 'bottoms/joggers',
   },
   {
@@ -380,7 +377,7 @@ export const RULES: MappingRule[] = [
     assignTo: 'bottoms/leggings',
   },
   {
-    productType: /Skirt/i,
+    productType: /Skirt|Skort/i,
     assignTo: 'bottoms/skirts',
   },
   {

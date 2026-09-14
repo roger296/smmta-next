@@ -353,6 +353,38 @@ describe('evaluateRules — real Ralawise product types', () => {
       'sport-and-active/team-kit',
     );
   });
+
+  it('leaves a soft toy with a children’s age group uncategorised, not in kids tops', () => {
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Soft Toys', ageGroup: 'Child', name: 'Bear in a t-shirt' }),
+    ).toBeNull();
+  });
+
+  it('does not read "old school" in an adult name as kids wear', () => {
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Jackets', ageGroup: 'Adult', name: 'Old school college jacket' }),
+    ).toBe('outerwear/jackets-and-coats');
+  });
+
+  it('files a fashion tee in a football collection as a t-shirt, not team kit', () => {
+    expect(
+      evaluateRules({
+        source: 'ralawise',
+        productType: 'T-Shirts',
+        categorisation: 'Football|Fashion',
+        name: 'Acid washed tee',
+      }),
+    ).toBe('tops/t-shirts');
+  });
+
+  it('files bras as performance tops and lounge pants as joggers', () => {
+    expect(
+      evaluateRules({ source: 'ralawise', productType: 'Bras', name: 'Seamless sculpt bra top' }),
+    ).toBe('sport-and-active/performance-tops');
+    expect(evaluateRules({ source: 'ralawise', productType: 'Loungewear Bottoms', name: 'Lounge pants' })).toBe(
+      'bottoms/joggers',
+    );
+  });
 });
 
 describe('evaluateRules — falls through to null when no rule matches', () => {
