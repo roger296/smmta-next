@@ -84,6 +84,21 @@ For each public service, open the service in Coolify and set its **Domain**
 `postgres` and `worker` stay internal (no domain). The `worker` health port
 (3100) is internal only.
 
+### Drop-ship suppliers (worker)
+
+The worker env carries these; all are optional and safe at their defaults.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `SUPPLIER_POLL_ENABLED` | `false` | Poll each drop-ship supplier's stock and cost prices on its own interval. |
+| `SUPPLIER_ORDER_PLACING_ENABLED` | `false` | Send paid orders' drop-ship lines to the supplier. **Real orders** — turn on only after a test order. |
+| `SUPPLIER_ORDER_ALERT_EMAIL` | `roger@etailsupport.com` | Emailed when a supplier order fails. Needs `SENDGRID_API_KEY` and `SENDGRID_SANDBOX=false` to arrive. |
+| `SUPPLIER_ORDER_CONTACT_EMAIL` | `sales@cleverdeals.net` | Our contact address on each supplier order. |
+| `UNEEK_DELIVERY_METHOD` | empty | Uneek's delivery-method code; ask Uneek. |
+
+The worker also reads `JWT_SECRET`, the same value as the api: supplier
+credentials are encrypted with a key derived from it.
+
 ## 5. Deploy
 
 Click **Deploy**. Coolify builds the four images (first build ~a few minutes) and
