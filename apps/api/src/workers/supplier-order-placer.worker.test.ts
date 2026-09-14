@@ -2,8 +2,9 @@
  * Integration test for the supplier-order placer worker.
  *
  * Inserts a customer order with a SUPPLIER fulfilment line, queues a
- * supplier_orders row, and walks the placer through happy / 5xx /
- * 4xx / network paths.
+ * supplier_orders row, and walks the placer through the placed, retried,
+ * refused and unknown-outcome paths. The rule under test throughout: an
+ * order is only sent again when it certainly never reached the supplier.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, inArray } from 'drizzle-orm';
@@ -23,17 +24,21 @@ import {
 } from '../db/schema/index.js';
 import {
   buildIdempotencyKey,
+  isSafeToRetry,
   runSupplierOrderPlacer,
 } from './supplier-order-placer.worker.js';
+import { supplierOrderIdempotencyKey } from '../modules/suppliers/supplier-order-routing.js';
 import {
   registerStubConnectorForTests,
   resetRegistryCacheForTests,
 } from '../integrations/suppliers/registry.js';
 import {
   SupplierAuthError,
+  SupplierUnreachableError,
   SupplierUpstreamError,
 } from '../integrations/suppliers/errors.js';
 import { resetCryptoForTests } from '../shared/crypto/encrypt.js';
+import { FakeSendGrid, resetSendGridForTests, setSendGridForTests } from '../integrations/sendgrid/sendgrid.js';
 import { DropshipSupplierService } from '../modules/suppliers/supplier-dropship.service.js';
 import type {
   SupplierConnector,
@@ -45,32 +50,35 @@ const COMPANY = '99999999-aaaa-4bbb-8ccc-dddddddddddd';
 const SLUG = 'placer-test-supplier';
 const service = new DropshipSupplierService();
 
+type StubMode = 'ok' | 'auth-fail' | 'unavailable' | 'server-error' | 'timeout' | 'refused';
+
 class StubConnector implements SupplierConnector {
-  public mode: 'ok' | 'auth-fail' | 'upstream-fail' = 'ok';
+  public mode: StubMode = 'ok';
   public placeCalls: SupplierOrderRequest[] = [];
   async getStockAndPrice() { return []; }
   async placeOrder(req: SupplierOrderRequest): Promise<SupplierOrderResponse> {
     this.placeCalls.push(req);
-    if (this.mode === 'auth-fail') throw new SupplierAuthError('401');
-    if (this.mode === 'upstream-fail') throw new SupplierUpstreamError('500');
-    return { orderRef: `STUB-${this.placeCalls.length}`, status: 'ACCEPTED' };
+    switch (this.mode) {
+      case 'auth-fail': throw new SupplierAuthError('401');
+      case 'unavailable': throw new SupplierUpstreamError('Upstream 503', { status: 503 });
+      case 'server-error': throw new SupplierUpstreamError('Upstream 500', { status: 500 });
+      case 'timeout': throw new SupplierUnreachableError('This operation was aborted', { raw: { name: 'AbortError' } });
+      case 'refused': throw new SupplierUnreachableError('fetch failed', { raw: { cause: { code: 'ECONNREFUSED' } } });
+      default: return { orderRef: `STUB-${this.placeCalls.length}`, status: 'ACCEPTED' };
+    }
   }
   async getOrderStatus() { return { orderRef: 'X', status: 'PLACED' }; }
   async cancelOrder() { return { ok: true }; }
 }
 
-let warehouseId: string;
 let productId: string;
 let supplierId: string;
-let customerId: string;
-let deliveryAddressId: string;
 let customerOrderId: string;
 const stub = new StubConnector();
 
 async function wipe() {
   const db = getDb();
   await db.delete(supplierOrders).where(eq(supplierOrders.companyId, COMPANY));
-  // Clean orderLines + customer orders
   const orders = await db.select({ id: customerOrders.id }).from(customerOrders).where(eq(customerOrders.companyId, COMPANY));
   if (orders.length > 0) {
     await db.delete(orderLines).where(inArray(orderLines.orderId, orders.map((o) => o.id)));
@@ -103,9 +111,7 @@ beforeAll(async () => {
   await wipe();
   const db = getDb();
 
-  const [w] = await db.insert(warehouses).values({ companyId: COMPANY, name: 'Placer WH', isDefault: true }).returning();
-  warehouseId = w!.id;
-
+  await db.insert(warehouses).values({ companyId: COMPANY, name: 'Placer WH', isDefault: true });
   const [g] = await db.insert(productGroups).values({ companyId: COMPANY, name: 'Placer Group', slug: 'placer-group' }).returning();
   const [p] = await db.insert(products).values({ companyId: COMPANY, name: 'Placer Product', slug: 'placer-product', groupId: g!.id, minSellingPrice: '12.00' }).returning();
   productId = p!.id;
@@ -122,29 +128,27 @@ beforeAll(async () => {
     supplierSku: 'PLACER-SKU', costGbp: '5.00', priority: 100, lastKnownStock: 100, isActive: true,
   });
 
-  // Customer + delivery address.
   const [cust] = await db
     .insert(customers)
     .values({ companyId: COMPANY, name: 'Pat Buyer', email: 'pat@placer.invalid' })
     .returning();
-  customerId = cust!.id;
   const [addr] = await db
     .insert(customerDeliveryAddresses)
     .values({
-      customerId,
+      customerId: cust!.id,
       contactName: 'Pat Buyer',
       line1: '12 Test St', city: 'London', postCode: 'SW1A 1AA', country: 'GB',
+      phone: '07700 900123',
     })
     .returning();
-  deliveryAddressId = addr!.id;
 
   const [order] = await db
     .insert(customerOrders)
     .values({
       companyId: COMPANY,
       orderNumber: 'STORE-PLACER-1',
-      customerId,
-      deliveryAddressId,
+      customerId: cust!.id,
+      deliveryAddressId: addr!.id,
       orderDate: new Date().toISOString().slice(0, 10),
       grandTotal: '24.00',
       orderTotal: '24.00',
@@ -167,6 +171,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  resetSendGridForTests();
   await wipe();
   await closeDatabase();
 });
@@ -177,87 +182,185 @@ beforeEach(async () => {
   const db = getDb();
   await db.delete(supplierOrders).where(eq(supplierOrders.customerOrderId, customerOrderId));
   await db.update(suppliers).set({ isDropshipActive: true }).where(eq(suppliers.id, supplierId));
+  await db.update(customerOrders).set({ status: 'CONFIRMED' }).where(eq(customerOrders.id, customerOrderId));
 });
 
 function queueSupplierOrder() {
-  const db = getDb();
-  return db
+  return getDb()
     .insert(supplierOrders)
     .values({
       companyId: COMPANY,
       customerOrderId,
       supplierId,
-      idempotencyKey: buildIdempotencyKey(customerOrderId, supplierId, productId),
+      idempotencyKey: supplierOrderIdempotencyKey(customerOrderId, supplierId),
       status: 'PENDING',
     })
     .returning();
 }
 
-describe('runSupplierOrderPlacer — happy path', () => {
-  it('PENDING → PLACED, persists supplierOrderRef + responsePayload', async () => {
+async function reload(id: string) {
+  return (await getDb().query.supplierOrders.findFirst({ where: eq(supplierOrders.id, id) }))!;
+}
+
+function collectAlerts() {
+  const reasons: string[] = [];
+  return { reasons, onFailureNotify: (_r: unknown, _s: unknown, reason: string) => { reasons.push(reason); } };
+}
+
+describe('runSupplierOrderPlacer — placed', () => {
+  it('PENDING → PLACED, sends the SKU lines and our contact details', async () => {
     const [row] = await queueSupplierOrder();
     const outcomes = await runSupplierOrderPlacer();
-    const o = outcomes.find((x) => x.supplierOrderId === row!.id)!;
-    expect(o.result).toBe('PLACED');
+    expect(outcomes.find((x) => x.supplierOrderId === row!.id)?.result).toBe('PLACED');
     expect(stub.placeCalls).toHaveLength(1);
-    expect(stub.placeCalls[0]!.idempotencyKey).toBe(row!.idempotencyKey);
-    expect(stub.placeCalls[0]!.lines).toEqual([{ supplierSku: 'PLACER-SKU', qty: 2 }]);
+    const req = stub.placeCalls[0]!;
+    expect(req.idempotencyKey).toBe(row!.idempotencyKey);
+    expect(req.customerOrderRef).toBe('STORE-PLACER-1');
+    expect(req.lines).toEqual([{ supplierSku: 'PLACER-SKU', qty: 2 }]);
+    expect(req.contactEmail).toBe('sales@cleverdeals.net');
+    expect(req.contactPhone).toBe('07700 900123');
 
-    const db = getDb();
-    const updated = await db.query.supplierOrders.findFirst({ where: eq(supplierOrders.id, row!.id) });
-    expect(updated!.status).toBe('PLACED');
-    expect(updated!.supplierOrderRef).toBe('STUB-1');
-    expect(updated!.responsePayload).toBeTruthy();
+    const updated = await reload(row!.id);
+    expect(updated.status).toBe('PLACED');
+    expect(updated.supplierOrderRef).toBe('STUB-1');
+    expect(updated.requestPayload).toBeTruthy();
+    expect(updated.nextRetryAt).toBeNull();
   });
 });
 
-describe('runSupplierOrderPlacer — failure paths', () => {
-  it('5xx → status PENDING + nextRetryAt scheduled', async () => {
-    stub.mode = 'upstream-fail';
+describe('runSupplierOrderPlacer — retries only when the order never arrived', () => {
+  it('503 → PENDING with a backoff, and the next pass leaves it alone', async () => {
+    stub.mode = 'unavailable';
     const [row] = await queueSupplierOrder();
-    const outcomes = await runSupplierOrderPlacer();
-    expect(outcomes[0]!.result).toBe('PENDING');
-    const db = getDb();
-    const updated = await db.query.supplierOrders.findFirst({ where: eq(supplierOrders.id, row!.id) });
-    expect(updated!.status).toBe('PENDING');
-    expect(updated!.retryCount).toBe(1);
-    expect(updated!.nextRetryAt).toBeTruthy();
-    expect(updated!.errorMessage).toMatch(/500/);
+    expect((await runSupplierOrderPlacer())[0]!.result).toBe('PENDING');
+    const updated = await reload(row!.id);
+    expect(updated.status).toBe('PENDING');
+    expect(updated.retryCount).toBe(1);
+    expect(updated.nextRetryAt!.getTime()).toBeGreaterThan(Date.now());
+    expect(updated.errorMessage).toMatch(/503/);
+
+    await runSupplierOrderPlacer();
+    expect(stub.placeCalls).toHaveLength(1);
   });
 
-  it('auth fail → status FAILED immediately + onFailureNotify fires', async () => {
-    stub.mode = 'auth-fail';
+  it('a refused connection → PENDING', async () => {
+    stub.mode = 'refused';
     const [row] = await queueSupplierOrder();
-    let notified = false;
-    await runSupplierOrderPlacer({ onFailureNotify: () => { notified = true; } });
-    const db = getDb();
-    const updated = await db.query.supplierOrders.findFirst({ where: eq(supplierOrders.id, row!.id) });
-    expect(updated!.status).toBe('FAILED');
-    expect(notified).toBe(true);
+    await runSupplierOrderPlacer();
+    expect((await reload(row!.id)).status).toBe('PENDING');
   });
 
-  it('after 5 transient retries → FAILED + notify', async () => {
-    stub.mode = 'upstream-fail';
+  it('after 5 retries → FAILED with one alert', async () => {
+    stub.mode = 'unavailable';
     const [row] = await queueSupplierOrder();
-    let notified = 0;
-    // The first run sets retryCount=1 but nextRetryAt is in the future,
-    // so subsequent runs would skip. Force the row through the retry
-    // budget by manually clearing nextRetryAt between runs.
+    const alerts = collectAlerts();
     const db = getDb();
     for (let i = 0; i < 6; i++) {
-      await runSupplierOrderPlacer({ onFailureNotify: () => { notified++; } });
-      // Clear nextRetryAt + reset status to PENDING if not already
-      // FAILED, so the next iteration picks the row up.
-      const r = await db.query.supplierOrders.findFirst({ where: eq(supplierOrders.id, row!.id) });
-      if (r?.status === 'FAILED') break;
-      await db
-        .update(supplierOrders)
-        .set({ nextRetryAt: new Date(0) })
-        .where(eq(supplierOrders.id, row!.id));
+      await runSupplierOrderPlacer({ onFailureNotify: alerts.onFailureNotify });
+      if ((await reload(row!.id)).status === 'FAILED') break;
+      // Skip the backoff so the next pass picks the row up.
+      await db.update(supplierOrders).set({ nextRetryAt: new Date(0) }).where(eq(supplierOrders.id, row!.id));
     }
-    const final = await db.query.supplierOrders.findFirst({ where: eq(supplierOrders.id, row!.id) });
-    expect(final!.status).toBe('FAILED');
-    expect(notified).toBe(1); // one notification at the FAILED transition
+    const final = await reload(row!.id);
+    expect(final.status).toBe('FAILED');
+    expect(final.errorMessage).toMatch(/Not sent after 5 retries/);
+    expect(alerts.reasons).toHaveLength(1);
+    expect(stub.placeCalls).toHaveLength(6);
+  });
+});
+
+describe('runSupplierOrderPlacer — FAILED for a person', () => {
+  it('a 500 may have created the order → FAILED, outcome unknown', async () => {
+    stub.mode = 'server-error';
+    const [row] = await queueSupplierOrder();
+    const alerts = collectAlerts();
+    await runSupplierOrderPlacer({ onFailureNotify: alerts.onFailureNotify });
+    const updated = await reload(row!.id);
+    expect(updated.status).toBe('FAILED');
+    expect(updated.errorMessage).toMatch(/Outcome unknown/);
+    expect(alerts.reasons[0]).toMatch(/check before retrying/);
+  });
+
+  it('a timeout → FAILED, outcome unknown', async () => {
+    stub.mode = 'timeout';
+    const [row] = await queueSupplierOrder();
+    await runSupplierOrderPlacer({ onFailureNotify: () => {} });
+    expect((await reload(row!.id)).errorMessage).toMatch(/Outcome unknown/);
+  });
+
+  it('auth failure → FAILED immediately as not accepted', async () => {
+    stub.mode = 'auth-fail';
+    const [row] = await queueSupplierOrder();
+    const alerts = collectAlerts();
+    await runSupplierOrderPlacer({ onFailureNotify: alerts.onFailureNotify });
+    const updated = await reload(row!.id);
+    expect(updated.status).toBe('FAILED');
+    expect(updated.errorMessage).toMatch(/did not accept the order/);
+    expect(alerts.reasons).toHaveLength(1);
+  });
+
+  it('a request recorded with no outcome is not sent again', async () => {
+    const [row] = await queueSupplierOrder();
+    // What a process killed mid-call leaves behind.
+    await getDb()
+      .update(supplierOrders)
+      .set({ requestPayload: { sent: true }, errorMessage: null })
+      .where(eq(supplierOrders.id, row!.id));
+    await runSupplierOrderPlacer({ onFailureNotify: () => {} });
+    expect(stub.placeCalls).toHaveLength(0);
+    const updated = await reload(row!.id);
+    expect(updated.status).toBe('FAILED');
+    expect(updated.errorMessage).toMatch(/no reply was recorded/);
+  });
+
+  it('a product with no supplier SKU → FAILED without calling the supplier', async () => {
+    const db = getDb();
+    await db.update(supplierProducts).set({ deletedAt: new Date() }).where(eq(supplierProducts.productId, productId));
+    try {
+      const [row] = await queueSupplierOrder();
+      await runSupplierOrderPlacer({ onFailureNotify: () => {} });
+      expect(stub.placeCalls).toHaveLength(0);
+      expect((await reload(row!.id)).errorMessage).toMatch(/No Placer Supplier SKU/);
+    } finally {
+      await db.update(supplierProducts).set({ deletedAt: null }).where(eq(supplierProducts.productId, productId));
+    }
+  });
+
+  it('emails the alert address when no test hook is given', async () => {
+    const fake = new FakeSendGrid();
+    setSendGridForTests(fake);
+    try {
+      stub.mode = 'auth-fail';
+      await queueSupplierOrder();
+      await runSupplierOrderPlacer();
+      expect(fake.sent).toHaveLength(1);
+      expect(fake.sent[0]!.to).toBe('roger@etailsupport.com');
+      expect(fake.sent[0]!.subject).toContain('STORE-PLACER-1');
+    } finally {
+      resetSendGridForTests();
+    }
+  });
+});
+
+describe('runSupplierOrderPlacer — cancelled orders', () => {
+  it('marks the supplier order CANCELLED and sends nothing', async () => {
+    await getDb().update(customerOrders).set({ status: 'CANCELLED' }).where(eq(customerOrders.id, customerOrderId));
+    const [row] = await queueSupplierOrder();
+    expect((await runSupplierOrderPlacer())[0]!.result).toBe('CANCELLED');
+    expect(stub.placeCalls).toHaveLength(0);
+    expect((await reload(row!.id)).status).toBe('CANCELLED');
+  });
+});
+
+describe('isSafeToRetry', () => {
+  it('retries only errors that prove the order never arrived', () => {
+    expect(isSafeToRetry(new SupplierUpstreamError('x', { status: 429 }))).toBe(true);
+    expect(isSafeToRetry(new SupplierUpstreamError('x', { status: 503 }))).toBe(true);
+    expect(isSafeToRetry(new SupplierUpstreamError('x', { status: 502 }))).toBe(false);
+    expect(isSafeToRetry(new SupplierUpstreamError('non-JSON body'))).toBe(false);
+    expect(isSafeToRetry(new SupplierUnreachableError('fetch failed', { raw: { cause: { code: 'ENOTFOUND' } } }))).toBe(true);
+    expect(isSafeToRetry(new SupplierUnreachableError('This operation was aborted'))).toBe(false);
+    expect(isSafeToRetry(new Error('boom'))).toBe(false);
   });
 });
 

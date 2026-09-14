@@ -1,57 +1,72 @@
 /**
- * Supplier-order placer worker.
+ * Supplier-order placer.
  *
- * Polls `supplier_orders` for rows that are PENDING (or FAILED with a
- * retry budget remaining and `nextRetryAt` in the past), looks up the
- * customer order's shipping address, and calls
- * `connector.placeOrder()` on the matching supplier connector.
+ * Sends PENDING `supplier_orders` rows to the supplier. Rows are queued by the
+ * `create-supplier-orders` handler when an order is paid. The worker's placer
+ * loop (SUPPLIER_ORDER_PLACING_ENABLED) runs a pass every minute, and
+ * `scripts/run-supplier-order-placer.ts` runs one by hand.
  *
- *   PENDING  → connector.placeOrder()  →  PLACED      (happy path)
- *                                       →  FAILED     (4xx / rejected — no retry)
- *                                       →  PENDING    (5xx / network — backoff scheduled)
+ *   PENDING → connector.placeOrder() → PLACED     (accepted)
+ *                                    → FAILED     (refused, or the outcome is unknown)
+ *                                    → PENDING    (certainly not sent; retried later)
+ *                                    → CANCELLED  (the customer order was cancelled first)
  *
- * Backoff: `nextRetryAt = now + 2^retryCount minutes`. After 5 retries
- * the row is marked FAILED and a notification email goes to ops.
+ * Never place an order twice. Neither Uneek nor Ralawise rejects a duplicate
+ * order, so a row is only retried when the order certainly never arrived:
+ *   - the connection was refused or the host not found, or the supplier
+ *     answered 429 / 503 → retry after 2^n minutes, up to 5 times;
+ *   - a timeout, a dropped connection or any other 5xx may have created the
+ *     order → FAILED, and a person checks the supplier before pressing Retry;
+ *   - a process that stopped mid-call leaves the request recorded with no
+ *     outcome → the next pass marks it FAILED the same way.
+ * Each attempt takes a 10-minute lease on the row (`nextRetryAt`), so two
+ * processes never send the same row at once.
  *
- * One row at a time per call. The systemd unit runs the worker on a
- * tight loop (every 30s); higher throughput is V2.
+ * Every row that ends FAILED emails SUPPLIER_ORDER_ALERT_EMAIL.
  */
-import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lte, or } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { getDb } from '../config/database.js';
+import { getEnv } from '../config/env.js';
 import {
   customerOrders,
   customerDeliveryAddresses,
-  customers,
   orderLines,
   supplierOrders,
+  supplierProducts,
   suppliers,
 } from '../db/schema/index.js';
 import { resolveConnector } from '../integrations/suppliers/registry.js';
 import {
   SupplierAuthError,
   SupplierBadRequestError,
+  SupplierError,
   SupplierRejectedOrderError,
   SupplierUnreachableError,
   SupplierUpstreamError,
 } from '../integrations/suppliers/errors.js';
 import type { SupplierConnector, SupplierOrderRequest } from '../integrations/suppliers/types.js';
+import { getSendGrid } from '../integrations/sendgrid/sendgrid.js';
 
 const MAX_RETRIES = 5;
-const FAILURE_NOTIFY_EMAIL = 'roger@etailsupport.com';
+/** How long one attempt holds a row. Longer than the slowest order call. */
+const ATTEMPT_LEASE_MS = 10 * 60_000;
+
+type SupplierOrderRow = typeof supplierOrders.$inferSelect;
+type SupplierRow = typeof suppliers.$inferSelect;
 
 export interface RunPlacerOptions {
   /** Limit how many orders this run touches; default 50. */
   batchSize?: number;
   /** Test override for the connector resolver. */
-  resolveConnector?: (supplier: typeof suppliers.$inferSelect) => SupplierConnector;
-  /** Test hook called when a notification email *would* be sent. */
-  onFailureNotify?: (row: typeof supplierOrders.$inferSelect, supplier: typeof suppliers.$inferSelect) => void;
+  resolveConnector?: (supplier: SupplierRow) => SupplierConnector;
+  /** Replaces the alert email when a row ends FAILED; tests use it. */
+  onFailureNotify?: (row: SupplierOrderRow, supplier: SupplierRow, reason: string) => void | Promise<void>;
 }
 
 export interface PlacerOutcome {
   supplierOrderId: string;
-  result: 'PLACED' | 'PENDING' | 'FAILED' | 'SKIPPED';
+  result: 'PLACED' | 'PENDING' | 'FAILED' | 'CANCELLED' | 'SKIPPED';
   errorMessage?: string;
 }
 
@@ -61,21 +76,15 @@ export async function runSupplierOrderPlacer(
   const db = getDb();
   const batchSize = opts.batchSize ?? 50;
 
-  // Pick PENDING rows + FAILED-but-retryable rows whose nextRetryAt has passed.
+  // PENDING rows that are not waiting out a backoff or another attempt's lease.
   const due = await db
     .select()
     .from(supplierOrders)
     .where(
       and(
         isNull(supplierOrders.deletedAt),
-        or(
-          eq(supplierOrders.status, 'PENDING'),
-          and(
-            eq(supplierOrders.status, 'FAILED'),
-            lte(supplierOrders.retryCount, MAX_RETRIES - 1),
-            sql`${supplierOrders.nextRetryAt} IS NOT NULL AND ${supplierOrders.nextRetryAt} <= NOW()`,
-          ),
-        ),
+        eq(supplierOrders.status, 'PENDING'),
+        or(isNull(supplierOrders.nextRetryAt), lte(supplierOrders.nextRetryAt, new Date())),
       ),
     )
     .orderBy(asc(supplierOrders.createdAt))
@@ -83,16 +92,27 @@ export async function runSupplierOrderPlacer(
 
   const outcomes: PlacerOutcome[] = [];
   for (const row of due) {
-    const outcome = await placeOne(row, opts);
-    outcomes.push(outcome);
+    outcomes.push(await placeOne(row, opts));
   }
   return outcomes;
 }
 
-async function placeOne(
-  row: typeof supplierOrders.$inferSelect,
-  opts: RunPlacerOptions,
-): Promise<PlacerOutcome> {
+/**
+ * Whether a failed order call certainly never created the order, so sending
+ * it again cannot make a duplicate.
+ */
+export function isSafeToRetry(err: unknown): boolean {
+  if (err instanceof SupplierUpstreamError) return err.status === 429 || err.status === 503;
+  if (err instanceof SupplierUnreachableError) {
+    const raw = err.raw as { code?: unknown; cause?: { code?: unknown } } | undefined;
+    const code = String(raw?.cause?.code ?? raw?.code ?? '');
+    return NEVER_CONNECTED.has(code) || /ECONNREFUSED|ENOTFOUND|EAI_AGAIN/.test(err.message);
+  }
+  return false;
+}
+const NEVER_CONNECTED = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN']);
+
+async function placeOne(row: SupplierOrderRow, opts: RunPlacerOptions): Promise<PlacerOutcome> {
   const db = getDb();
 
   const supplier = await db.query.suppliers.findFirst({
@@ -102,67 +122,91 @@ async function placeOne(
     return { supplierOrderId: row.id, result: 'SKIPPED', errorMessage: 'supplier inactive' };
   }
 
-  // Resolve the connector.
+  // Claim the row for this attempt. Another process that got here first has
+  // already moved nextRetryAt past now, so this update matches nothing.
+  const [claimed] = await db
+    .update(supplierOrders)
+    .set({ nextRetryAt: new Date(Date.now() + ATTEMPT_LEASE_MS), updatedAt: new Date() })
+    .where(
+      and(
+        eq(supplierOrders.id, row.id),
+        eq(supplierOrders.status, 'PENDING'),
+        or(isNull(supplierOrders.nextRetryAt), lte(supplierOrders.nextRetryAt, new Date())),
+      ),
+    )
+    .returning();
+  if (!claimed) {
+    return { supplierOrderId: row.id, result: 'SKIPPED', errorMessage: 'being placed by another process' };
+  }
+
+  // A request recorded with no outcome: an earlier attempt stopped mid-call.
+  if (claimed.requestPayload !== null && claimed.errorMessage === null) {
+    return markFailed(
+      claimed,
+      supplier,
+      `Outcome unknown: the order was sent to ${supplier.name} but no reply was recorded. Check ${supplier.name} for it before retrying.`,
+      opts,
+    );
+  }
+
   let connector: SupplierConnector;
   try {
     connector = opts.resolveConnector ? opts.resolveConnector(supplier) : resolveConnector(supplier);
   } catch (err) {
+    // Nothing was sent, so this is safe to retry.
     const msg = err instanceof Error ? err.message : 'connector resolve failed';
-    await markRetryOrFail(row, msg, supplier, opts);
-    return { supplierOrderId: row.id, result: 'PENDING', errorMessage: msg };
+    return markRetryOrFail(claimed, msg, supplier, opts);
   }
 
-  // Build the SupplierOrderRequest from the customer order + line records.
   const order = await db.query.customerOrders.findFirst({
-    where: eq(customerOrders.id, row.customerOrderId),
+    where: eq(customerOrders.id, claimed.customerOrderId),
   });
-  if (!order) {
+  if (!order) return markFailed(claimed, supplier, 'The customer order is missing.', opts);
+  if (order.status === 'CANCELLED') {
+    const msg = 'The customer order was cancelled before it was sent to the supplier.';
     await db
       .update(supplierOrders)
-      .set({ status: 'FAILED', errorMessage: 'customer order missing', updatedAt: new Date() })
-      .where(eq(supplierOrders.id, row.id));
-    return { supplierOrderId: row.id, result: 'FAILED', errorMessage: 'customer order missing' };
+      .set({ status: 'CANCELLED', errorMessage: msg, nextRetryAt: null, updatedAt: new Date() })
+      .where(eq(supplierOrders.id, claimed.id));
+    return { supplierOrderId: claimed.id, result: 'CANCELLED', errorMessage: msg };
   }
-  const customer = await db.query.customers.findFirst({
-    where: eq(customers.id, order.customerId),
-  });
   const shippingRow = order.deliveryAddressId
     ? await db.query.customerDeliveryAddresses.findFirst({
         where: eq(customerDeliveryAddresses.id, order.deliveryAddressId),
       })
     : null;
-  if (!shippingRow) {
-    await db
-      .update(supplierOrders)
-      .set({ status: 'FAILED', errorMessage: 'delivery address missing', updatedAt: new Date() })
-      .where(eq(supplierOrders.id, row.id));
-    return { supplierOrderId: row.id, result: 'FAILED', errorMessage: 'delivery address missing' };
-  }
+  if (!shippingRow) return markFailed(claimed, supplier, 'The customer order has no delivery address.', opts);
+
   const lines = await db.query.orderLines.findMany({
     where: and(
       eq(orderLines.orderId, order.id),
       eq(orderLines.fulfilmentSource, 'SUPPLIER'),
       eq(orderLines.supplierId, supplier.id),
+      isNull(orderLines.deletedAt),
     ),
   });
   if (lines.length === 0) {
-    await db
-      .update(supplierOrders)
-      .set({ status: 'FAILED', errorMessage: 'no supplier lines on customer order', updatedAt: new Date() })
-      .where(eq(supplierOrders.id, row.id));
-    return { supplierOrderId: row.id, result: 'FAILED', errorMessage: 'no supplier lines' };
+    return markFailed(claimed, supplier, `The customer order has no lines for ${supplier.name}.`, opts);
   }
-  const skuLines = await fetchSupplierSkus(supplier.id, lines.map((l) => l.productId));
+  const skus = await fetchSupplierSkus(supplier.id, lines.map((l) => l.productId));
+  const unmapped = lines.filter((l) => !skus.get(l.productId));
+  if (unmapped.length > 0) {
+    return markFailed(
+      claimed,
+      supplier,
+      `No ${supplier.name} SKU is mapped for product ${unmapped.map((l) => l.productId).join(', ')}.`,
+      opts,
+    );
+  }
 
-  const customerName = customer
-    ? customer.name ?? customer.email ?? 'Customer'
-    : shippingRow.contactName ?? 'Customer';
-
+  const env = getEnv();
+  const customer = await db.query.customers.findFirst({ where: (c, { eq: equals }) => equals(c.id, order.customerId) });
+  const name = shippingRow.contactName ?? customer?.name ?? 'Customer';
   const req: SupplierOrderRequest = {
-    idempotencyKey: row.idempotencyKey,
+    idempotencyKey: claimed.idempotencyKey,
     customerOrderRef: order.orderNumber,
     shipping: {
-      name: shippingRow.contactName ?? customerName,
+      name,
       line1: shippingRow.line1 ?? '',
       line2: shippingRow.line2 ?? undefined,
       city: shippingRow.city ?? '',
@@ -171,16 +215,24 @@ async function placeOne(
       country: shippingRow.country ?? 'GB',
     },
     lines: lines.map((l) => ({
-      supplierSku: skuLines.get(l.productId) ?? '',
+      supplierSku: skus.get(l.productId)!,
       qty: Math.floor(Number(l.quantity)),
     })),
+    contactEmail: env.SUPPLIER_ORDER_CONTACT_EMAIL || undefined,
+    contactPhone: shippingRow.phone ?? undefined,
   };
 
-  // Capture the request payload up front for audit even if the call fails.
+  // Recorded before the call and with no error, so a process that stops
+  // mid-call leaves a request with no outcome for the next pass to flag.
   await db
     .update(supplierOrders)
-    .set({ requestPayload: req as unknown as Record<string, unknown>, updatedAt: new Date() })
-    .where(eq(supplierOrders.id, row.id));
+    .set({
+      requestPayload: req as unknown as Record<string, unknown>,
+      responsePayload: null,
+      errorMessage: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(supplierOrders.id, claimed.id));
 
   try {
     const resp = await connector.placeOrder(req);
@@ -194,60 +246,43 @@ async function placeOne(
         nextRetryAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(supplierOrders.id, row.id));
-    return { supplierOrderId: row.id, result: 'PLACED' };
+      .where(eq(supplierOrders.id, claimed.id));
+    return { supplierOrderId: claimed.id, result: 'PLACED' };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown error';
+    const raw = err instanceof SupplierError ? err.raw : undefined;
+    if (isSafeToRetry(err)) {
+      return markRetryOrFail({ ...claimed, requestPayload: req as unknown as Record<string, unknown> }, msg, supplier, opts);
+    }
     if (
       err instanceof SupplierAuthError ||
       err instanceof SupplierBadRequestError ||
       err instanceof SupplierRejectedOrderError
     ) {
-      // Hard failures — don't retry.
-      await db
-        .update(supplierOrders)
-        .set({ status: 'FAILED', errorMessage: msg, updatedAt: new Date() })
-        .where(eq(supplierOrders.id, row.id));
-      opts.onFailureNotify?.(row, supplier);
-      // In production we'd send a SendGrid email here; for the V1 we
-      // just record that the notification was due. The closeout PR
-      // can add the actual transactional email.
-      return { supplierOrderId: row.id, result: 'FAILED', errorMessage: msg };
+      return markFailed(claimed, supplier, `${supplier.name} did not accept the order: ${msg}`, opts, { raw });
     }
-    if (err instanceof SupplierUpstreamError || err instanceof SupplierUnreachableError) {
-      const result = await markRetryOrFail(row, msg, supplier, opts);
-      return result;
-    }
-    // Unknown error — treat as transient.
-    return await markRetryOrFail(row, msg, supplier, opts);
+    return markFailed(
+      claimed,
+      supplier,
+      `Outcome unknown: ${msg}. ${supplier.name} may have the order, so check before retrying.`,
+      opts,
+      { raw },
+    );
   }
 }
 
 async function markRetryOrFail(
-  row: typeof supplierOrders.$inferSelect,
+  row: SupplierOrderRow,
   msg: string,
-  supplier: typeof suppliers.$inferSelect,
+  supplier: SupplierRow,
   opts: RunPlacerOptions,
 ): Promise<PlacerOutcome> {
-  const db = getDb();
   const newCount = (row.retryCount ?? 0) + 1;
   if (newCount > MAX_RETRIES) {
-    await db
-      .update(supplierOrders)
-      .set({
-        status: 'FAILED',
-        errorMessage: msg,
-        retryCount: newCount,
-        nextRetryAt: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(supplierOrders.id, row.id));
-    opts.onFailureNotify?.(row, supplier);
-    return { supplierOrderId: row.id, result: 'FAILED', errorMessage: msg };
+    return markFailed(row, supplier, `Not sent after ${MAX_RETRIES} retries: ${msg}`, opts, { retryCount: newCount });
   }
-  const delayMs = 2 ** newCount * 60_000;
-  const next = new Date(Date.now() + delayMs);
-  await db
+  const next = new Date(Date.now() + 2 ** newCount * 60_000);
+  await getDb()
     .update(supplierOrders)
     .set({
       status: 'PENDING',
@@ -260,32 +295,90 @@ async function markRetryOrFail(
   return { supplierOrderId: row.id, result: 'PENDING', errorMessage: msg };
 }
 
+async function markFailed(
+  row: SupplierOrderRow,
+  supplier: SupplierRow,
+  reason: string,
+  opts: RunPlacerOptions,
+  extra: { retryCount?: number; raw?: unknown } = {},
+): Promise<PlacerOutcome> {
+  await getDb()
+    .update(supplierOrders)
+    .set({
+      status: 'FAILED',
+      errorMessage: reason,
+      nextRetryAt: null,
+      ...(extra.retryCount !== undefined ? { retryCount: extra.retryCount } : {}),
+      ...(extra.raw !== undefined ? { responsePayload: { error: extra.raw } as Record<string, unknown> } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(supplierOrders.id, row.id));
+  await notifyFailure(row, supplier, reason, opts);
+  return { supplierOrderId: row.id, result: 'FAILED', errorMessage: reason };
+}
+
+async function notifyFailure(
+  row: SupplierOrderRow,
+  supplier: SupplierRow,
+  reason: string,
+  opts: RunPlacerOptions,
+): Promise<void> {
+  try {
+    if (opts.onFailureNotify) {
+      await opts.onFailureNotify(row, supplier, reason);
+      return;
+    }
+    const order = await getDb().query.customerOrders.findFirst({
+      where: eq(customerOrders.id, row.customerOrderId),
+      columns: { orderNumber: true },
+    });
+    const orderNumber = order?.orderNumber ?? row.customerOrderId;
+    await getSendGrid().send({
+      to: getEnv().SUPPLIER_ORDER_ALERT_EMAIL,
+      category: 'transactional',
+      subject: `Supplier order needs attention: ${orderNumber} (${supplier.name})`,
+      html: [
+        `<p>The ${escapeHtml(supplier.name)} order for customer order <strong>${escapeHtml(orderNumber)}</strong> was not placed.</p>`,
+        `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>`,
+        `<p>Open Supplier orders in the admin to retry it once the problem is fixed. Supplier order id: ${escapeHtml(row.id)}.</p>`,
+      ].join(''),
+      idempotencyKey: `supplier-order-failed:${row.id}:${row.retryCount}:${row.updatedAt.getTime()}`,
+    });
+  } catch (err) {
+    // The row is already FAILED and visible in the admin; a lost alert must
+    // not stop the rest of the batch.
+    // eslint-disable-next-line no-console
+    console.error('[supplier-order-placer] failure alert not sent:', err);
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
 async function fetchSupplierSkus(
   supplierId: string,
   productIds: string[],
 ): Promise<Map<string, string>> {
   if (productIds.length === 0) return new Map();
-  const db = getDb();
-  const { supplierProducts } = await import('../db/schema/index.js');
-  const rows = await db.query.supplierProducts.findMany({
-    where: and(
-      eq(supplierProducts.supplierId, supplierId),
-      isNull(supplierProducts.deletedAt),
-    ),
-  });
-  const out = new Map<string, string>();
-  for (const r of rows) {
-    if (productIds.includes(r.productId)) {
-      out.set(r.productId, r.supplierSku);
-    }
-  }
-  return out;
+  const rows = await getDb()
+    .select({ productId: supplierProducts.productId, supplierSku: supplierProducts.supplierSku })
+    .from(supplierProducts)
+    .where(
+      and(
+        eq(supplierProducts.supplierId, supplierId),
+        inArray(supplierProducts.productId, productIds),
+        isNull(supplierProducts.deletedAt),
+      ),
+    );
+  return new Map(rows.map((r) => [r.productId, r.supplierSku]));
 }
 
 /**
  * Deterministic idempotency key for a customer-order line headed to a
  * supplier. SHA-256 of `${customerOrderId}:${supplierId}:${productId}` —
- * see spec §7.3.
+ * see spec §7.3. New rows use `supplierOrderIdempotencyKey`, one per
+ * (order, supplier), from `modules/suppliers/supplier-order-routing.ts`.
  */
 export function buildIdempotencyKey(
   customerOrderId: string,
@@ -296,5 +389,3 @@ export function buildIdempotencyKey(
   h.update(`${customerOrderId}:${supplierId}:${productId}`);
   return h.digest('hex');
 }
-
-export const FAILURE_NOTIFY_EMAIL_ADDRESS = FAILURE_NOTIFY_EMAIL;
