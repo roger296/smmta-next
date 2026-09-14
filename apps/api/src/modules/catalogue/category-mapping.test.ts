@@ -14,8 +14,29 @@
  *      relevant scenario test should change with it.
  */
 import { describe, expect, it } from 'vitest';
-import { evaluateRules, RULES } from './category-mapping.js';
+import { evaluateRules, normaliseAgeGroup, RULES } from './category-mapping.js';
 import { TAXONOMY, findTaxonomyEntry } from './taxonomy.js';
+
+describe('normaliseAgeGroup', () => {
+  it("maps Ralawise's age labels onto the ones the rules use", () => {
+    expect(normaliseAgeGroup('Adult')).toBe('Adult');
+    expect(normaliseAgeGroup('Kids')).toBe('Child');
+    expect(normaliseAgeGroup('Infant')).toBe('Baby');
+  });
+
+  it('ignores case and surrounding space', () => {
+    expect(normaliseAgeGroup('  kids ')).toBe('Child');
+    expect(normaliseAgeGroup('INFANT')).toBe('Baby');
+  });
+
+  it('passes unknown labels through and treats blanks as missing', () => {
+    expect(normaliseAgeGroup('Senior')).toBe('Senior');
+    expect(normaliseAgeGroup('')).toBeNull();
+    expect(normaliseAgeGroup('   ')).toBeNull();
+    expect(normaliseAgeGroup(null)).toBeNull();
+    expect(normaliseAgeGroup(undefined)).toBeNull();
+  });
+});
 
 describe('RULES validation', () => {
   it('every rule assigns to a real taxonomy slug path', () => {

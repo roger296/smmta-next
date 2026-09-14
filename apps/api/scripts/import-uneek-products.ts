@@ -363,6 +363,8 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
     slug: string;
     name: string;
     groupType: string | null;
+    /** Uneek's Category / SubCategory, for assign-categories. */
+    categoryHints: { productType: string | null; categorisation: string | null };
     longDescription: string | null;
     shortDescription: string | null;
     heroImageUrl: string | null;
@@ -380,10 +382,17 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
     const short = first.ShortDescription?.trim() || null;
     // Pick the first variant with a real image as the family hero.
     const heroImageUrl = rows.find((r) => r.Image?.trim())?.Image?.trim() || null;
+    const category = first.Category?.trim() || null;
+    const subCategory = first.SubCategory?.trim() || null;
     groupPlans.push({
       slug,
       name: (first.ProductName ?? familyCode).trim().slice(0, 200),
-      groupType: first.Category?.trim() || null,
+      groupType: category,
+      categoryHints: {
+        // The narrower label names the garment best ("Hooded Sweatshirts").
+        productType: subCategory ?? category,
+        categorisation: [category, subCategory].filter(Boolean).join('|') || null,
+      },
       longDescription: long,
       shortDescription: short ? short.slice(0, 280) : null,
       heroImageUrl,
@@ -490,6 +499,7 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
           .set({
             name: gp.name,
             groupType: gp.groupType,
+            categoryHints: gp.categoryHints,
             longDescription: gp.longDescription,
             shortDescription: gp.shortDescription,
             heroImageUrl: gp.heroImageUrl,

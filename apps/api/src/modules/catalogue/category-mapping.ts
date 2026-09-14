@@ -54,6 +54,34 @@ export interface ProductFacts {
   name?: string | null;
 }
 
+const AGE_GROUPS: Record<string, string> = {
+  adult: 'Adult',
+  adults: 'Adult',
+  teen: 'Teen',
+  teens: 'Teen',
+  child: 'Child',
+  children: 'Child',
+  kid: 'Child',
+  kids: 'Child',
+  junior: 'Child',
+  baby: 'Baby',
+  babies: 'Baby',
+  infant: 'Baby',
+  infants: 'Baby',
+  toddler: 'Baby',
+};
+
+/**
+ * A supplier's age label in the terms the rules use. Ralawise says "Kids"
+ * and "Infant" where the rules say "Child" and "Baby". Unknown labels
+ * pass through unchanged.
+ */
+export function normaliseAgeGroup(value: string | null | undefined): string | null {
+  const v = value?.trim();
+  if (!v) return null;
+  return AGE_GROUPS[v.toLowerCase()] ?? v;
+}
+
 export interface MappingRule {
   /** Optional source filter — when set, the rule only fires for the
    *  named supplier. Most rules apply to both. */

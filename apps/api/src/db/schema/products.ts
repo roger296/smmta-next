@@ -126,6 +126,19 @@ export const productCategoryMappings = pgTable('product_category_mappings', {
 // Product Groups
 // ============================================================
 
+/**
+ * How a supplier classifies a range, captured at import so
+ * assign-categories can place it in our taxonomy. Free text, as the
+ * supplier wrote it: e.g. Ralawise's Product Type "Hoodies", its
+ * pipe-separated Categorisation, Gender "Unisex", Age Group "Kids".
+ */
+export interface CategoryHints {
+  productType?: string | null;
+  categorisation?: string | null;
+  gender?: string | null;
+  ageGroup?: string | null;
+}
+
 export const productGroups = pgTable(
   'product_groups',
   {
@@ -149,6 +162,9 @@ export const productGroups = pgTable(
      *  uses `['colour']`; Clothes Shop uses `['size', 'colour']`. The
      *  storefront variant-selector renders one selector per axis. */
     attributeAxes: text('attribute_axes').array(),
+    /** The supplier's own classification of the range. Null for ranges
+     *  not imported from a supplier, or imported before this existed. */
+    categoryHints: jsonb('category_hints').$type<CategoryHints>(),
     // ------------------------------------------------------------------
     oldId: oldId(),
     ...auditTimestamps,

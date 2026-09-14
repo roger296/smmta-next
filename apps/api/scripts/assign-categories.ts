@@ -38,6 +38,7 @@ import {
 } from '../src/db/schema/index.js';
 import {
   evaluateRules,
+  normaliseAgeGroup,
   type ProductFacts,
 } from '../src/modules/catalogue/category-mapping.js';
 import { findTaxonomyEntry } from '../src/modules/catalogue/taxonomy.js';
@@ -162,6 +163,7 @@ export async function runAssignCategories(opts: CliOpts): Promise<AssignSummary>
         groupId: products.groupId,
         groupType: productGroups.groupType,
         groupName: productGroups.name,
+        categoryHints: productGroups.categoryHints,
       })
       .from(products)
       .leftJoin(productGroups, eq(productGroups.id, products.groupId))
@@ -175,12 +177,15 @@ export async function runAssignCategories(opts: CliOpts): Promise<AssignSummary>
     for (const row of page) {
       if (summary.scanned >= targetLimit) break;
       summary.scanned++;
+      // The supplier's own classification, saved at import. Ranges
+      // imported before category_hints existed fall back to group_type.
+      const hints = row.categoryHints;
       const facts: ProductFacts = {
         source: supplierBySku.get(row.id) ?? 'unknown',
-        productType: row.groupType,
-        categorisation: row.groupType,
-        // No gender/ageGroup captured at import time — rules fall
-        // back to name-based detection.
+        productType: hints?.productType ?? row.groupType,
+        categorisation: hints?.categorisation ?? row.groupType,
+        gender: hints?.gender ?? null,
+        ageGroup: normaliseAgeGroup(hints?.ageGroup),
         name: [row.groupName, row.name].filter(Boolean).join(' '),
       };
       const slugPath = evaluateRules(facts);

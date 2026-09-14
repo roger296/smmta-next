@@ -258,6 +258,10 @@ export interface RalawiseNormalisedRow {
   specification: string;
   retailDescription: string;
   productType: string;
+  /** The full pipe-separated Categorisation (col 35), for category rules. */
+  categorisation: string;
+  /** "Adult" | "Kids" | "Infant" (col 30). */
+  ageGroup: string;
   gender: string;
   fabric: string;
   weightGsm: string;
@@ -292,6 +296,8 @@ export function normaliseRow(row: RalawiseRawRow, markup: number): RalawiseNorma
     specification: (row['Specification'] ?? '').trim(),
     retailDescription: (row['Retail Description'] ?? '').trim(),
     productType: (row['Product Type'] ?? '').trim(),
+    categorisation: (row['Categorisation'] ?? '').trim(),
+    ageGroup: (row['Age Group'] ?? '').trim(),
     gender: (row['Gender'] ?? '').trim(),
     fabric: (row['Fabric'] ?? '').trim(),
     weightGsm: (row['Weight (GSM)'] ?? '').trim(),
@@ -509,6 +515,16 @@ async function applyBatch(
       const shortDescription = first.retailDescription
         ? first.retailDescription.slice(0, 280)
         : null;
+      // Ralawise's Product Type ("Hoodies", "Polos") names the garment;
+      // the first Categorisation segment is often a marketing tag
+      // ("Rebrandable"), so it is only the fallback.
+      const groupType = (first.productType || first.category || '').slice(0, 50) || null;
+      const categoryHints = {
+        productType: first.productType || null,
+        categorisation: first.categorisation || null,
+        gender: first.gender || null,
+        ageGroup: first.ageGroup || null,
+      };
       const existingId = groupSlugToId.get(slug);
       if (existingId) {
         await tx
@@ -519,7 +535,8 @@ async function applyBatch(
             longDescription,
             shortDescription,
             heroImageUrl: first.groupHeroImageUrl,
-            groupType: first.category,
+            groupType,
+            categoryHints,
             attributeAxes: ['size', 'colour'],
             ...(ctx.publish ? { isPublished: true } : {}),
             updatedAt: new Date(),
