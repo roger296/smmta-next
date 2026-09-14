@@ -139,6 +139,35 @@ describe('GET /storefront/groups with a channel-bound key', () => {
     expect(await groupsFor(clothesKey)).toEqual([]);
   });
 
+  it('returns only the first ranges by sort order when a limit is given', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/storefront/groups?limit=2',
+      headers: { authorization: `Bearer ${unboundKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const data = (res.json() as { data: Array<{ slug: string; variants: unknown[] }> }).data;
+    expect(data.map((g) => g.slug)).toEqual(['scope-filament-range', 'scope-clothes-range']);
+    expect(data[0]?.variants).toHaveLength(2);
+
+    // Within a channel, the limit applies to the ranges that channel offers.
+    const scoped = await app.inject({
+      method: 'GET',
+      url: '/api/v1/storefront/groups?limit=1',
+      headers: { authorization: `Bearer ${clothesKey}` },
+    });
+    expect((scoped.json() as { data: Array<{ slug: string }> }).data.map((g) => g.slug)).toEqual([
+      'scope-clothes-range',
+    ]);
+
+    const bad = await app.inject({
+      method: 'GET',
+      url: '/api/v1/storefront/groups?limit=0',
+      headers: { authorization: `Bearer ${unboundKey}` },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it('shows an unbound key every published range, at base prices', async () => {
     const groups = await groupsFor(unboundKey);
     expect(groups.map((g) => g.slug)).toEqual([

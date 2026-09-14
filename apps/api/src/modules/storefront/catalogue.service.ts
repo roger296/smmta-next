@@ -167,7 +167,7 @@ export class CatalogueService {
   private async offeredOnChannel(
     companyId: string,
     channelId: string,
-  ): Promise<{ productIds: string[]; groupIds: string[] }> {
+  ): Promise<{ products: Array<{ id: string; groupId: string }>; groupIds: string[] }> {
     const rows = await this.db
       .select({ id: products.id, groupId: products.groupId })
       .from(products)
@@ -193,17 +193,26 @@ export class CatalogueService {
         ),
       );
     return {
-      productIds: rows.map((r) => r.id),
+      products: rows.filter((r): r is { id: string; groupId: string } => r.groupId !== null),
       groupIds: [...new Set(rows.map((r) => r.groupId).filter((id): id is string => id !== null))],
     };
   }
 
-  async listGroups(companyId: string, channelId: string | null = null): Promise<GroupListItem[]> {
+  /**
+   * Published ranges with their thin variants, by sort order. `limit` returns
+   * only the first N ranges and loads only their variants, for pages that show
+   * a few ranges from a catalogue that can run to thousands.
+   */
+  async listGroups(
+    companyId: string,
+    channelId: string | null = null,
+    opts: { limit?: number } = {},
+  ): Promise<GroupListItem[]> {
     // A channel-bound storefront loads only what its channel offers. Loading
     // every product and filtering afterwards would have the Filament Store
     // fetch a 100k-product clothing catalogue to show its own few ranges.
     const offered = channelId ? await this.offeredOnChannel(companyId, channelId) : null;
-    if (offered && offered.productIds.length === 0) return [];
+    if (offered && offered.products.length === 0) return [];
 
     const groups = await this.db.query.productGroups.findMany({
       where: and(
@@ -213,6 +222,7 @@ export class CatalogueService {
         ...(offered ? [inArray(productGroups.id, offered.groupIds)] : []),
       ),
       orderBy: (g, { asc }) => [asc(g.sortOrder), asc(g.name)],
+      ...(opts.limit ? { limit: opts.limit } : {}),
     });
     if (groups.length === 0) return [];
 
@@ -221,7 +231,9 @@ export class CatalogueService {
 
     const variantRows = offered
       ? (
-          await chunkedQuery(offered.productIds, (chunk) =>
+          await chunkedQuery(
+            offered.products.filter((p) => groupIdSet.has(p.groupId)).map((p) => p.id),
+            (chunk) =>
             this.db.query.products.findMany({
               where: and(
                 eq(products.companyId, companyId),
