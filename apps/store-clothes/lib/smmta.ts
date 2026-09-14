@@ -371,7 +371,14 @@ export interface ReservationLineInput {
 export interface ReservationResult {
   reservationId: string;
   expiresAt: string;
-  lines: Array<{ productId: string; quantity: number; stockItemIds: string[] }>;
+  /** SUPPLIER lines are drop-shipped and hold no stock items. */
+  lines: Array<{
+    productId: string;
+    quantity: number;
+    source: 'WAREHOUSE' | 'SUPPLIER';
+    supplierId?: string;
+    stockItemIds: string[];
+  }>;
 }
 
 export interface InsufficientStockResponse {

@@ -12,11 +12,22 @@ import { stockItems } from './products.js';
 // by a periodic job once `expires_at` passes.
 // ============================================================
 
+/** A basket line a supplier will ship. No stock_items are held for it: the
+ *  supplier holds the stock, and our stock buffer covers the gap until the
+ *  supplier order is placed. */
+export interface ReservationSupplierLine {
+  productId: string;
+  quantity: number;
+  supplierId: string;
+}
+
 export interface ReservationMetadata {
   /** Storefront cart/checkout identifier. */
   checkoutId?: string;
   /** Mollie payment association. */
   mollie?: { paymentId?: string };
+  /** Lines to be drop-shipped, decided when the reservation was made. */
+  supplierLines?: ReservationSupplierLine[];
   // Free-form for future use; the storefront can attach anything.
   [key: string]: unknown;
 }

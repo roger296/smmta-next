@@ -163,9 +163,11 @@ export class OrderCommitService {
       });
     }
 
-    // Group held stock_items by product → line quantities.
+    // Line quantities: held stock_items for warehouse lines, plus the lines a
+    // supplier will ship, which hold no stock.
     const heldItems = reservation.stockItems.filter((s) => s.status === 'RESERVED');
-    if (heldItems.length === 0) {
+    const supplierLines = reservation.metadata?.supplierLines ?? [];
+    if (heldItems.length === 0 && supplierLines.length === 0) {
       return this.persist(companyId, idempotencyKey, 410, {
         success: false,
         error: 'Reservation has no held stock items',
@@ -174,6 +176,9 @@ export class OrderCommitService {
     const qtyByProduct = new Map<string, number>();
     for (const it of heldItems) {
       qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) ?? 0) + 1);
+    }
+    for (const line of supplierLines) {
+      qtyByProduct.set(line.productId, (qtyByProduct.get(line.productId) ?? 0) + line.quantity);
     }
 
     // -------- 3. Recompute totals from canonical product prices --------
