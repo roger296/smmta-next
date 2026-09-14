@@ -154,12 +154,16 @@ export async function smmtaFetch<T>(
 // Public typed API — used by the page components.
 // ---------------------------------------------------------------------------
 
-/** GET /storefront/groups — published groups + thin variants. */
-export function listGroups(opts?: RequestOptions): Promise<GroupListItem[]> {
-  return smmtaFetch<GroupListItem[]>('storefront/groups', {
+/** GET /storefront/groups — published groups + thin variants, first by sort
+ *  order. Pass `limit` wherever the page only shows a few: the full clothing
+ *  catalogue runs to thousands of ranges and around 100k variants. */
+export function listGroups(opts?: RequestOptions & { limit?: number }): Promise<GroupListItem[]> {
+  const { limit, ...fetchOpts } = opts ?? {};
+  const path = limit ? `storefront/groups?limit=${encodeURIComponent(String(limit))}` : 'storefront/groups';
+  return smmtaFetch<GroupListItem[]>(path, {
     revalidate: 60,
     tags: ['storefront:groups'],
-    ...opts,
+    ...fetchOpts,
   });
 }
 

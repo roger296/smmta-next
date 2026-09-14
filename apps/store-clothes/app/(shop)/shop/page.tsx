@@ -1,34 +1,33 @@
 /**
- * Catalogue (`/shop`). RSC, request-time render.
+ * Catalogue (`/shop`): the way into the range, by category.
  *
- * Pre-computes catalogue-wide price extents and the unique colour list,
- * then hands the rest off to the client filter island.
+ * Lists the top-level categories with their subcategories, each linking to
+ * its category page, which paginates and filters by size, colour, brand and
+ * price on the server.
  *
- * `force-dynamic` instead of ISR: catalogue / channel / stock data
- * changes (importer runs, supplier poll, channel re-segmentation) need
- * to surface immediately without waiting for a 60s revalidate window —
- * and the underlying API already has its own cache headers. Trades a
- * little per-request latency for "what's in the DB is what customers
- * see right now". The home page does the same for the same reason.
+ * This page used to render every range, with all its variants, in one client
+ * filter grid. The drop-ship catalogues run to thousands of ranges and around
+ * a hundred thousand variants, which is far too much to send to a browser.
  */
 import type { Metadata } from 'next';
-import { listGroups } from '@/lib/smmta';
+import Link from 'next/link';
+import { listCategories } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
 import { breadcrumbLd, stringifyJsonLd } from '@/lib/seo/structured-data';
-import { CatalogueGrid } from '../_components/catalogue-grid';
 
-export const dynamic = 'force-dynamic';
+// The category list is cached for five minutes by listCategories.
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: 'Shop',
   description:
-    'Friendly clothes in real sizes — browse the whole range, filter by colour and price, pick what fits.',
+    'Friendly clothes in real sizes — browse by category, filter by size, colour and price, pick what fits.',
   alternates: { canonical: '/shop' },
   openGraph: {
     type: 'website',
     url: '/shop',
     title: 'Shop | Clothes Shop',
-    description: 'The full Clothes Shop range — every colour, every size.',
+    description: 'The full Clothes Shop range, by category — every colour, every size.',
   },
   robots: { index: true, follow: true },
 };
@@ -43,28 +42,13 @@ export default async function ShopPage() {
     }
   })();
 
-  let groups: Awaited<ReturnType<typeof listGroups>> = [];
+  let categories: Awaited<ReturnType<typeof listCategories>> = [];
   try {
-    groups = await listGroups();
+    categories = await listCategories();
   } catch {
-    groups = [];
+    categories = [];
   }
-
-  // Compute catalogue-wide price extents and the unique colour list once.
-  const allPrices: number[] = [];
-  const colourSet = new Set<string>();
-  for (const g of groups) {
-    for (const v of g.variants) {
-      if (v.priceGbp) {
-        const p = Number.parseFloat(v.priceGbp);
-        if (Number.isFinite(p)) allPrices.push(p);
-      }
-      if (v.colour) colourSet.add(v.colour);
-    }
-  }
-  const priceMin = allPrices.length > 0 ? Math.floor(Math.min(...allPrices)) : 0;
-  const priceMax = allPrices.length > 0 ? Math.ceil(Math.max(...allPrices)) : 100;
-  const colourOptions = Array.from(colourSet).sort((a, b) => a.localeCompare(b));
+  const visible = categories.filter((c) => Boolean(c.slug));
 
   const breadcrumb = stringifyJsonLd(
     breadcrumbLd(baseUrl, [
@@ -94,7 +78,7 @@ export default async function ShopPage() {
           </ol>
         </nav>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand-accent)]">
-          The full range
+          Shop by category
         </p>
         <h1
           className="text-4xl font-bold tracking-tight md:text-5xl"
@@ -103,20 +87,52 @@ export default async function ShopPage() {
           Every colour, every size.
         </h1>
         <p className="max-w-2xl text-base text-[var(--brand-muted)]">
-          {groups.length === 0
+          {visible.length === 0
             ? 'The catalogue is loading. Check back in a moment.'
-            : 'Browse every range, filter by colour or price. Real sizes, friendly fits, fast UK delivery from our supplier partners.'}
+            : 'Pick a category, then filter by size, colour and price. Real sizes, friendly fits, fast UK delivery from our supplier partners.'}
         </p>
       </header>
 
-      <div className="mt-10">
-        <CatalogueGrid
-          groups={groups}
-          priceMin={priceMin}
-          priceMax={priceMax}
-          colourOptions={colourOptions}
-        />
-      </div>
+      {visible.length > 0 ? (
+        <ul className="mt-10 grid gap-px bg-[var(--brand-border)] sm:grid-cols-2 lg:grid-cols-3">
+          {visible.map((c) => (
+            <li key={c.slug} className="bg-[var(--brand-paper)]">
+              <div className="flex h-full flex-col gap-3 p-6">
+                <h2 className="text-xl font-bold tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                  <Link href={`/shop/c/${c.slug}`} className="transition-colors hover:text-[var(--brand-accent)]">
+                    {c.name}
+                  </Link>
+                </h2>
+                {c.description ? (
+                  <p className="text-sm text-[var(--brand-muted)]">{c.description}</p>
+                ) : null}
+                {c.children.length > 0 ? (
+                  <ul className="flex flex-wrap gap-2 text-sm">
+                    {c.children
+                      .filter((s) => Boolean(s.slug))
+                      .map((s) => (
+                        <li key={s.slug}>
+                          <Link
+                            href={`/shop/c/${c.slug}/${s.slug}`}
+                            className="inline-block rounded-[var(--radius-pill)] border border-[var(--brand-border)] px-3 py-1 transition-colors hover:border-[var(--brand-accent)] hover:text-[var(--brand-accent)]"
+                          >
+                            {s.name}
+                          </Link>
+                        </li>
+                      ))}
+                  </ul>
+                ) : null}
+                <Link
+                  href={`/shop/c/${c.slug}`}
+                  className="mt-auto pt-2 text-sm font-semibold text-[var(--brand-accent)] hover:underline"
+                >
+                  Shop all {c.name} →
+                </Link>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </>
   );
 }
