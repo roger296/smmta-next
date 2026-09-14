@@ -18,11 +18,12 @@
  */
 import Link from 'next/link';
 import { listCategories } from '@/lib/smmta';
+import { LEGAL } from '@/lib/legal';
 
-const STORE_NAME = 'Clothes Shop';
-const CONTACT_EMAIL = 'sales@cleverdeals.net';
+const STORE_NAME = LEGAL.storeName;
+const CONTACT_EMAIL = LEGAL.contactEmail;
 const ABOUT_BLURB =
-  'Friendly, simple clothing for everyday wear. Real sizes, honest pricing, fast UK delivery from our supplier partners. Pick your colour, pick your size, and we ship the next working day.';
+  'Friendly, simple clothing for everyday wear. Real sizes, honest pricing, fast UK delivery from our supplier partners. Order by 2pm on a working day and it ships the same day.';
 
 export async function SiteFooter() {
   let categories: Awaited<ReturnType<typeof listCategories>> = [];
@@ -85,6 +86,30 @@ export async function SiteFooter() {
               </Link>
             </li>
             <li>
+              <Link
+                href="/legal/returns"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                Returns &amp; cancellations
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/legal/terms"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                Terms &amp; conditions
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/legal/privacy"
+                className="transition-colors hover:text-[var(--brand-ink)]"
+              >
+                Privacy policy
+              </Link>
+            </li>
+            <li>
               <a
                 href={`mailto:${CONTACT_EMAIL}`}
                 className="transition-colors hover:text-[var(--brand-ink)]"
@@ -106,7 +131,18 @@ export async function SiteFooter() {
         </section>
       </div>
 
-      <div className="mx-auto mt-10 flex max-w-6xl flex-col gap-3 border-t border-[var(--brand-border)] px-6 pt-6 text-xs md:flex-row md:items-center md:justify-between">
+      {/* Companies Act 2006 s.82 requires the registered name, number and
+          office on the website; the VAT number belongs alongside them. */}
+      <div className="mx-auto mt-10 max-w-6xl border-t border-[var(--brand-border)] px-6 pt-6 text-xs leading-relaxed">
+        <p>
+          The {LEGAL.storeName} is a {LEGAL.parentName} store. {LEGAL.parentName} is a trading name
+          of {LEGAL.legalEntity}. Registered in England and Wales, company number{' '}
+          {LEGAL.companyNumber}. Registered office: {LEGAL.registeredAddress}.
+          {LEGAL.vatNumber ? ` VAT registration number ${LEGAL.vatNumber}.` : ''}
+        </p>
+      </div>
+
+      <div className="mx-auto mt-4 flex max-w-6xl flex-col gap-3 px-6 text-xs md:flex-row md:items-center md:justify-between">
         <p>
           © {year} {STORE_NAME}
         </p>
