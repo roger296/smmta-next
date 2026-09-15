@@ -22,6 +22,10 @@ import {
   InsufficientStockError,
   ReservationService,
 } from './reservation.service.js';
+import { quoteDeliveryForBasket } from './delivery.js';
+
+/** A major-unit money string, e.g. "7.00". */
+const moneySchema = z.string().regex(/^\d{1,6}(\.\d{2})?$/, 'must be a major-unit string like "7.00"');
 
 const CACHE_HEADER = 'public, max-age=30, stale-while-revalidate=60';
 
@@ -293,6 +297,42 @@ export async function storefrontReadRoutes(app: FastifyInstance) {
 
   // GET /storefront/products/:slug — single product (works for standalone
   // and grouped products alike).
+  // POST /storefront/delivery-quote — the delivery charge for a basket before
+  // checkout: one charge per parcel (each supplier, or our warehouse).
+  // Read-only: nothing is reserved. The reservation quotes it again from the
+  // sources it actually picks, and that is the charge the order uses.
+  const deliveryQuoteBodySchema = z.object({
+    items: z
+      .array(z.object({ productId: z.string().uuid(), quantity: z.number().int().positive().max(99) }))
+      .min(1)
+      .max(50),
+    defaultDeliveryChargeGbp: moneySchema,
+  });
+  app.post(
+    '/storefront/delivery-quote',
+    {
+      schema: {
+        tags: ['storefront'],
+        summary: 'Quote the delivery charge for a basket, one charge per parcel',
+      },
+    },
+    async (request, reply) => {
+      const ctx = getApiKeyContext(request);
+      const parsed = deliveryQuoteBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
+      }
+      const data = await quoteDeliveryForBasket(
+        ctx.companyId,
+        parsed.data.items,
+        parsed.data.defaultDeliveryChargeGbp,
+      );
+      return reply.send({ success: true, data });
+    },
+  );
+
   app.get(
     '/storefront/products/:slug',
     {
@@ -327,6 +367,8 @@ const reservationItemSchema = z.object({
 const createReservationBodySchema = z.object({
   items: z.array(reservationItemSchema).min(1).max(50),
   ttlSeconds: z.number().int().min(60).max(60 * 60).optional(),
+  /** The storefront's standard delivery rate; asks for a per-parcel quote. */
+  defaultDeliveryChargeGbp: moneySchema.optional(),
 });
 
 const addressSchema = z.object({
@@ -391,6 +433,7 @@ export async function storefrontWriteRoutes(app: FastifyInstance) {
         const result = await reservationService.createReservation(ctx.companyId, {
           items: parsed.data.items,
           ttlSeconds: parsed.data.ttlSeconds ?? 15 * 60,
+          defaultDeliveryChargeGbp: parsed.data.defaultDeliveryChargeGbp,
         });
         return reply.status(201).send({
           success: true,
@@ -398,6 +441,7 @@ export async function storefrontWriteRoutes(app: FastifyInstance) {
             reservationId: result.reservationId,
             expiresAt: result.expiresAt.toISOString(),
             lines: result.lines,
+            delivery: result.delivery,
           },
         });
       } catch (err) {

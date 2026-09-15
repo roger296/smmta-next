@@ -127,7 +127,8 @@ export default async function CartPage() {
             </p>
           </div>
           <p className="text-xs text-[var(--brand-muted)]">
-            Shipping calculated at checkout. UK orders ship same day before 2pm.
+            Delivery is calculated at checkout: one charge for each supplier your items come from,
+            however many items. Order by 2pm on a working day for same-day dispatch.
           </p>
           <Link
             href="/checkout"

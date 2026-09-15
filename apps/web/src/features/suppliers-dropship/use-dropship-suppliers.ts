@@ -18,6 +18,8 @@ export interface DropshipSupplierRow {
   lastError: string | null;
   consecutiveFailures: number;
   showSupplierNameToCustomers: boolean;
+  /** Customer delivery charge for this supplier's parcel, inc VAT; null = standard rate. */
+  deliveryChargeGbp: string | null;
   hasApiKey: boolean;
 }
 
@@ -77,6 +79,7 @@ export interface DropshipUpdateInput {
   rateLimitWindowSeconds?: number | null;
   minRequestIntervalMs?: number | null;
   showSupplierNameToCustomers?: boolean;
+  deliveryChargeGbp?: string | null;
 }
 
 export function useUpdateDropshipSupplier() {

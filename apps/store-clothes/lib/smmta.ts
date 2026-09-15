@@ -379,6 +379,40 @@ export interface ReservationResult {
     supplierId?: string;
     stockItemIds: string[];
   }>;
+  /** The per-parcel delivery charge, when defaultDeliveryChargeGbp was sent.
+   *  Absent from an API that pre-dates per-supplier delivery. */
+  delivery?: DeliveryQuote | null;
+}
+
+/** One parcel: our warehouse's items, or one supplier's. */
+export interface DeliveryParcel {
+  supplierId: string | null;
+  /** Only when the supplier's name may be shown to customers. */
+  supplierName: string | null;
+  chargeGbp: string;
+  productIds: string[];
+}
+
+/** A basket's delivery charge: one charge per parcel. */
+export interface DeliveryQuote {
+  totalGbp: string;
+  parcels: DeliveryParcel[];
+}
+
+/** POST /storefront/delivery-quote — the delivery charge per parcel for a
+ *  basket, before checkout. Nothing is reserved. */
+export async function getDeliveryQuote(
+  items: ReservationLineInput[],
+  defaultDeliveryChargeGbp: string,
+  opts?: MutationOptions,
+): Promise<DeliveryQuote> {
+  const { status, data, rawBody } = await smmtaPost<DeliveryQuote>(
+    'storefront/delivery-quote',
+    { items, defaultDeliveryChargeGbp },
+    opts,
+  );
+  if (status === 200 && data) return data;
+  throw new SmmtaApiError(`Delivery quote failed (${status})`, status, rawBody);
 }
 
 export interface InsufficientStockResponse {
@@ -462,11 +496,15 @@ async function smmtaDelete(
 /** POST /storefront/reservations. Throws InsufficientStockError on 409. */
 export async function createReservation(
   items: ReservationLineInput[],
-  opts: { ttlSeconds?: number } & MutationOptions = {},
+  opts: { ttlSeconds?: number; defaultDeliveryChargeGbp?: string } & MutationOptions = {},
 ): Promise<ReservationResult> {
   const { status, data, rawBody } = await smmtaPost<ReservationResult>(
     'storefront/reservations',
-    { items, ttlSeconds: opts.ttlSeconds ?? 15 * 60 },
+    {
+      items,
+      ttlSeconds: opts.ttlSeconds ?? 15 * 60,
+      ...(opts.defaultDeliveryChargeGbp ? { defaultDeliveryChargeGbp: opts.defaultDeliveryChargeGbp } : {}),
+    },
     opts,
   );
   if (status === 201 && data) return data;

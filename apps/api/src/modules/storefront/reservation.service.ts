@@ -34,6 +34,8 @@ import {
 } from '../../db/schema/index.js';
 import { emitDomainEvent } from '../../shared/events/emit.js';
 import { bestSupplierAvailable, pickSupplierForProduct } from '../suppliers/pick-supplier.js';
+import type { DeliveryQuote } from '../../db/schema/index.js';
+import { quoteDeliveryForLines } from './delivery.js';
 
 // ---------------------------------------------------------------------------
 // Types and errors
@@ -50,6 +52,10 @@ export interface CreateReservationInput {
   /** Optional source channel override; defaults to API. */
   sourceChannel?: 'API';
   metadata?: ReservationMetadata;
+  /** The storefront's standard delivery rate. When given, the reservation
+   *  quotes the delivery charge per parcel (see delivery.ts), returns it, and
+   *  the order is committed with that charge. */
+  defaultDeliveryChargeGbp?: string;
 }
 
 export interface ReservationLineResult {
@@ -68,6 +74,8 @@ export interface ReservationResult {
   expiresAt: Date;
   status: 'HELD';
   lines: ReservationLineResult[];
+  /** Null unless the caller passed defaultDeliveryChargeGbp. */
+  delivery: DeliveryQuote | null;
 }
 
 export class InsufficientStockError extends Error {
@@ -237,10 +245,22 @@ export class ReservationService {
         });
       }
 
-      if (supplierLines.length > 0) {
+      // Quoted from where each line actually ships from, and kept with the
+      // reservation so the order is committed with exactly this charge.
+      const delivery = input.defaultDeliveryChargeGbp
+        ? await quoteDeliveryForLines(companyId, lines, input.defaultDeliveryChargeGbp, tx)
+        : null;
+
+      if (supplierLines.length > 0 || delivery) {
         await tx
           .update(stockReservations)
-          .set({ metadata: { ...(input.metadata ?? {}), supplierLines } })
+          .set({
+            metadata: {
+              ...(input.metadata ?? {}),
+              ...(supplierLines.length > 0 ? { supplierLines } : {}),
+              ...(delivery ? { delivery } : {}),
+            },
+          })
           .where(eq(stockReservations.id, reservation.id));
       }
 
@@ -249,6 +269,7 @@ export class ReservationService {
         expiresAt: reservation.expiresAt,
         status: 'HELD' as const,
         lines,
+        delivery,
       };
     });
   }

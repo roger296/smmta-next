@@ -196,7 +196,7 @@ export function CheckoutForm() {
         <legend className="text-base font-medium">Shipping</legend>
         <p className="rounded-[var(--radius)] border border-[var(--brand-border)] p-3 text-sm">
           Tracked UK delivery from our supplier partners — order by 2pm on a working day and it ships
-          the same day. One fixed charge per order, shown in the order summary.
+          the same day. One delivery charge for each supplier&rsquo;s parcel, shown in the order summary.
         </p>
       </fieldset>
 

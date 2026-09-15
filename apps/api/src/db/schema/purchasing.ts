@@ -57,6 +57,10 @@ export const suppliers = pgTable('suppliers', {
    *  only shows as available, and can only be ordered, while the supplier
    *  holds more than this many. */
   stockBuffer: integer('stock_buffer').notNull().default(5),
+  /** What a storefront charges the customer, inc VAT, for the parcel this
+   *  supplier sends: once per order, however many of its items are in the
+   *  basket. NULL = the storefront's standard delivery rate. */
+  deliveryChargeGbp: decimal('delivery_charge_gbp', { precision: 10, scale: 2 }),
   /** Published rate limit — what the supplier told us. The connector
    *  computes its inter-request delay from `(rate_limit_window_seconds
    *  * 1000 / rate_limit_requests) * SAFETY` so the operator never
