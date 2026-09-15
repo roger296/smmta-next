@@ -46,6 +46,7 @@ export function DropshipTab({ supplierId }: Props) {
         showSupplierNameToCustomers: s.showSupplierNameToCustomers,
         deliveryChargeGbp: s.deliveryChargeGbp,
         accountNumber: s.accountNumber,
+        customerAccountEmail: s.customerAccountEmail,
       });
       setApiKeyInput('');
     }
@@ -266,6 +267,26 @@ export function DropshipTab({ supplierId }: Props) {
               <p className="text-xs text-[var(--color-muted-foreground)]">
                 Your customer number with this supplier. Uneek needs it to accept orders and to
                 send its product data.
+              </p>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label htmlFor="ds-account-email">Account email</Label>
+              <Input
+                id="ds-account-email"
+                type="email"
+                value={form.customerAccountEmail ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((f) => ({ ...f, customerAccountEmail: v.trim() === '' ? null : v }));
+                }}
+                placeholder="e.g. you@example.com"
+                autoComplete="off"
+                className="w-72"
+              />
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                The email address on your account with this supplier (the one you sign in to its
+                website with). Orders to this supplier are sent with it. Leave blank to use the
+                shop&apos;s general contact address.
               </p>
             </div>
             <div className="space-y-1 md:col-span-2">

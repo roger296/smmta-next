@@ -307,6 +307,13 @@ describe('UneekConnector.placeOrder', () => {
     expect(calls[0]!.url).toBe('https://api.uneekclothing.example/Order?CustomerNo=TBV02');
   });
 
+  it("sends the supplier record's account email in place of the contact email", async () => {
+    const calls = mockFetch(() => jsonResponse({ OrderNumber: 'SO1' }));
+    await new UneekConnector({ ...ctx, customerAccountEmail: ' roger@example.invalid ' }).placeOrder(ORDER);
+    const sent = JSON.parse(String(calls[0]!.init.body)) as { email: string };
+    expect(sent.email).toBe('roger@example.invalid');
+  });
+
   it('429 → SupplierUpstreamError with status 429, safe for the placer to retry', async () => {
     mockFetch(() => jsonResponse({ error: 'slow down' }, 429));
     const err = await new UneekConnector(ctx).placeOrder(ORDER).catch((e: unknown) => e);
