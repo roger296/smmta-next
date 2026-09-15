@@ -25,6 +25,10 @@ describe('renderBackInStock', () => {
     const withPrice = renderBackInStock(base);
     expect(withPrice.html).toContain('£12.50');
     expect(withPrice.text).toContain('£12.50');
+    // Clothes Shop prices include VAT, and clothes don't come on spools.
+    expect(withPrice.html).toContain('inc VAT');
+    expect(withPrice.text).toContain('inc VAT');
+    expect(withPrice.html).not.toMatch(/ex VAT|spool/);
 
     const noPrice = renderBackInStock({ ...base, priceGbp: null });
     expect(noPrice.html).not.toContain('£');
