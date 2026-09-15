@@ -6,6 +6,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../../config/database.js';
+import { getEnv } from '../../config/env.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import {
   products,
@@ -14,6 +15,7 @@ import {
   pricingRules,
   chatSessions,
   chatMessages,
+  chatClassifications,
   baskets,
   basketLines,
   llmLog,
@@ -65,12 +67,16 @@ beforeAll(async () => {
 
 afterEach(async () => {
   const db = getDb();
+  // llm_log first: the daily spend cap sums it across every suite, so a
+  // failure further down this cleanup must never strand logged spend.
+  await db.delete(llmLog).where(eq(llmLog.companyId, COMPANY));
   await db.delete(chatMessages).where(eq(chatMessages.companyId, COMPANY));
   await db.delete(escalations).where(eq(escalations.companyId, COMPANY));
+  // Every turn records a classification against its session (FK).
+  await db.delete(chatClassifications).where(eq(chatClassifications.companyId, COMPANY));
   await db.delete(chatSessions).where(eq(chatSessions.companyId, COMPANY));
   await db.delete(basketLines).where(eq(basketLines.companyId, COMPANY));
   await db.delete(baskets).where(eq(baskets.companyId, COMPANY));
-  await db.delete(llmLog).where(eq(llmLog.companyId, COMPANY));
 });
 
 afterAll(async () => {
@@ -140,21 +146,31 @@ describe('out-of-stock → inbound offer flow', () => {
 
 describe('spend cap', () => {
   it('winds down gracefully when today’s spend is over the cap', async () => {
-    // Seed a logged cost above the default £2/day cap (2,000,000 micro-USD).
-    await getDb().insert(llmLog).values({
-      companyId: COMPANY,
-      purpose: 'chat',
-      model: 'seed',
-      requestJson: {},
-      costMicroUsd: 2_000_000,
-    });
-    const fake = new FakeLlm().enqueue({ content: 'unused' });
-    const agent = makeAgent(fake);
-    const { sessionId } = await agent.startSession();
-    const result = await agent.runTurn(sessionId, 'hello');
-    expect(result.windDown).toBe('spend_cap');
-    // The model was never called (cap tripped first).
-    expect(fake.calls).toHaveLength(0);
+    // Seed a logged cost at the configured cap (test/setup.ts sets it).
+    const [seed] = await getDb()
+      .insert(llmLog)
+      .values({
+        companyId: COMPANY,
+        purpose: 'chat',
+        model: 'seed',
+        requestJson: {},
+        costMicroUsd: getEnv().OPENROUTER_DAILY_CAP_MICROUSD,
+      })
+      .returning({ id: llmLog.id });
+    try {
+      const fake = new FakeLlm().enqueue({ content: 'unused' });
+      const agent = makeAgent(fake);
+      const { sessionId } = await agent.startSession();
+      const result = await agent.runTurn(sessionId, 'hello');
+      expect(result.windDown).toBe('spend_cap');
+      // The model was never called (cap tripped first).
+      expect(fake.calls).toHaveLength(0);
+    } finally {
+      // Remove the seeded spend straight away rather than relying on
+      // afterEach — while it exists, every model call in the test DB is
+      // refused, for every suite, until UTC midnight.
+      await getDb().delete(llmLog).where(eq(llmLog.id, seed!.id));
+    }
   });
 });
 
