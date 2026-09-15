@@ -108,7 +108,7 @@ export function SwatchPicker({ groupName, variants, attributeAxes }: SwatchPicke
               {display.priceGbp ? `£${display.priceGbp}` : 'Price on request'}
             </p>
             <p className="text-xs uppercase tracking-wider text-[var(--brand-muted)]">
-              ex VAT
+              inc VAT
             </p>
           </div>
 
