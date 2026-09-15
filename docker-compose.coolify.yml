@@ -64,6 +64,10 @@ services:
       STORE_INTERNAL_API_KEY: ${STORE_INTERNAL_API_KEY:-}
       # The Clothes Shop, which checks the same key as its ADMIN_API_KEY.
       CLOTHES_STORE_INTERNAL_URL: ${CLOTHES_STORE_INTERNAL_URL:-http://store-clothes:3000}
+      # Uneek order details, the same as the worker's: a supplier order sent by
+      # hand (run-supplier-order-placer.ts) or the catalogue import runs here.
+      UNEEK_DELIVERY_METHOD: ${UNEEK_DELIVERY_METHOD:-}
+      UNEEK_CUSTOMER_NO: ${UNEEK_CUSTOMER_NO:-}
       # Uploaded product images live here and are served from /uploads. MUST be
       # a mounted volume: a container filesystem does not survive a redeploy,
       # and every uploaded photograph would 404 after the next deploy.
@@ -132,6 +136,9 @@ services:
       SUPPLIER_ORDER_ALERT_EMAIL: ${SUPPLIER_ORDER_ALERT_EMAIL:-roger@etailsupport.com}
       SUPPLIER_ORDER_CONTACT_EMAIL: ${SUPPLIER_ORDER_CONTACT_EMAIL:-sales@cleverdeals.net}
       UNEEK_DELIVERY_METHOD: ${UNEEK_DELIVERY_METHOD:-}
+      # Uneek's account (customer) number, e.g. TBV02. Uneek refuses orders
+      # without it. Set it in Coolify.
+      UNEEK_CUSTOMER_NO: ${UNEEK_CUSTOMER_NO:-}
       # The shipped email is sent from the worker (order.dispatched), handed to
       # whichever storefront took the order. Same values as the api service;
       # without them every shipped email fails as "not configured".

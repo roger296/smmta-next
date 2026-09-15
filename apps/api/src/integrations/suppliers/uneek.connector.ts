@@ -339,8 +339,16 @@ export class UneekConnector implements SupplierConnector {
   }
 
   async placeOrder(req: SupplierOrderRequest): Promise<SupplierOrderResponse> {
-    const url = joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.orderCreate);
-    const body = mapOrderRequestToUpstream(req, { deliveryMethod: getEnv().UNEEK_DELIVERY_METHOD });
+    const env = getEnv();
+    // Uneek refused the first live order with "CustomerNONotFound"
+    // (2026-09-15). The spec lists no parameter for it, so it goes on the
+    // query string as /productdata/all takes it (unconfirmed until an order
+    // is accepted).
+    const base = joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.orderCreate);
+    const url = env.UNEEK_CUSTOMER_NO
+      ? `${base}?CustomerNo=${encodeURIComponent(env.UNEEK_CUSTOMER_NO)}`
+      : base;
+    const body = mapOrderRequestToUpstream(req, { deliveryMethod: env.UNEEK_DELIVERY_METHOD });
     const upstream = await this.requestJson<unknown>('POST', url, body, {
       timeoutMs: ORDER_TIMEOUT_MS,
       idempotencyKey: req.idempotencyKey,

@@ -301,6 +301,20 @@ describe('UneekConnector.placeOrder', () => {
     await expect(new UneekConnector(ctx).placeOrder(ORDER)).rejects.toThrow(SupplierRejectedOrderError);
   });
 
+  it('sends the Uneek customer number on the query string when it is set', async () => {
+    const { resetEnvForTests } = await import('../../config/env.js');
+    process.env.UNEEK_CUSTOMER_NO = 'TBV02';
+    resetEnvForTests();
+    try {
+      const calls = mockFetch(() => jsonResponse({ OrderNumber: 'SO1' }));
+      await new UneekConnector(ctx).placeOrder(ORDER);
+      expect(calls[0]!.url).toBe('https://api.uneekclothing.example/Order?CustomerNo=TBV02');
+    } finally {
+      delete process.env.UNEEK_CUSTOMER_NO;
+      resetEnvForTests();
+    }
+  });
+
   it('429 → SupplierUpstreamError with status 429, safe for the placer to retry', async () => {
     mockFetch(() => jsonResponse({ error: 'slow down' }, 429));
     const err = await new UneekConnector(ctx).placeOrder(ORDER).catch((e: unknown) => e);
