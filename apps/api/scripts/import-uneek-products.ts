@@ -27,9 +27,10 @@
  *                       `apiBaseUrl`, and an `apiKeyEnc` envelope (set
  *                       these in the admin SPA's Drop-ship tab before
  *                       running).
- *   --customer-no=<no>  (required) the Uneek account number, e.g. TBV02,
- *                       or set UNEEK_CUSTOMER_NO. Uneek's product data
- *                       endpoint answers 500 without it.
+ *   --customer-no=<no>  the Uneek account number, e.g. TBV02. Defaults to
+ *                       the account number on the supplier record (admin
+ *                       Drop-ship tab). Uneek's product data endpoint
+ *                       answers 500 without it.
  *   --category=<name>   Filter to rows whose `Category` field equals
  *                       this string (case-insensitive). Useful for a
  *                       phased import where you import jackets first
@@ -101,7 +102,8 @@ interface CliOpts {
   publish: boolean;
   channelSlug: string | null;
   markup: number;
-  customerNo: string;
+  /** --customer-no; null means use the supplier record's account number. */
+  customerNo: string | null;
 }
 
 function parseArgs(argv: string[]): CliOpts {
@@ -111,7 +113,8 @@ function parseArgs(argv: string[]): CliOpts {
   let dryRun = false;
   let publish = false;
   let channelSlug: string | null = null;
-  let customerNo = process.env.UNEEK_CUSTOMER_NO?.trim() ?? '';
+  // Default: the account number on the supplier record (admin Drop-ship tab).
+  let customerNo: string | null = null;
   // --markup flag wins; UNEEK_DEFAULT_MARKUP second; DEFAULT_MARKUP otherwise.
   const envMarkup = Number(process.env.UNEEK_DEFAULT_MARKUP);
   let markup = Number.isFinite(envMarkup) && envMarkup > 0 ? envMarkup : DEFAULT_MARKUP;
@@ -153,11 +156,6 @@ function parseArgs(argv: string[]): CliOpts {
     console.error('--supplier=<slug> is required');
     printUsageAndExit(2);
   }
-  if (!customerNo) {
-    // Uneek's product data endpoint answers 500 without it.
-    console.error('--customer-no=<Uneek account number> (or UNEEK_CUSTOMER_NO) is required');
-    printUsageAndExit(2);
-  }
   return { supplierSlug, category, limit, dryRun, publish, channelSlug, markup, customerNo };
 }
 
@@ -178,7 +176,7 @@ Flags:
                       multi-store deploy.
   --limit=<n>         cap row count (after category filter)
   --markup=<x.y>      retail = single-unit cost × markup. Default 1.35 (or UNEEK_DEFAULT_MARKUP)
-  --customer-no=<no>  (required) Uneek account number, e.g. TBV02 (or UNEEK_CUSTOMER_NO)
+  --customer-no=<no>  Uneek account number, e.g. TBV02 (default: the supplier record's)
   --dry-run           print plan, write nothing
   --publish           mark new products/groups as published (default: false)
   --help              this message
@@ -805,8 +803,16 @@ async function main(): Promise<void> {
     timeoutMs: 60_000,
   });
 
+  // Uneek's product data endpoint answers 500 without the customer number.
+  const customerNo = opts.customerNo ?? supplier.accountNumber?.trim() ?? '';
+  if (!customerNo) {
+    throw new Error(
+      `Supplier ${opts.supplierSlug} has no account number — set it on the admin SPA's Drop-ship tab, or pass --customer-no.`,
+    );
+  }
+
   console.log(`[import:uneek] fetching catalogue from ${supplier.apiBaseUrl} …`);
-  const rows = await connector.getProductCatalogue(opts.customerNo);
+  const rows = await connector.getProductCatalogue(customerNo);
   console.log(`[import:uneek] fetched ${rows.length} catalogue rows.`);
 
   const summary = await importUneekProducts({

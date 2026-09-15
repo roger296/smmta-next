@@ -20,6 +20,8 @@ export interface DropshipSupplierRow {
   showSupplierNameToCustomers: boolean;
   /** Customer delivery charge for this supplier's parcel, inc VAT; null = standard rate. */
   deliveryChargeGbp: string | null;
+  /** Our account (customer) number with the supplier, e.g. Uneek's TBV02. */
+  accountNumber: string | null;
   hasApiKey: boolean;
 }
 
@@ -80,6 +82,7 @@ export interface DropshipUpdateInput {
   minRequestIntervalMs?: number | null;
   showSupplierNameToCustomers?: boolean;
   deliveryChargeGbp?: string | null;
+  accountNumber?: string | null;
 }
 
 export function useUpdateDropshipSupplier() {

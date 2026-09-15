@@ -45,6 +45,7 @@ export function DropshipTab({ supplierId }: Props) {
         minRequestIntervalMs: s.minRequestIntervalMs,
         showSupplierNameToCustomers: s.showSupplierNameToCustomers,
         deliveryChargeGbp: s.deliveryChargeGbp,
+        accountNumber: s.accountNumber,
       });
       setApiKeyInput('');
     }
@@ -247,6 +248,24 @@ export function DropshipTab({ supplierId }: Props) {
                 Charged once per order for everything this supplier sends, however many items.
                 A basket with items from two suppliers pays both charges. Leave blank to use
                 the shop&apos;s standard delivery rate.
+              </p>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label htmlFor="ds-account">Account number</Label>
+              <Input
+                id="ds-account"
+                value={form.accountNumber ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((f) => ({ ...f, accountNumber: v.trim() === '' ? null : v }));
+                }}
+                placeholder="e.g. TBV02"
+                autoComplete="off"
+                className="w-40"
+              />
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Your customer number with this supplier. Uneek needs it to accept orders and to
+                send its product data.
               </p>
             </div>
             <div className="space-y-1 md:col-span-2">

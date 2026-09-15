@@ -61,6 +61,10 @@ export const suppliers = pgTable('suppliers', {
    *  supplier sends: once per order, however many of its items are in the
    *  basket. NULL = the storefront's standard delivery rate. */
   deliveryChargeGbp: decimal('delivery_charge_gbp', { precision: 10, scale: 2 }),
+  /** Our account (customer) number with this supplier, e.g. Uneek's TBV02.
+   *  Some supplier APIs refuse requests without it. Set on the admin
+   *  Drop-ship tab. */
+  accountNumber: varchar('account_number', { length: 60 }),
   /** Published rate limit — what the supplier told us. The connector
    *  computes its inter-request delay from `(rate_limit_window_seconds
    *  * 1000 / rate_limit_requests) * SAFETY` so the operator never

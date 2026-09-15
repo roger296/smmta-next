@@ -119,6 +119,9 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
       updates.deliveryChargeGbp =
         parsed.data.deliveryChargeGbp === null ? null : Number(parsed.data.deliveryChargeGbp).toFixed(2);
     }
+    if (parsed.data.accountNumber !== undefined) {
+      updates.accountNumber = parsed.data.accountNumber || null;
+    }
     if (parsed.data.apiKeyPlaintext) {
       updates.apiKeyEnc = service.encryptApiKey(parsed.data.apiKeyPlaintext);
     }

@@ -66,6 +66,9 @@ export const dropshipSupplierSchema = z.object({
     .regex(/^\d{1,6}(\.\d{1,2})?$/, 'deliveryChargeGbp must be an amount like "10.50"')
     .nullable()
     .optional(),
+  /** Our account (customer) number with the supplier, e.g. Uneek's "TBV02".
+   *  null or "" clears it. */
+  accountNumber: z.string().trim().max(60).nullable().optional(),
 });
 
 export type DropshipSupplierInput = z.infer<typeof dropshipSupplierSchema>;

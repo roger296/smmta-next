@@ -301,6 +301,12 @@ describe('UneekConnector.placeOrder', () => {
     await expect(new UneekConnector(ctx).placeOrder(ORDER)).rejects.toThrow(SupplierRejectedOrderError);
   });
 
+  it("sends the supplier record's account number on the query string", async () => {
+    const calls = mockFetch(() => jsonResponse({ OrderNumber: 'SO1' }));
+    await new UneekConnector({ ...ctx, accountNumber: ' TBV02 ' }).placeOrder(ORDER);
+    expect(calls[0]!.url).toBe('https://api.uneekclothing.example/Order?CustomerNo=TBV02');
+  });
+
   it('429 → SupplierUpstreamError with status 429, safe for the placer to retry', async () => {
     mockFetch(() => jsonResponse({ error: 'slow down' }, 429));
     const err = await new UneekConnector(ctx).placeOrder(ORDER).catch((e: unknown) => e);
