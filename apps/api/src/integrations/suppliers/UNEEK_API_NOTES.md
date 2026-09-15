@@ -93,7 +93,17 @@ Accept: application/json
 Authorization: Basic <base64(user:password)>
 ```
 
-No query string, no body. Same auth as `/stockLevel/all`.
+**`?CustomerNo=<account number>` is required** (verified 2026-09-15): without it Uneek answers 500 with an empty body. Our account is TBV02. With it, the reply was a plain (not double-encoded) JSON array of 7,067 rows, 8.9 MB. No body. Same auth as `/stockLevel/all`.
+
+Fields seen live on 2026-09-15:
+- identity: `Company`, `Category`, `ProductCode`, `ProductName`, `FullDescription`, `ShortCode`, `TariffNo`, `EAN`
+- fabric and fit: `WashDegrees`, `Gender`, `GSM`, `Composition`, `Specifications`
+- colour and size: `ColourCode`, `Colour`, `Pantone`, `Hex`, `Size`
+- prices: `PriceSingle`, `QtySingle`, `PricePack`, `PackQty`, `PriceCaton` [sic], `CartonQty`, `Price1K`, `Quantity`, `MyPrice`
+- images and video: `Image`, `SmallImage`, `ColourImage`, `SMColourImage`, `VideoLink`
+- logistics: `Packaging`, `CountryOfOrigin`, `GrossWeight`, `NetWeight`, `TaxCode`
+
+`Image` is one model photo shared by every colour, so the importer uses `ColourImage` for each variant. There is no `SubCategory`, `ShortDescription` or `Brand`.
 
 **Response (verified 2026-05-11):**
 

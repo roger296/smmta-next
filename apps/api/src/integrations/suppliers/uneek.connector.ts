@@ -131,6 +131,11 @@ export interface UneekProductRow {
   Image?: string | null;
   /** Lower-resolution per-colour swatch image. */
   SMColourImage?: string | null;
+  /** High-resolution photo of this colour. `Image` is a model photo shared
+   *  by every colour of the product, so this is the better variant image. */
+  ColourImage?: string | null;
+  /** e.g. `Unisex`, `Mens`, `Ladies`. */
+  Gender?: string | null;
   /** Marketing copy — multi-paragraph. */
   FullDescription?: string | null;
   Specifications?: string | null;
@@ -325,8 +330,10 @@ export class UneekConnector implements SupplierConnector {
    * Same auth / double-JSON quirks as `getStockAndPrice` — see
    * `parseJsonBody`.
    */
-  async getProductCatalogue(): Promise<UneekProductRow[]> {
-    const url = joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.productData);
+  async getProductCatalogue(customerNo: string): Promise<UneekProductRow[]> {
+    // Verified 2026-09-15: without CustomerNo Uneek answers 500; with the
+    // account's number it returns a plain JSON array (~7,000 rows, ~9 MB).
+    const url = `${joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.productData)}?CustomerNo=${encodeURIComponent(customerNo)}`;
     const body = await this.requestJson<unknown>('GET', url, undefined);
     return Array.isArray(body) ? (body as UneekProductRow[]) : [];
   }
