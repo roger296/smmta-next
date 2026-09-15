@@ -4,8 +4,11 @@
  * Reads from the hierarchical `categories` table populated by
  * `seed-categories.ts`, plus the per-product `category_id` populated
  * by `assign-categories.ts`. Builds the navigation tree, fetches
- * category-scoped product lists, and computes the filter facets that
+ * category-scoped listings, and computes the filter facets that
  * the catalogue-grid sidebar renders.
+ *
+ * Listings are one per range, not one per size and colour — see
+ * `listings.ts`.
  *
  * Scoping conventions match the existing `CatalogueService`:
  *   - companyId is the singleton tenant id (passed from API context).
@@ -25,7 +28,18 @@ import {
   products,
 } from '../../db/schema/index.js';
 import { chunkedQuery } from '../../shared/db/chunk.js';
-import { getVariantAvailabilityBatch, type StockState } from './availability.js';
+import { getVariantAvailabilityBatch } from './availability.js';
+import {
+  buildListings,
+  emptyFacets,
+  type CategoryFacetCounts,
+  type CategoryFilters,
+  type CategoryListing,
+  type ListingVariant,
+  type SortKey,
+} from './listings.js';
+
+export type { CategoryFacetCounts, CategoryFilters, CategoryListing, SortKey } from './listings.js';
 
 export interface NavCategoryTop {
   slug: string;
@@ -49,51 +63,17 @@ export interface CategoryMeta {
   breadcrumbs: Array<{ slug: string; name: string; path: string }>;
 }
 
-export interface CategoryProduct {
-  id: string;
-  slug: string | null;
-  name: string;
-  colour: string | null;
-  colourHex: string | null;
-  priceGbp: string | null;
-  heroImageUrl: string | null;
-  brand: string | null;
-  stockState: StockState;
-  attributes: Record<string, string> | null;
-}
-
-export type SortKey = 'newest' | 'price-asc' | 'price-desc';
-
-export interface CategoryFilters {
-  /** Stock state — `IN_STOCK` and/or `AVAILABLE_FROM_SUPPLIER`. Default
-   *  is both; `OUT_OF_STOCK` is opt-in. */
-  stockState?: StockState[];
-  brand?: string[];
-  colour?: string[];
-  size?: string[];
-  priceMin?: number;
-  priceMax?: number;
-}
-
-export interface CategoryFacetCounts {
-  /** Map of facet-value → count of products in the current result set
-   *  that have that value. Used by the storefront filter sidebar. */
-  brand: Record<string, number>;
-  colour: Record<string, number>;
-  size: Record<string, number>;
-  stockState: Record<StockState, number>;
-  /** Tuple [min, max] across the whole result set. */
-  priceRange: { min: string; max: string } | null;
-}
-
-export interface CategoryProductsResponse {
+export interface CategoryListingsResponse {
   category: CategoryMeta;
-  products: CategoryProduct[];
+  /** One page of listings: a range with all its sizes and colours, or a
+   *  product with no range page. */
+  listings: CategoryListing[];
+  /** Listings across every page. */
   totalCount: number;
   facets: CategoryFacetCounts;
 }
 
-/** Maximum products to return per page. The brief asked for cursor
+/** Maximum listings to return per page. The brief asked for cursor
  *  pagination but offset is simpler and the page-size cap keeps memory
  *  bounded — switch to cursor if scrolling deep into a 30k category
  *  becomes a real workflow. */
@@ -201,7 +181,7 @@ export class CategoryService {
   }
 
   // ──────────────────────────────────────────────────────────
-  // Products in a category, with filters + facets + pagination
+  // Listings in a category, with filters + facets + pagination
   // ──────────────────────────────────────────────────────────
 
   async listCategoryProducts(
@@ -213,13 +193,13 @@ export class CategoryService {
       sort?: SortKey;
       page?: number;
     } = {},
-  ): Promise<CategoryProductsResponse | null> {
+  ): Promise<CategoryListingsResponse | null> {
     const resolved = await this.resolveSlugPath(companyId, slugPath);
     if (!resolved) return null;
     const { meta, categoryIds } = resolved;
 
-    // Pull every published product in the category — we filter and
-    // sort in-memory. At ~5k products per top-tier this is fine; if
+    // Pull every published product in the category — we group, filter
+    // and sort in-memory. At ~5k products per top-tier this is fine; if
     // a single category ever exceeds 50k we'll switch to a SQL-side
     // filter pass.
     const allProducts = await this.db
@@ -234,7 +214,11 @@ export class CategoryService {
         attributes: products.attributes,
         createdAt: products.createdAt,
         groupId: products.groupId,
-        brand: productGroups.description, // brand isn't a column today — punt and use description for now (no harm; the facet will just show empty)
+        groupSlug: productGroups.slug,
+        groupName: productGroups.name,
+        groupHeroImageUrl: productGroups.heroImageUrl,
+        groupIsPublished: productGroups.isPublished,
+        groupDeletedAt: productGroups.deletedAt,
       })
       .from(products)
       .leftJoin(productGroups, eq(productGroups.id, products.groupId))
@@ -250,7 +234,7 @@ export class CategoryService {
     if (allProducts.length === 0) {
       return {
         category: meta,
-        products: [],
+        listings: [],
         totalCount: 0,
         facets: emptyFacets(),
       };
@@ -298,192 +282,52 @@ export class CategoryService {
     // Stock state for every variant in scope.
     const availability = await getVariantAvailabilityBatch(companyId, productIds);
 
-    // Build a richer projection that filters + facets can read from.
-    interface Enriched {
-      id: string;
-      slug: string | null;
-      name: string;
-      colour: string | null;
-      colourHex: string | null;
-      priceGbp: string | null;
-      heroImageUrl: string | null;
-      attributes: Record<string, string> | null;
-      brand: string | null;
-      stockState: StockState;
-      createdAt: Date | null;
-      offered: boolean;
-    }
-    const enriched: Enriched[] = allProducts.map((p) => {
+    // Anything not offered on this channel is invisible to the customer
+    // regardless of filters, so it never reaches the listings or facets.
+    const variants: ListingVariant[] = [];
+    for (const p of allProducts) {
       const decision = channelMap?.get(p.id);
-      const offered = decision ? decision.isOffered : true;
-      const channelPrice = decision?.priceGbp ?? null;
-      const finalPrice = channelPrice ?? p.baseMinPrice ?? null;
-      const a = availability.get(p.id);
-      return {
+      if (decision && !decision.isOffered) continue;
+      variants.push({
         id: p.id,
         slug: p.slug,
         name: p.name,
         colour: p.colour,
         colourHex: p.colourHex,
-        priceGbp: finalPrice,
+        priceGbp: decision?.priceGbp ?? p.baseMinPrice ?? null,
         heroImageUrl: p.heroImageUrl,
         attributes: (p.attributes ?? null) as Record<string, string> | null,
         brand: null, // populated from a future products.brand column; for now null
-        stockState: a?.stockState ?? 'OUT_OF_STOCK',
+        stockState: availability.get(p.id)?.stockState ?? 'OUT_OF_STOCK',
         createdAt: p.createdAt,
-        offered,
-      };
-    });
+        group:
+          p.groupId && p.groupName !== null
+            ? {
+                id: p.groupId,
+                slug: p.groupSlug,
+                name: p.groupName,
+                heroImageUrl: p.groupHeroImageUrl,
+                isPublished: p.groupIsPublished === true && p.groupDeletedAt === null,
+              }
+            : null,
+      });
+    }
 
-    // Filter by channel offered flag first — anything not offered on
-    // this channel is invisible to the customer regardless of filters.
-    const offered = enriched.filter((p) => p.offered);
-
-    // Compute facet counts BEFORE filter application so the sidebar
-    // reflects the full category, then the customer's filter selections
-    // narrow the displayed product list (but the facet counts stay
-    // representative of the unfiltered category — matches typical
-    // "facet count is the would-be count if you selected this filter"
-    // semantics most catalogue UIs have).
-    const facets = computeFacets(offered);
-
-    // Apply filters.
-    const filters = opts.filters ?? {};
-    const stockFilter: StockState[] = filters.stockState ?? ['IN_STOCK', 'AVAILABLE_FROM_SUPPLIER'];
-
-    const filtered = offered.filter((p) => {
-      if (!stockFilter.includes(p.stockState)) return false;
-      if (filters.colour && filters.colour.length > 0) {
-        if (!p.colour || !filters.colour.includes(p.colour)) return false;
-      }
-      if (filters.size && filters.size.length > 0) {
-        const sz = p.attributes?.size;
-        if (!sz || !filters.size.includes(sz)) return false;
-      }
-      if (filters.brand && filters.brand.length > 0) {
-        if (!p.brand || !filters.brand.includes(p.brand)) return false;
-      }
-      if (filters.priceMin !== undefined && p.priceGbp) {
-        const n = Number.parseFloat(p.priceGbp);
-        if (Number.isFinite(n) && n < filters.priceMin) return false;
-      }
-      if (filters.priceMax !== undefined && p.priceGbp) {
-        const n = Number.parseFloat(p.priceGbp);
-        if (Number.isFinite(n) && n > filters.priceMax) return false;
-      }
-      return true;
-    });
-
-    // Sort.
-    const sortKey = opts.sort ?? 'newest';
-    const sorted = [...filtered].sort((a, b) => {
-      if (sortKey === 'price-asc') {
-        const ap = priceNumber(a.priceGbp);
-        const bp = priceNumber(b.priceGbp);
-        return ap - bp;
-      }
-      if (sortKey === 'price-desc') {
-        const ap = priceNumber(a.priceGbp);
-        const bp = priceNumber(b.priceGbp);
-        return bp - ap;
-      }
-      // 'newest' default — most recent createdAt first.
-      const at = a.createdAt?.getTime() ?? 0;
-      const bt = b.createdAt?.getTime() ?? 0;
-      return bt - at;
+    const { listings, facets } = buildListings(variants, {
+      filters: opts.filters,
+      sort: opts.sort,
     });
 
     const page = Math.max(1, opts.page ?? 1);
     const start = (page - 1) * PAGE_SIZE;
-    const paged = sorted.slice(start, start + PAGE_SIZE);
 
     return {
       category: meta,
-      products: paged.map((p) => ({
-        id: p.id,
-        slug: p.slug,
-        name: p.name,
-        colour: p.colour,
-        colourHex: p.colourHex,
-        priceGbp: p.priceGbp,
-        heroImageUrl: p.heroImageUrl,
-        brand: p.brand,
-        stockState: p.stockState,
-        attributes: p.attributes,
-      })),
-      totalCount: sorted.length,
+      listings: listings.slice(start, start + PAGE_SIZE),
+      totalCount: listings.length,
       facets,
     };
   }
-}
-
-// ──────────────────────────────────────────────────────────
-// Facet computation
-// ──────────────────────────────────────────────────────────
-
-function priceNumber(s: string | null): number {
-  if (!s) return Infinity;
-  const n = Number.parseFloat(s);
-  return Number.isFinite(n) ? n : Infinity;
-}
-
-function bump<K extends string>(map: Record<K, number>, key: K): void {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  map[key] = (map[key] ?? 0) + 1;
-}
-
-interface EnrichedForFacets {
-  brand: string | null;
-  colour: string | null;
-  priceGbp: string | null;
-  stockState: StockState;
-  attributes: Record<string, string> | null;
-}
-
-export function computeFacets(rows: EnrichedForFacets[]): CategoryFacetCounts {
-  const brand: Record<string, number> = {};
-  const colour: Record<string, number> = {};
-  const size: Record<string, number> = {};
-  const stockState: Record<StockState, number> = {
-    IN_STOCK: 0,
-    AVAILABLE_FROM_SUPPLIER: 0,
-    OUT_OF_STOCK: 0,
-  };
-  let priceMin: number | null = null;
-  let priceMax: number | null = null;
-  for (const p of rows) {
-    if (p.brand) bump(brand, p.brand);
-    if (p.colour) bump(colour, p.colour);
-    if (p.attributes?.size) bump(size, p.attributes.size);
-    bump(stockState, p.stockState);
-    if (p.priceGbp) {
-      const n = Number.parseFloat(p.priceGbp);
-      if (Number.isFinite(n)) {
-        if (priceMin === null || n < priceMin) priceMin = n;
-        if (priceMax === null || n > priceMax) priceMax = n;
-      }
-    }
-  }
-  return {
-    brand,
-    colour,
-    size,
-    stockState,
-    priceRange:
-      priceMin !== null && priceMax !== null
-        ? { min: priceMin.toFixed(2), max: priceMax.toFixed(2) }
-        : null,
-  };
-}
-
-function emptyFacets(): CategoryFacetCounts {
-  return {
-    brand: {},
-    colour: {},
-    size: {},
-    stockState: { IN_STOCK: 0, AVAILABLE_FROM_SUPPLIER: 0, OUT_OF_STOCK: 0 },
-    priceRange: null,
-  };
 }
 
 // Suppress unused-import warnings for the drizzle helpers we don't
