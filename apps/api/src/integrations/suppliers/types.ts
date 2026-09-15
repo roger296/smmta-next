@@ -96,6 +96,9 @@ export interface SupplierConnectorContext {
    *  override). The registry computes this via `deriveMinRequestIntervalMs`
    *  so connectors only ever see one number. 0 / undefined = no throttle. */
   minRequestIntervalMs?: number;
+  /** Our account (customer) number with the supplier, from the supplier
+   *  record. Uneek refuses orders without it. */
+  accountNumber?: string | null;
 }
 
 /**

@@ -154,9 +154,6 @@ const envSchema = z.object({
   /** Uneek's deliveryMethod code. Uneek's API documentation does not list the
    *  values; empty sends a blank field. Confirm the code with Uneek. */
   UNEEK_DELIVERY_METHOD: z.string().default(''),
-  /** The Uneek account (customer) number, e.g. TBV02. Uneek refuses orders
-   *  without it; the catalogue importer reads it too. */
-  UNEEK_CUSTOMER_NO: z.string().trim().default(''),
 
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications

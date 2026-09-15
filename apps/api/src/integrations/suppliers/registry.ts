@@ -4,7 +4,10 @@
  *
  * Lookup is by `supplier.connectorKind`. Instances are cached by
  * `supplier.id` so repeated calls within a worker run reuse the same
- * connector (and any internal HTTP client state).
+ * connector (and any internal HTTP client state). The cached instance is
+ * rebuilt when any field it was built from changes, so an edit on the admin
+ * Drop-ship tab (a new key, account number or rate limit) reaches a
+ * long-running worker without a restart.
  *
  * Test harnesses bypass the registry and pass a stub connector directly
  * to the service layer — see `supplier.service.test.ts`.
@@ -32,12 +35,18 @@ export interface SupplierLikeRow {
   /** Explicit override (ms between requests). Wins over the derived
    *  rate-limit pair when both are set. */
   minRequestIntervalMs?: number | null;
+  /** Our account (customer) number with the supplier. */
+  accountNumber?: string | null;
 }
 
-const cache = new Map<string, SupplierConnector>();
+/** Stub connectors registered by tests, by supplier id. */
+const stubs = new Map<string, SupplierConnector>();
+/** Built connectors by supplier id, with the fields they were built from. */
+const cache = new Map<string, { key: string; connector: SupplierConnector }>();
 
 export function resetRegistryCacheForTests(): void {
   cache.clear();
+  stubs.clear();
 }
 
 /**
@@ -48,14 +57,31 @@ export function registerStubConnectorForTests(
   supplierId: string,
   connector: SupplierConnector,
 ): void {
-  cache.set(supplierId, connector);
+  stubs.set(supplierId, connector);
 }
 
 export class ConnectorConfigError extends Error {}
 
+/** Every field a connector is built from. */
+function buildKey(supplier: SupplierLikeRow): string {
+  return JSON.stringify([
+    supplier.connectorKind,
+    supplier.apiBaseUrl,
+    supplier.apiKeyEnc,
+    supplier.apiAuthScheme,
+    supplier.accountNumber ?? null,
+    supplier.rateLimitRequests ?? null,
+    supplier.rateLimitWindowSeconds ?? null,
+    supplier.minRequestIntervalMs ?? null,
+  ]);
+}
+
 export function resolveConnector(supplier: SupplierLikeRow): SupplierConnector {
+  const stub = stubs.get(supplier.id);
+  if (stub) return stub;
+  const key = buildKey(supplier);
   const cached = cache.get(supplier.id);
-  if (cached) return cached;
+  if (cached && cached.key === key) return cached.connector;
 
   if (!supplier.connectorKind || supplier.connectorKind === 'NONE') {
     throw new ConnectorConfigError(
@@ -82,6 +108,7 @@ export function resolveConnector(supplier: SupplierLikeRow): SupplierConnector {
       rateLimitRequests: supplier.rateLimitRequests ?? null,
       rateLimitWindowSeconds: supplier.rateLimitWindowSeconds ?? null,
     }),
+    accountNumber: supplier.accountNumber ?? null,
   };
 
   let conn: SupplierConnector;
@@ -102,6 +129,6 @@ export function resolveConnector(supplier: SupplierLikeRow): SupplierConnector {
         `Unknown connectorKind "${supplier.connectorKind}" for supplier ${supplier.id}`,
       );
   }
-  cache.set(supplier.id, conn);
+  cache.set(supplier.id, { key, connector: conn });
   return conn;
 }

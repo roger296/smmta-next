@@ -54,6 +54,21 @@ describe('resolveConnector', () => {
     expect(a).toBe(b);
   });
 
+  it('rebuilds the connector when a field it was built from is edited', () => {
+    const supplier = {
+      id: 'sup-edited',
+      connectorKind: 'UNEEK',
+      apiBaseUrl: 'https://api.uneekclothing.example/',
+      apiKeyEnc: encrypt('k'),
+      apiAuthScheme: 'bearer',
+      accountNumber: null as string | null,
+    };
+    const before = resolveConnector(supplier);
+    const after = resolveConnector({ ...supplier, accountNumber: 'TBV02' });
+    expect(after).not.toBe(before);
+    expect(resolveConnector({ ...supplier, accountNumber: 'TBV02' })).toBe(after);
+  });
+
   it('throws on connectorKind=NONE', () => {
     expect(() =>
       resolveConnector({

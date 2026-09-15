@@ -239,6 +239,13 @@
       "when": 1789465621944,
       "tag": "0033_supplier_delivery_charge",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789484792280,
+      "tag": "0034_supplier_account_number",
+      "breakpoints": true
     }
   ]
 }
