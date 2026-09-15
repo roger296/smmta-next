@@ -468,6 +468,19 @@ describe("evaluateRules — Uneek's categories", () => {
   it('keeps the Uneek-only rules away from Ralawise products', () => {
     expect(evaluateRules({ source: 'ralawise', productType: 'Sportswear', name: 'Sports polo' })).toBeNull();
   });
+
+  it("files a Ralawise healthcare collection's fleece as a fleece, and its tunic as a tunic", () => {
+    const categorisation = 'Workwear|Healthcare|Care Home';
+    expect(evaluateRules({ source: 'ralawise', productType: 'Fleece', categorisation, name: 'Microfleece jacket' })).toBe(
+      'outerwear/fleeces',
+    );
+    expect(evaluateRules({ source: 'ralawise', productType: 'Tunics', categorisation, name: 'Beauty tunic' })).toBe(
+      'workwear-and-safety/scrubs-and-tunics',
+    );
+    expect(evaluateRules({ source: 'ralawise', productType: 'Trousers', categorisation, name: 'Scrubs trousers' })).toBe(
+      'workwear-and-safety/scrubs-and-tunics',
+    );
+  });
 });
 
 describe('evaluateRules — falls through to null when no rule matches', () => {

@@ -158,9 +158,14 @@ export const RULES: MappingRule[] = [
     rationale: 'Coveralls / boilersuits',
   },
   {
+    // Uneek only: its Healthcare category holds nothing but scrubs and tunics,
+    // whereas Ralawise tags whole healthcare collections (fleeces, polos,
+    // trousers) "Healthcare". Ralawise scrubs and tunics are caught by the
+    // name and type rules below.
+    source: 'uneek',
     categorisationContains: 'Healthcare|Medical|Scrubs',
     assignTo: 'workwear-and-safety/scrubs-and-tunics',
-    rationale: 'Healthcare wear (Uneek\'s "Healthcare" category): scrubs and tunics',
+    rationale: 'Uneek\'s "Healthcare" category: scrubs and tunics',
   },
   {
     nameContains: /\bscrubs?\b/i,
