@@ -21,6 +21,24 @@ export interface ReservationSupplierLine {
   supplierId: string;
 }
 
+/** One parcel in a delivery quote: warehouse items, or one supplier's items. */
+export interface DeliveryParcel {
+  /** The supplier that sends it; null for our own warehouse. */
+  supplierId: string | null;
+  /** The supplier's name when it may be shown to customers, else null. */
+  supplierName: string | null;
+  /** What the customer pays for this parcel, inc VAT, as "10.50". */
+  chargeGbp: string;
+  /** The basket products in this parcel. */
+  productIds: string[];
+}
+
+/** The delivery charge for a basket: one charge per parcel. */
+export interface DeliveryQuote {
+  totalGbp: string;
+  parcels: DeliveryParcel[];
+}
+
 export interface ReservationMetadata {
   /** Storefront cart/checkout identifier. */
   checkoutId?: string;
@@ -28,6 +46,9 @@ export interface ReservationMetadata {
   mollie?: { paymentId?: string };
   /** Lines to be drop-shipped, decided when the reservation was made. */
   supplierLines?: ReservationSupplierLine[];
+  /** The delivery charge quoted with the reservation. When present it is the
+   *  charge the order is committed with, whatever the storefront sends. */
+  delivery?: DeliveryQuote;
   // Free-form for future use; the storefront can attach anything.
   [key: string]: unknown;
 }

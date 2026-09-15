@@ -59,6 +59,13 @@ export const dropshipSupplierSchema = z.object({
    *  Cap at 60s — longer than that is almost certainly a typo. */
   minRequestIntervalMs: z.coerce.number().int().min(0).max(60_000).nullable().optional(),
   showSupplierNameToCustomers: z.boolean().optional(),
+  /** Customer delivery charge for this supplier's parcel, inc VAT, e.g.
+   *  "10.50". null clears it back to the storefront's standard rate. */
+  deliveryChargeGbp: z
+    .string()
+    .regex(/^\d{1,6}(\.\d{1,2})?$/, 'deliveryChargeGbp must be an amount like "10.50"')
+    .nullable()
+    .optional(),
 });
 
 export type DropshipSupplierInput = z.infer<typeof dropshipSupplierSchema>;

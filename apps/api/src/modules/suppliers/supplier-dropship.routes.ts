@@ -115,6 +115,10 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
     if (parsed.data.rateLimitWindowSeconds !== undefined) updates.rateLimitWindowSeconds = parsed.data.rateLimitWindowSeconds;
     if (parsed.data.minRequestIntervalMs !== undefined) updates.minRequestIntervalMs = parsed.data.minRequestIntervalMs;
     if (parsed.data.showSupplierNameToCustomers !== undefined) updates.showSupplierNameToCustomers = parsed.data.showSupplierNameToCustomers;
+    if (parsed.data.deliveryChargeGbp !== undefined) {
+      updates.deliveryChargeGbp =
+        parsed.data.deliveryChargeGbp === null ? null : Number(parsed.data.deliveryChargeGbp).toFixed(2);
+    }
     if (parsed.data.apiKeyPlaintext) {
       updates.apiKeyEnc = service.encryptApiKey(parsed.data.apiKeyPlaintext);
     }

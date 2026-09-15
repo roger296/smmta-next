@@ -24,6 +24,7 @@ import {
 } from '../../db/schema/index.js';
 import { InsufficientStockError, ReservationService } from './reservation.service.js';
 import { OrderCommitService } from './order-commit.service.js';
+import { quoteDeliveryForBasket } from './delivery.js';
 import { DropshipSupplierService } from '../suppliers/supplier-dropship.service.js';
 import { resetCryptoForTests } from '../../shared/crypto/encrypt.js';
 
@@ -237,5 +238,114 @@ describe('commitOrder — drop-ship lines', () => {
     const lines = await getDb().select().from(orderLines).where(eq(orderLines.orderId, orderId));
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({ fulfilmentSource: 'SUPPLIER', supplierId });
+  });
+});
+
+describe('delivery charges per parcel', () => {
+  async function withSupplierCharge<T>(charge: string | null, run: () => Promise<T>): Promise<T> {
+    const db = getDb();
+    await db.update(suppliers).set({ deliveryChargeGbp: charge }).where(eq(suppliers.id, supplierId));
+    try {
+      return await run();
+    } finally {
+      await db.update(suppliers).set({ deliveryChargeGbp: null }).where(eq(suppliers.id, supplierId));
+    }
+  }
+
+  it('charges each parcel once: the warehouse at the standard rate, a supplier at its own charge', async () => {
+    await withSupplierCharge('10.50', async () => {
+      const r = await reservations.createReservation(COMPANY, {
+        items: [
+          { productId: warehouseProductId, quantity: 2 },
+          { productId: supplierProductId, quantity: 3 },
+        ],
+        ttlSeconds: 900,
+        defaultDeliveryChargeGbp: '7.00',
+      });
+      expect(r.delivery).toEqual({
+        totalGbp: '17.50',
+        parcels: [
+          { supplierId: null, supplierName: null, chargeGbp: '7.00', productIds: [warehouseProductId] },
+          { supplierId, supplierName: null, chargeGbp: '10.50', productIds: [supplierProductId] },
+        ],
+      });
+      const row = await getDb().query.stockReservations.findFirst({ where: eq(stockReservations.id, r.reservationId) });
+      expect(row?.metadata?.delivery?.totalGbp).toBe('17.50');
+    });
+  });
+
+  it('uses the standard rate for a supplier with no charge set, and quotes nothing unless asked', async () => {
+    const quoted = await reservations.createReservation(COMPANY, {
+      items: [{ productId: supplierProductId, quantity: 1 }],
+      ttlSeconds: 900,
+      defaultDeliveryChargeGbp: '7.00',
+    });
+    expect(quoted.delivery?.totalGbp).toBe('7.00');
+
+    const unquoted = await reservations.createReservation(COMPANY, {
+      items: [{ productId: warehouseProductId, quantity: 1 }],
+      ttlSeconds: 900,
+    });
+    expect(unquoted.delivery).toBeNull();
+  });
+
+  it('names the supplier only when it may be shown to customers', async () => {
+    const db = getDb();
+    await db.update(suppliers).set({ showSupplierNameToCustomers: true }).where(eq(suppliers.id, supplierId));
+    try {
+      const r = await reservations.createReservation(COMPANY, {
+        items: [{ productId: supplierProductId, quantity: 1 }],
+        ttlSeconds: 900,
+        defaultDeliveryChargeGbp: '7.00',
+      });
+      expect(r.delivery?.parcels[0]?.supplierName).toBe('Drop-ship Test Supplier');
+    } finally {
+      await db.update(suppliers).set({ showSupplierNameToCustomers: false }).where(eq(suppliers.id, supplierId));
+    }
+  });
+
+  it('commits the order with the quoted delivery, whatever the storefront sends', async () => {
+    await withSupplierCharge('10.50', async () => {
+      const r = await reservations.createReservation(COMPANY, {
+        items: [
+          { productId: warehouseProductId, quantity: 1 },
+          { productId: supplierProductId, quantity: 2 },
+        ],
+        ttlSeconds: 900,
+        defaultDeliveryChargeGbp: '7.00',
+      });
+      // 1 × £10 + 2 × £12 + £7.00 warehouse parcel + £10.50 supplier parcel = £51.50.
+      const result = await commits.commitOrder(COMPANY, 'IDEMP-DROPSHIP-DELIVERY-1', {
+        reservationId: r.reservationId,
+        customer: { email: 'dropship@example.invalid', firstName: 'Sam', lastName: 'Buyer' },
+        deliveryAddress: { line1: '1 Test Road', city: 'Leeds', postCode: 'LS1 1AA', country: 'GB' },
+        mollie: { paymentId: 'tr_dropship_delivery', amount: '51.50', currency: 'GBP', methodPaid: 'creditcard', status: 'paid' },
+        deliveryCharge: '7.00',
+      });
+      expect(result.status).toBe(201);
+      const orderId = (result.body as { data: { orderId: string } }).data.orderId;
+      const order = await getDb().query.customerOrders.findFirst({ where: eq(customerOrders.id, orderId) });
+      expect(order?.deliveryCharge).toBe('17.50');
+      expect(order?.grandTotal).toBe('51.50');
+    });
+  });
+
+  it('quotes a basket before checkout the way the reservation will decide it', async () => {
+    await withSupplierCharge('10.50', async () => {
+      const quote = await quoteDeliveryForBasket(
+        COMPANY,
+        [
+          { productId: warehouseProductId, quantity: 1 },
+          { productId: supplierProductId, quantity: 1 },
+          { productId: supplierProductId, quantity: 1 },
+        ],
+        '7.00',
+      );
+      expect(quote.totalGbp).toBe('17.50');
+      expect(quote.parcels.map((p) => p.productIds)).toEqual([[warehouseProductId], [supplierProductId]]);
+      // Asking for more than the warehouse holds sends the line to the supplier.
+      const overflow = await quoteDeliveryForBasket(COMPANY, [{ productId: warehouseProductId, quantity: 3 }], '7.00');
+      expect(overflow.parcels[0]?.supplierId).toBe(supplierId);
+    });
   });
 });

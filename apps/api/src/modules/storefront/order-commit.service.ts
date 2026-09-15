@@ -257,7 +257,10 @@ export class OrderCommitService {
     // here — so split out its VAT element and add it to the order's tax total.
     // grandTotalPence is unaffected (the customer pays the same either way);
     // without this the recorded taxTotal understated the VAT actually due.
-    const deliveryPence = input.deliveryCharge ? toPence(input.deliveryCharge) : 0;
+    // A delivery charge quoted with the reservation wins: it was worked out
+    // from where each item ships from, and is what the customer was shown.
+    const deliveryCharge = reservation.metadata?.delivery?.totalGbp ?? input.deliveryCharge;
+    const deliveryPence = deliveryCharge ? toPence(deliveryCharge) : 0;
     orderTaxPence += taxOfGrossPence(deliveryPence);
     const grandTotalPence = orderGrossPence + deliveryPence;
     const mollieAmountPence = toPence(input.mollie.amount);
@@ -356,7 +359,7 @@ export class OrderCommitService {
         },
         vatTreatment: 'STANDARD_VAT_20',
         totals: {
-          deliveryCharge: input.deliveryCharge ?? '0',
+          deliveryCharge: deliveryCharge ?? '0',
           orderTotal: fromPence(orderGrossPence),
           taxTotal: fromPence(orderTaxPence),
           grandTotal: fromPence(grandTotalPence),
