@@ -107,7 +107,8 @@ async function main(): Promise<void> {
   });
   if (!supplier) throw new Error(`No supplier with slug "${flags.supplier}".`);
 
-  const { reference, isReal } = testOrderReference(supplier.connectorKind, flags.real);
+  // A dry run sends nothing, so it needs no --real.
+  const { reference, isReal } = testOrderReference(supplier.connectorKind, flags.real || flags.dryRun);
   const req: SupplierOrderRequest = {
     idempotencyKey: `test-order-${reference}-${Date.now()}`,
     customerOrderRef: reference,
@@ -124,7 +125,15 @@ async function main(): Promise<void> {
   };
 
   console.log(`[test-order] supplier: ${supplier.name} (${supplier.connectorKind})`);
-  console.log(`[test-order] ${isReal ? 'REAL ORDER — this will be charged and posted' : `test reference ${reference} — not fulfilled`}`);
+  console.log(
+    `[test-order] ${
+      flags.dryRun
+        ? 'dry run — nothing will be sent'
+        : isReal
+          ? 'REAL ORDER — this will be charged and posted'
+          : `test reference ${reference} — not fulfilled`
+    }`,
+  );
   console.log('[test-order] request:', JSON.stringify(req, null, 2));
   if (flags.dryRun) {
     console.log('[test-order] dry run: nothing sent.');
