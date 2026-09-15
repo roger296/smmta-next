@@ -30,7 +30,9 @@ export const DISPATCH_COPY: Record<StockState, DispatchCopy> = {
   },
   OUT_OF_STOCK: {
     badgeLabel: 'Out of stock',
-    primary: 'Notify me when this item is back in stock.',
+    // The button below offers the back-in-stock email, so this line just
+    // says it's gone (Roger, 2026-09-15).
+    primary: 'Sorry, this size and colour is sold out.',
   },
 };
 

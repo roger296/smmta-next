@@ -9,7 +9,7 @@ describe('DISPATCH_COPY', () => {
 
     expect(DISPATCH_COPY.IN_STOCK.primary).toMatch(/by 2pm \(UK time\).*same day/);
     expect(DISPATCH_COPY.AVAILABLE_FROM_SUPPLIER.primary).toMatch(/by 2pm \(UK time\).*same day/);
-    expect(DISPATCH_COPY.OUT_OF_STOCK.primary).toMatch(/Notify me/i);
+    expect(DISPATCH_COPY.OUT_OF_STOCK.primary).toBe('Sorry, this size and colour is sold out.');
   });
 });
 
