@@ -22,6 +22,8 @@ export interface DropshipSupplierRow {
   deliveryChargeGbp: string | null;
   /** Our account (customer) number with the supplier, e.g. Uneek's TBV02. */
   accountNumber: string | null;
+  /** The email address on our account with the supplier. */
+  customerAccountEmail: string | null;
   hasApiKey: boolean;
 }
 
@@ -83,6 +85,7 @@ export interface DropshipUpdateInput {
   showSupplierNameToCustomers?: boolean;
   deliveryChargeGbp?: string | null;
   accountNumber?: string | null;
+  customerAccountEmail?: string | null;
 }
 
 export function useUpdateDropshipSupplier() {

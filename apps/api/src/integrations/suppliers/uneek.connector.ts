@@ -346,7 +346,10 @@ export class UneekConnector implements SupplierConnector {
     const base = joinUrl(this.ctx.apiBaseUrl, ENDPOINTS.orderCreate);
     const accountNumber = this.ctx.accountNumber?.trim();
     const url = accountNumber ? `${base}?CustomerNo=${encodeURIComponent(accountNumber)}` : base;
-    const body = mapOrderRequestToUpstream(req, { deliveryMethod: getEnv().UNEEK_DELIVERY_METHOD });
+    const body = mapOrderRequestToUpstream(req, {
+      deliveryMethod: getEnv().UNEEK_DELIVERY_METHOD,
+      accountEmail: this.ctx.customerAccountEmail,
+    });
     const upstream = await this.requestJson<unknown>('POST', url, body, {
       timeoutMs: ORDER_TIMEOUT_MS,
       idempotencyKey: req.idempotencyKey,
@@ -511,10 +514,13 @@ export interface UneekOrderRequestBody {
  */
 export function mapOrderRequestToUpstream(
   req: SupplierOrderRequest,
-  opts: { deliveryMethod?: string } = {},
+  opts: { deliveryMethod?: string; accountEmail?: string | null } = {},
 ): UneekOrderRequestBody {
   return {
-    email: req.contactEmail ?? '',
+    // The email on our Uneek account, when the supplier record has one: Uneek
+    // may find the customer from it (it refused orders carrying our general
+    // contact address with "CustomerNONotFound", 2026-09-15; unconfirmed).
+    email: opts.accountEmail?.trim() || req.contactEmail || '',
     orderReference: req.customerOrderRef,
     orderNotes: '',
     specialInstructions: req.contactPhone ? `Recipient phone: ${req.contactPhone}` : '',

@@ -65,6 +65,11 @@ export const suppliers = pgTable('suppliers', {
    *  Some supplier APIs refuse requests without it. Set on the admin
    *  Drop-ship tab. */
   accountNumber: varchar('account_number', { length: 60 }),
+  /** The email address on our account with this supplier (Uneek: the one we
+   *  sign in to its website with). Orders to the supplier carry it in place
+   *  of SUPPLIER_ORDER_CONTACT_EMAIL. Not `accountsEmail`, which is the
+   *  supplier's own accounts department. */
+  customerAccountEmail: varchar('customer_account_email', { length: 200 }),
   /** Published rate limit — what the supplier told us. The connector
    *  computes its inter-request delay from `(rate_limit_window_seconds
    *  * 1000 / rate_limit_requests) * SAFETY` so the operator never

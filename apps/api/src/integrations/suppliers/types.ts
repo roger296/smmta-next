@@ -99,6 +99,9 @@ export interface SupplierConnectorContext {
   /** Our account (customer) number with the supplier, from the supplier
    *  record. Uneek refuses orders without it. */
   accountNumber?: string | null;
+  /** The email address on our account with the supplier, from the supplier
+   *  record. When set, orders carry it in place of the order's contactEmail. */
+  customerAccountEmail?: string | null;
 }
 
 /**

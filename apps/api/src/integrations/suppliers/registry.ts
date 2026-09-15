@@ -37,6 +37,8 @@ export interface SupplierLikeRow {
   minRequestIntervalMs?: number | null;
   /** Our account (customer) number with the supplier. */
   accountNumber?: string | null;
+  /** The email address on our account with the supplier. */
+  customerAccountEmail?: string | null;
 }
 
 /** Stub connectors registered by tests, by supplier id. */
@@ -70,6 +72,7 @@ function buildKey(supplier: SupplierLikeRow): string {
     supplier.apiKeyEnc,
     supplier.apiAuthScheme,
     supplier.accountNumber ?? null,
+    supplier.customerAccountEmail ?? null,
     supplier.rateLimitRequests ?? null,
     supplier.rateLimitWindowSeconds ?? null,
     supplier.minRequestIntervalMs ?? null,
@@ -109,6 +112,7 @@ export function resolveConnector(supplier: SupplierLikeRow): SupplierConnector {
       rateLimitWindowSeconds: supplier.rateLimitWindowSeconds ?? null,
     }),
     accountNumber: supplier.accountNumber ?? null,
+    customerAccountEmail: supplier.customerAccountEmail ?? null,
   };
 
   let conn: SupplierConnector;

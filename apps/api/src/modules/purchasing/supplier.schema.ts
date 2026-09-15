@@ -69,6 +69,11 @@ export const dropshipSupplierSchema = z.object({
   /** Our account (customer) number with the supplier, e.g. Uneek's "TBV02".
    *  null or "" clears it. */
   accountNumber: z.string().trim().max(60).nullable().optional(),
+  /** The email address on our account with the supplier. null or "" clears it. */
+  customerAccountEmail: z
+    .union([z.string().trim().email().max(200), z.literal('')])
+    .nullable()
+    .optional(),
 });
 
 export type DropshipSupplierInput = z.infer<typeof dropshipSupplierSchema>;
