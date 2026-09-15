@@ -18,7 +18,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { FullVariant } from '@/lib/api-types';
 import { DISPATCH_COPY, effectiveStockState, isSellable } from '@/lib/dispatch-copy';
-import { listAxisValues, resolveVariant } from '@/lib/variant-selector';
+import { initialSelection, listAxisValues, resolveVariant } from '@/lib/variant-selector';
 import { AddToCartButton } from '@/components/add-to-cart-button';
 
 export interface SwatchPickerProps {
@@ -40,14 +40,7 @@ export function SwatchPicker({ groupName, variants, attributeAxes }: SwatchPicke
       const v = searchParams.get(ax);
       if (v) fromQuery[ax] = v;
     }
-    if (Object.keys(fromQuery).length === axes.length) return fromQuery;
-    const sellable = variants.find((v) =>
-      isSellable(effectiveStockState(v)) && v.attributes,
-    );
-    const seed = sellable?.attributes ?? variants[0]?.attributes ?? {};
-    const merged: Record<string, string> = { ...seed };
-    for (const ax of axes) if (fromQuery[ax]) merged[ax] = fromQuery[ax];
-    return merged;
+    return initialSelection(axes, variants, fromQuery);
   }, [axes, searchParams, variants]);
 
   const [selection, setSelection] = React.useState<Record<string, string>>(initial);
