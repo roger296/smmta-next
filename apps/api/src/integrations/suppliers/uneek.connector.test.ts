@@ -164,7 +164,7 @@ describe('UneekConnector.getStockAndPrice', () => {
 });
 
 describe('UneekConnector.getProductCatalogue', () => {
-  it('GETs /productdata/all and returns the parsed (double-encoded) array', async () => {
+  it('GETs /productdata/all with the customer number and returns the parsed array', async () => {
     const sample = [
       {
         ProductCode: 'UX8',
@@ -193,9 +193,9 @@ describe('UneekConnector.getProductCatalogue', () => {
     ];
     const calls = mockFetch(() => rawResponse(uneekStockBody(sample)));
     const c = new UneekConnector(ctx);
-    const rows = await c.getProductCatalogue();
+    const rows = await c.getProductCatalogue('TBV02');
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe('https://api.uneekclothing.example/productdata/all');
+    expect(calls[0]!.url).toBe('https://api.uneekclothing.example/productdata/all?CustomerNo=TBV02');
     expect(calls[0]!.init.method).toBe('GET');
     expect(rows).toHaveLength(2);
     expect(rows[0]!.ProductCode).toBe('UX8');
@@ -206,21 +206,21 @@ describe('UneekConnector.getProductCatalogue', () => {
   it('returns [] when the upstream returns an empty array', async () => {
     mockFetch(() => rawResponse(uneekStockBody([])));
     const c = new UneekConnector(ctx);
-    const rows = await c.getProductCatalogue();
+    const rows = await c.getProductCatalogue('TBV02');
     expect(rows).toEqual([]);
   });
 
   it('returns [] when the upstream returns something that is not an array', async () => {
     mockFetch(() => jsonResponse({ unexpected: 'shape' }));
     const c = new UneekConnector(ctx);
-    const rows = await c.getProductCatalogue();
+    const rows = await c.getProductCatalogue('TBV02');
     expect(rows).toEqual([]);
   });
 
   it('propagates auth errors (401 → SupplierAuthError)', async () => {
     mockFetch(() => jsonResponse({ error: 'no' }, 401));
     const c = new UneekConnector(ctx);
-    await expect(c.getProductCatalogue()).rejects.toThrow(SupplierAuthError);
+    await expect(c.getProductCatalogue('TBV02')).rejects.toThrow(SupplierAuthError);
   });
 });
 

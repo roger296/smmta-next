@@ -27,6 +27,9 @@
  *                       `apiBaseUrl`, and an `apiKeyEnc` envelope (set
  *                       these in the admin SPA's Drop-ship tab before
  *                       running).
+ *   --customer-no=<no>  (required) the Uneek account number, e.g. TBV02,
+ *                       or set UNEEK_CUSTOMER_NO. Uneek's product data
+ *                       endpoint answers 500 without it.
  *   --category=<name>   Filter to rows whose `Category` field equals
  *                       this string (case-insensitive). Useful for a
  *                       phased import where you import jackets first
@@ -98,6 +101,7 @@ interface CliOpts {
   publish: boolean;
   channelSlug: string | null;
   markup: number;
+  customerNo: string;
 }
 
 function parseArgs(argv: string[]): CliOpts {
@@ -107,6 +111,7 @@ function parseArgs(argv: string[]): CliOpts {
   let dryRun = false;
   let publish = false;
   let channelSlug: string | null = null;
+  let customerNo = process.env.UNEEK_CUSTOMER_NO?.trim() ?? '';
   // --markup flag wins; UNEEK_DEFAULT_MARKUP second; DEFAULT_MARKUP otherwise.
   const envMarkup = Number(process.env.UNEEK_DEFAULT_MARKUP);
   let markup = Number.isFinite(envMarkup) && envMarkup > 0 ? envMarkup : DEFAULT_MARKUP;
@@ -120,6 +125,8 @@ function parseArgs(argv: string[]): CliOpts {
         process.exit(2);
       }
       markup = n;
+    } else if (arg.startsWith('--customer-no=')) {
+      customerNo = arg.slice('--customer-no='.length).trim();
     } else if (arg.startsWith('--supplier=')) {
       supplierSlug = arg.slice('--supplier='.length).trim();
     } else if (arg.startsWith('--category=')) {
@@ -146,7 +153,12 @@ function parseArgs(argv: string[]): CliOpts {
     console.error('--supplier=<slug> is required');
     printUsageAndExit(2);
   }
-  return { supplierSlug, category, limit, dryRun, publish, channelSlug, markup };
+  if (!customerNo) {
+    // Uneek's product data endpoint answers 500 without it.
+    console.error('--customer-no=<Uneek account number> (or UNEEK_CUSTOMER_NO) is required');
+    printUsageAndExit(2);
+  }
+  return { supplierSlug, category, limit, dryRun, publish, channelSlug, markup, customerNo };
 }
 
 function printUsageAndExit(code: number): never {
@@ -166,6 +178,7 @@ Flags:
                       multi-store deploy.
   --limit=<n>         cap row count (after category filter)
   --markup=<x.y>      retail = single-unit cost × markup. Default 1.35 (or UNEEK_DEFAULT_MARKUP)
+  --customer-no=<no>  (required) Uneek account number, e.g. TBV02 (or UNEEK_CUSTOMER_NO)
   --dry-run           print plan, write nothing
   --publish           mark new products/groups as published (default: false)
   --help              this message
@@ -402,7 +415,7 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
     name: string;
     groupType: string | null;
     /** Uneek's Category / SubCategory, for assign-categories. */
-    categoryHints: { productType: string | null; categorisation: string | null };
+    categoryHints: { productType: string | null; categorisation: string | null; gender: string | null };
     longDescription: string | null;
     shortDescription: string | null;
     heroImageUrl: string | null;
@@ -430,6 +443,7 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
         // The narrower label names the garment best ("Hooded Sweatshirts").
         productType: subCategory ?? category,
         categorisation: [category, subCategory].filter(Boolean).join('|') || null,
+        gender: first.Gender?.trim() || null,
       },
       longDescription: long,
       shortDescription: short ? short.slice(0, 280) : null,
@@ -477,7 +491,8 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
       colour: r.Colour?.trim() || null,
       colourHex: normaliseHex(r.Hex),
       size: r.Size?.trim() || null,
-      heroImageUrl: r.Image?.trim() || r.SMColourImage?.trim() || null,
+      // The colour photo first: `Image` is one model photo for every colour.
+      heroImageUrl: r.ColourImage?.trim() || r.Image?.trim() || r.SMColourImage?.trim() || null,
       longDescription: longBits.length > 0 ? longBits.join('\n\n') : null,
       shortDescription: r.ShortDescription?.trim().slice(0, 280) || null,
       ...uneekPricing(r, input.markup),
@@ -791,7 +806,7 @@ async function main(): Promise<void> {
   });
 
   console.log(`[import:uneek] fetching catalogue from ${supplier.apiBaseUrl} …`);
-  const rows = await connector.getProductCatalogue();
+  const rows = await connector.getProductCatalogue(opts.customerNo);
   console.log(`[import:uneek] fetched ${rows.length} catalogue rows.`);
 
   const summary = await importUneekProducts({
