@@ -2,18 +2,18 @@
  * Conversational search results page.
  *
  * Reads `?q=...` from the URL, hits the API's `/storefront/search`
- * endpoint, and renders the products in a grid. The LLM's
- * interpretation text sits above the grid so the customer can see
- * what the system thought they meant — and if they disagree, the
- * search bar in the header is one click away.
+ * endpoint, and renders the results in a grid — one card per range, as
+ * on the category pages. The LLM's interpretation text sits above the
+ * grid so the customer can see what the system thought they meant — and
+ * if they disagree, the search bar in the header is one click away.
  *
  * Server-rendered for SEO + zero-flash. force-dynamic because
  * results are per-query.
  */
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
-import { searchProducts, type SearchResultProduct } from '@/lib/smmta';
+import { searchProducts } from '@/lib/smmta';
+import { ListingCard } from '../../_components/listing-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +24,11 @@ interface PageProps {
 function firstValue(v: string | string[] | undefined): string | undefined {
   if (Array.isArray(v)) return v[0];
   return v ?? undefined;
+}
+
+/** A parsed filter axis, when the parser returned a list of strings. */
+function stringList(v: unknown): string[] | null {
+  return Array.isArray(v) && v.every((s) => typeof s === 'string') ? (v as string[]) : null;
 }
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
@@ -61,6 +66,9 @@ export default async function SearchPage({ searchParams }: PageProps) {
     );
   }
 
+  const chosenColours = stringList(result.parsed?.filters.colour);
+  const chosenSizes = stringList(result.parsed?.filters.size);
+
   return (
     <div className="space-y-6">
       <SearchHeader
@@ -71,7 +79,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
         confidence={result.confidence}
       />
 
-      {result.products.length === 0 ? (
+      {result.listings.length === 0 ? (
         <div className="space-y-4 border-y border-[var(--brand-border)] py-10 text-center text-sm text-[var(--brand-muted)]">
           <p>
             We couldn't find anything matching &ldquo;{query}&rdquo;. Try a different phrasing, or
@@ -90,9 +98,9 @@ export default async function SearchPage({ searchParams }: PageProps) {
         </div>
       ) : (
         <ul className="grid gap-px bg-[var(--brand-border)] sm:grid-cols-2 lg:grid-cols-3">
-          {result.products.map((p) => (
-            <li key={p.id} className="bg-[var(--brand-paper)]">
-              <ProductCard product={p} />
+          {result.listings.map((l) => (
+            <li key={`${l.kind}:${l.id}`} className="bg-[var(--brand-paper)]">
+              <ListingCard listing={l} chosenColours={chosenColours} chosenSizes={chosenSizes} />
             </li>
           ))}
         </ul>
@@ -159,43 +167,5 @@ function EmptyState() {
         and we'll find the closest matches.
       </p>
     </div>
-  );
-}
-
-function ProductCard({ product }: { product: SearchResultProduct }) {
-  const href = product.slug ? `/shop/p/${product.slug}` : '/shop';
-  const price = product.priceGbp ? `£${product.priceGbp}` : null;
-  const showOosBadge = product.stockState === 'OUT_OF_STOCK';
-  return (
-    <Link
-      href={href}
-      className="group block h-full transition-colors hover:bg-[var(--brand-bone)]"
-    >
-      <div className="relative aspect-square overflow-hidden bg-[var(--brand-bone)]">
-        {product.heroImageUrl ? (
-          <Image
-            src={product.heroImageUrl}
-            alt={product.name}
-            width={400}
-            height={400}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-xs uppercase tracking-wider text-[var(--brand-muted)]">
-            No image
-          </div>
-        )}
-        {showOosBadge && (
-          <span className="absolute right-3 top-3 border border-[var(--brand-ink)] bg-[var(--brand-paper)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider">
-            Out of stock
-          </span>
-        )}
-      </div>
-      <div className="space-y-1 p-4">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{product.name}</h3>
-        {price && <p className="text-sm font-semibold text-[var(--brand-accent)]">{price}</p>}
-      </div>
-    </Link>
   );
 }

@@ -14,6 +14,8 @@
  *   4. Structured query: hand the parsed filters to the existing
  *      `CategoryService.listCategoryProducts` (or a keyword search
  *      across all categories when no `categorySlug` was returned).
+ *      Either way the results are one listing per range, as on the
+ *      category pages (see `listings.ts`).
  *   5. Log the result + cost + latency to `llm_search_log`.
  *
  * No PII goes to Anthropic. We send the customer's query text and
@@ -26,7 +28,7 @@
  * Spec'd in CLAUDE.md.
  */
 import { createHash } from 'node:crypto';
-import { and, eq, gte, ilike, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { getDb } from '../../../config/database.js';
 import {
   llmSearchLog,
@@ -44,8 +46,14 @@ import {
   type ParsedQueryConfidence,
 } from './parser.types.js';
 import { buildSystemPrompt } from './system-prompt.js';
-import { getVariantAvailabilityBatch, type StockState } from '../availability.js';
+import { getVariantAvailabilityBatch } from '../availability.js';
 import { CategoryService } from '../category.service.js';
+import {
+  buildListings,
+  DEFAULT_STOCK_STATES,
+  type CategoryListing,
+  type ListingVariant,
+} from '../listings.js';
 
 interface CacheEntry {
   parsed: ParsedQuery;
@@ -57,6 +65,14 @@ interface CacheEntry {
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
+/** Listings returned for one search. */
+const RESULT_LIMIT = 60;
+
+/** Variants the keyword fallback reads before grouping. A range can have
+ *  a hundred or more sizes and colours, so this is well above the result
+ *  limit. */
+const KEYWORD_VARIANT_LIMIT = 2000;
+
 export interface SearchRequest {
   query: string;
   companyId: string;
@@ -66,21 +82,11 @@ export interface SearchRequest {
   override?: ParsedQuery['filters'];
 }
 
-export interface SearchResultProduct {
-  id: string;
-  slug: string | null;
-  name: string;
-  colour: string | null;
-  colourHex: string | null;
-  priceGbp: string | null;
-  heroImageUrl: string | null;
-  stockState: StockState;
-}
-
 export interface SearchResponse {
   interpretation: string;
   parsed: ParsedQuery | null;
-  products: SearchResultProduct[];
+  /** One listing per range, or per product with no range page. */
+  listings: CategoryListing[];
   totalCount: number;
   confidence: ParsedQueryConfidence | null;
   /** True when the LLM was bypassed (cache hit, budget exceeded, no key). */
@@ -114,7 +120,7 @@ export class SearchService {
       return {
         interpretation: '',
         parsed: null,
-        products: [],
+        listings: [],
         totalCount: 0,
         confidence: null,
         llmBypassed: true,
@@ -192,7 +198,7 @@ export class SearchService {
       query: trimmed,
       queryHash: hash,
       parsed,
-      resultCount: dbResults.products.length,
+      resultCount: dbResults.listings.length,
       latencyMs,
       cacheHit,
       costGbp: llmCost,
@@ -206,7 +212,7 @@ export class SearchService {
     return {
       interpretation: fallbackInterpretation,
       parsed,
-      products: dbResults.products,
+      listings: dbResults.listings,
       totalCount: dbResults.totalCount,
       confidence: parsed?.confidence ?? null,
       llmBypassed,
@@ -223,9 +229,9 @@ export class SearchService {
     channelId: string | null,
     parsed: ParsedQuery,
     filters: ParsedQuery['filters'],
-  ): Promise<{ products: SearchResultProduct[]; totalCount: number }> {
+  ): Promise<{ listings: CategoryListing[]; totalCount: number }> {
     if (!parsed.categorySlug) {
-      return { products: [], totalCount: 0 };
+      return { listings: [], totalCount: 0 };
     }
     const result = await this.categoryService.listCategoryProducts(
       companyId,
@@ -233,7 +239,7 @@ export class SearchService {
       channelId,
       {
         filters: {
-          stockState: filters.stockState ?? ['IN_STOCK', 'AVAILABLE_FROM_SUPPLIER'],
+          stockState: filters.stockState ?? DEFAULT_STOCK_STATES,
           colour: filters.colour,
           size: filters.size,
           brand: filters.brand,
@@ -247,20 +253,8 @@ export class SearchService {
         page: 1,
       },
     );
-    if (!result) return { products: [], totalCount: 0 };
-    return {
-      products: result.products.map((p) => ({
-        id: p.id,
-        slug: p.slug,
-        name: p.name,
-        colour: p.colour,
-        colourHex: p.colourHex,
-        priceGbp: p.priceGbp,
-        heroImageUrl: p.heroImageUrl,
-        stockState: p.stockState,
-      })),
-      totalCount: result.totalCount,
-    };
+    if (!result) return { listings: [], totalCount: 0 };
+    return { listings: result.listings, totalCount: result.totalCount };
   }
 
   // ──────────────────────────────────────────────────────────
@@ -272,10 +266,10 @@ export class SearchService {
     channelId: string | null,
     keywords: string[],
     filters: ParsedQuery['filters'],
-  ): Promise<{ products: SearchResultProduct[]; totalCount: number }> {
+  ): Promise<{ listings: CategoryListing[]; totalCount: number }> {
     const db = getDb();
     const tokens = keywords.flatMap((k) => k.split(/\s+/)).filter((t) => t.length >= 2);
-    if (tokens.length === 0) return { products: [], totalCount: 0 };
+    if (tokens.length === 0) return { listings: [], totalCount: 0 };
 
     // Match products where the name OR group name contains any token.
     // ILIKE for case-insensitive — keep it simple, no full-text index
@@ -293,6 +287,14 @@ export class SearchService {
         colourHex: products.colourHex,
         priceGbp: products.minSellingPrice,
         heroImageUrl: products.heroImageUrl,
+        attributes: products.attributes,
+        createdAt: products.createdAt,
+        groupId: products.groupId,
+        groupSlug: productGroups.slug,
+        groupName: productGroups.name,
+        groupHeroImageUrl: productGroups.heroImageUrl,
+        groupIsPublished: productGroups.isPublished,
+        groupDeletedAt: productGroups.deletedAt,
       })
       .from(products)
       .leftJoin(productGroups, eq(productGroups.id, products.groupId))
@@ -305,9 +307,9 @@ export class SearchService {
           or(...nameConditions),
         ),
       )
-      .limit(200); // Cap; the storefront page paginates client-side for V1.
+      .limit(KEYWORD_VARIANT_LIMIT);
 
-    if (rows.length === 0) return { products: [], totalCount: 0 };
+    if (rows.length === 0) return { listings: [], totalCount: 0 };
 
     // Channel scoping + stock state filter.
     const productIds = rows.map((r) => r.id);
@@ -322,7 +324,7 @@ export class SearchService {
             isOffered: productChannels.isOffered,
           })
           .from(productChannels)
-          .where(and(isNull(productChannels.deletedAt))),
+          .where(and(inArray(productChannels.productId, chunk), isNull(productChannels.deletedAt))),
       );
       const byProduct = new Map<string, typeof pcRows>();
       for (const r of pcRows) {
@@ -337,19 +339,11 @@ export class SearchService {
       }
     }
 
-    const allowedStock = new Set<StockState>(
-      filters.stockState ?? ['IN_STOCK', 'AVAILABLE_FROM_SUPPLIER'],
-    );
-
-    const filtered: SearchResultProduct[] = [];
+    const variants: ListingVariant[] = [];
     for (const r of rows) {
       const offered = channelMap ? (channelMap.get(r.id) ?? true) : true;
       if (!offered) continue;
-      const a = availability.get(r.id);
-      const stockState: StockState = a?.stockState ?? 'OUT_OF_STOCK';
-      if (!allowedStock.has(stockState)) continue;
-      if (filters.colour && r.colour && !filters.colour.includes(r.colour)) continue;
-      filtered.push({
+      variants.push({
         id: r.id,
         slug: r.slug,
         name: r.name,
@@ -357,10 +351,30 @@ export class SearchService {
         colourHex: r.colourHex,
         priceGbp: r.priceGbp,
         heroImageUrl: r.heroImageUrl,
-        stockState,
+        attributes: (r.attributes ?? null) as Record<string, string> | null,
+        brand: null,
+        stockState: availability.get(r.id)?.stockState ?? 'OUT_OF_STOCK',
+        createdAt: r.createdAt,
+        group:
+          r.groupId && r.groupName !== null
+            ? {
+                id: r.groupId,
+                slug: r.groupSlug,
+                name: r.groupName,
+                heroImageUrl: r.groupHeroImageUrl,
+                isPublished: r.groupIsPublished === true && r.groupDeletedAt === null,
+              }
+            : null,
       });
     }
-    return { products: filtered.slice(0, 60), totalCount: filtered.length };
+
+    const { listings } = buildListings(variants, {
+      filters: {
+        stockState: filters.stockState ?? DEFAULT_STOCK_STATES,
+        colour: filters.colour,
+      },
+    });
+    return { listings: listings.slice(0, RESULT_LIMIT), totalCount: listings.length };
   }
 
   // ──────────────────────────────────────────────────────────

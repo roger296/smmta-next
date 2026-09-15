@@ -192,17 +192,30 @@ export interface NavCategoryTop {
 
 export type StockState = 'IN_STOCK' | 'AVAILABLE_FROM_SUPPLIER' | 'OUT_OF_STOCK';
 
-export interface CategoryProduct {
+export interface ListingColour {
+  name: string;
+  hex: string | null;
+}
+
+/** One card on a category or search page. A range (`kind: 'range'`) carries
+ *  every size and colour and opens /shop/<slug>, where they are picked; a
+ *  product with no range page (`kind: 'product'`) opens /shop/p/<slug>. */
+export interface CategoryListing {
+  /** The range's id, or the product's for a product listed on its own. */
   id: string;
+  kind: 'range' | 'product';
   slug: string | null;
   name: string;
-  colour: string | null;
-  colourHex: string | null;
-  priceGbp: string | null;
+  /** Cheapest and dearest of the variants that match the filters. */
+  priceMinGbp: string | null;
+  priceMaxGbp: string | null;
   heroImageUrl: string | null;
-  brand: string | null;
+  /** The best stock state among the variants that match. */
   stockState: StockState;
-  attributes: Record<string, string> | null;
+  /** Colours alphabetical, sizes in size order. */
+  colours: ListingColour[];
+  sizes: string[];
+  brand: string | null;
 }
 
 export interface CategoryMeta {
@@ -223,8 +236,11 @@ export interface CategoryFacets {
 
 export interface CategoryProductsResponse {
   category: CategoryMeta;
-  products: CategoryProduct[];
+  /** One page of listings — a range per card, not a size or colour. */
+  listings: CategoryListing[];
+  /** Listings across every page. */
   totalCount: number;
+  /** Counts of listings. */
   facets: CategoryFacets;
 }
 
@@ -272,17 +288,6 @@ export function listCategoryProducts(
 // Conversational search
 // ─────────────────────────────────────────────────────────────────
 
-export interface SearchResultProduct {
-  id: string;
-  slug: string | null;
-  name: string;
-  colour: string | null;
-  colourHex: string | null;
-  priceGbp: string | null;
-  heroImageUrl: string | null;
-  stockState: StockState;
-}
-
 export interface ParsedSearchQuery {
   interpretation: string;
   categorySlug?: string;
@@ -294,7 +299,8 @@ export interface ParsedSearchQuery {
 export interface SearchResponse {
   interpretation: string;
   parsed: ParsedSearchQuery | null;
-  products: SearchResultProduct[];
+  /** One listing per range, as on the category pages. */
+  listings: CategoryListing[];
   totalCount: number;
   confidence: 'high' | 'medium' | 'low' | null;
   llmBypassed: boolean;

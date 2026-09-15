@@ -11,6 +11,8 @@
  * file is just helpers.
  */
 import type { FullVariant } from './api-types';
+import { effectiveStockState, isSellable } from './dispatch-copy';
+import { compareSizes } from './sizes';
 
 export interface AxisValueOption {
   value: string;
@@ -62,17 +64,36 @@ export function resolveVariant(
   return null;
 }
 
-/** Conventional sort: size axis goes XS/S/M/L/XL; colour axis is alphabetical. */
-function sizeOrColourSort(axis: string, a: string, b: string): number {
-  if (axis === 'size') {
-    const order = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
-    const ai = order.indexOf(a.toUpperCase());
-    const bi = order.indexOf(b.toUpperCase());
-    if (ai !== -1 || bi !== -1) {
-      const av = ai === -1 ? 999 : ai;
-      const bv = bi === -1 ? 999 : bi;
-      if (av !== bv) return av - bv;
-    }
+/**
+ * The selection a range page opens on. Values from the address win — a
+ * category page filtered to one colour links with `?colour=` — and the other
+ * axes are filled from a variant that has those values, preferring one that
+ * can be bought. So a link to Black opens on a size Black comes in, rather
+ * than on the first variant's size.
+ */
+export function initialSelection(
+  axes: string[],
+  variants: FullVariant[],
+  fromQuery: Record<string, string>,
+): Record<string, string> {
+  const fits = (v: FullVariant) =>
+    Object.entries(fromQuery).every(([axis, value]) => v.attributes?.[axis] === value);
+  const sellable = (v: FullVariant) => isSellable(effectiveStockState(v));
+  const withAttributes = variants.filter((v) => v.attributes);
+  const seed =
+    withAttributes.find((v) => fits(v) && sellable(v)) ??
+    withAttributes.find(fits) ??
+    withAttributes.find(sellable) ??
+    variants[0];
+  const selection: Record<string, string> = { ...(seed?.attributes ?? {}) };
+  for (const axis of axes) {
+    if (fromQuery[axis]) selection[axis] = fromQuery[axis]!;
   }
+  return selection;
+}
+
+/** Size axis in size order (XS, S, M … 5XL); anything else alphabetical. */
+function sizeOrColourSort(axis: string, a: string, b: string): number {
+  if (axis === 'size') return compareSizes(a, b);
   return a.localeCompare(b);
 }
