@@ -44,6 +44,7 @@ export function DropshipTab({ supplierId }: Props) {
         rateLimitWindowSeconds: s.rateLimitWindowSeconds,
         minRequestIntervalMs: s.minRequestIntervalMs,
         showSupplierNameToCustomers: s.showSupplierNameToCustomers,
+        deliveryChargeGbp: s.deliveryChargeGbp,
       });
       setApiKeyInput('');
     }
@@ -54,6 +55,14 @@ export function DropshipTab({ supplierId }: Props) {
   const handleSave = async () => {
     const payload: DropshipUpdateInput = { ...form };
     if (apiKeyInput.trim()) payload.apiKeyPlaintext = apiKeyInput.trim();
+    if (payload.deliveryChargeGbp != null) {
+      const charge = Number(payload.deliveryChargeGbp.replace(/^£/, ''));
+      if (!Number.isFinite(charge) || charge < 0) {
+        toast({ variant: 'destructive', title: 'Save failed', description: 'Delivery charge must be an amount like 10.50' });
+        return;
+      }
+      payload.deliveryChargeGbp = charge.toFixed(2);
+    }
     try {
       await updateMutation.mutateAsync({ id: supplierId, input: payload });
       toast({ title: 'Drop-ship config saved' });
@@ -220,6 +229,25 @@ export function DropshipTab({ supplierId }: Props) {
                   aria-label="Max dispatch days"
                 />
               </div>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label htmlFor="ds-delivery">Customer delivery charge (£, inc VAT)</Label>
+              <Input
+                id="ds-delivery"
+                inputMode="decimal"
+                value={form.deliveryChargeGbp ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value.trim();
+                  setForm((f) => ({ ...f, deliveryChargeGbp: v === '' ? null : v }));
+                }}
+                placeholder="Standard rate"
+                className="w-32"
+              />
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                Charged once per order for everything this supplier sends, however many items.
+                A basket with items from two suppliers pays both charges. Leave blank to use
+                the shop&apos;s standard delivery rate.
+              </p>
             </div>
             <div className="space-y-1 md:col-span-2">
               <Label>
