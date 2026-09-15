@@ -7,8 +7,12 @@
  * deep-links and SEO work, and the page is server-rendered against
  * those URL params. This component handles the *form* — when the
  * customer toggles a filter we update the URL and let the server
- * re-render. No client-side data fetching; the products + facets
+ * re-render. No client-side data fetching; the listings + facets
  * arrive as props.
+ *
+ * One card per range, not per size and colour: the API groups the
+ * variants, and the card links to the range page to pick them. Filter
+ * counts are counts of ranges.
  *
  * State lives in the URL search-params (single source of truth);
  * this component reads them via `useSearchParams` and writes via
@@ -16,13 +20,13 @@
  * link sharing — all the things `useState`-only filtering misses.
  */
 import * as React from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { CategoryFacets, CategoryProduct } from '@/lib/smmta';
+import type { CategoryFacets, CategoryListing } from '@/lib/smmta';
+import { ListingCard } from './listing-card';
 
 export interface CategoryGridProps {
-  products: CategoryProduct[];
+  listings: CategoryListing[];
   facets: CategoryFacets;
   totalCount: number;
   /** Slug path the page rendered for — e.g. `tops` or `tops/polo-shirts`.
@@ -43,8 +47,11 @@ const STOCK_LABELS: Record<string, string> = {
 
 const STOCK_DEFAULTS = ['IN_STOCK', 'AVAILABLE_FROM_SUPPLIER'];
 
+/** Cards in the first row get a priority image hint. */
+const PRIORITY_CARD_COUNT = 3;
+
 export function CategoryGrid({
-  products,
+  listings,
   facets,
   totalCount,
   slugPath,
@@ -195,7 +202,7 @@ export function CategoryGrid({
         )}
       </aside>
 
-      {/* Product grid */}
+      {/* Listing grid */}
       <div className="space-y-6">
         <p className="text-sm text-[var(--brand-muted)]">
           {totalCount === 0
@@ -203,15 +210,20 @@ export function CategoryGrid({
             : `Showing ${firstShown}–${lastShown} of ${totalCount}`}
         </p>
 
-        {products.length === 0 ? (
+        {listings.length === 0 ? (
           <p className="border-y border-[var(--brand-border)] py-10 text-center text-sm text-[var(--brand-muted)]">
             Nothing matches the current filters. Clear a filter to widen the search.
           </p>
         ) : (
           <ul className="grid gap-px bg-[var(--brand-border)] sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((p) => (
-              <li key={p.id} className="bg-[var(--brand-paper)]">
-                <ProductCard product={p} />
+            {listings.map((l, i) => (
+              <li key={`${l.kind}:${l.id}`} className="bg-[var(--brand-paper)]">
+                <ListingCard
+                  listing={l}
+                  chosenColours={selectedColours}
+                  chosenSizes={selectedSizes}
+                  priority={page === 1 && i < PRIORITY_CARD_COUNT}
+                />
               </li>
             ))}
           </ul>
@@ -281,44 +293,6 @@ function CheckboxRow({
       <span className="flex-1">{label}</span>
       <span className="text-xs text-[var(--brand-muted)]">{count}</span>
     </label>
-  );
-}
-
-function ProductCard({ product }: { product: CategoryProduct }) {
-  const href = product.slug ? `/shop/p/${product.slug}` : '/shop';
-  const price = product.priceGbp ? `£${product.priceGbp}` : null;
-  const showOosBadge = product.stockState === 'OUT_OF_STOCK';
-  return (
-    <Link
-      href={href}
-      className="group block h-full transition-colors hover:bg-[var(--brand-bone)]"
-    >
-      <div className="relative aspect-square overflow-hidden bg-[var(--brand-bone)]">
-        {product.heroImageUrl ? (
-          <Image
-            src={product.heroImageUrl}
-            alt={product.name}
-            width={400}
-            height={400}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-xs uppercase tracking-wider text-[var(--brand-muted)]">
-            No image
-          </div>
-        )}
-        {showOosBadge && (
-          <span className="absolute right-3 top-3 border border-[var(--brand-ink)] bg-[var(--brand-paper)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider">
-            Out of stock
-          </span>
-        )}
-      </div>
-      <div className="space-y-1 p-4">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{product.name}</h3>
-        {price && <p className="text-sm font-semibold text-[var(--brand-accent)]">{price}</p>}
-      </div>
-    </Link>
   );
 }
 

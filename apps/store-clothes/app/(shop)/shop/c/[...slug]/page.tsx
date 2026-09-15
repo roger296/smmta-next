@@ -105,7 +105,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
 
   if (!response) notFound();
 
-  const { category, products, totalCount, facets } = response;
+  const { category, listings, totalCount, facets } = response;
 
   const breadcrumbJsonLd = stringifyJsonLd(
     breadcrumbLd(
@@ -163,7 +163,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
 
       <div className="mt-10">
         <CategoryGrid
-          products={products}
+          listings={listings}
           facets={facets}
           totalCount={totalCount}
           slugPath={slugPath}
