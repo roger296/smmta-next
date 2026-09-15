@@ -18,7 +18,7 @@ export const SHIPPING_FAQ: FaqEntry[] = [
   {
     question: 'How long does delivery take?',
     answer:
-      'Our supplier partners post every order from their UK warehouses. Order by 2pm (UK time) on a working day and it ships the same day; tracked delivery then normally takes 1–3 working days. Delivery is £7 per order, however many items you buy.',
+      'Our supplier partners post every order from their UK warehouses. Order by 2pm (UK time) on a working day and it ships the same day; tracked delivery then normally takes 1–3 working days. Each supplier sends its items in one parcel with one delivery charge, however many items it holds; the charges are shown at checkout before you pay.',
   },
   {
     question: 'Do you ship outside the UK?',
@@ -27,7 +27,7 @@ export const SHIPPING_FAQ: FaqEntry[] = [
   {
     question: 'Will my order arrive in one parcel?',
     answer:
-      'Items from different suppliers are posted separately, so a larger order can arrive in more than one parcel. You pay one delivery charge for the whole order.',
+      'Items from different suppliers are posted separately, so an order can arrive in more than one parcel, with a delivery charge for each parcel. Adding more items to a parcel doesn&rsquo;t add to its delivery charge — checkout shows which items travel together.',
   },
   {
     // Questions are rendered as text, so they use the character, not an entity.

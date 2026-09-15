@@ -3,8 +3,11 @@
  * client island renders the form, posts to /api/checkout/start, and
  * redirects to Mollie. Robots: noindex.
  *
- * Shipping is a single fixed-rate option for v1 (STORE_DEFAULT_SHIPPING_GBP).
- * Real shipping zones / rules are a follow-up per the architecture doc.
+ * Delivery is charged per parcel: each supplier sends its items in one parcel
+ * with its own charge (`suppliers.delivery_charge_gbp`, or
+ * STORE_DEFAULT_SHIPPING_GBP when a supplier has none). The summary shows the
+ * quote from SMMTA; the reservation made on submit quotes it again and the
+ * payment uses that. If the quote cannot be fetched, the flat rate is shown.
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -12,6 +15,8 @@ import { redirect } from 'next/navigation';
 import { readCartIdFromCookie } from '@/lib/cookies';
 import { getOrCreateCart } from '@/lib/cart';
 import { getEnv } from '@/lib/env';
+import { getDeliveryQuote, type DeliveryQuote } from '@/lib/smmta';
+import { deliveryNote, summariseParcels } from '@/lib/delivery';
 import { CheckoutForm } from './_components/checkout-form';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +27,8 @@ export const metadata: Metadata = {
   alternates: { canonical: '/checkout' },
 };
 
+const toPence = (amount: string) => Math.round(Number.parseFloat(amount) * 100);
+
 export default async function CheckoutPage() {
   const env = getEnv();
   const cartId = await readCartIdFromCookie();
@@ -31,10 +38,24 @@ export default async function CheckoutPage() {
     redirect('/cart');
   }
 
-  const shipping = env.STORE_DEFAULT_SHIPPING_GBP;
-  const shippingPence = Math.round(Number.parseFloat(shipping) * 100);
-  const subtotalPence = Math.round(Number.parseFloat(cart.subtotalGbp) * 100);
-  const grandTotal = ((subtotalPence + shippingPence) / 100).toFixed(2);
+  const standardRate = env.STORE_DEFAULT_SHIPPING_GBP;
+  let quote: DeliveryQuote | null = null;
+  try {
+    quote = await getDeliveryQuote(
+      cart.lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+      standardRate,
+    );
+  } catch {
+    quote = null;
+  }
+  const shipping = quote?.totalGbp ?? standardRate;
+  const parcels = quote
+    ? summariseParcels(
+        quote,
+        cart.lines.map((l) => ({ productId: l.productId, name: l.display.name ?? null })),
+      )
+    : [{ label: 'Delivery', chargeGbp: standardRate, itemNames: [] }];
+  const grandTotal = ((toPence(cart.subtotalGbp) + toPence(shipping)) / 100).toFixed(2);
 
   return (
     <section aria-labelledby="checkout-heading" className="space-y-6">
@@ -72,9 +93,21 @@ export default async function CheckoutPage() {
             <span>Subtotal</span>
             <span>£{cart.subtotalGbp}</span>
           </p>
-          <p className="flex justify-between text-sm">
-            <span>Shipping</span>
-            <span>£{shipping}</span>
+          <ul className="space-y-2 text-sm" data-testid="delivery-charges">
+            {parcels.map((p, i) => (
+              <li key={i}>
+                <p className="flex justify-between gap-2">
+                  <span>{p.label}</span>
+                  <span>£{p.chargeGbp}</span>
+                </p>
+                {parcels.length > 1 && p.itemNames.length > 0 && (
+                  <p className="line-clamp-2 text-xs text-[var(--brand-muted)]">{p.itemNames.join(', ')}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-[var(--brand-muted)]" data-testid="delivery-note">
+            {deliveryNote(parcels.length)}
           </p>
           <hr className="border-[var(--brand-border)]" />
           <p className="flex justify-between text-base font-medium">

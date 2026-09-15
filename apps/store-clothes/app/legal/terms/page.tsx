@@ -84,7 +84,7 @@ export default function TermsPage() {
         <p>
           Prices are shown in pounds sterling, including VAT, on the product page and may change at
           any time, but changes do not affect orders we have already accepted. Delivery is charged
-          per order in addition and is shown at checkout before you pay.
+          in addition, per parcel, and is shown at checkout before you pay.
         </p>
         <p>
           Payment is taken at checkout through Mollie, our payment provider. Card details are entered
@@ -106,7 +106,8 @@ export default function TermsPage() {
         </p>
         <p>
           Items from different suppliers are sent separately, so an order may arrive in more than one
-          parcel. The delivery charge shown at checkout covers the whole order.
+          parcel. Each parcel has one delivery charge, however many items it holds, and the charges
+          for your order are shown at checkout before you pay.
         </p>
         <p>
           Risk in the goods passes to you on delivery. Ownership passes when we have received payment

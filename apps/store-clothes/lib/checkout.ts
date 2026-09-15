@@ -157,7 +157,9 @@ export async function startCheckout(input: StartCheckoutInput): Promise<StartChe
   try {
     reservation = await createReservation(
       cart.lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
-      { ttlSeconds: 15 * 60 },
+      // Asks SMMTA for the delivery charge per parcel, with our flat rate for
+      // any parcel whose supplier has no charge of its own.
+      { ttlSeconds: 15 * 60, defaultDeliveryChargeGbp: env.STORE_DEFAULT_SHIPPING_GBP },
     );
   } catch (err) {
     if (err instanceof InsufficientStockError) {
@@ -192,7 +194,9 @@ export async function startCheckout(input: StartCheckoutInput): Promise<StartChe
   //    canonical product prices and refuses on >1p drift, so we need to
   //    pass exactly what SMMTA will compute.
   const subtotalPence = toPence(cart.subtotalGbp);
-  const shippingPence = toPence(env.STORE_DEFAULT_SHIPPING_GBP);
+  // One delivery charge per parcel, quoted with the reservation; SMMTA commits
+  // the order with the same quote. The flat rate only covers an older API.
+  const shippingPence = toPence(reservation.delivery?.totalGbp ?? env.STORE_DEFAULT_SHIPPING_GBP);
   const grandTotalPence = subtotalPence + shippingPence;
   const amountValue = fromPence(grandTotalPence);
 

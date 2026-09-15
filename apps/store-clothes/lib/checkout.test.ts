@@ -27,6 +27,8 @@ const smmtaCalls = {
 };
 let nextReservationFails: { type: 'stock'; available: number } | null = null;
 let lastOrderCommitInput: unknown = null;
+let nextReservationDelivery: { totalGbp: string; parcels: unknown[] } | null = null;
+let lastReservationOpts: { defaultDeliveryChargeGbp?: string } | null = null;
 
 vi.mock('./smmta', async () => {
   const actual = await vi.importActual<typeof import('./smmta')>('./smmta');
@@ -52,8 +54,9 @@ vi.mock('./smmta', async () => {
         groupId: null,
       })),
     ),
-    createReservation: vi.fn(async () => {
+    createReservation: vi.fn(async (_items: unknown, opts?: { defaultDeliveryChargeGbp?: string }) => {
       smmtaCalls.reservationsCreated += 1;
+      lastReservationOpts = opts ?? null;
       if (nextReservationFails) {
         const f = nextReservationFails;
         nextReservationFails = null;
@@ -67,6 +70,7 @@ vi.mock('./smmta', async () => {
         reservationId: '00000000-0000-4000-8000-000000000aaa',
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
         lines: [{ productId: PRODUCT_ID, quantity: 1, stockItemIds: ['si-1'] }],
+        delivery: nextReservationDelivery,
       };
     }),
     releaseReservation: vi.fn(async () => {
@@ -206,6 +210,37 @@ describe('startCheckout — happy path', () => {
     });
     expect(payment?.checkoutId).toBe(result.checkoutId);
     expect(payment?.status).toBe('open');
+  });
+});
+
+describe('startCheckout — per-parcel delivery', () => {
+  it('asks for a delivery quote and charges the quoted total, not the flat rate', async () => {
+    const mollie = await import('./mollie');
+    const cartId = await seededCart();
+    nextReservationDelivery = {
+      totalGbp: '17.50',
+      parcels: [
+        { supplierId: 's1', supplierName: null, chargeGbp: '10.50', productIds: [PRODUCT_ID] },
+        { supplierId: 's2', supplierName: null, chargeGbp: '7.00', productIds: [] },
+      ],
+    };
+    try {
+      const result = await startCheckout({ cartId, customer: baseCustomer, deliveryAddress: baseAddress });
+      expect(result.ok).toBe(true);
+      expect(lastReservationOpts?.defaultDeliveryChargeGbp).toBe('4.95');
+      const calls = vi.mocked(mollie.createPayment).mock.calls;
+      // £24.00 item + £17.50 across two parcels.
+      expect(calls.at(-1)?.[0].amount.value).toBe('41.50');
+    } finally {
+      nextReservationDelivery = null;
+    }
+  });
+
+  it('falls back to the flat rate when the API returns no quote', async () => {
+    const mollie = await import('./mollie');
+    const cartId = await seededCart();
+    await startCheckout({ cartId, customer: baseCustomer, deliveryAddress: baseAddress });
+    expect(vi.mocked(mollie.createPayment).mock.calls.at(-1)?.[0].amount.value).toBe('28.95');
   });
 });
 
