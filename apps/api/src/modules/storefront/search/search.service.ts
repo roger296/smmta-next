@@ -322,7 +322,7 @@ export class SearchService {
             isOffered: productChannels.isOffered,
           })
           .from(productChannels)
-          .where(and(isNull(productChannels.deletedAt))),
+          .where(and(inArray(productChannels.productId, chunk), isNull(productChannels.deletedAt))),
       );
       const byProduct = new Map<string, typeof pcRows>();
       for (const r of pcRows) {
