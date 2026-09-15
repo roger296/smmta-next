@@ -46,7 +46,7 @@ test.describe('Storefront sad paths', () => {
     await page.goto(`/shop/${SEEDED_GROUP_SLUG}`);
     const swatch = page.locator('[data-test="swatch"]').first();
     if ((await swatch.count()) > 0) await swatch.click();
-    await page.getByRole('button', { name: /^add to cart$/i }).click();
+    await page.getByRole('button', { name: /^in stock – add to cart$/i }).click();
     await expect(
       page.getByRole('button', { name: /^added/i }),
     ).toBeVisible({ timeout: 5_000 });
@@ -98,7 +98,7 @@ test.describe('Storefront sad paths', () => {
     await page.goto(`/shop/${SEEDED_GROUP_SLUG}`);
     const swatch = page.locator('[data-test="swatch"]').first();
     if ((await swatch.count()) > 0) await swatch.click();
-    await page.getByRole('button', { name: /^add to cart$/i }).click();
+    await page.getByRole('button', { name: /^in stock – add to cart$/i }).click();
     await expect(
       page.getByRole('button', { name: /^added/i }),
     ).toBeVisible({ timeout: 5_000 });

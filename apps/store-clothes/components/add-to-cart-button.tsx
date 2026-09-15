@@ -6,9 +6,11 @@
  * `cart:updated` window event so the header counter refreshes, and bumps
  * a transient "Added" state for ~2s.
  *
- * When `inStock` is false we render a "Notify me when this item is back
- * in stock" CTA that opens an inline form (email + opt-in newsletter
- * checkbox, default ticked) and POSTs to /api/notify-me.
+ * The labels say whether the item is available (Roger, 2026-09-15): "In
+ * stock – add to cart" for anything we can sell (our warehouse or a
+ * supplier), and "Out of stock – notify me when it's back" otherwise, which
+ * opens an inline form (email + opt-in newsletter checkbox, default ticked)
+ * and POSTs to /api/notify-me.
  */
 import * as React from 'react';
 import { useMutation } from '@tanstack/react-query';
@@ -52,11 +54,11 @@ export interface AddToCartButtonProps {
   productId: string;
   /** When false the control switches to the "Notify me" flow. */
   inStock: boolean;
-  /** Optional override label (e.g. "Add to cart"). */
+  /** Optional override label (default "In stock – add to cart"). */
   label?: string;
 }
 
-export function AddToCartButton({ productId, inStock, label = 'Add to cart' }: AddToCartButtonProps) {
+export function AddToCartButton({ productId, inStock, label = 'In stock – add to cart' }: AddToCartButtonProps) {
   if (!inStock) {
     return <NotifyMeForm productId={productId} />;
   }
@@ -138,7 +140,7 @@ function NotifyMeForm({ productId }: { productId: string }) {
         onClick={() => setOpen(true)}
         className="w-full border border-[var(--brand-border)] bg-[var(--brand-bone)] px-6 py-4 text-sm font-semibold uppercase tracking-wider text-[var(--brand-ink)] transition-colors hover:border-[var(--brand-ink)]"
       >
-        Notify me when this item is back in stock
+        Out of stock – notify me when it&apos;s back
       </button>
     );
   }
