@@ -1,8 +1,8 @@
 /**
  * Locks down the contract the Playwright e2e suites depend on. The
  * Add-to-Cart control must remain a `type="button"` element with the
- * accessible name "Add to cart" (the test selectors find it via
- * `page.getByRole('button', { name: /^add to cart$/i })`).
+ * accessible name "In stock – add to cart" (the test selectors find it via
+ * `page.getByRole('button', { name: /^in stock – add to cart$/i })`).
  *
  * Added by the Prompt 15 bug fix: the original e2e selector was
  * `button[type="submit"]` against a `type="button"` element, which timed
@@ -41,10 +41,14 @@ describe('AddToCartButton — component contract', () => {
     expect(activeBlock).not.toMatch(/type="submit"/);
   });
 
-  it('keeps the accessible name "Add to cart" as the default label', () => {
-    // The e2e regex is /^add to cart$/i — this label must remain the
-    // visible text content of the in-stock button.
-    expect(SOURCE).toMatch(/label\s*=\s*['"]Add to cart['"]/);
+  it('keeps the accessible name "In stock – add to cart" as the default label', () => {
+    // The e2e regex is /^in stock – add to cart$/i — this label must remain
+    // the visible text content of the in-stock button.
+    expect(SOURCE).toMatch(/label\s*=\s*['"]In stock – add to cart['"]/);
+  });
+
+  it('says the item is out of stock on the notify-me button', () => {
+    expect(SOURCE).toMatch(/Out of stock – notify me when it&apos;s back/);
   });
 
   it('shows "Added" after a successful add (drives the e2e wait)', () => {

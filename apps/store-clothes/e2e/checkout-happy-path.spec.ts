@@ -60,7 +60,7 @@ test.describe('Storefront happy path', () => {
     // and toggles to "Added ✓"; it does NOT navigate. Use the role +
     // accessible name to find it, wait for the success label so we know
     // the mutation completed, then drive the navigation ourselves.
-    await page.getByRole('button', { name: /^add to cart$/i }).click();
+    await page.getByRole('button', { name: /^in stock – add to cart$/i }).click();
     await expect(
       page.getByRole('button', { name: /^added/i }),
     ).toBeVisible({ timeout: 5_000 });
