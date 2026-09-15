@@ -22,6 +22,7 @@ import {
   escalations,
 } from '../../db/schema/index.js';
 import { AgentService } from './agent.service.js';
+import type { Classification, ClassifierService } from './classifier.service.js';
 import { TOOL_SCHEMAS } from './tools.js';
 import { OpenRouterService } from '../../integrations/openrouter/openrouter.service.js';
 import { FakeLlm } from '../../integrations/openrouter/openrouter.fake.js';
@@ -31,8 +32,27 @@ const IN_STOCK_SKU = 'AGT-PETG-BLK';
 const OOS_SKU = 'AGT-PLA-OOS';
 let warehouseId: string;
 
+/**
+ * Stage-1 classifier stand-in that routes every turn to pre_sales without a
+ * model call. Left to default, the classifier shares the FakeLlm and pops
+ * the first scripted turn, so each test's opening tool call is silently
+ * eaten. The classifier has its own tests (classifier.service.test.ts).
+ */
+const preSalesClassifier = {
+  classify: async (): Promise<Classification> => ({
+    category: 'pre_sales',
+    confidence: 'high',
+    clarifyPrompt: null,
+    refusalReason: null,
+    latencyMs: 0,
+    costMicroUsd: 0,
+    degraded: false,
+    degradedReason: null,
+  }),
+} as unknown as ClassifierService;
+
 function makeAgent(fake: FakeLlm): AgentService {
-  return new AgentService(new OpenRouterService(fake));
+  return new AgentService(new OpenRouterService(fake), undefined, preSalesClassifier);
 }
 
 beforeAll(async () => {
