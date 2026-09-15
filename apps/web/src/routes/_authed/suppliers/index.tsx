@@ -11,7 +11,7 @@ import { useSuppliersList } from '@/features/suppliers/use-suppliers';
 import { useDebouncedSearch } from '@/hooks/use-debounce';
 import type { Supplier } from '@/lib/api-types';
 import { formatMoney } from '@/lib/format';
-import { Plus, Truck } from 'lucide-react';
+import { ClipboardList, Plus, Truck } from 'lucide-react';
 
 export const Route = createFileRoute('/_authed/suppliers/')({
   component: SuppliersListPage,
@@ -51,12 +51,20 @@ function SuppliersListPage() {
             Manage supplier accounts and purchase records.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/suppliers/new">
-            <Plus className="h-4 w-4" />
-            New supplier
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link to="/supplier-orders">
+              <ClipboardList className="h-4 w-4" />
+              Supplier orders
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to="/suppliers/new">
+              <Plus className="h-4 w-4" />
+              New supplier
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Input

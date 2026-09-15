@@ -21,6 +21,7 @@ import {
   Send,
   Sparkles,
   CreditCard,
+  ClipboardList,
 } from 'lucide-react';
 
 interface NavItem {
@@ -47,6 +48,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Inbound', to: '/inbound', icon: Ship },
   { label: 'Coming soon', to: '/prospective', icon: Sparkles },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
+  { label: 'Supplier Orders', to: '/supplier-orders', icon: ClipboardList },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },
   { label: 'Supplier Invoices', to: '/supplier-invoices', icon: FileText },
   { label: 'Integrations', to: '/integrations', icon: Layers },
