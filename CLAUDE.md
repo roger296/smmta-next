@@ -63,6 +63,7 @@ Future ecosystem integrations are expected to follow the same shape: an outbound
 - Rules priority: context (hi-vis, sport, school) > age band (kids) > garment type. The brief's example: a hi-vis polo lives in `workwear-and-safety/hi-vis-tops-and-vests`, not `tops/polo-shirts`.
 - **Mapping rules are committed code, not data**. The admin SPA's Categories page is read-only — it shows the tree + product counts so the operator can spot coverage gaps, but to actually change which products land where, edit `category-mapping.ts` and redeploy. Editing rules in the SPA is a deliberate V2 follow-up (it needs a "preview impact" mechanism we don't have yet).
 - Storefront category pages live at `/shop/c/<top>` and `/shop/c/<top>/<sub>`. Filters (gender / brand / colour / size / price band / stock state) are URL-encoded query params so deep-links work + SEO crawls cleanly. Filter facets are computed server-side from the full category result before pagination so the sidebar counts stay representative.
+- **One card per range, not per size and colour.** `apps/api/src/modules/storefront/listings.ts` groups a category's (or a search's) variants by range: each listing carries the range name, price span, colours, sizes (ordered by `sizes.ts`) and best stock state, and links to `/shop/<groupSlug>` where colour and size are picked. Filters still match single variants (a range shows when any variant matches); facet counts and paging count listings. A product whose range isn't published is listed alone, linking to `/shop/p/<slug>`.
 
 ### Conversational search
 
