@@ -124,7 +124,8 @@ export const RULES: MappingRule[] = [
   //    or straight from the product name, so both are checked.
   // ───────────────────────────────────────────────────────────
   {
-    nameContains: /hi.?vis.*(jacket|coat|bomber|softshell|parka)/i,
+    // A waistcoat ("Waist Coat") is a vest, not a coat; raincoats still count.
+    nameContains: /hi.?vi[sz].*(jacket|(?<!waist ?)coat|bomber|softshell|parka)/i,
     assignTo: 'workwear-and-safety/hi-vis-outerwear',
     rationale: 'Hi-vis outer layers detected by name (Hi-Vis Jacket etc)',
   },
@@ -133,9 +134,9 @@ export const RULES: MappingRule[] = [
     assignTo: 'workwear-and-safety/hi-vis-outerwear',
   },
   {
-    nameContains: /\b(hi.?vis|high.?visibility)\b/i,
+    nameContains: /\b(hi.?vi[sz]|high.?visibility)\b/i,
     assignTo: 'workwear-and-safety/hi-vis-tops-and-vests',
-    rationale: 'Hi-vis tops + vests detected by name',
+    rationale: 'Hi-vis tops + vests detected by name ("Hi-Viz" included, as Uneek spells it)',
   },
   {
     productType: /\bSafety Vests?\b/i,
@@ -157,6 +158,21 @@ export const RULES: MappingRule[] = [
     rationale: 'Coveralls / boilersuits',
   },
   {
+    categorisationContains: 'Healthcare|Medical|Scrubs',
+    assignTo: 'workwear-and-safety/scrubs-and-tunics',
+    rationale: 'Healthcare wear (Uneek\'s "Healthcare" category): scrubs and tunics',
+  },
+  {
+    nameContains: /\bscrubs?\b/i,
+    assignTo: 'workwear-and-safety/scrubs-and-tunics',
+    rationale: 'Scrub tops and trousers by name',
+  },
+  {
+    productType: /\bTunics?\b/i,
+    assignTo: 'workwear-and-safety/scrubs-and-tunics',
+    rationale: 'Tunics in the supplier ranges are healthcare and beauty tunics',
+  },
+  {
     categorisationContains: 'Work Trouser|Workwear Trouser|Cargo Trouser|Combat Trouser',
     assignTo: 'workwear-and-safety/work-trousers',
     rationale: 'Workwear-context trousers',
@@ -174,6 +190,12 @@ export const RULES: MappingRule[] = [
   {
     productType: /apron|tabard/i,
     assignTo: 'workwear-and-safety/aprons-and-tabards',
+  },
+  {
+    source: 'uneek',
+    nameContains: /\b(aprons?|tabards?)\b/i,
+    assignTo: 'workwear-and-safety/aprons-and-tabards',
+    rationale: 'Uneek files aprons and tabards under "Hospitality"',
   },
 
   // ───────────────────────────────────────────────────────────
@@ -263,7 +285,7 @@ export const RULES: MappingRule[] = [
     rationale: "Kids' outerwear — by name",
   },
   {
-    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior)\b.*\b(trousers?|shorts?|joggers?|leggings?|skirts?|skorts?|pants?|sweatpants?|jeans)\b/i,
+    nameContains: /\b(kids|kid'?s|childrens?|child'?s|junior)\b.*\b(trousers?|shorts?|joggers?|leggings?|skirts?|skorts?|pants?|sweatpants?|jeans|bottoms?)\b/i,
     assignTo: 'kids-and-schoolwear/kids-bottoms',
     rationale: "Kids' bottoms — by name",
   },
@@ -315,6 +337,12 @@ export const RULES: MappingRule[] = [
   // ───────────────────────────────────────────────────────────
   // 6. Sport & Active.
   // ───────────────────────────────────────────────────────────
+  {
+    source: 'uneek',
+    productType: /^Sportswear$/i,
+    assignTo: 'sport-and-active/performance-tops',
+    rationale: "Uneek's Sportswear category: Ultra Cool and sports polos and T-shirts",
+  },
   {
     categorisationContains: 'Performance|Cooltex|Wicking|Quick Dry',
     productType: /T-Shirt|Polo|Top|Tank|Vest/i,
@@ -403,7 +431,7 @@ export const RULES: MappingRule[] = [
   // 8. Bottoms — by garment type.
   // ───────────────────────────────────────────────────────────
   {
-    productType: /Jogger|Joggers|Track Pant|Tracksuit Bottom|Sweatpant|Loungewear Bottom|Lounge Pant/i,
+    productType: /Jogger|Joggers|Track Pant|Tracksuit Bottom|Sweatpant|Loungewear Bottom|Lounge Pant|Jog Bottoms?|Jogging Pants?/i,
     assignTo: 'bottoms/joggers',
   },
   {

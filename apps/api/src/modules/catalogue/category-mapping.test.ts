@@ -433,6 +433,43 @@ describe('evaluateRules — footwear and dresses', () => {
   });
 });
 
+describe("evaluateRules — Uneek's categories", () => {
+  const uneek = (category: string, name: string) =>
+    evaluateRules({ source: 'uneek', productType: category, categorisation: category, name });
+
+  it('files Healthcare scrubs and tunics under Scrubs & tunics', () => {
+    expect(uneek('Healthcare', 'Scrub Trouser Scrub Trouser · Bottle Green · M')).toBe('workwear-and-safety/scrubs-and-tunics');
+    expect(uneek('Healthcare', 'Ladies Premium Tunic Ladies Premium Tunic · Aqua · M')).toBe('workwear-and-safety/scrubs-and-tunics');
+  });
+
+  it("files Uneek's Sportswear polos and T-shirts as performance tops", () => {
+    expect(uneek('Sportswear', 'Mens Ultra Cool Poloshirt · Black · 3XL')).toBe('sport-and-active/performance-tops');
+    expect(uneek('Sportswear', 'Ladies Ultra Cool T Shirt · Black · 2XL')).toBe('sport-and-active/performance-tops');
+  });
+
+  it('files Hospitality aprons and tabards, and jogging pants and jog bottoms', () => {
+    expect(uneek('Hospitality', 'Premium Tabard · Navy · XL')).toBe('workwear-and-safety/aprons-and-tabards');
+    expect(uneek('Hospitality', 'Bib Apron with Pocket · Black · One Size')).toBe('workwear-and-safety/aprons-and-tabards');
+    expect(uneek('Jog Bottoms', 'The UX Jogging Pants · Black · M')).toBe('bottoms/joggers');
+    expect(uneek('Jog Bottoms', 'Childrens Jog Bottoms · Navy · 7/8')).toBe('kids-and-schoolwear/kids-bottoms');
+  });
+
+  it('reads "Hi-Viz" as hi-vis', () => {
+    expect(evaluateRules({ source: 'uneek', name: 'Hi-Viz Polo Shirt · Yellow · S' })).toBe('workwear-and-safety/hi-vis-tops-and-vests');
+    expect(evaluateRules({ source: 'ralawise', name: 'Hi-viz jacket · Black/Reflective · S' })).toBe('workwear-and-safety/hi-vis-outerwear');
+  });
+
+  it('keeps hi-vis waistcoats with vests, not outerwear', () => {
+    expect(evaluateRules({ source: 'uneek', productType: 'Hi Vis', categorisation: 'Hi Vis', name: 'Childrens Hi-Viz Waist Coat · Yellow · 5/6' })).toBe(
+      'workwear-and-safety/hi-vis-tops-and-vests',
+    );
+  });
+
+  it('keeps the Uneek-only rules away from Ralawise products', () => {
+    expect(evaluateRules({ source: 'ralawise', productType: 'Sportswear', name: 'Sports polo' })).toBeNull();
+  });
+});
+
 describe('evaluateRules — falls through to null when no rule matches', () => {
   it('returns null for fully empty facts', () => {
     expect(evaluateRules({ source: 'ralawise' })).toBeNull();

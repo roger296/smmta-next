@@ -78,13 +78,15 @@ export const TAXONOMY: TaxonomyTop[] = [
     name: 'Workwear & Safety',
     sortOrder: 40,
     description:
-      'Hi-vis, overalls, coveralls, work trousers, aprons, and tabards. Designed for working conditions, not just the office.',
+      'Hi-vis, overalls, coveralls, work trousers, aprons, tabards, scrubs, and tunics. Designed for working conditions, not just the office.',
     children: [
       { slug: 'hi-vis-tops-and-vests', name: 'Hi-vis tops & vests' },
       { slug: 'hi-vis-outerwear', name: 'Hi-vis outerwear' },
       { slug: 'overalls-and-coveralls', name: 'Overalls & coveralls' },
       { slug: 'work-trousers', name: 'Work trousers' },
       { slug: 'aprons-and-tabards', name: 'Aprons & tabards' },
+      // Added September 2026 for Uneek's Healthcare range (Roger's choice).
+      { slug: 'scrubs-and-tunics', name: 'Scrubs & tunics' },
     ],
   },
   {
