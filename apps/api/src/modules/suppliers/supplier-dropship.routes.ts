@@ -125,6 +125,9 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
     if (parsed.data.customerAccountEmail !== undefined) {
       updates.customerAccountEmail = parsed.data.customerAccountEmail || null;
     }
+    if (parsed.data.deliveryMethodCode !== undefined) {
+      updates.deliveryMethodCode = parsed.data.deliveryMethodCode || null;
+    }
     if (parsed.data.apiKeyPlaintext) {
       updates.apiKeyEnc = service.encryptApiKey(parsed.data.apiKeyPlaintext);
     }

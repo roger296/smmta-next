@@ -307,6 +307,15 @@ describe('UneekConnector.placeOrder', () => {
     expect(calls[0]!.url).toBe('https://api.uneekclothing.example/Order?CustomerNo=TBV02');
   });
 
+  it("sends the supplier record's delivery method code", async () => {
+    const calls = mockFetch(() => jsonResponse({ OrderNumber: 'SO1' }));
+    await new UneekConnector({ ...ctx, deliveryMethodCode: ' DPD ' }).placeOrder(ORDER);
+    const sent = JSON.parse(String(calls[0]!.init.body)) as {
+      delivery: { deliveryOption: { deliveryMethod: string } };
+    };
+    expect(sent.delivery.deliveryOption.deliveryMethod).toBe('DPD');
+  });
+
   it("sends the supplier record's account email in place of the contact email", async () => {
     const calls = mockFetch(() => jsonResponse({ OrderNumber: 'SO1' }));
     await new UneekConnector({ ...ctx, customerAccountEmail: ' roger@example.invalid ' }).placeOrder(ORDER);

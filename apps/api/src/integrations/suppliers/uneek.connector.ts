@@ -31,7 +31,6 @@
  * Timeouts: 30s default; order placement gets 60s because batched line
  * creation tends to be slow on the supplier's side.
  */
-import { getEnv } from '../../config/env.js';
 import { countryCodeFor, countryNameFor } from './country.js';
 import {
   SupplierAuthError,
@@ -347,7 +346,9 @@ export class UneekConnector implements SupplierConnector {
     const accountNumber = this.ctx.accountNumber?.trim();
     const url = accountNumber ? `${base}?CustomerNo=${encodeURIComponent(accountNumber)}` : base;
     const body = mapOrderRequestToUpstream(req, {
-      deliveryMethod: getEnv().UNEEK_DELIVERY_METHOD,
+      // Uneek's own code for how to send the parcel, from the supplier record.
+      // Blank is accepted: Uneek chose DPD on the first live order.
+      deliveryMethod: this.ctx.deliveryMethodCode?.trim() || '',
       accountEmail: this.ctx.customerAccountEmail,
     });
     const upstream = await this.requestJson<unknown>('POST', url, body, {
