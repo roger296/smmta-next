@@ -19,6 +19,7 @@ import 'server-only';
 import { and, eq, ne } from 'drizzle-orm';
 import { getDb } from './db';
 import { getEnv } from './env';
+import { log } from './log';
 import {
   carts,
   cartItems,
@@ -120,6 +121,20 @@ function describeOrder(cart: CartView): string {
   return `Clothes Shop — ${lineNames}`.slice(0, 200);
 }
 
+/**
+ * Mollie's own explanation of a refused payment, e.g. "The webhook URL is
+ * invalid because it is unreachable". It lives only in the error body, and
+ * without it a 422 at checkout is a guessing game (2026-09-15, when an
+ * unreachable webhook URL took hours to identify).
+ */
+function mollieErrorDetail(err: MollieApiError): string | null {
+  const body = err.body as { detail?: unknown; title?: unknown; field?: unknown } | null;
+  if (!body || typeof body !== 'object') return null;
+  const parts = [body.title, body.detail, body.field ? `field: ${String(body.field)}` : null]
+    .filter((v): v is string => typeof v === 'string' && v.length > 0);
+  return parts.length > 0 ? parts.join(' — ') : null;
+}
+
 // ---------------------------------------------------------------------------
 // startCheckout
 // ---------------------------------------------------------------------------
@@ -212,7 +227,20 @@ export async function startCheckout(input: StartCheckoutInput): Promise<StartChe
       idempotencyKey: checkoutId,
     });
   } catch (err) {
-    // Roll back the reservation; let the customer try again.
+    // Record what Mollie actually said before rolling back — the reason is
+    // the only way to tell a bad webhook URL from a bad amount.
+    const mollieDetail = err instanceof MollieApiError ? mollieErrorDetail(err) : null;
+    log.error(
+      {
+        checkoutId,
+        status: err instanceof MollieApiError ? err.status : undefined,
+        // Mollie's own words, and the whole body behind them.
+        mollieDetail,
+        mollieBody: err instanceof MollieApiError ? err.body : undefined,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      'Mollie createPayment failed',
+    );
     await releaseReservation(reservation.reservationId).catch(() => undefined);
     await db
       .update(checkouts)
@@ -221,6 +249,8 @@ export async function startCheckout(input: StartCheckoutInput): Promise<StartChe
     return {
       ok: false,
       error: 'PAYMENT_CREATE_FAILED',
+      // The customer sees this on the checkout page, so it stays short:
+      // Mollie's own wording is in the log line above, for us.
       reason: err instanceof Error ? err.message : 'Unknown Mollie error',
     };
   }
