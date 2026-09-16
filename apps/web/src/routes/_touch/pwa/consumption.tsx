@@ -517,40 +517,53 @@ export function ConsumptionScreen() {
                 )}
               </div>
               <div className="qty-controls">
-                <button className="step" aria-label={`Decrease ${l.name}`} onClick={() => bump(-1)}>−</button>
-                <button
-                  className={`qty-value ${remaining ? 'remaining' : ''}`}
-                  aria-label={remaining ? `Type what is left of ${l.name}` : `Type amount of ${l.name} used`}
-                  onClick={() => setActualTarget(i)}
-                >
-                  {qty}
-                </button>
-                <button className="step" aria-label={`Increase ${l.name}`} onClick={() => bump(1)}>+</button>
-                {/* A whole bench's worth in one press. Bakers think in
-                    benches, not kilograms. Labelled "+1 bench left" in
-                    REMAINING mode so the press cannot be misread (F-1). */}
-                <button
-                  className="step-table"
-                  aria-label={`Remove one ${benchWord} of ${l.name}`}
-                  disabled={l.qtyPerBench <= 0}
-                  onClick={() => bump(-l.qtyPerBench)}
-                >
-                  −1 {benchWord}
-                </button>
-                {/* F-3: the benches-worth of the CURRENT quantity, updating on
-                    every press — not the session total, which was identical on
-                    every row and unaffected by every button beside it. */}
-                <span className="table-count" aria-hidden>
-                  {benches === null ? '—' : `${benches} / ${covers}`}
-                </span>
-                <button
-                  className="step-table"
-                  aria-label={`Add one ${benchWord} of ${l.name}`}
-                  disabled={l.qtyPerBench <= 0}
-                  onClick={() => bump(l.qtyPerBench)}
-                >
-                  +1 {benchWord}
-                </button>
+                {/* Sept-2026 item 4: two distinct zones, because bakers think
+                    in benches, not grams. "the 'bench + and - buttons' … and
+                    the count of the number of recipe quanta used are more
+                    important to them than the number of grams". The bench zone
+                    on the right is scaled 20% above the gram editor on the
+                    left — see `--bench-scale` in pwa-touch.css. */}
+                <div className="qty-edit">
+                  <button className="step" aria-label={`Decrease ${l.name}`} onClick={() => bump(-1)}>−</button>
+                  <button
+                    className={`qty-value ${remaining ? 'remaining' : ''}`}
+                    aria-label={remaining ? `Type what is left of ${l.name}` : `Type amount of ${l.name} used`}
+                    onClick={() => setActualTarget(i)}
+                  >
+                    {qty}
+                  </button>
+                  <button className="step" aria-label={`Increase ${l.name}`} onClick={() => bump(1)}>+</button>
+                </div>
+                <div className="bench-controls">
+                  {/* A whole bench's worth in one press. Labelled "+1 bench
+                      left" in REMAINING mode so the press cannot be misread
+                      (F-1). Red for the one that takes a bench away, green for
+                      the one that adds it (item 4b). */}
+                  <button
+                    className="step-table bench-down"
+                    aria-label={`Remove one ${benchWord} of ${l.name}`}
+                    disabled={l.qtyPerBench <= 0}
+                    onClick={() => bump(-l.qtyPerBench)}
+                  >
+                    −1 {benchWord}
+                  </button>
+                  {/* F-3: the benches-worth of the CURRENT quantity, updating on
+                      every press — not the session total, which was identical on
+                      every row and unaffected by every button beside it.
+                      Bold and near-black (item 4c): it is the figure the baker
+                      is actually working to. */}
+                  <span className="table-count" aria-hidden>
+                    {benches === null ? '—' : `${benches} / ${covers}`}
+                  </span>
+                  <button
+                    className="step-table bench-up"
+                    aria-label={`Add one ${benchWord} of ${l.name}`}
+                    disabled={l.qtyPerBench <= 0}
+                    onClick={() => bump(l.qtyPerBench)}
+                  >
+                    +1 {benchWord}
+                  </button>
+                </div>
                 <button className={`zero${l.wastageQty > 0 ? ' on' : ''}`} aria-label="Wastage" onClick={() => setWasteTarget(i)}>⚠</button>
               </div>
             </div>

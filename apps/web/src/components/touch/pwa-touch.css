@@ -327,14 +327,62 @@
 .touch-app .step-table:active { transform: scale(0.96); }
 .touch-app .step-table:disabled { opacity: 0.4; }
 
-/* The session's table count, sat between the two buttons so the baker can see
-   what a press is worth. Read-only: it is set on the first page. */
+/* ── Bench zone (Sept-2026 user testing, item 4) ───────────────────────────
+   "They think in terms of the number of benches doing each type of bake and
+    they think of the ingredients in 'quanta' per bake … because of this the
+    'bench + and - buttons' on the page and the count of the number of recipe
+    quanta used are more important to them than the number of grams."
+
+   So the row now has two zones, and the bench zone is deliberately the louder
+   one: a baker replacing a spilt portion presses a bench button, and only
+   reaches for grams when something unusual happened.
+
+   The 20% is a single number rather than a set of hand-tuned sizes, so the
+   ratio the request asked for stays true if the base row height changes. */
+.touch-app .qty-controls { --bench-scale: 1.2; }
+.touch-app .qty-edit,
+.touch-app .bench-controls { display: flex; align-items: center; gap: 8px; }
+/* The gram editor keeps the row's ordinary size — it is the quieter half. */
+.touch-app .bench-controls { gap: 10px; }
+.touch-app .bench-controls .step-table {
+  height: calc(48px * var(--bench-scale));
+  padding: 0 calc(10px * var(--bench-scale));
+  font-size: calc(13px * var(--bench-scale));
+  border-width: 2px;
+  color: #fff;
+}
+/* (b) Red for the press that takes a bench away, green for the one that adds
+   it. Colour is a second signal, never the only one: both buttons still carry
+   the words "−1 bench" / "+1 bench", because a baker with a red-green colour
+   deficiency reads the label, and so does a screen reader. */
+.touch-app .bench-controls .step-table.bench-down {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.touch-app .bench-controls .step-table.bench-up {
+  background: #15803d;
+  border-color: #15803d;
+}
+.touch-app .bench-controls .step-table:disabled {
+  /* A disabled bench button means the recipe has no per-bench quantity for
+     this line. Greyed rather than tinted, so "off" cannot be mistaken for
+     "red" at a glance. */
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink);
+  opacity: 0.4;
+}
+
+/* The bench count, sat between the two buttons so the baker can see what a
+   press is worth. Read-only: it is derived from the quantity on the line.
+   (c) Bold and near-black — it was muted grey, which is the styling for
+   something incidental, and this is the figure the baker is working to. */
 .touch-app .table-count {
-  min-width: 30px;
+  min-width: calc(30px * var(--bench-scale, 1));
   text-align: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--muted, #6b7280);
+  font-size: calc(13px * var(--bench-scale, 1));
+  font-weight: 800;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 .touch-app .perTable { opacity: 0.85; }

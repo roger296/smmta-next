@@ -209,3 +209,29 @@ describe('item 2: the cake picker is grouped', () => {
     expect(await screen.findByText(/no active cakes for this venue/i)).toBeInTheDocument();
   });
 });
+
+describe('item 4: the bench controls are the louder half of the row', () => {
+  it('splits the row into a gram editor and a bench zone, and colours the direction', async () => {
+    // "the 'bench + and - buttons' … are more important to them than the
+    // number of grams". Structure, not cosmetics: the two zones are what the
+    // 20% scale and the red/green are applied to.
+    const user = userEvent.setup();
+    renderScreen();
+    await pickCakeAndBenches(user);
+    await user.type(screen.getByLabelText(/session id/i), 'BB-12345');
+    await user.type(screen.getByLabelText(/your name/i), 'Sam');
+    await user.click(screen.getByRole('button', { name: /load ingredients/i }));
+    await screen.findByText('Caster Sugar');
+
+    const down = screen.getByRole('button', { name: /remove one bench of Caster Sugar/i });
+    const up = screen.getByRole('button', { name: /add one bench of Caster Sugar/i });
+    expect(down).toHaveClass('bench-down');
+    expect(up).toHaveClass('bench-up');
+    // Both sit in the bench zone, and the gram steppers do not.
+    expect(down.closest('.bench-controls')).not.toBeNull();
+    expect(up.closest('.bench-controls')).not.toBeNull();
+    expect(
+      screen.getByRole('button', { name: /increase Caster Sugar/i }).closest('.qty-edit'),
+    ).not.toBeNull();
+  });
+});
