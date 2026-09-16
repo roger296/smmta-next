@@ -111,6 +111,22 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   reorder engine falls back to `products.expected_next_cost`. The Suppliers tab
   on a product no longer filters to `connectorKind !== 'NONE'`, which had hidden
   every one of the 72 real (emailed-PO) suppliers.
+- **One code is THE SKU; the rest are aliases** (`supplier_product_aliases`;
+  migration `0052`). The same supplier line arrives spelled several ways — a
+  Brakes invoice carries `33891`, `A 33891` and `A33891` for one item — and a
+  lookup that misses is a mapping silently not found. Every spelling is stored,
+  but NOT as extra `supplier_products` rows: those are **purchasable lines**
+  that the reorder engine ranks against each other by pack size and price, so a
+  spelling variant sitting there would read as a second buying option and could
+  win the order. An alias resolves to its canonical line and never competes with
+  it. `resolveSupplierSku()` (`supplier-sku-resolver.ts`) checks canonical
+  first, then aliases, and reports `matchedVia` so an importer can tell an exact
+  hit from a fuzzy one. ⚠️ Uniqueness is **per supplier, case-insensitive**, and
+  it spans BOTH tables — a partial unique index cannot see across them, so the
+  route calls `aliasConflict()` and validates every alias in the request BEFORE
+  it writes anything. In the UI the aliases are the "Also known as" column,
+  **comma-separated only**: a supplier code can contain a space (`A 33891`), so
+  splitting on whitespace would shred it.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and

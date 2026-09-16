@@ -94,6 +94,13 @@ export const upsertSupplierMappingsSchema = z.object({
         autoPlaceOverride: z.boolean().nullable().optional(),
         supplierPurchaseUom: z.string().max(20).nullable().optional(),
         supplierPackSize: z.coerce.number().positive().nullable().optional(),
+        /**
+         * Other spellings of THIS code that must still resolve to this line —
+         * "A 33891", "A33891" for a canonical "33891". Not extra lines to buy;
+         * see migration 0052. Omitting the key leaves existing aliases alone,
+         * an empty array clears them.
+         */
+        aliases: z.array(z.string().trim().min(1).max(200)).max(25).optional(),
       }),
     )
     .max(50),

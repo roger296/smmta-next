@@ -26,6 +26,7 @@ function mapping(over: Record<string, unknown> = {}) {
     costGbp: '12.50',
     supplierPurchaseUom: 'sack',
     supplierPackSize: '16.000',
+    aliases: [],
     lastKnownStock: null,
     lastKnownPrice: null,
     lastPolledAt: null,
@@ -176,6 +177,39 @@ test.describe('product suppliers tab', () => {
     await expect(page.getByLabel('Supplier code').nth(1)).toHaveValue('A20954');
     await expect(page.getByLabel('Pack size').nth(1)).toHaveValue('25.000');
     await page.screenshot({ path: 'test-results/product-suppliers-tab.png' });
+  });
+
+  test('shows alternative codes and posts them back', async ({ page }) => {
+    let body: { mappings?: Array<{ aliases?: string[] }> } = {};
+    await page.route(`**/api/v1/products/${PRODUCT_ID}/supplier-mappings`, (route) => {
+      if (route.request().method() === 'PUT') {
+        body = JSON.parse(route.request().postData() ?? '{}');
+        return route.fulfill({ status: 200, contentType: 'application/json', body: '{"success":true,"data":[]}' });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: [
+            mapping({
+              aliases: [
+                { aliasSku: 'A 33891', source: 'INVOICE_OCR', lastSeenAt: null },
+                { aliasSku: 'A33891', source: 'INVOICE_OCR', lastSeenAt: null },
+              ],
+            }),
+          ],
+        }),
+      });
+    });
+    await openTab(page);
+
+    const others = page.getByLabel('Other codes');
+    await expect(others).toHaveValue('A 33891, A33891');
+
+    await page.getByRole('button', { name: /save suppliers/i }).click();
+    // The space inside "A 33891" must survive — it is part of the code.
+    await expect.poll(() => body.mappings?.[0]?.aliases).toEqual(['A 33891', 'A33891']);
   });
 
   test('refuses the same code twice for one supplier, naming it', async ({ page }) => {

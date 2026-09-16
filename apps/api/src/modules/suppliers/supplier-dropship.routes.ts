@@ -13,11 +13,16 @@
  * supplier routes); these endpoints add the drop-ship-specific bits
  * without disturbing the PO surface.
  */
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getDb } from '../../config/database.js';
-import { suppliers, supplierPollLog, supplierProducts } from '../../db/schema/index.js';
+import {
+  suppliers,
+  supplierPollLog,
+  supplierProductAliases,
+  supplierProducts,
+} from '../../db/schema/index.js';
 import { requireAuth } from '../../shared/middleware/auth.js';
 import {
   dropshipSupplierSchema,
@@ -27,6 +32,7 @@ import {
 import { DropshipSupplierService } from './supplier-dropship.service.js';
 import { runSupplierPoll } from '../../workers/supplier-poll.worker.js';
 import { resolveConnector } from '../../integrations/suppliers/registry.js';
+import { aliasConflict, replaceAliases } from './supplier-sku-resolver.js';
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 
@@ -182,7 +188,39 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
       ),
       orderBy: (sp, { asc }) => [asc(sp.priority), asc(sp.createdAt)],
     });
-    return reply.send({ success: true, data: rows });
+    // Aliases come back ON the mapping — the screen edits them together, and a
+    // second round trip per row would be a request per supplier code.
+    const aliasRows = rows.length
+      ? await db
+          .select()
+          .from(supplierProductAliases)
+          .where(
+            and(
+              inArray(
+                supplierProductAliases.supplierProductId,
+                rows.map((r) => r.id),
+              ),
+              isNull(supplierProductAliases.deletedAt),
+            ),
+          )
+      : [];
+    const byMapping = new Map<string, typeof aliasRows>();
+    for (const a of aliasRows) {
+      const list = byMapping.get(a.supplierProductId);
+      if (list) list.push(a);
+      else byMapping.set(a.supplierProductId, [a]);
+    }
+    return reply.send({
+      success: true,
+      data: rows.map((r) => ({
+        ...r,
+        aliases: (byMapping.get(r.id) ?? []).map((a) => ({
+          aliasSku: a.aliasSku,
+          source: a.source,
+          lastSeenAt: a.lastSeenAt,
+        })),
+      })),
+    });
   });
 
   // PUT /products/:id/supplier-mappings — bulk upsert.
@@ -227,6 +265,38 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
         isNull(supplierProducts.deletedAt),
       ),
     });
+
+    // An alias must not also be a canonical code, or another line's alias, for
+    // the same supplier — a code that resolves to two purchasable lines makes
+    // invoice matching ambiguous in exactly the case aliases exist to fix.
+    // Checked BEFORE anything is written, so a bad alias doesn't half-apply.
+    const aliasSeen = new Set<string>();
+    for (const m of parsed.data.mappings) {
+      for (const alias of m.aliases ?? []) {
+        const key = `${m.supplierId}::${alias.trim().toLowerCase()}`;
+        if (aliasSeen.has(key)) {
+          return reply.status(400).send({
+            success: false,
+            error: `"${alias}" is listed as an alternative code more than once for this supplier.`,
+          });
+        }
+        aliasSeen.add(key);
+        // Its own line's canonical code is redundant, not a conflict — dropped
+        // below rather than refused.
+        if (alias.trim().toLowerCase() === m.supplierSku.trim().toLowerCase()) continue;
+        const own =
+          existing.find(
+            (e) =>
+              e.supplierId === m.supplierId &&
+              e.supplierSku.trim().toLowerCase() === m.supplierSku.trim().toLowerCase(),
+          )?.id ?? null;
+        const conflict = await aliasConflict(m.supplierId, alias, own);
+        if (conflict) {
+          return reply.status(400).send({ success: false, error: conflict.reason });
+        }
+      }
+    }
+
     const existingByKey = new Map(
       existing.map((r) => [keyOf(r.supplierId, r.supplierSku), r]),
     );
@@ -291,7 +361,55 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
       ),
       orderBy: (sp, { asc }) => [asc(sp.priority), asc(sp.createdAt)],
     });
-    return reply.send({ success: true, data: refreshed });
+
+    // Aliases are applied against the rows as they now exist, so a mapping
+    // created a moment ago gets its id. Omitting `aliases` leaves a line's
+    // existing ones alone; sending [] clears them.
+    const refreshedByKey = new Map(
+      refreshed.map((r) => [keyOf(r.supplierId, r.supplierSku), r]),
+    );
+    for (const m of parsed.data.mappings) {
+      if (m.aliases === undefined) continue;
+      const row = refreshedByKey.get(keyOf(m.supplierId, m.supplierSku));
+      if (!row) continue;
+      const deduped = m.aliases.filter(
+        (a) => a.trim().toLowerCase() !== row.supplierSku.trim().toLowerCase(),
+      );
+      await replaceAliases(row.id, row.supplierId, deduped.map((aliasSku) => ({ aliasSku })));
+    }
+
+    const aliasRows = refreshed.length
+      ? await db
+          .select()
+          .from(supplierProductAliases)
+          .where(
+            and(
+              inArray(
+                supplierProductAliases.supplierProductId,
+                refreshed.map((r) => r.id),
+              ),
+              isNull(supplierProductAliases.deletedAt),
+            ),
+          )
+      : [];
+    const aliasesByMapping = new Map<string, typeof aliasRows>();
+    for (const a of aliasRows) {
+      const list = aliasesByMapping.get(a.supplierProductId);
+      if (list) list.push(a);
+      else aliasesByMapping.set(a.supplierProductId, [a]);
+    }
+
+    return reply.send({
+      success: true,
+      data: refreshed.map((r) => ({
+        ...r,
+        aliases: (aliasesByMapping.get(r.id) ?? []).map((a) => ({
+          aliasSku: a.aliasSku,
+          source: a.source,
+          lastSeenAt: a.lastSeenAt,
+        })),
+      })),
+    });
   });
 
   // GET /health/supplier-poll — per-supplier health snapshot.

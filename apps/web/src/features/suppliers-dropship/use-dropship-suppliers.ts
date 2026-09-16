@@ -52,6 +52,9 @@ export interface SupplierMappingRow {
   lastPollError: string | null;
   isActive: boolean;
   priority: number;
+  /** Other spellings of THIS code — "A 33891" for a canonical "33891". Not
+   *  separate lines to buy; they exist so an invoice line still matches. */
+  aliases: Array<{ aliasSku: string; source: string; lastSeenAt: string | null }>;
 }
 
 export function useDropshipSuppliers() {
@@ -154,6 +157,8 @@ export interface UpsertMappingsInput {
     isActive: boolean;
     supplierPurchaseUom?: string | null;
     supplierPackSize?: number | null;
+    /** Omit to leave a line's alternatives alone; [] clears them. */
+    aliases?: string[];
   }>;
 }
 

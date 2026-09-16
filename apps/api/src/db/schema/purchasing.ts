@@ -1,6 +1,6 @@
 import {
   pgTable, varchar, decimal, boolean, integer, text, uuid,
-  doublePrecision, date as pgDate, timestamp, jsonb, uniqueIndex,
+  doublePrecision, date as pgDate, timestamp, jsonb, uniqueIndex, index,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import {
@@ -460,4 +460,54 @@ export const supplierNotesRelations = relations(supplierNotes, ({ one }) => ({
 export const grnLinesRelations = relations(grnLines, ({ one }) => ({
   grn: one(goodsReceivedNotes, { fields: [grnLines.grnId], references: [goodsReceivedNotes.id] }),
   product: one(products, { fields: [grnLines.productId], references: [products.id] }),
+}));
+
+// ============================================================
+// Supplier product aliases (Sept-2026)
+// ------------------------------------------------------------
+// Other spellings of ONE mapping's supplier code. Invoice OCR
+// returns "33891", "A 33891" and "A33891" for the same Brakes
+// line; all three must resolve to the mapping, but only
+// `supplier_products.supplier_sku` is the code you quote back.
+//
+// Deliberately NOT extra `supplier_products` rows — those are
+// purchasable lines the reorder engine compares, and an alias is
+// not a second thing to buy. See migration 0052.
+// ============================================================
+
+export const supplierProductAliases = pgTable(
+  'supplier_product_aliases',
+  {
+    id: pk(),
+    companyId: companyId(),
+    supplierProductId: uuid('supplier_product_id')
+      .notNull()
+      .references(() => supplierProducts.id, { onDelete: 'cascade' }),
+    /** Denormalised so uniqueness can be scoped to the SUPPLIER — the scope in
+     *  which a code has to resolve to exactly one thing. */
+    supplierId: uuid('supplier_id')
+      .notNull()
+      .references(() => suppliers.id, { onDelete: 'cascade' }),
+    aliasSku: varchar('alias_sku', { length: 200 }).notNull(),
+    /** MANUAL (somebody typed it) | INVOICE_OCR (read off an invoice). */
+    source: varchar('source', { length: 20 }).notNull().default('MANUAL'),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    ...auditTimestamps,
+  },
+  (t) => ({
+    supplierProductAliasesMappingIdx: index('supplier_product_aliases_mapping_idx').on(
+      t.supplierProductId,
+    ),
+  }),
+);
+
+export const supplierProductAliasesRelations = relations(supplierProductAliases, ({ one }) => ({
+  supplierProduct: one(supplierProducts, {
+    fields: [supplierProductAliases.supplierProductId],
+    references: [supplierProducts.id],
+  }),
+  supplier: one(suppliers, {
+    fields: [supplierProductAliases.supplierId],
+    references: [suppliers.id],
+  }),
 }));

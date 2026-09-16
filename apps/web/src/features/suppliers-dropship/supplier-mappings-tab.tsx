@@ -42,11 +42,22 @@ interface RowState {
   isActive: boolean;
   supplierPurchaseUom: string;
   supplierPackSize: string;
+  /** Comma-separated in the input; split on save. */
+  aliases: string;
   lastKnownStock?: number | null;
   lastPolledAt?: string | null;
 }
 
 const isPriceValid = (s: string) => /^\d+(\.\d{1,2})?$/.test(s.trim());
+
+/** "A 33891, A33891" -> ['A 33891', 'A33891']. Commas only; a supplier code
+ *  can contain spaces ("A 33891"), so splitting on whitespace would break it. */
+export function splitAliases(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((a) => a.trim())
+    .filter((a) => a.length > 0);
+}
 const rowKey = (r: RowState) => `${r.supplierId}::${r.supplierSku.trim().toLowerCase()}`;
 
 export function SupplierMappingsTab({ productId }: { productId: string }) {
@@ -67,6 +78,7 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
           isActive: m.isActive,
           supplierPurchaseUom: m.supplierPurchaseUom ?? '',
           supplierPackSize: m.supplierPackSize ?? '',
+          aliases: (m.aliases ?? []).map((a) => a.aliasSku).join(', '),
           lastKnownStock: m.lastKnownStock,
           lastPolledAt: m.lastPolledAt,
         })),
@@ -96,6 +108,7 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
         isActive: true,
         supplierPurchaseUom: '',
         supplierPackSize: '',
+        aliases: '',
       },
     ]);
   };
@@ -150,6 +163,7 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
               r.supplierPurchaseUom.trim() === '' ? null : r.supplierPurchaseUom.trim(),
             supplierPackSize:
               r.supplierPackSize.trim() === '' ? null : Number(r.supplierPackSize),
+            aliases: splitAliases(r.aliases),
           })),
         },
       });
@@ -173,7 +187,9 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
           Who sells you this item and what they call it. A supplier can appear more than once —
           the same item often has several codes and pack sizes, and reordering compares them.
           The lowest <strong>priority</strong> number is the one reordering picks first. Leave the
-          cost blank if you don&rsquo;t know it yet.
+          cost blank if you don&rsquo;t know it yet. <strong>Also known as</strong> holds other
+          spellings of the same code (comma separated) so an invoice still matches — they are not
+          separate things to buy.
         </p>
         {allSuppliers.length === 0 && (
           <p className="text-sm text-[var(--color-destructive)]">
@@ -186,6 +202,7 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
               <tr>
                 <th className="px-3 py-2 text-left font-medium">Supplier</th>
                 <th className="px-3 py-2 text-left font-medium">Their code</th>
+                <th className="px-3 py-2 text-left font-medium">Also known as</th>
                 <th className="px-3 py-2 text-left font-medium">Their unit</th>
                 <th className="px-3 py-2 text-right font-medium">Pack size</th>
                 <th className="px-3 py-2 text-left font-medium">Cost (£)</th>
@@ -199,7 +216,7 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-3 py-4 text-center text-[var(--color-muted-foreground)]"
                   >
                     No suppliers linked to this product yet.
@@ -230,6 +247,15 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
                       onChange={(e) => setRow(idx, { supplierSku: e.target.value })}
                       placeholder="20954"
                       className="w-32"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <Input
+                      aria-label="Other codes"
+                      value={r.aliases}
+                      onChange={(e) => setRow(idx, { aliases: e.target.value })}
+                      placeholder="A 33891, A33891"
+                      className="w-40"
                     />
                   </td>
                   <td className="px-3 py-2">

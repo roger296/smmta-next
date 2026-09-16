@@ -1125,3 +1125,57 @@ came out as `where "item_category_id" = "id"` — both resolving against
 `products`, comparing a product's category to its own id. Always false, every
 count read 0, nothing errored. It is now a LEFT JOIN, which names its own
 tables. Worth remembering before writing another correlated subquery that way.
+
+## §F19 — Supplier SKUs: one canonical code, many aliases (Sept 2026)
+
+A supplier does not spell their own code consistently. Three months of Brakes
+invoices in BumbleBee carry the same item as `33891`, `A 33891` and `A33891`.
+Auto-Stock has to match all three, because the failure mode is silent: a lookup
+that misses does not error, it just finds no mapping, and the item quietly drops
+out of the reorder.
+
+The owner's call: **store every spelling, but one of them is THE SKU** — `33891`
+— and the others are alternatives.
+
+### Why aliases are not extra `supplier_products` rows
+
+The table is already unique on `(product, supplier, supplier_sku)` and would
+have taken all three without a migration. That is the wrong shape, and the
+reason is what a row in that table MEANS.
+
+A `supplier_products` row is a **purchasable line**: a code you can put on a
+PO, with its own pack size, unit and cost. The reorder engine ranks them —
+Brakes `33891` at 1×25 kg against Brakes `114953` at 6×1.5 kg — and picks one.
+Put `A33891` in there and it is a third buying option with the same goods
+behind it. It can win the ranking, or split an order across two rows that are
+the same product, and nothing about the data says they are the same thing.
+
+So aliases live in their own table, pointing at the canonical row. They resolve;
+they never compete.
+
+### Uniqueness spans two tables
+
+A code must be unambiguous **per supplier**, case-insensitively, whether it is
+stored as a canonical SKU or as an alias. `supplier_product_aliases` has a
+partial unique index on `(supplier_id, lower(alias_sku)) WHERE deleted_at IS
+NULL`, but no index can see across to `supplier_products`. `aliasConflict()`
+closes that half, and the PUT route validates **every** alias in the request
+before it performs a single write — a half-applied save that rejects the fourth
+mapping after rewriting the first three would leave the product's supplier list
+in a state the operator never asked for.
+
+`supplier_id` is denormalised onto the alias row purely so that index can exist;
+it is derivable through `supplier_product_id`, and the FK cascades.
+
+### `matchedVia`
+
+`resolveSupplierSku()` returns which table answered. The invoice-OCR importer
+that will populate most of these needs the distinction: an exact canonical hit
+can be applied without review, an alias hit is evidence the supplier's spelling
+has drifted and is worth showing a human once.
+
+### Commas, not whitespace
+
+The UI's "Also known as" field splits on commas only. `A 33891` is a real
+supplier code with a space in it; splitting on whitespace would turn one code
+into two, both wrong, and the operator would have no way to enter the real one.
