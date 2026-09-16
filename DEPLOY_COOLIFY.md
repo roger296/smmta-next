@@ -97,12 +97,64 @@ created under the admin **Device PINs** page.
 - `https://stock.thebigbakes.com` → the admin SPA loads and can log in
 - iPad: `https://stock.thebigbakes.com/pin-login`
 
+## Wiring up the BumbleBee session feed
+
+Until this is done, the End of Bake screen cannot offer the day's sittings and
+head bakers type the session id by hand. That still works — the screen says so
+and gives them the field — but it is the thing that caused the "Submit button
+doesn't work" defect in September 2026, because an id nobody knows is an id
+that gets skipped.
+
+**Auto-Stock reads the feed live.** There is no sync and no local copy: the
+venue screen calls `/session-consumption/awaiting`, which calls BumbleBee. So
+"wiring it up" is two environment variables, not a job.
+
+1. **Mint a read key in BumbleBee** — its admin, `/admin/api-keys`. It only
+   needs to read `/api/v1/sessions` and `/api/v1/orders`.
+2. **Set both variables on the `stock-api` app in Coolify**, then redeploy:
+
+   | Variable | Value |
+   |---|---|
+   | `BUMBLEBEE_API_BASE_URL` | `https://bumblebee.starship.thebigbakes.com` |
+   | `BUMBLEBEE_API_KEY` | the key from step 1 |
+
+3. **Check it from the `stock-api` container terminal:**
+
+   ```bash
+   cd /app/apps/api && npx tsx scripts/check-bumblebee.ts
+   # or a date you know had bakes:
+   cd /app/apps/api && npx tsx scripts/check-bumblebee.ts 2026-09-13
+   ```
+
+   Read-only — it fetches and writes nothing. ⚠️ **Run it rather than judging
+   by the screen.** Every way of getting this wrong shows up identically as an
+   empty picker: not configured, wrong URL, expired key, a site-name mismatch,
+   or a genuinely quiet day. The check names which one, and exits non-zero when
+   a site could not be read.
+
+### The one that fails silently
+
+BumbleBee filters on **its own site names**; Auto-Stock sends
+`sites.canonical_name`. If those differ by so much as a space, every query
+returns zero rows and **nothing errors** — no 404, no warning, just an empty
+picker for ever.
+
+Verified matching on 16 Sept 2026 — BumbleBee returns `Birmingham`,
+`Liverpool`, `London East`, `London South`, `Manchester`, which is exactly what
+`seed-sites.ts` writes. If a site is ever renamed on either side, re-run the
+check.
+
 ## Later — the four periodic jobs
 
 The reorder / consumption / Square-poll / BumbleBee-poll sweeps (bare-metal
 systemd timers in `infra/systemd/`) become **Coolify Scheduled Tasks** on the
 `stock-api` app, each running its `apps/api/scripts/run-*.ts` CLI. Add them once
 the app is proven; they no-op safely while the Square / BumbleBee tokens are unset.
+
+Note that `run-bumblebee-session-poll.ts` is **not** what makes the venue
+session picker work — that reads live (see above). The poll is a warm-up /
+observability job, so schedule it when convenient rather than treating it as a
+prerequisite.
 
 ## Notes / follow-ups
 

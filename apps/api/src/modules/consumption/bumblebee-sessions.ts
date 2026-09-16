@@ -170,8 +170,24 @@ export class BumbleBeeSessionClient {
           (res.status === 401 ? ' — check BUMBLEBEE_API_KEY' : ''),
       );
     }
-    const body = (await res.json()) as { rows?: T[] };
-    return body.rows ?? [];
+    const body = (await res.json()) as { rows?: T[]; total_count?: number };
+    const rows = body.rows ?? [];
+    // ⚠️ SILENT TRUNCATION. BumbleBee caps a page and reports the real size in
+    // `total_count`. Taking `rows` without checking would undercount covers on
+    // a busy day — a smaller expected consumption, a variance that looks like
+    // the baker's fault, and a materials cost that is simply wrong, with
+    // nothing anywhere saying a page was cut short.
+    //
+    // Thrown rather than silently paged: a day that exceeds the cap is a
+    // signal that this client needs real pagination, and a wrong number nobody
+    // questions is worse than an error somebody has to read.
+    if (typeof body.total_count === 'number' && body.total_count > rows.length) {
+      throw new Error(
+        `BumbleBee ${path} returned ${rows.length} of ${body.total_count} rows — ` +
+          'the page cap was hit, so this answer would be incomplete.',
+      );
+    }
+    return rows;
   }
 
   /** Resolve covers from order lines a caller already holds. */

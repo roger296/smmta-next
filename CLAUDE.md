@@ -71,6 +71,16 @@ The full app now runs in a realistic-test environment on Coolify. **This superse
 - **Coolify app settings (gotchas learned deploying):** Base Directory `/` (repo root — the api Dockerfile `COPY . .`s the whole monorepo, so the context must be root); Dockerfile Location `/apps/api/Dockerfile` (else Coolify looks for a root `Dockerfile` and fails); **Ports Exposes `8080` for the api** — Coolify defaults it to `3000`, which yields "bad gateway" + a failed healthcheck; `80` for web; the web app's `VITE_API_BASE_URL` **must be flagged a Build Variable** (it's baked in at build time).
 - **API env vars (set in Coolify):** `NODE_ENV=production`, `PORT=8080`, `DATABASE_URL` + `REDIS_URL` (Coolify internal URLs), `JWT_SECRET`, `ENCRYPTION_KEY` (**store safely — it encrypts supplier/Xero tokens; changing/losing it makes them unrecoverable**), `STOCKTAKE_ACCESS_CODE`, `XERO_DRY_RUN=true`. Everything else stays default (`COMPANY_ID`, all `FEATURE_*` / `CATALOGUE_SYNC` / `MATERIALS_COST_SYNC` off).
 - **First boot** (run from the `stock-api` app's Coolify **Terminal**): migrations run automatically in the api CMD; then create the admin login + seed data — `npx tsx apps/api/scripts/create-user.ts --email … --name … --password …`, `npx tsx apps/api/scripts/seed-sites.ts`. **Recipes are imported, not seeded** — `npm run import:recipes -w @smmta/api -- --ingredients … --recipes … --dry-run` (see `docs/RECIPE_IMPORT.md`). The old demo menu moved to `scripts/demo/seed-bakes.demo.ts` and refuses to run in production or beside real recipes. **Full post-deploy data checklist: `docs/GO_LIVE_DATA_STEPS.md`** — PINs, demo purge, recipe import, Needs-setup, each step stamped with where it runs. NB the purge deletes by cake name, so it must run BEFORE the import.
+- **BumbleBee session feed:** the venue End of Bake picker reads it LIVE (no
+  sync, no local copy) — set `BUMBLEBEE_API_BASE_URL` + `BUMBLEBEE_API_KEY` on
+  `stock-api` and redeploy; that is the whole wiring. Verify with
+  `cd /app/apps/api && npx tsx scripts/check-bumblebee.ts` — read-only, and it
+  names which failure you have, because "not configured", "bad key",
+  "site-name mismatch" and "quiet day" are indistinguishable from the screen.
+  ⚠️ BumbleBee filters on its own site names and Auto-Stock sends
+  `sites.canonical_name`; a mismatch returns zero rows and nothing errors.
+  Verified matching 16 Sept 2026. `run-bumblebee-session-poll.ts` is NOT a
+  prerequisite for the picker — it is a warm-up job.
 - **Still Xero dry-run and all sync flags off** — the go-live gates in `BUILD_LOG.md` (flip `XERO_DRY_RUN` vs the Demo org, wire live Square + BumbleBee, capture a golden dataset) remain open. The four periodic sweeps (reorder / consumption / Square-poll / BumbleBee-poll) are not yet wired as Coolify Scheduled Tasks — see `DEPLOY_COOLIFY.md`.
 
 The rest of this file is the inherited `smmta-next` context — still accurate for the reused subsystems. Where it describes the storefront/marketplace/Filament tenant, treat that as **dormant** for Auto-Stock.

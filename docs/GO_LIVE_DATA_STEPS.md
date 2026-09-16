@@ -205,7 +205,29 @@ New since the September testing round:
 
 ✅ The seasonal cakes are Inactive and the corporate ones are tagged.
 
-## Step 9 🖥️ — Work "Needs setup" to zero
+## Step 9 🐳 — Wire up the BumbleBee session feed
+
+Head office sets two variables on the `stock-api` app in Coolify —
+`BUMBLEBEE_API_BASE_URL` and `BUMBLEBEE_API_KEY` (mint the key in BumbleBee at
+`/admin/api-keys`) — and redeploys. Full instructions in `DEPLOY_COOLIFY.md`.
+
+Then, in the container terminal:
+
+```bash
+cd /app/apps/api && npx tsx scripts/check-bumblebee.ts
+```
+
+Read-only. It tells you which of the five failure modes you are in, because
+they all look the same from the venue screen — an empty picker.
+
+**Until this is done, bakers type the session id by hand.** That works, and the
+screen explains why the list is empty. It is just the thing that caused the
+"Submit button doesn't work" report: an id nobody knows is an id that gets
+skipped.
+
+✅ `✓ WIRED UP — n of 5 site(s) returned sessions.`
+
+## Step 10 🖥️ — Work "Needs setup" to zero
 
 Admin site → **Needs setup** (`/products/needs-setup`).
 
@@ -217,7 +239,7 @@ were exactly this — the model existed, the data didn't.
 
 ✅ The list is empty.
 
-## Step 10 💻 — Reverse the 12 August Birmingham booking
+## Step 11 💻 — Reverse the 12 August Birmingham booking
 
 There's no admin page for goods-in receipts yet, so this is an API call.
 
@@ -248,7 +270,7 @@ editing history — the ledger keeps both rows and they cancel.
 > In PowerShell, `curl` is an alias for `Invoke-WebRequest`, which doesn't
 > understand these flags. Use **`curl.exe`**, with the `.exe`.
 
-## Step 11 — Recount 12 August
+## Step 12 — Recount 12 August
 
 Operational, not a command. Any count taken on 12 August went through the
 blanket-quantum bug, so a 4 kg count may be recorded as 0. Recount anything from
