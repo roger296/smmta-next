@@ -164,6 +164,7 @@ describe('B-4: the touch layer stays out of the desktop shell', () => {
     expect(screens).toEqual([
       'consumption.tsx',
       'goods-in.tsx',
+      'my-shift.tsx',
       'stock-take.tsx',
       'wastage.tsx',
     ]);

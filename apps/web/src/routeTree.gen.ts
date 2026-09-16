@@ -39,6 +39,7 @@ import { Route as AuthedCustomersIndexRouteImport } from './routes/_authed/custo
 import { Route as AuthedCategoriesIndexRouteImport } from './routes/_authed/categories/index'
 import { Route as TouchPwaWastageRouteImport } from './routes/_touch/pwa/wastage'
 import { Route as TouchPwaStockTakeRouteImport } from './routes/_touch/pwa/stock-take'
+import { Route as TouchPwaMyShiftRouteImport } from './routes/_touch/pwa/my-shift'
 import { Route as TouchPwaGoodsInRouteImport } from './routes/_touch/pwa/goods-in'
 import { Route as TouchPwaConsumptionRouteImport } from './routes/_touch/pwa/consumption'
 import { Route as AuthedSuppliersNewRouteImport } from './routes/_authed/suppliers/new'
@@ -219,6 +220,11 @@ const TouchPwaStockTakeRoute = TouchPwaStockTakeRouteImport.update({
   path: '/pwa/stock-take',
   getParentRoute: () => TouchRouteRoute,
 } as any)
+const TouchPwaMyShiftRoute = TouchPwaMyShiftRouteImport.update({
+  id: '/pwa/my-shift',
+  path: '/pwa/my-shift',
+  getParentRoute: () => TouchRouteRoute,
+} as any)
 const TouchPwaGoodsInRoute = TouchPwaGoodsInRouteImport.update({
   id: '/pwa/goods-in',
   path: '/pwa/goods-in',
@@ -397,6 +403,7 @@ export interface FileRoutesByFullPath {
   '/suppliers/new': typeof AuthedSuppliersNewRoute
   '/pwa/consumption': typeof TouchPwaConsumptionRoute
   '/pwa/goods-in': typeof TouchPwaGoodsInRoute
+  '/pwa/my-shift': typeof TouchPwaMyShiftRoute
   '/pwa/stock-take': typeof TouchPwaStockTakeRoute
   '/pwa/wastage': typeof TouchPwaWastageRoute
   '/categories/': typeof AuthedCategoriesIndexRoute
@@ -454,6 +461,7 @@ export interface FileRoutesByTo {
   '/suppliers/new': typeof AuthedSuppliersNewRoute
   '/pwa/consumption': typeof TouchPwaConsumptionRoute
   '/pwa/goods-in': typeof TouchPwaGoodsInRoute
+  '/pwa/my-shift': typeof TouchPwaMyShiftRoute
   '/pwa/stock-take': typeof TouchPwaStockTakeRoute
   '/pwa/wastage': typeof TouchPwaWastageRoute
   '/categories': typeof AuthedCategoriesIndexRoute
@@ -514,6 +522,7 @@ export interface FileRoutesById {
   '/_authed/suppliers/new': typeof AuthedSuppliersNewRoute
   '/_touch/pwa/consumption': typeof TouchPwaConsumptionRoute
   '/_touch/pwa/goods-in': typeof TouchPwaGoodsInRoute
+  '/_touch/pwa/my-shift': typeof TouchPwaMyShiftRoute
   '/_touch/pwa/stock-take': typeof TouchPwaStockTakeRoute
   '/_touch/pwa/wastage': typeof TouchPwaWastageRoute
   '/_authed/categories/': typeof AuthedCategoriesIndexRoute
@@ -573,6 +582,7 @@ export interface FileRouteTypes {
     | '/suppliers/new'
     | '/pwa/consumption'
     | '/pwa/goods-in'
+    | '/pwa/my-shift'
     | '/pwa/stock-take'
     | '/pwa/wastage'
     | '/categories/'
@@ -630,6 +640,7 @@ export interface FileRouteTypes {
     | '/suppliers/new'
     | '/pwa/consumption'
     | '/pwa/goods-in'
+    | '/pwa/my-shift'
     | '/pwa/stock-take'
     | '/pwa/wastage'
     | '/categories'
@@ -689,6 +700,7 @@ export interface FileRouteTypes {
     | '/_authed/suppliers/new'
     | '/_touch/pwa/consumption'
     | '/_touch/pwa/goods-in'
+    | '/_touch/pwa/my-shift'
     | '/_touch/pwa/stock-take'
     | '/_touch/pwa/wastage'
     | '/_authed/categories/'
@@ -926,6 +938,13 @@ declare module '@tanstack/react-router' {
       path: '/pwa/stock-take'
       fullPath: '/pwa/stock-take'
       preLoaderRoute: typeof TouchPwaStockTakeRouteImport
+      parentRoute: typeof TouchRouteRoute
+    }
+    '/_touch/pwa/my-shift': {
+      id: '/_touch/pwa/my-shift'
+      path: '/pwa/my-shift'
+      fullPath: '/pwa/my-shift'
+      preLoaderRoute: typeof TouchPwaMyShiftRouteImport
       parentRoute: typeof TouchRouteRoute
     }
     '/_touch/pwa/goods-in': {
@@ -1228,6 +1247,7 @@ interface TouchRouteRouteChildren {
   TouchVenueRoute: typeof TouchVenueRoute
   TouchPwaConsumptionRoute: typeof TouchPwaConsumptionRoute
   TouchPwaGoodsInRoute: typeof TouchPwaGoodsInRoute
+  TouchPwaMyShiftRoute: typeof TouchPwaMyShiftRoute
   TouchPwaStockTakeRoute: typeof TouchPwaStockTakeRoute
   TouchPwaWastageRoute: typeof TouchPwaWastageRoute
 }
@@ -1236,6 +1256,7 @@ const TouchRouteRouteChildren: TouchRouteRouteChildren = {
   TouchVenueRoute: TouchVenueRoute,
   TouchPwaConsumptionRoute: TouchPwaConsumptionRoute,
   TouchPwaGoodsInRoute: TouchPwaGoodsInRoute,
+  TouchPwaMyShiftRoute: TouchPwaMyShiftRoute,
   TouchPwaStockTakeRoute: TouchPwaStockTakeRoute,
   TouchPwaWastageRoute: TouchPwaWastageRoute,
 }

@@ -7,12 +7,35 @@ import {
   type QueuedAction,
 } from '@/lib/offline-queue';
 import { submitOrQueue, syncQueue, type SubmitResult } from '@/lib/offline-submit';
+import { recordShiftEntry, type ShiftJobKind } from './shift-log';
 
 /** Shared offline queue for the iPad jobs. */
 export const pwaQueue = new OfflineQueue(new LocalStorageQueueStorage());
 
 const sendAction = (a: QueuedAction): Promise<unknown> =>
   apiFetch(a.endpoint, { method: a.method, body: a.body });
+
+/**
+ * File the job, then note it in this sign-in's shift log (item 9).
+ *
+ * The log is written HERE, at the one point every venue job passes through,
+ * rather than in each screen's success handler — a screen that forgot to call
+ * it would leave a baker looking at a page that says they never did the work.
+ *
+ * A REJECTED submit is deliberately not logged: it did not happen, and a list
+ * of things that did not happen is the opposite of reassuring.
+ */
+async function submitAndLog<T>(
+  action: QueuedAction,
+  kind: ShiftJobKind,
+  detail?: string,
+): Promise<SubmitResult<T>> {
+  const result = await submitOrQueue<T>(pwaQueue, action, sendAction);
+  if (result.status !== 'rejected') {
+    recordShiftEntry({ kind, label: action.label ?? '', detail, status: result.status });
+  }
+  return result;
+}
 
 export interface GoodsInLineDraft {
   productId: string;
@@ -65,7 +88,7 @@ export function useReceiveGoodsIn() {
         label: `Goods in — ${input.lines.length} line${input.lines.length === 1 ? '' : 's'}`,
       };
       (action.body as { idempotencyKey: string }).idempotencyKey = action.idempotencyKey;
-      return submitOrQueue<GoodsInReceiptResult>(pwaQueue, action, sendAction);
+      return submitAndLog<GoodsInReceiptResult>(action, 'GOODS_IN');
     },
   });
 }
@@ -103,7 +126,7 @@ export function useRecordStockTakeCounts() {
         enqueuedAt: Date.now(),
         label: `Stock-take — ${input.counts.length} count${input.counts.length === 1 ? '' : 's'}`,
       };
-      return submitOrQueue(pwaQueue, action, sendAction);
+      return submitAndLog(action, 'STOCK_TAKE');
     },
   });
 }
@@ -176,7 +199,7 @@ export function useSubmitConsumption() {
         label: `End of bake — ${input.bake || 'session'} (${input.lines.length} ingredients)`,
       };
       (action.body as { clientKey: string }).clientKey = action.idempotencyKey;
-      return submitOrQueue(pwaQueue, action, sendAction);
+      return submitAndLog(action, 'CONSUMPTION', `Session ${input.sessionId} · ${input.bakerName}`);
     },
   });
 }

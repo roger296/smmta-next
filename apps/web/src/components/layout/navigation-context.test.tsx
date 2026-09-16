@@ -106,6 +106,8 @@ describe('the venue rail knows which job you are on', () => {
       'Stock Take',
       // Sept-2026 item 7: wastage became a job of its own.
       'Wastage',
+      // Sept-2026 item 9: what you have filed since you signed in.
+      'My Shift',
     ]);
   });
 });

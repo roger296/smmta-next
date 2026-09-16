@@ -32,6 +32,9 @@ export const VENUE_JOBS = [
   // during a bake, by whoever was filing it. A dropped case of eggs on a
   // Tuesday morning had nowhere to go.
   { to: '/pwa/wastage', label: 'Wastage', hint: 'Mark stock as wasted' },
+  // Sept-2026 item 9 — "users should be able to see what they have submitted
+  // during the current logged in session".
+  { to: '/pwa/my-shift', label: 'My Shift', hint: 'What you have filed' },
 ] as const;
 
 /**

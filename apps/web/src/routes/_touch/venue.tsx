@@ -25,6 +25,8 @@ const JOBS = [
   // Sept-2026 item 7 — wastage is its own job now, not a triangle inside the
   // end-of-bake form.
   { to: '/pwa/wastage', label: 'Wastage', hint: 'Mark stock as wasted' },
+  // Sept-2026 item 9 — what you have filed since you signed in.
+  { to: '/pwa/my-shift', label: 'My Shift', hint: 'What you have filed' },
 ] as const;
 
 function VenueHome() {

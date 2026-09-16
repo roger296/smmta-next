@@ -3,6 +3,7 @@ import { apiFetch } from '@/lib/api-client';
 import { pwaQueue } from '@/features/pwa/use-pwa-jobs';
 import { submitOrQueue, type SubmitResult } from '@/lib/offline-submit';
 import type { QueuedAction } from '@/lib/offline-queue';
+import { recordShiftEntry } from '@/features/pwa/shift-log';
 
 /**
  * Standalone wastage (Sept-2026 user testing, item 7).
@@ -93,7 +94,18 @@ export function useRecordWastage() {
       (action.body as { clientKey: string }).clientKey = action.idempotencyKey;
       return submitOrQueue(pwaQueue, action, (a) =>
         apiFetch(a.endpoint, { method: a.method, body: a.body }),
-      );
+      ).then((result) => {
+        // Item 9 — noted in this sign-in's shift log unless it was refused.
+        if (result.status !== 'rejected') {
+          recordShiftEntry({
+            kind: 'WASTAGE',
+            label: action.label ?? '',
+            detail: input.reason,
+            status: result.status,
+          });
+        }
+        return result;
+      });
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: wastageKeys.all }),
   });
