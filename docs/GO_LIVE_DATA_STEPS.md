@@ -13,6 +13,32 @@ it does.
 
 ---
 
+## Where am I? Ask the database
+
+This document is the **procedure**, not a record of what is outstanding. It
+cannot tell you which steps are already done, and a tick-list here would go
+stale the first time somebody did a step without updating it.
+
+So ask the thing that knows. From the `stock-api` container terminal:
+
+```bash
+cd /app/apps/api && npx tsx scripts/go-live-status.ts
+```
+
+Read-only — it writes nothing, anywhere. Every step below gets a verdict and
+the number behind it:
+
+| | Means |
+|---|---|
+| `✓` | Done |
+| `◐` | **Started but not finished** — the one that looks finished from a distance. Read its detail line. |
+| `·` | Not started |
+
+It ends by naming the next outstanding step. Run it whenever you lose your
+place, and again after each step to confirm it took.
+
+---
+
 ## The three places commands run
 
 Every step below is stamped 🖥️, 🐳 or 💻. There are only these three.
