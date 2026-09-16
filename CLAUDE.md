@@ -31,9 +31,11 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   (`features/consumption/form-readiness.ts` is the single source of that list),
   and every refusal names what it is waiting for. The field itself is now a
   PICKER of the day's sittings (`/session-consumption/awaiting`, which also
-  returns `feedStatus`). ⚠️ Typing stays reachable — BumbleBee session polling
-  is not wired in production, so the list is empty there and a picker that
-  could only ever be empty would be a worse dead end than the box it replaced.
+  returns `feedStatus`). The feed is live in production — verified 16 Sept 2026,
+  5 of 5 sites returning sessions (`scripts/check-bumblebee.ts`). ⚠️ Typing
+  stays reachable anyway: the feed is a remote call, and a picker that goes
+  empty when BumbleBee is down or a site name drifts would be a worse dead end
+  than the box it replaced.
 - **Recipes gained `bake_type` (Corporate/Regular/Other) and `is_active`**
   (migration `0046`). The venue cake picker is grouped and shows active cakes
   only. Both read from the NEWEST version; a cake stays on the menu while any
@@ -81,7 +83,7 @@ The full app now runs in a realistic-test environment on Coolify. **This superse
   `sites.canonical_name`; a mismatch returns zero rows and nothing errors.
   Verified matching 16 Sept 2026. `run-bumblebee-session-poll.ts` is NOT a
   prerequisite for the picker — it is a warm-up job.
-- **Still Xero dry-run and all sync flags off** — the go-live gates in `BUILD_LOG.md` (flip `XERO_DRY_RUN` vs the Demo org, wire live Square + BumbleBee, capture a golden dataset) remain open. The four periodic sweeps (reorder / consumption / Square-poll / BumbleBee-poll) are not yet wired as Coolify Scheduled Tasks — see `DEPLOY_COOLIFY.md`.
+- **Still Xero dry-run and all sync flags off** — the remaining go-live gates in `BUILD_LOG.md` (flip `XERO_DRY_RUN` vs the Demo org, wire live Square, capture a golden dataset) are open. **The BumbleBee gate is closed** — wired and answering for all 5 sites, 16 Sept 2026. The four periodic sweeps (reorder / consumption / Square-poll / BumbleBee-poll) are not yet wired as Coolify Scheduled Tasks — see `DEPLOY_COOLIFY.md`.
 
 The rest of this file is the inherited `smmta-next` context — still accurate for the reused subsystems. Where it describes the storefront/marketplace/Filament tenant, treat that as **dormant** for Auto-Stock.
 
