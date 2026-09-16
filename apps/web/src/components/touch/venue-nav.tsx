@@ -35,6 +35,9 @@ export const VENUE_JOBS = [
   // Sept-2026 item 9 — "users should be able to see what they have submitted
   // during the current logged in session".
   { to: '/pwa/my-shift', label: 'My Shift', hint: 'What you have filed' },
+  // Sept-2026 item 1 — a head baker who works at two venues adds the second
+  // one themselves.
+  { to: '/pwa/my-venues', label: 'My Venues', hint: 'Add a venue you work at' },
 ] as const;
 
 /**

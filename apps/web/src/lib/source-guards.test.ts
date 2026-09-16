@@ -165,6 +165,7 @@ describe('B-4: the touch layer stays out of the desktop shell', () => {
       'consumption.tsx',
       'goods-in.tsx',
       'my-shift.tsx',
+      'my-venues.tsx',
       'stock-take.tsx',
       'wastage.tsx',
     ]);

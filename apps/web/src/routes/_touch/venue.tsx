@@ -27,6 +27,9 @@ const JOBS = [
   { to: '/pwa/wastage', label: 'Wastage', hint: 'Mark stock as wasted' },
   // Sept-2026 item 9 — what you have filed since you signed in.
   { to: '/pwa/my-shift', label: 'My Shift', hint: 'What you have filed' },
+  // Sept-2026 item 1 — a head baker who works at two venues adds the second
+  // one themselves.
+  { to: '/pwa/my-venues', label: 'My Venues', hint: 'Add a venue you work at' },
 ] as const;
 
 function VenueHome() {

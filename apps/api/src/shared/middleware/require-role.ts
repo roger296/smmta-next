@@ -17,7 +17,7 @@
  * admin too, so no route has to remember to say so.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { getAuthUser, type JwtPayload } from './auth.js';
+import { canAccessSite, getAuthUser, type JwtPayload } from './auth.js';
 
 export type Role = 'head_baker' | 'site_manager' | 'admin';
 
@@ -67,6 +67,14 @@ function describeRoles(roles: readonly string[]): string {
  * against Birmingham, whatever the client sends. `site_manager` and `admin`
  * may cross sites deliberately — someone has to be able to fix a mis-booking
  * from the office.
+ *
+ * Since Sept-2026 (item 1) a PIN may be granted several venues, so the test is
+ * `canAccessSite` — the token's chosen venue OR any venue signed into it at
+ * login — not an equality check against one id. Comparing against `siteId`
+ * alone would have let a two-venue baker record an end-of-bake at their second
+ * venue (which goes through `canAccessSite`) while being refused a goods-in or
+ * a stock count at the same venue, with a message telling them the device
+ * belongs somewhere else.
  */
 export function requireBoundSite(readSiteId: (request: FastifyRequest) => string | undefined) {
   return async function siteGuard(request: FastifyRequest, reply: FastifyReply) {
@@ -79,12 +87,12 @@ export function requireBoundSite(readSiteId: (request: FastifyRequest) => string
     if (hasRole(user, ['site_manager'])) return;
 
     const target = readSiteId(request);
-    if (!target || target === user.siteId) return;
+    if (!target || canAccessSite(user, target)) return;
 
     return reply.status(403).send({
       success: false,
       error:
-        'This device is set up for a different venue. Ask a site manager to book to another site, or switch the device binding.',
+        'This device is set up for a different venue. Ask a site manager to book to another site, or add the venue to your PIN.',
     });
   };
 }

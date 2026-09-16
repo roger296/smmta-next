@@ -108,6 +108,8 @@ describe('the venue rail knows which job you are on', () => {
       'Wastage',
       // Sept-2026 item 9: what you have filed since you signed in.
       'My Shift',
+      // Sept-2026 item 1: the venues this PIN can work at.
+      'My Venues',
     ]);
   });
 });
