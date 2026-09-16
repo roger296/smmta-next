@@ -253,6 +253,10 @@ Filament Store has its own visual identity but acknowledges the CleverDeals pare
 
 These are user preferences gathered over many sessions. Apply by default; deviate only if explicitly told to.
 
+- **ALWAYS give full paths, never repo-relative ones.** `docs/GO_LIVE_DATA_STEPS.md` is not an answer to "where is it" — `/home/user/smmta-next/docs/GO_LIVE_DATA_STEPS.md` is. This applies to every file mentioned in chat, in a command, or in a walk-through. Where the same file is reachable from more than one place, give the one for where the reader will actually be standing, and say which:
+  - the working checkout, e.g. `/home/user/smmta-next/docs/GO_LIVE_DATA_STEPS.md`
+  - inside the `stock-api` container (Coolify Terminal), e.g. `/app/docs/GO_LIVE_DATA_STEPS.md` — the api Dockerfile sets `WORKDIR /app` then `COPY . .`, so the whole monorepo sits at `/app`
+  - on GitHub, e.g. `https://github.com/roger296/smmta-next/blob/autostock/docs/GO_LIVE_DATA_STEPS.md`
 - **Step-by-step everything.** When proposing a change, lay out the concrete commands / file edits / verifications in order, with brief notes on what each step does and what to look for in the output. Don't just hand over a wall of code.
 - **One commit per fix / feature.** Don't bundle unrelated changes. If a follow-up edit comes up while working on something else, branch + PR it separately.
 - **British English in UI copy** (colour, optimise, organisation). API wire formats follow upstream conventions (so JSON keys may stay American to match the Mollie API etc.) — match the upstream and document why if it diverges.
