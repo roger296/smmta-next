@@ -158,3 +158,85 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
 
   return envelope.data as T;
 }
+
+/**
+ * Fetches a FILE from the API — a CSV export, say — rather than a JSON envelope.
+ *
+ * `apiFetch` cannot do this: it always parses the body as JSON and unwraps
+ * `data`, so a text/csv response comes back as "Empty response body". This
+ * shares the URL building, the bearer token and the 401 handling, and returns
+ * the raw Blob plus the filename the server asked for.
+ *
+ * A plain `<a href>` is not an option either — the JWT lives in localStorage,
+ * not a cookie, so an anchor navigation arrives unauthenticated and the user
+ * gets bounced to /login instead of a download.
+ */
+export async function apiFetchBlob(
+  path: string,
+  opts: Omit<ApiFetchOptions, 'body'> = {},
+): Promise<{ blob: Blob; filename: string | null }> {
+  const { searchParams, headers, ...rest } = opts;
+  const token = getToken();
+
+  const response = await fetch(buildUrl(path, searchParams), {
+    ...rest,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(headers as Record<string, string> | undefined),
+    },
+  });
+
+  if (response.status === 401) {
+    clearToken();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    throw new ApiError('Unauthorized', 401);
+  }
+
+  if (!response.ok) {
+    // A failure still answers in the JSON envelope, so surface its message
+    // rather than a bare status code.
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const envelope = (await response.json()) as ApiEnvelope<unknown>;
+      if (envelope?.error) message = envelope.error;
+    } catch {
+      // Non-JSON error body — keep the status message.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response.headers.get('Content-Disposition')),
+  };
+}
+
+/** `attachment; filename="products-2026-09-16.csv"` -> the filename. */
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Hands a fetched Blob to the browser as a download.
+ *
+ * The object URL is revoked afterwards; without that, every export holds its
+ * whole file in memory until the tab is closed, and head office exports a
+ * catalogue of thousands of rows repeatedly while working through it.
+ */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

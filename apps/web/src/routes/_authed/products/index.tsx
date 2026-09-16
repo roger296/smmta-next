@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { DataTable, Pagination } from '@/components/data-table/data-table';
 import { EmptyState } from '@/components/empty-state';
 import { useProductsList } from '@/features/products/use-products';
+import { useProductExport } from '@/features/products/use-product-export';
 import { useDebounce } from '@/hooks/use-debounce';
 import type { Product } from '@/lib/api-types';
 import { formatMoney } from '@/lib/format';
-import { Package, Plus } from 'lucide-react';
+import { Download, Package, Plus } from 'lucide-react';
 
 export const Route = createFileRoute('/_authed/products/')({
   component: ProductsListPage,
@@ -55,6 +56,11 @@ function ProductsListPage() {
     search: debounced || undefined,
   });
 
+  // The export is deliberately independent of the table's search and paging:
+  // the button says "Export all products", and a file that quietly honoured the
+  // search box would be short without saying so.
+  const exportAll = useProductExport();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -64,13 +70,34 @@ function ProductsListPage() {
             Manage product catalogue, pricing and stock settings.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/products/new">
-            <Plus className="h-4 w-4" />
-            New product
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportAll.mutate()}
+            disabled={exportAll.isPending}
+          >
+            <Download className="h-4 w-4" />
+            {exportAll.isPending ? 'Exporting…' : 'Export'}
+          </Button>
+          <Button asChild>
+            <Link to="/products/new">
+              <Plus className="h-4 w-4" />
+              New product
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      {exportAll.isError && (
+        <Card>
+          <CardContent className="p-4" role="alert">
+            <p className="text-sm text-[var(--color-destructive)]">
+              Export failed:{' '}
+              {exportAll.error instanceof Error ? exportAll.error.message : 'Unknown error'}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Input
         placeholder="Search by name, SKU or EAN…"

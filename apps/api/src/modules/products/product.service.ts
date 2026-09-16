@@ -1,6 +1,8 @@
-import { and, count, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
+  categories,
+  manufacturers,
   productCategoryMappings,
   productGroups,
   productImages,
@@ -10,7 +12,10 @@ import {
   sites,
   stockItems,
   stockLevels,
+  suppliers,
+  warehouses,
 } from '../../db/schema/index.js';
+import type { ProductExportRow } from './product-export.js';
 import type {
   CreateProductInput,
   UpdateProductInput,
@@ -211,6 +216,63 @@ export class ProductService {
       data: filteredRows,
       ...paginationMeta(Number(total), page, pageSize),
     };
+  }
+
+  /**
+   * Every live product with every stored field, for the CSV export.
+   *
+   * Deliberately NOT paginated. The admin table pages at 25 and the API caps a
+   * page at 250, but "a full list of all products" has to mean all of them —
+   * a truncated export is worse than none, because nothing on the face of the
+   * file says it is short. The catalogue is in the low thousands and this is a
+   * single indexed scan plus five left joins, run on a button press.
+   *
+   * The joins resolve each foreign key to a name; `product_images` is fetched
+   * separately and grouped in memory rather than joined, because joining a
+   * one-to-many would multiply the product rows and silently duplicate
+   * products in the export.
+   */
+  async listForExport(companyId: string): Promise<ProductExportRow[]> {
+    const rows = await this.db
+      .select({
+        product: products,
+        manufacturerName: manufacturers.name,
+        supplierName: suppliers.name,
+        categoryName: categories.name,
+        groupName: productGroups.name,
+        defaultWarehouseName: warehouses.name,
+      })
+      .from(products)
+      .leftJoin(manufacturers, eq(products.manufacturerId, manufacturers.id))
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .leftJoin(productGroups, eq(products.groupId, productGroups.id))
+      .leftJoin(warehouses, eq(products.defaultWarehouseId, warehouses.id))
+      .where(and(eq(products.companyId, companyId), isNull(products.deletedAt)))
+      .orderBy(asc(products.name));
+
+    const imageRows = await this.db
+      .select({ productId: productImages.productId, imageUrl: productImages.imageUrl })
+      .from(productImages)
+      .where(isNull(productImages.deletedAt))
+      .orderBy(asc(productImages.priority));
+
+    const imagesByProduct = new Map<string, string[]>();
+    for (const img of imageRows) {
+      const list = imagesByProduct.get(img.productId);
+      if (list) list.push(img.imageUrl);
+      else imagesByProduct.set(img.productId, [img.imageUrl]);
+    }
+
+    return rows.map((r) => ({
+      ...r.product,
+      manufacturerName: r.manufacturerName,
+      supplierName: r.supplierName,
+      categoryName: r.categoryName,
+      groupName: r.groupName,
+      defaultWarehouseName: r.defaultWarehouseName,
+      imageUrls: imagesByProduct.get(r.product.id) ?? [],
+    }));
   }
 
   // ----------------------------------------------------------------

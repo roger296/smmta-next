@@ -52,6 +52,15 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   kept for already-filed history.
 - **`/pwa/my-shift`** lists what the signed-in baker has filed, held on the
   device (shared iPads; queued work must show as WAITING TO SEND).
+- **The products page has an Export button** (`GET /products/export.csv`),
+  giving head office the whole catalogue as a CSV — every stored column, one
+  row per live product, foreign keys as name + id, images as URLs. Deliberately
+  **not** paginated and deliberately ignoring the search box: a short export
+  looks identical to a complete one. `shared/utils/csv.ts` guards against
+  spreadsheet formula injection (a product name is free text, and Excel runs a
+  cell starting `=`), exempting numeric literals because Postgres `numeric`
+  arrives as a string. `product-export.test.ts` diffs the exported columns
+  against the real Drizzle table, so a column added later cannot go missing.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and

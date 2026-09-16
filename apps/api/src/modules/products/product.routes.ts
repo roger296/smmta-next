@@ -3,6 +3,7 @@ import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
 import { hasRole } from '../../shared/middleware/require-role.js';
 import { ProductInUseError, ProductService, ProductValidationError } from './product.service.js';
 import { NeedsSetupService } from './needs-setup.service.js';
+import { buildProductExportCsv, productExportFilename } from './product-export.js';
 import { z } from 'zod';
 import {
   createProductSchema,
@@ -42,6 +43,26 @@ export async function productRoutes(app: FastifyInstance) {
     // `{ rows, summary }` inside `data`, not alongside it: the envelope's
     // sibling keys are reserved for pagination, and `apiFetch` unwraps `data`.
     return { success: true, data: { rows, summary } };
+  });
+
+  // ── GET /products/export.csv ──────────────────────────────────
+  // The whole catalogue as a spreadsheet, for the Export button on /products.
+  // Registered before /products/:id so "export.csv" is not read as an id.
+  app.get('/products/export.csv', async (request, reply) => {
+    const user = getAuthUser(request);
+    const rows = await productService.listForExport(user.companyId);
+    const filename = productExportFilename();
+    return (
+      reply
+        .header('Content-Type', 'text/csv; charset=utf-8')
+        .header('Content-Disposition', `attachment; filename="${filename}"`)
+        // The catalogue changes as people edit it; a cached export is a wrong
+        // export, and the browser has no way to know it went stale.
+        .header('Cache-Control', 'no-store')
+        // A BOM, so Excel on Windows opens the file as UTF-8 rather than
+        // mangling the accents and the × in pack descriptions.
+        .send(`\uFEFF${buildProductExportCsv(rows)}`)
+    );
   });
 
   // ── GET /products/by-code/:code ───────────────────────────────
