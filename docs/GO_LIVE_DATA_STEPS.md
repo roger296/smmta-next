@@ -186,19 +186,38 @@ emails cover about £160k of it. Fill them in at `/suppliers`.
 
 ✅ `created : 43`, and you've noted the not-orderable list.
 
-## Step 8 🖥️ — Work "Needs setup" to zero
+## Step 8 🖥️ — Tag the recipes (bake type + active)
+
+Admin site → **Recipes**.
+
+New since the September testing round:
+
+- **Bake type** — Corporate / Regular / Other. Groups the cake picker the head
+  bakers read at the start of every session. Everything imported so far
+  defaults to **Regular**, so nothing changes until you set it.
+- **Status** — Active / Inactive. Only **Active** cakes reach the venue picker.
+  This is how seasonal cakes come off the list without being deleted; sessions
+  already filed against them keep working.
+- **Part** (per ingredient line) — Cake / Filling / Topping / Decoration, or
+  your own. Only needed where a recipe uses the same ingredient twice, e.g.
+  icing sugar in the cake and again in the topping. Leave it as *Whole cake*
+  otherwise.
+
+✅ The seasonal cakes are Inactive and the corporate ones are tagged.
+
+## Step 9 🖥️ — Work "Needs setup" to zero
 
 Admin site → **Needs setup** (`/products/needs-setup`).
 
 Every stocked product that can't be received or counted properly: missing
 purchase unit, missing pack size, zero cost, no barcode.
 
-**Anything left here fails the retest at step 12 or 14.** Defects C-1 and C-2
+**Anything left here fails the retest.** Defects C-1 and C-2
 were exactly this — the model existed, the data didn't.
 
 ✅ The list is empty.
 
-## Step 9 💻 — Reverse the 12 August Birmingham booking
+## Step 10 💻 — Reverse the 12 August Birmingham booking
 
 There's no admin page for goods-in receipts yet, so this is an API call.
 
@@ -229,7 +248,7 @@ editing history — the ledger keeps both rows and they cancel.
 > In PowerShell, `curl` is an alias for `Invoke-WebRequest`, which doesn't
 > understand these flags. Use **`curl.exe`**, with the `.exe`.
 
-## Step 10 — Recount 12 August
+## Step 11 — Recount 12 August
 
 Operational, not a command. Any count taken on 12 August went through the
 blanket-quantum bug, so a 4 kg count may be recorded as 0. Recount anything from

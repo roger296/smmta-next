@@ -145,6 +145,11 @@ test.describe('End of Bake', () => {
     // The row says so...
     await expect(page.locator('.badge.warn', { hasText: 'not counted yet' })).toBeVisible();
     // ...and the submit refuses, naming how many.
-    await expect(page.getByRole('button', { name: /1 line not counted yet/i })).toBeDisabled();
+    // The refusal names what it is waiting for (Sept-2026 item 8) — it used to
+    // read "1 line not counted yet", which reports a state rather than telling
+    // the baker what to do about it.
+    await expect(
+      page.getByRole('button', { name: /Enter what is left of 1 ingredient to continue/i }),
+    ).toBeDisabled();
   });
 });

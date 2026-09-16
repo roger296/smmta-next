@@ -919,3 +919,121 @@ judgement call so the fix run never blocked.
   regression asserts the hint line carries no `≈`. Re-adding the column would
   put a meaningless field back on the Sites page and a wrong figure under every
   quantity, and nothing else would catch it.
+
+## F17 — September-2026 user-testing set (items 1–9)
+
+Nine changes requested after live testing of Auto-Stock in the venues. The
+non-obvious decisions, and the traps found on the way:
+
+### Item 8 — the Submit button that "wasn't working at all"
+
+- **It was working exactly as written, which is worse.** `canSubmit` required a
+  Session ID and a baker name; neither was required to LOAD the ingredients. A
+  baker could reach the ingredient list with both blank, count twenty
+  ingredients, press Submit, and watch nothing happen. The button was
+  `disabled` and its label still read "Submit consumption".
+- **The rule now: everything needed to FILE a bake is needed to LOAD it**, so
+  the ingredients screen cannot be reached in a state that cannot be submitted.
+  `features/consumption/form-readiness.ts` is the single source of that list —
+  what stopped the two gates drifting apart was that they had two.
+- **Every refusal names what it is waiting for**, phrased as an instruction
+  ("Enter the session to continue"), not a state ("1 line not counted yet"). A
+  baker mid-task needs to know what to do, not what is wrong.
+- **Open improvement:** "Session ID" is captioned *BumbleBee session id*, which
+  is not something a head baker knows. `/session-consumption/awaiting` already
+  lists the day's sessions for a venue; offering that as a picker would remove
+  the field that got skipped in the first place. Not built — out of scope for
+  the reported defect.
+
+### Items 2 / 3 — bake type and active flag, against a VERSIONED recipe
+
+- **Type comes from the newest version; a cake stays on the menu while ANY
+  version is active.** Recipes supersede one another by date, so neither could
+  be read off an arbitrary row: a cake reclassified this spring is corporate
+  now, and retiring last spring's version must not take it off tonight's menu.
+- **Both columns DEFAULT** (`REGULAR`, active). Defaulting the other way would
+  have emptied the picker at the next deploy — the same silence as the defects
+  being fixed.
+- `GET /recipes/bakes` returns objects, not strings, and is active-only unless
+  asked. The admin page passes `includeInactive`, because it has to find a
+  retired cake to switch it back on.
+
+### Items 5 / 6 — line identity stops being "the product"
+
+- **It is now "the product, in this part of the recipe, for these benches."**
+  Two unique indexes were enforcing the old assumption and were rebuilt
+  (migration `0047`). Everything defaults to the identity each row has today.
+- **Each diet section carries its FULL list, not the differences.** Recipes
+  store GF/vegan as deltas; a baker on a vegan bench needs their whole list in
+  one place, not swaps to apply in their head.
+- **⚠️ The section totals still sum to the old merged figure**, held by a
+  parameterised test across five bench splits. The same numbers drive stock
+  movements and the materials cost; a split that shifted them would misstate
+  every bake from the day it shipped, and nothing would error.
+- **A removal that names no part removes the ingredient everywhere.** Not
+  laziness: every recipe imported before components existed has an empty
+  component, so a strict product-AND-part match would have made every existing
+  GF and vegan variation silently stop removing anything the day a recipe
+  gained its first named part.
+- **The stock-movement key is unchanged for an ordinary line** (regular
+  benches, unnamed part). That key is how an amend finds what it already
+  posted; changing it for every line would have made the first amend of any
+  older session post the whole quantity a second time instead of the delta.
+- **"What's left in the tub" is refused on a duplicated ingredient**, before
+  anything is written. What is left is a fact about the tub, not about a
+  section; deriving usage from it twice would subtract the same opening stock
+  twice over.
+
+### Item 7 — wastage moved out of the bake form
+
+- **The triangle decided three things nobody chose:** waste could only be
+  recorded for an ingredient a recipe expected, only during a bake, and only by
+  whoever was filing it. A dropped case of eggs on a Tuesday morning had
+  nowhere to go.
+- **New `wastage_events` table, not a bare movement.** `stock_movements` has
+  nowhere to put the reason, and wastage with no reason cannot be told from a
+  counting error by anyone reading it later.
+- **The bake link is optional** (owner's decision): most waste is not part of a
+  bake, and making every dropped delivery box answer "which bake?" adds a step
+  to the commonest case.
+- **`session_consumption_lines.wastage_qty` / `.wastage_reason` are kept.**
+  Bakes already filed carry real wastage there; dropping the columns would
+  delete history to tidy up a form.
+
+### Item 9 — the shift log lives on the device
+
+- **The server cannot answer "what have I filed since I tapped my PIN in".**
+  Venue iPads are shared (the server knows the site and a typed name, neither
+  of which identifies a login), some of it is still in the offline queue, and
+  the question gets asked when there is no connection.
+- **Queued jobs show as WAITING TO SEND, never folded in as done** — defect A-1
+  again, where a screen said "saved" about work sitting in a queue.
+- **Each sign-in's log replaces the last.** Otherwise a shared iPad accumulates
+  one log per PIN tap forever, each a record of who did what, kept in a venue
+  for no reason anybody asked for.
+
+### Item 1 — multi-venue head bakers
+
+- **Self-service, logged and reversible** (owner's choice of the three options
+  offered). Each `device_pin_sites` row IS the audit entry — venue, when, who —
+  and deleting it is the revoke. `GET /device-pins` is site_manager+, because
+  that list names every PIN and which venues each can reach.
+- **`device_pins.site_id` stays the HOME venue.** A PIN with no extras behaves
+  exactly as it does today, including signing straight in with nothing to
+  choose.
+- **A token's venues are signed by the server at login.** The client chooses
+  among them; it never says what they are.
+- **Adding a venue does NOT reissue a wider token.** Minting one on the
+  strength of the narrower token that asked is how a scope becomes
+  self-extending. The venue works from the next PIN tap, and the confirmation
+  says so rather than letting the baker discover it as a refusal at the shelf.
+- **`requireBoundSite` now uses `canAccessSite`.** It compared against the
+  single `siteId`, so a two-venue baker could have filed an end-of-bake at
+  their second venue and been refused a goods-in or a stock count at the same
+  venue, told the device belongs somewhere else.
+- **A pre-deploy token carries no venue list** and stays valid for 12 hours; a
+  missing list reads as "just my own venue", not "no venues", so nobody is
+  locked out at the moment of deploy.
+- **The sign-in chooser writes no venue until the baker picks one.** A default
+  chosen for them is exactly defect E-1 — a device quietly writing to the wrong
+  venue — and worse for someone who really does work at two.

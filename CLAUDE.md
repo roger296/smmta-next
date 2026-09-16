@@ -20,6 +20,38 @@ This checkout is **Auto-Stock**, the Big Bakes stock-control system-of-record �
 
 The four in-venue iPad pages — permanent stock-take (`/pwa/stock-take`), end-of-bake consumption (`/pwa/consumption`), goods-in (`/pwa/goods-in`), and the PIN login (`/pin-login`) — were rebuilt on a shared **touch design** ported from the proven `apps/stocktake` (stock-take-lite) app head office rolled out for the June quarter count. It lives in **`apps/web/src/components/touch/`**: `pwa-touch.css` (a plain-CSS system scoped under a `.touch-app` full-screen overlay so it can't leak into — or be affected by — the Tailwind/shadcn admin SPA) + `touch.tsx` (reusable `TouchScreen` / `TouchTopbar` (progress + sync pill) / `TouchToolbar` / `CountRow` (± steppers, hero value, tap-to-type, ½-unlock part-units) / `KeypadSheet` / `BottomSheet` / `BigButton` / `ActionBar`). Big targets (≥46px), on-screen number keypad, book-vs-count variance badges. **Only the `/pwa/*` + `pin-login` routes use the touch layer** — the desktop admin pages are untouched. No API/route changes. Web build + 117 web tests green.
 
+### September-2026 user-testing round (items 1–9)
+
+Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
+
+- **The End of Bake Submit button** was reported "not working at all". It was
+  `disabled`: the submit required a Session ID and a baker name, neither of
+  which was required to LOAD the ingredients, and the refusal said nothing.
+  Everything needed to file a bake is now needed to load it
+  (`features/consumption/form-readiness.ts` is the single source of that list),
+  and every refusal names what it is waiting for.
+- **Recipes gained `bake_type` (Corporate/Regular/Other) and `is_active`**
+  (migration `0046`). The venue cake picker is grouped and shows active cakes
+  only. Both read from the NEWEST version; a cake stays on the menu while any
+  version is active.
+- **The bake form is split into per-diet sections**, each carrying its FULL
+  list rather than the GF/vegan deltas, and a recipe may now use one ingredient
+  on several lines (`recipe_lines.component`; migration `0047`). A line's
+  identity is `(product, section, component)`. ⚠️ The section totals still sum
+  to the old merged figure — there is a parameterised test holding that, and it
+  matters because those numbers drive stock movements and materials cost.
+- **Wastage is its own venue screen** (`/pwa/wastage`, `wastage_events`;
+  migration `0048`), not a triangle on a bake row. Any stocked item, any time,
+  optional bake link. The old `session_consumption_lines.wastage_*` columns are
+  kept for already-filed history.
+- **`/pwa/my-shift`** lists what the signed-in baker has filed, held on the
+  device (shared iPads; queued work must show as WAITING TO SEND).
+- **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
+  added self-service from `/pwa/my-venues`, logged and revocable by head
+  office. The token's venues are signed at login; `canAccessSite` and
+  `requireBoundSite` both read the list. Multi-venue bakers are asked which
+  venue at every sign-in.
+
 ### LIVE deployment on Coolify (added 2026-07-15)
 
 The full app now runs in a realistic-test environment on Coolify. **This supersedes the bare-metal `infra/install.sh` story below (that's the inherited Filament path).** Deployed from `roger296/smmta-next @ autostock` (no separate fork yet).
