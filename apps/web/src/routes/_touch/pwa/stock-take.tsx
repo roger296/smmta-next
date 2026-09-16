@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
 import { useRoles } from '@/features/auth/use-roles';
 import { bucketCount, bucketNote } from '@/lib/uom';
+import { countInstruction } from '@/features/pwa/count-instruction';
 import {
   useOpenStockTake,
   useRecordStockTakeCounts,
@@ -49,6 +50,9 @@ interface TakeLine {
   /** Per-product counting quantum in the product's own stock UoM. null (the
    *  normal case) means the count is submitted exactly as entered — see D-2. */
   countQuantum?: string | null;
+  /** Head office's own wording for this item, if they set one. Comes down on
+   *  the line for the same reason the name does — see the comment above. */
+  stockCheckInstruction?: string | null;
 }
 
 const SCOPES: Array<{ value: string; label: string }> = [
@@ -325,9 +329,19 @@ export function StockTakeScreen() {
             <CountRow
               key={l.productId}
               name={takeLineLabel(l, p)}
+              // What to do with this item, in place of the old "Book: N uom".
+              // The book figure is deliberately NOT shown before the count: a
+              // counter who can see the expected answer has been told it, and a
+              // count that agrees with the ledger proves nothing. It reappears
+              // as the variance badge the moment a number is entered, which is
+              // when the comparison is worth something.
+              instruction={countInstruction(
+                l.stockCheckInstruction ?? p?.stockCheckInstruction,
+                uom,
+              )}
               hint={
                 <>
-                  Book: {book} {uom}{l.stockCode ? ` · ${l.stockCode}` : ''}
+                  {l.stockCode}
                   {/* If a count IS bucketed, say so on the row — a counter
                       should see what happened to their number here, not
                       discover it later on the variance report. */}

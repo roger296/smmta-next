@@ -78,7 +78,16 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   the storefront taxonomy (rewritten by `category-mapping.ts` rules) *and* the
   stock-take sheet's many-to-many area/section structure, and a value the
   operator sets by hand must not live where a rule run can overwrite it.
-  Stock check instruction is free text ≤200 chars ("weigh, do not count").
+  Stock check instruction is free text ≤200 chars ("weigh, do not count"), and
+  it drives the stock-take row: the old small "Book: N uom" sub-line is
+  **replaced** by a large `Count this item in <full unit name>`, or by the
+  product's own instruction when one is set
+  (`features/pwa/count-instruction.ts`). ⚠️ Two deliberate consequences — the
+  book figure is no longer shown BEFORE a count (a counter who can see the
+  expected answer has been told it; the variance badge still appears once a
+  number is entered), and the instruction travels **on the take line**, not via
+  the supplementary product map, so a failing lookup cannot silently downgrade
+  head office's wording to the generic sentence.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and

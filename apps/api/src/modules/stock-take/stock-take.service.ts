@@ -41,6 +41,17 @@ export interface StockTakeLineWithProduct extends StockTakeLine {
   /** Per-product counting quantum, in the product's own stock UoM. NULL = do
    *  not bucket this count (the only safe default — see defect D-2). */
   countQuantum: string | null;
+  /**
+   * What this item's counter is told at the shelf, set per product by head
+   * office ("weigh, do not count"). NULL means the screen falls back to a
+   * sentence built from the stock unit.
+   *
+   * It travels ON THE LINE for the same reason the name does: the count screen
+   * must not need a second request to say what it is asking for. Sourced from
+   * the product map instead, a failing lookup would quietly downgrade every
+   * operator instruction to the generic wording, and nothing would say so.
+   */
+  stockCheckInstruction: string | null;
 }
 
 /**
@@ -227,6 +238,7 @@ export class StockTakeService {
         stockUom: products.stockUom,
         itemKind: products.itemKind,
         countQuantum: products.countQuantum,
+        stockCheckInstruction: products.stockCheckInstruction,
       })
       .from(stockTakeLines)
       .leftJoin(products, eq(products.id, stockTakeLines.productId))
@@ -239,6 +251,7 @@ export class StockTakeService {
       stockUom: r.stockUom ?? null,
       itemKind: r.itemKind ?? null,
       countQuantum: r.countQuantum ?? null,
+      stockCheckInstruction: r.stockCheckInstruction ?? null,
     }));
   }
 

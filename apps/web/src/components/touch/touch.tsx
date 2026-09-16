@@ -388,9 +388,17 @@ const FRACTIONS: Array<{ label: string; value: number }> = [
  *  optional ½-unlock revealing ¼ ½ ¾ for part-units. `onSet(q)` marks it counted
  *  (0 is a real count). When not counted the value shows "—". */
 export function CountRow({
-  name, hint, counted, qty, onSet, onType, status, badge, fractions = true,
+  name, instruction, hint, counted, qty, onSet, onType, status, badge, fractions = true,
 }: {
   name: React.ReactNode;
+  /**
+   * What to do with this item, in a size somebody reads at arm's length —
+   * "Count this item in kilograms", or the product's own instruction. Sits
+   * between the name and the controls because that is the order the job
+   * happens in: what is it, what am I counting it in, now enter the number.
+   * Optional, so the screens that have nothing to say here are unchanged.
+   */
+  instruction?: React.ReactNode;
   hint?: React.ReactNode;
   counted: boolean;
   qty: number;
@@ -413,6 +421,7 @@ export function CountRow({
           {name}
           {badge}
         </div>
+        {instruction != null && <div className="count-instruction">{instruction}</div>}
         {hint != null && <div className="hint">{hint}</div>}
       </div>
       <div className="qty-controls">

@@ -211,6 +211,32 @@ describe('count fidelity and variance warnings (D-2)', () => {
     expect(Number(lines.find((l) => l.productId === flourId)!.countQuantum)).toBe(100);
     await db.update(products).set({ countQuantum: null }).where(eq(products.id, flourId));
   });
+
+  // The count screen builds its "Count this item in ..." line from these two.
+  // They have to arrive WITH the line: sourced from the separate product-map
+  // lookup, a failure there would quietly downgrade head office's own wording
+  // to the generic sentence, and nothing on screen would say it had.
+  it('the take line carries the stock check instruction (null by default)', async () => {
+    await setLevel(flourId, 5000);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    const line = lines.find((l) => l.productId === flourId)!;
+    expect(line.stockCheckInstruction).toBeNull();
+    expect(line.stockUom).toBe('g');
+  });
+
+  it("a product's own instruction reaches the line", async () => {
+    const db = getDb();
+    await db
+      .update(products)
+      .set({ stockCheckInstruction: 'Weigh the open sack, do not count it' })
+      .where(eq(products.id, flourId));
+    await setLevel(flourId, 5000);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    expect(lines.find((l) => l.productId === flourId)!.stockCheckInstruction).toBe(
+      'Weigh the open sack, do not count it',
+    );
+    await db.update(products).set({ stockCheckInstruction: null }).where(eq(products.id, flourId));
+  });
 });
 
 describe('partial scope', () => {
