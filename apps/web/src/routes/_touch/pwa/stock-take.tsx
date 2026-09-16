@@ -8,6 +8,13 @@ import { useRoles } from '@/features/auth/use-roles';
 import { bucketCount, bucketNote } from '@/lib/uom';
 import { countInstruction } from '@/features/pwa/count-instruction';
 import {
+  groupByCategory,
+  isCollapsed,
+  loadCollapsed,
+  saveCollapsed,
+  toggleCollapsed,
+} from '@/features/pwa/count-sections';
+import {
   useOpenStockTake,
   useRecordStockTakeCounts,
   useApproveStockTake,
@@ -53,6 +60,8 @@ interface TakeLine {
   /** Head office's own wording for this item, if they set one. Comes down on
    *  the line for the same reason the name does — see the comment above. */
   stockCheckInstruction?: string | null;
+  /** Item Category, which splits the sheet into sections. Also on the line. */
+  itemCategoryName?: string | null;
 }
 
 const SCOPES: Array<{ value: string; label: string }> = [
@@ -158,6 +167,14 @@ export function StockTakeScreen() {
   const [counts, setCounts] = React.useState<Record<string, number>>({});
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<'all' | 'todo'>('all');
+  // Which category sections this device has folded away. Read once from the
+  // device rather than on every render, and written back on every change.
+  const [collapsed, setCollapsed] = React.useState<string[]>(() => loadCollapsed());
+
+  function setSectionCollapsed(next: string[]) {
+    setCollapsed(next);
+    saveCollapsed(next);
+  }
   const [typeTarget, setTypeTarget] = React.useState<string | null>(null);
   const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
   // A-5: counts entered but not saved must not disappear on a stray Back.
@@ -288,6 +305,11 @@ export function StockTakeScreen() {
     if (filter === 'todo' && counts[l.productId] !== undefined) return false;
     return true;
   });
+  // Sections are built from the FILTERED list, so search and "Not counted"
+  // narrow what is on screen; their progress counts are the section's own.
+  const sections = groupByCategory(visible, (l) => counts[l.productId] !== undefined);
+  const anyCollapsed = sections.some((sec) => isCollapsed(collapsed, sec.name));
+
   const target = typeTarget ? productMap?.get(typeTarget) : undefined;
   const targetLine = typeTarget ? lines.find((l) => l.productId === typeTarget) : undefined;
 
@@ -310,13 +332,43 @@ export function StockTakeScreen() {
       <TouchToolbar search={search} onSearch={setSearch} placeholder="Search items…">
         <TouchChip on={filter === 'all'} onClick={() => setFilter('all')}>All</TouchChip>
         <TouchChip on={filter === 'todo'} onClick={() => setFilter('todo')}>Not counted</TouchChip>
+        {/* One tap back to the whole sheet. Without it, un-hiding four
+            sections is four taps and the counter has to remember which. */}
+        {anyCollapsed && (
+          <TouchChip on={false} onClick={() => setSectionCollapsed([])}>
+            Show all sections
+          </TouchChip>
+        )}
       </TouchToolbar>
 
       <div className="scroll">
         {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
         {lines.length === 0 && <div className="empty">No stock lines in scope.</div>}
         {lines.length > 0 && visible.length === 0 && <div className="empty">Nothing matches.</div>}
-        {visible.map((l) => {
+        {sections.map((section) => {
+          const folded = isCollapsed(collapsed, section.name);
+          return (
+            <section key={section.name} className="count-section">
+              {/* The whole header is the control: a 46px-plus target that a
+                  counter can hit without looking, rather than a small chevron. */}
+              <button
+                type="button"
+                className="count-section-head"
+                aria-expanded={!folded}
+                onClick={() => setSectionCollapsed(toggleCollapsed(collapsed, section.name))}
+              >
+                <span className="count-section-chevron" aria-hidden="true">
+                  {folded ? '▸' : '▾'}
+                </span>
+                <span className="count-section-name">{section.name}</span>
+                {/* Progress stays visible when the section is folded — hiding
+                    a section for clarity must not hide that it is unfinished. */}
+                <span className="count-section-progress">
+                  {section.counted} / {section.total}
+                </span>
+                <span className="count-section-action">{folded ? 'Show' : 'Hide'}</span>
+              </button>
+              {!folded && section.lines.map((l) => {
           const p = productMap?.get(l.productId);
           const uom = l.stockUom ?? p?.stockUom ?? '';
           const book = Number(l.bookQty);
@@ -359,6 +411,9 @@ export function StockTakeScreen() {
               onSet={(newQty) => setCount(l.productId, newQty)}
               onType={() => setTypeTarget(l.productId)}
             />
+          );
+        })}
+            </section>
           );
         })}
       </div>

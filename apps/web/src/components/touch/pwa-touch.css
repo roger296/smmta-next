@@ -151,6 +151,34 @@
 .touch-app .row .meta { flex: 1; min-width: 0; }
 .touch-app .row .name { font-size: 16px; font-weight: 600; line-height: 1.25; }
 .touch-app .row .hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+/* ── Count sheet sections (Sept-2026) ─────────────────────────────────────
+   A full count is ~400 lines; grouping by Item Category lets a counter fold
+   away the bar while they work the dry store. The header is the whole control
+   — a full-width target, not a chevron to aim at — and it keeps showing the
+   section's progress while folded, so hiding for clarity never hides that a
+   section is unfinished. */
+.touch-app .count-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: var(--bg-soft, #f1f3f5);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.touch-app .count-section-chevron { font-size: 14px; color: var(--muted); width: 14px; }
+.touch-app .count-section-name { font-size: 16px; font-weight: 700; flex: 1; min-width: 0; }
+.touch-app .count-section-progress { font-size: 14px; font-weight: 600; color: var(--muted); }
+.touch-app .count-section-action {
+  font-size: 13px; font-weight: 700; color: var(--accent);
+  background: var(--accent-soft); padding: 4px 10px; border-radius: 8px;
+}
+
 /* What the counter is being asked to do. Deliberately close to the product
    name in size — it replaced a 12px muted "Book: 0 kg" that nobody read, and
    it is the one line on the row that tells somebody holding an iPad at arm's

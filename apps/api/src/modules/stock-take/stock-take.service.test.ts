@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../../config/database.js';
 import {
   glPostingLog,
+  itemCategories,
   products,
   sites,
   stockLevels,
@@ -222,6 +223,29 @@ describe('count fidelity and variance warnings (D-2)', () => {
     const line = lines.find((l) => l.productId === flourId)!;
     expect(line.stockCheckInstruction).toBeNull();
     expect(line.stockUom).toBe('g');
+  });
+
+  // The count sheet is split into sections by this; without it on the line the
+  // whole sheet collapses into one "Uncategorised" block that looks exactly
+  // like a catalogue where nobody set categories.
+  it('the take line carries the item category name (null by default)', async () => {
+    await setLevel(flourId, 5000);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    expect(lines.find((l) => l.productId === flourId)!.itemCategoryName).toBeNull();
+  });
+
+  it("a product's item category reaches the line by NAME", async () => {
+    const db = getDb();
+    const [cat] = await db
+      .insert(itemCategories)
+      .values({ companyId: COMPANY, name: 'ST Dry Stock' })
+      .returning({ id: itemCategories.id });
+    await db.update(products).set({ itemCategoryId: cat!.id }).where(eq(products.id, flourId));
+    await setLevel(flourId, 5000);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    expect(lines.find((l) => l.productId === flourId)!.itemCategoryName).toBe('ST Dry Stock');
+    await db.update(products).set({ itemCategoryId: null }).where(eq(products.id, flourId));
+    await db.delete(itemCategories).where(eq(itemCategories.id, cat!.id));
   });
 
   it("a product's own instruction reaches the line", async () => {

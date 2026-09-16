@@ -88,6 +88,15 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   number is entered), and the instruction travels **on the take line**, not via
   the supplementary product map, so a failing lookup cannot silently downgrade
   head office's wording to the generic sentence.
+  Item Category also **splits the stock-take sheet into collapsible sections**
+  (`features/pwa/count-sections.ts`) — a full count is ~400 lines, and a
+  counter working the dry store can fold away the bar. Sections sort A→Z with
+  **Uncategorised last** (it is a residue, not a category); the folded set is
+  remembered per DEVICE, because a shared iPad being used for one area is the
+  useful thing to remember. ⚠️ **Folding HIDES, it does not exclude** — the
+  submit maps over all lines, a folded section keeps showing its own
+  `counted / total`, and there is an e2e test that counts an item, folds its
+  section and asserts the count still posts.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and

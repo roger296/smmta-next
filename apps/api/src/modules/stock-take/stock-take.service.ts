@@ -10,6 +10,7 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
+  itemCategories,
   products,
   stockLevels,
   stockTakeLines,
@@ -52,6 +53,16 @@ export interface StockTakeLineWithProduct extends StockTakeLine {
    * operator instruction to the generic wording, and nothing would say so.
    */
   stockCheckInstruction: string | null;
+  /**
+   * The operator's Item Category, used to split the count sheet into sections
+   * (Sept-2026 request). NULL groups under "Uncategorised".
+   *
+   * On the line, like the name and the instruction — the count screen must not
+   * need a second request to lay itself out, and a failed lookup that silently
+   * collapsed every section into one would look exactly like a catalogue where
+   * nobody had set categories.
+   */
+  itemCategoryName: string | null;
 }
 
 /**
@@ -239,9 +250,11 @@ export class StockTakeService {
         itemKind: products.itemKind,
         countQuantum: products.countQuantum,
         stockCheckInstruction: products.stockCheckInstruction,
+        itemCategoryName: itemCategories.name,
       })
       .from(stockTakeLines)
       .leftJoin(products, eq(products.id, stockTakeLines.productId))
+      .leftJoin(itemCategories, eq(itemCategories.id, products.itemCategoryId))
       .where(eq(stockTakeLines.stockTakeId, stockTakeId));
 
     return rows.map((r) => ({
@@ -252,6 +265,7 @@ export class StockTakeService {
       itemKind: r.itemKind ?? null,
       countQuantum: r.countQuantum ?? null,
       stockCheckInstruction: r.stockCheckInstruction ?? null,
+      itemCategoryName: r.itemCategoryName ?? null,
     }));
   }
 
