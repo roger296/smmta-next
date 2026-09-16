@@ -330,6 +330,13 @@
       "when": 1789700000000,
       "tag": "0046_recipe_bake_type_and_active",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1789710000000,
+      "tag": "0047_recipe_components_and_sections",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,11 @@ const submitSchema = z.object({
           /** How the baker entered this line. Defaults to CONSUMED so existing
            *  clients are unaffected. */
           entryMode: z.enum(['CONSUMED', 'REMAINING']).optional(),
+          // Sept-2026 items 5 and 6. Both optional and both defaulting to the
+          // old identity, so a submit queued offline before this shipped still
+          // lands on the line it meant.
+          section: z.enum(['REGULAR', 'GLUTEN_FREE', 'VEGAN']).optional(),
+          component: z.string().max(40).optional(),
           actualQty: z.coerce.number().min(0).optional(),
           remainingQty: z.coerce.number().min(0).optional(),
           wastageQty: z.coerce.number().min(0).optional(),

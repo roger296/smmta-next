@@ -44,6 +44,8 @@
  */
 export type EntryMode = 'CONSUMED' | 'REMAINING';
 
+export type ConsumptionSection = 'REGULAR' | 'GLUTEN_FREE' | 'VEGAN';
+
 export interface ConsumptionLine {
   productId: string;
   name: string;
@@ -51,6 +53,17 @@ export interface ConsumptionLine {
   expectedQty: number;
   /** One bench's worth, straight from the recipe. */
   qtyPerBench: number;
+  /**
+   * Which benches this line answers for (Sept-2026, item 5), and which part of
+   * the cake (item 6). Together with `productId` they are the line's identity:
+   * one bake can carry several lines for the same ingredient, so `productId`
+   * alone is no longer a key — not for React, not for the submit payload, and
+   * not for the stock movement it produces.
+   */
+  section: ConsumptionSection;
+  component: string;
+  /** Benches in THIS line's section — what "N / M" counts against. */
+  sectionBenches: number;
   actualQty: number;
   remainingQty: number;
   entryMode: EntryMode;
@@ -58,6 +71,17 @@ export interface ConsumptionLine {
   remainingSet: boolean;
   wastageQty: number;
   wastageReason: string;
+}
+
+/**
+ * The line's identity, now that the product alone is not enough.
+ *
+ * Used as the React key and to address a line in the form's state. Must match
+ * the server's `lineKey` in expected-consumption.service.ts — they are the two
+ * ends of the same identity.
+ */
+export function lineKey(l: Pick<ConsumptionLine, 'productId' | 'section' | 'component'>): string {
+  return `${l.section}|${l.component}|${l.productId}`;
 }
 
 /** Quantities are stored to 2dp; repeated fractional adds otherwise drift. */

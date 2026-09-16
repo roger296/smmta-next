@@ -21,7 +21,12 @@ import {
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { canAccessSite, type JwtPayload } from '../../shared/middleware/auth.js';
 import { StockLevelService } from '../stock/stock-level.service.js';
-import { ExpectedConsumptionService } from '../recipes/expected-consumption.service.js';
+import {
+  ExpectedConsumptionService,
+  lineKey,
+  movementSuffix,
+  type ConsumptionSection,
+} from '../recipes/expected-consumption.service.js';
 import { getSiteCurrency } from '../sites/site-currency.js';
 import { BatchService } from '../stock/batch.service.js';
 
@@ -42,6 +47,14 @@ export type ConsumptionEntryMode = 'CONSUMED' | 'REMAINING';
 
 export interface SubmitLineInput {
   productId: string;
+  /**
+   * Which benches this line answers for (Sept-2026, item 5). Defaults to
+   * REGULAR so an older client — or a queued offline submit written before
+   * this change — still lands exactly where it used to.
+   */
+  section?: ConsumptionSection;
+  /** Which part of the cake (item 6). '' = unnamed. */
+  component?: string;
   /** Required in CONSUMED mode; ignored (and derived) in REMAINING mode. */
   actualQty?: number;
   /** Required in REMAINING mode: what's left. */
@@ -137,7 +150,31 @@ export class SessionConsumptionService {
           companyId,
         })
       : [];
-    const expectedByProduct = new Map(expectedLines.map((l) => [l.productId, l]));
+    // Keyed by the LINE, not the product. One bake can now carry several lines
+    // for the same ingredient — the regular benches' flour and the vegan
+    // benches' flour — and keying on the product alone would give them both
+    // the same expectation and then overwrite one with the other.
+    const expectedByLine = new Map(expectedLines.map((l) => [lineKey(l), l]));
+
+    // ⚠️ REMAINING mode cannot answer for a product that is on more than one
+    // line. "What's left in the tub" is a fact about the tub, not about a
+    // section or a part of the recipe; deriving usage from it twice would
+    // subtract the same opening stock twice over. Refused rather than guessed
+    // — an invented consumption figure moves stock and feeds the materials
+    // cost where nobody would ever spot it.
+    const timesUsed = new Map<string, number>();
+    for (const l of input.lines) {
+      timesUsed.set(l.productId, (timesUsed.get(l.productId) ?? 0) + 1);
+    }
+    for (const l of input.lines) {
+      if ((l.entryMode ?? 'CONSUMED') === 'REMAINING' && (timesUsed.get(l.productId) ?? 0) > 1) {
+        throw new ConsumptionEntryError(
+          l.productId,
+          'This ingredient is on more than one line of this bake, so what is left in ' +
+            'the tub cannot say how much each line used. Enter the amount used instead.',
+        );
+      }
+    }
 
     const totalCovers = input.covers ?? 0;
     const currencyCode = await getSiteCurrency(input.siteId, companyId);
@@ -188,7 +225,9 @@ export class SessionConsumptionService {
 
     let materialsCost = 0;
     for (const line of input.lines) {
-      const exp = expectedByProduct.get(line.productId);
+      const section: ConsumptionSection = line.section ?? 'REGULAR';
+      const component = (line.component ?? '').trim().slice(0, 40);
+      const exp = expectedByLine.get(lineKey({ productId: line.productId, section, component }));
       const expectedQty = exp?.expectedQty ?? 0;
       const unitCost = exp?.unitCost ?? (await this.productCost(line.productId, companyId));
       const stockUom = exp?.stockUom ?? (await this.productUom(line.productId, companyId));
@@ -202,6 +241,8 @@ export class SessionConsumptionService {
         where: and(
           eq(sessionConsumptionLines.consumptionId, record.id),
           eq(sessionConsumptionLines.productId, line.productId),
+          eq(sessionConsumptionLines.section, section),
+          eq(sessionConsumptionLines.component, component),
         ),
       });
       const oldActual = existingLine ? Number(existingLine.actualQty) : 0;
@@ -221,6 +262,8 @@ export class SessionConsumptionService {
             entryMode: resolved.entryMode,
             openingQty: resolved.openingQty != null ? String(resolved.openingQty) : null,
             remainingQty: resolved.remainingQty != null ? String(resolved.remainingQty) : null,
+            section,
+            component,
             updatedAt: new Date(),
           })
           .where(eq(sessionConsumptionLines.id, existingLine.id));
@@ -229,6 +272,8 @@ export class SessionConsumptionService {
           companyId,
           consumptionId: record.id,
           productId: line.productId,
+          section,
+          component,
           expectedQty: String(expectedQty),
           actualQty: String(newActual),
           wastageQty: String(newWastage),
@@ -251,7 +296,11 @@ export class SessionConsumptionService {
           qtyDelta: consumptionDelta,
           movementType: 'CONSUMPTION',
           sourceSystem: 'consumption',
-          sourceKey: `consumption:${input.sessionId}:${line.productId}`,
+          // The suffix is EMPTY for a regular, unnamed line, so every key
+          // written before sections existed stays byte-identical. Those keys
+          // are how an amend finds what it already posted; changing them would
+          // make the next amend post the whole quantity again, not the delta.
+          sourceKey: `consumption:${input.sessionId}:${line.productId}${movementSuffix({ section, component })}`,
           contentHash: `v${version}`,
           unitCost,
           currencyCode,
@@ -266,7 +315,7 @@ export class SessionConsumptionService {
           qtyDelta: wastageDelta,
           movementType: 'WASTAGE',
           sourceSystem: 'wastage',
-          sourceKey: `wastage:${input.sessionId}:${line.productId}`,
+          sourceKey: `wastage:${input.sessionId}:${line.productId}${movementSuffix({ section, component })}`,
           contentHash: `v${version}`,
           unitCost,
           currencyCode,

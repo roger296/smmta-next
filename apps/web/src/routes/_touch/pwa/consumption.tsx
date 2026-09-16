@@ -15,12 +15,14 @@ import {
   displayedQty,
   impliedBenches,
   isAdjusted,
+  lineKey,
   setDisplayed,
   statusOf,
   toggleMode,
   varianceOf,
   type ConsumptionLine,
 } from '@/features/consumption/line-reducers';
+import { SECTION_LABELS } from '@/features/consumption/use-consumption';
 import {
   missingForLoad,
   missingForSubmit,
@@ -158,6 +160,10 @@ export function ConsumptionScreen() {
         stockUom: r.stockUom,
         expectedQty: r.expectedQty,
         qtyPerBench: r.qtyPerCover,
+        // Items 5 and 6: the product alone is no longer the line's identity.
+        section: r.section,
+        component: r.component,
+        sectionBenches: r.benches,
         actualQty: r.expectedQty, // pre-filled with expected; baker edits
         remainingQty: 0,
         // False until the baker has actually answered "what's left" — a
@@ -213,6 +219,8 @@ export function ConsumptionScreen() {
         veganTables,
         lines: lines.map((l) => ({
           productId: l.productId,
+          section: l.section,
+          component: l.component,
           entryMode: l.entryMode,
           actualQty: l.actualQty,
           remainingQty: l.remainingQty,
@@ -429,6 +437,8 @@ export function ConsumptionScreen() {
   // Computed from the mode ACTUALLY IN FORCE (F-2): a toggled line used to
   // count as "adjusted" purely because the toggle had zeroed it.
   const changed = lines.filter(isAdjusted).length;
+  // Only head the list when there is more than one section to tell apart.
+  const showSectionHeads = new Set(lines.map((l) => l.section)).size > 1;
   const at = actualTarget !== null ? lines[actualTarget] : undefined;
   const wt = wasteTarget !== null ? lines[wasteTarget] : undefined;
 
@@ -455,7 +465,16 @@ export function ConsumptionScreen() {
       <div className="scroll">
         {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
         {lines.length === 0 && <div className="empty">No ingredients for that recipe.</div>}
+        {/* Item 5: "please split the different recipe sections into separate
+            sections with headers. Even though this will result in multiple
+            lines for the same product." Each section carries the FULL list its
+            benches use — a baker on a vegan bench reads their whole list here
+            rather than applying swaps in their head. The heading is dropped
+            when there is only one section, because a lone "Regular" header
+            above every ingredient is noise. */}
         {lines.map((l, i) => {
+          const sectionStart =
+            showSectionHeads && (i === 0 || lines[i - 1]!.section !== l.section);
           const remaining = l.entryMode === 'REMAINING';
           const qty = displayedQty(l);
           const variance = varianceOf(l);
@@ -467,10 +486,25 @@ export function ConsumptionScreen() {
           const bump = (by: number) => setLine(i, bumpDisplayed(l, by));
           const benchWord = remaining ? 'bench left' : 'bench';
           return (
-            <div className={`row mode-${remaining ? 'remaining' : 'consumed'}`} key={l.productId}>
+            <React.Fragment key={lineKey(l)}>
+            {sectionStart && (
+              <h2 className="section-head">
+                {SECTION_LABELS[l.section]}
+                <span className="section-benches">
+                  {' · '}
+                  {l.sectionBenches} bench{l.sectionBenches === 1 ? '' : 'es'}
+                </span>
+              </h2>
+            )}
+            <div className={`row mode-${remaining ? 'remaining' : 'consumed'}`}>
               <div className={`status status-${dot}`} aria-hidden="true">{dot === 'done' ? '●' : '!'}</div>
               <div className="meta">
-                <div className="name">{l.name}</div>
+                <div className="name">
+                  {l.name}
+                  {/* Item 6: which part of the cake, so two icing-sugar lines
+                      are told apart at a glance rather than by position. */}
+                  {l.component && <span className="component">{l.component}</span>}
+                </div>
                 {/* Both words AND colour — the number means opposite things in
                     the two modes, so this must never be read at a glance. */}
                 <button
@@ -512,7 +546,7 @@ export function ConsumptionScreen() {
                     benches" for a five-bench session. */}
                 {benches !== null && (
                   <div className="hint benches">
-                    {benches} of {covers} bench{covers === 1 ? '' : 'es'}
+                    {benches} of {l.sectionBenches} bench{l.sectionBenches === 1 ? '' : 'es'}
                   </div>
                 )}
               </div>
@@ -553,7 +587,7 @@ export function ConsumptionScreen() {
                       Bold and near-black (item 4c): it is the figure the baker
                       is actually working to. */}
                   <span className="table-count" aria-hidden>
-                    {benches === null ? '—' : `${benches} / ${covers}`}
+                    {benches === null ? '—' : `${benches} / ${l.sectionBenches}`}
                   </span>
                   <button
                     className="step-table bench-up"
@@ -567,6 +601,7 @@ export function ConsumptionScreen() {
                 <button className={`zero${l.wastageQty > 0 ? ' on' : ''}`} aria-label="Wastage" onClick={() => setWasteTarget(i)}>⚠</button>
               </div>
             </div>
+            </React.Fragment>
           );
         })}
       </div>

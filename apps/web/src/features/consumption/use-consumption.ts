@@ -1,6 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 
+/** Which benches a line answers for (Sept-2026, item 5). */
+export const CONSUMPTION_SECTIONS = ['REGULAR', 'GLUTEN_FREE', 'VEGAN'] as const;
+export type ConsumptionSection = (typeof CONSUMPTION_SECTIONS)[number];
+
+export const SECTION_LABELS: Record<ConsumptionSection, string> = {
+  REGULAR: 'Regular',
+  GLUTEN_FREE: 'Gluten free',
+  VEGAN: 'Vegan',
+};
+
 export interface ExpectedLine {
   productId: string;
   productName: string;
@@ -9,6 +19,12 @@ export interface ExpectedLine {
   stockUom: string;
   unitCost: number | null;
   expectedCost: number | null;
+  /** Which benches this figure is for. Each section carries its FULL list. */
+  section: ConsumptionSection;
+  /** How many benches this section's figure covers. */
+  benches: number;
+  /** Which part of the cake (item 6). '' = unnamed. */
+  component: string;
 }
 
 export interface ConsumptionLine {

@@ -31,6 +31,24 @@ export interface ExpectedBlocker {
   message: string;
 }
 
+/**
+ * Which benches a line is answering for (Sept-2026 user testing, item 5).
+ *
+ * "When there are items on the vegan or GF recipe that are the same as those on
+ *  the regular recipe, we currently combine them onto one line in the end of
+ *  bake form, users found this confusing so please split the different recipe
+ *  sections into separate sections with headers. Even though this will result
+ *  in multiple lines for the same product."
+ */
+export const CONSUMPTION_SECTIONS = ['REGULAR', 'GLUTEN_FREE', 'VEGAN'] as const;
+export type ConsumptionSection = (typeof CONSUMPTION_SECTIONS)[number];
+
+export const SECTION_LABELS: Record<ConsumptionSection, string> = {
+  REGULAR: 'Regular',
+  GLUTEN_FREE: 'Gluten free',
+  VEGAN: 'Vegan',
+};
+
 export interface ExpectedLine {
   productId: string;
   /**
@@ -48,6 +66,46 @@ export interface ExpectedLine {
   stockUom: string;
   unitCost: number | null;
   expectedCost: number | null;
+  /**
+   * Which benches this figure is for (item 5). Each section carries the FULL
+   * list those benches use, not the differences from the regular recipe — a
+   * baker working a vegan bench needs their whole list in one place. The
+   * section totals still sum to exactly what the old merged line said.
+   */
+  section: ConsumptionSection;
+  /** How many benches this section's figure covers. */
+  benches: number;
+  /** Which part of the cake (item 6). '' = unnamed. */
+  component: string;
+}
+
+/**
+ * The stable identity of a line, now that "the product" is no longer enough.
+ *
+ * Used as the React key, as the submit payload's discriminator, and — via
+ * `movementSuffix` below — as part of the stock-movement idempotency key.
+ */
+export function lineKey(l: {
+  productId: string;
+  section: ConsumptionSection;
+  component: string;
+}): string {
+  return `${l.section}|${l.component}|${l.productId}`;
+}
+
+/**
+ * What to append to a movement's `sourceKey` to tell two lines for the same
+ * product apart.
+ *
+ * DELIBERATELY EMPTY for the ordinary case (regular benches, unnamed part), so
+ * every movement key written before this change stays byte-identical. Those
+ * keys are how an amend finds what it already posted; changing them for
+ * existing sessions would make the next amend post the whole quantity again
+ * instead of the delta.
+ */
+export function movementSuffix(l: { section: ConsumptionSection; component: string }): string {
+  if (l.section === 'REGULAR' && !l.component) return '';
+  return `:${l.section}${l.component ? `#${l.component}` : ''}`;
 }
 
 /** A session order line as polled from BumbleBee — enough to sum covers. */
@@ -208,6 +266,34 @@ export class ExpectedConsumptionService {
     };
   }
 
+  /**
+   * What each group of benches is expected to consume, as SEPARATE SECTIONS.
+   *
+   * ── Item 5 (Sept-2026 user testing) ────────────────────────────────────────
+   * "When there are items on the vegan or GF recipe that are the same as those
+   *  on the regular recipe, we currently combine them onto one line in the end
+   *  of bake form, users found this confusing so please split the different
+   *  recipe sections into separate sections with headers. Even though this will
+   *  result in multiple lines for the same product."
+   *
+   * Recipes store the diets as DIFFERENCES from the base (take X out, put Y
+   * in). Each section here carries the FULL list its benches use, resolved from
+   * those differences — a baker working a vegan bench needs their whole list in
+   * one place, not a list of swaps they have to apply in their head.
+   *
+   *   REGULAR      base × (covers − gf − vegan)
+   *   GLUTEN_FREE  (base minus GF_REMOVE, plus GF_ADD) × gf
+   *   VEGAN        (base minus VEGAN_REMOVE, plus VEGAN_ADD) × vegan
+   *
+   * ⚠️ THE SECTION TOTALS STILL SUM TO THE OLD MERGED FIGURE. This is a change
+   * to how the question is asked, not to the arithmetic, and
+   * `dietary-expected.test.ts` holds that identity. It has to: the same numbers
+   * drive stock movements and the materials cost, and a split that quietly
+   * shifted them would misstate every bake from the day it shipped.
+   *
+   * A section with no benches is omitted — an all-regular evening should not
+   * make a baker scroll past two empty headings.
+   */
   async expectedForSession(input: {
     bake: string;
     siteId: string;
@@ -221,12 +307,7 @@ export class ExpectedConsumptionService {
     const found = await this.getEffectiveRecipe(input);
     if (!found) return [];
 
-    // BASE only. The GF/vegan lists describe what CHANGES for a guest on that
-    // diet; counting them here would add the gluten-free flour to every
-    // session on top of the ordinary flour, and quietly inflate both the
-    // expected consumption and the materials cost.
-    const baseLines = found.lines.filter((l) => (l.variant ?? 'BASE') === 'BASE');
-
+    const companyId = input.companyId ?? getSingletonCompanyId();
     const names = new Map<string, string>(
       (
         await this.db
@@ -234,12 +315,12 @@ export class ExpectedConsumptionService {
           .from(products)
           .where(
             and(
-              eq(products.companyId, input.companyId ?? getSingletonCompanyId()),
+              eq(products.companyId, companyId),
+              // ALL lines, not just base: a gluten-free substitute appears in
+              // the output too, and without its name it would render as
+              // "Unknown product" on the bake form.
               inArray(
                 products.id,
-                // ALL lines, not just base: a gluten-free substitute appears
-                // in the output too, and without its name it would render as
-                // "Unknown product" on the bake form.
                 found.lines.map((l) => l.productId),
               ),
             ),
@@ -247,64 +328,66 @@ export class ExpectedConsumptionService {
       ).map((r) => [r.id, r.name]),
     );
 
-    const gfTables = Math.max(0, input.glutenFreeTables ?? 0);
-    const veganTables = Math.max(0, input.veganTables ?? 0);
+    const gfBenches = Math.max(0, input.glutenFreeTables ?? 0);
+    const veganBenches = Math.max(0, input.veganTables ?? 0);
+    // Regular is what is left over. Clamped at zero: a leader who types more
+    // diet benches than total benches has made a typing mistake, and a
+    // negative regular section would silently subtract from the bake.
+    const regularBenches = Math.max(0, input.covers - gfBenches - veganBenches);
 
-    // Accumulate by product: a substitute may be something the base recipe
-    // already uses, in which case the quantities add rather than making a
-    // second line for the same ingredient.
-    const totals = new Map<string, { qtyPerCover: number; expectedQty: number; line: (typeof baseLines)[number] }>();
-    const add = (line: (typeof found.lines)[number], qty: number, perTable: number) => {
-      const existing = totals.get(line.productId);
-      if (existing) {
-        existing.expectedQty += qty;
-        existing.qtyPerCover += perTable;
-        return;
-      }
-      totals.set(line.productId, { qtyPerCover: perTable, expectedQty: qty, line });
+    const variantOf = (l: (typeof found.lines)[number]) => l.variant ?? 'BASE';
+    const baseLines = found.lines.filter((l) => variantOf(l) === 'BASE');
+
+    /**
+     * One section's full ingredient list.
+     *
+     * ── HOW A REMOVAL MATCHES (item 6) ────────────────────────────────────
+     * A removal line names a product and, optionally, a part of the cake:
+     *
+     *   component NAMED ("Topping")  → removes that part's line only. Taking
+     *       the icing sugar out of the topping leaves the icing sugar inside
+     *       the cake exactly where it is.
+     *   component EMPTY              → removes the product from EVERY part.
+     *
+     * The empty case is not laziness, it is what the recipes already in the
+     * database mean. Every line imported before components existed has an empty
+     * component, so a strict product-AND-part match would have made every
+     * existing gluten-free and vegan variation silently stop removing anything
+     * the day a recipe gained its first named part — the ingredient would go
+     * back into the diet's list and nothing would error.
+     */
+    const section = (
+      sectionName: ConsumptionSection,
+      benches: number,
+      removeVariant: string | null,
+      addVariant: string | null,
+    ): ExpectedLine[] => {
+      if (benches <= 0) return [];
+      const removals = found.lines.filter(
+        (l) => removeVariant !== null && variantOf(l) === removeVariant,
+      );
+      const removedEverywhere = new Set(
+        removals.filter((l) => !(l.component ?? '')).map((l) => l.productId),
+      );
+      const removedInPart = new Set(
+        removals
+          .filter((l) => !!(l.component ?? ''))
+          .map((l) => `${l.productId}|${l.component ?? ''}`),
+      );
+      const kept = baseLines.filter(
+        (l) =>
+          !removedEverywhere.has(l.productId) &&
+          !removedInPart.has(`${l.productId}|${l.component ?? ''}`),
+      );
+      const added = found.lines.filter((l) => addVariant !== null && variantOf(l) === addVariant);
+      return [...kept, ...added].map((l) => toLine(l, sectionName, benches, names));
     };
 
-    for (const l of baseLines) add(l, Number(l.qtyPerCover) * input.covers, Number(l.qtyPerCover));
-
-    // Removals: the diet's tables do not use this ingredient at all.
-    for (const l of found.lines) {
-      const variant = l.variant ?? 'BASE';
-      const tables = variant === 'GF_REMOVE' ? gfTables : variant === 'VEGAN_REMOVE' ? veganTables : 0;
-      if (tables === 0) continue;
-      const base = totals.get(l.productId);
-      // Nothing to reduce if the "removed" ingredient is not in the base
-      // recipe — that is a recipe-authoring mistake, not a reason to go
-      // negative.
-      if (!base) continue;
-      base.expectedQty -= base.qtyPerCover * tables;
-    }
-
-    // Substitutes.
-    for (const l of found.lines) {
-      const variant = l.variant ?? 'BASE';
-      const tables = variant === 'GF_ADD' ? gfTables : variant === 'VEGAN_ADD' ? veganTables : 0;
-      if (tables === 0) continue;
-      add(l, Number(l.qtyPerCover) * tables, Number(l.qtyPerCover));
-    }
-
-    return [...totals.values()].map(({ line: l, expectedQty: rawExpected, qtyPerCover }) => {
-      // Floating-point subtraction can leave -0.0000000001; clamp so a fully
-      // substituted ingredient reads as 0 rather than a negative expectation.
-      const expectedQty = round4(Math.max(0, rawExpected));
-      const unitCost = l.unitCost != null ? Number(l.unitCost) : null;
-      return {
-        productId: l.productId,
-        // A recipe line can outlive its product; say so rather than print a
-        // hex fragment nobody can act on.
-        productName: names.get(l.productId) ?? 'Unknown product',
-        // One table's worth — what the Table+ / Table− buttons step by.
-        qtyPerCover: round4(qtyPerCover),
-        expectedQty,
-        stockUom: l.stockUom,
-        unitCost,
-        expectedCost: unitCost != null ? round4(expectedQty * unitCost) : null,
-      };
-    });
+    return [
+      ...section('REGULAR', regularBenches, null, null),
+      ...section('GLUTEN_FREE', gfBenches, 'GF_REMOVE', 'GF_ADD'),
+      ...section('VEGAN', veganBenches, 'VEGAN_REMOVE', 'VEGAN_ADD'),
+    ];
   }
 
   /**
@@ -345,4 +428,31 @@ export class ExpectedConsumptionService {
 
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
+}
+
+/** One recipe line as a section's expected figure. */
+function toLine(
+  l: { productId: string; qtyPerCover: unknown; stockUom: string; unitCost: unknown; component?: string | null },
+  section: ConsumptionSection,
+  benches: number,
+  names: Map<string, string>,
+): ExpectedLine {
+  const qtyPerBench = Number(l.qtyPerCover);
+  const expectedQty = round4(Math.max(0, qtyPerBench * benches));
+  const unitCost = l.unitCost != null ? Number(l.unitCost) : null;
+  return {
+    productId: l.productId,
+    // A recipe line can outlive its product; say so rather than print a hex
+    // fragment nobody can act on.
+    productName: names.get(l.productId) ?? 'Unknown product',
+    // One bench's worth — what the Bench± steps move by.
+    qtyPerCover: round4(qtyPerBench),
+    expectedQty,
+    stockUom: l.stockUom,
+    unitCost,
+    expectedCost: unitCost != null ? round4(expectedQty * unitCost) : null,
+    section,
+    benches,
+    component: l.component ?? '',
+  };
 }

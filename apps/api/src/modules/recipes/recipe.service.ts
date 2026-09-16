@@ -27,6 +27,13 @@ export interface RecipeLineInput {
    * ingredient goes.
    */
   variant?: RecipeLineVariant;
+  /**
+   * Which part of the cake this line is for (Sept-2026, item 6) — "icing sugar
+   * is used in the cake and then separately in the topping". '' = unnamed,
+   * which is what a single-part recipe is and what every line written before
+   * this was.
+   */
+  component?: string;
   qtyPerCover: number | string;
   /** Optional — defaults to the product's stock_uom. */
   stockUom?: string;
@@ -45,6 +52,21 @@ export type RecipeLineVariant = (typeof RECIPE_LINE_VARIANTS)[number];
 
 /** The variants that take an ingredient out rather than adding one. */
 export const REMOVAL_VARIANTS: readonly RecipeLineVariant[] = ['GF_REMOVE', 'VEGAN_REMOVE'];
+
+/**
+ * The parts a recipe is usually divided into (Sept-2026, item 6).
+ *
+ * Offered as a fixed list in the editor with an "Other" box behind it, so the
+ * common words stay spelled one way across recipes and venues without boxing
+ * in whoever writes the next recipe. Stored as the label itself — `component`
+ * is free text, and this list is a suggestion, not a constraint.
+ */
+export const RECIPE_COMPONENTS = ['Cake', 'Filling', 'Topping', 'Decoration'] as const;
+
+/** Trim and cap — the column is varchar(40) and the label is user-typed. */
+export function normaliseComponent(v: string | null | undefined): string {
+  return (v ?? '').trim().slice(0, 40);
+}
 
 /**
  * How a bake is grouped on the end-of-bake picker (Sept-2026, item 2).
@@ -165,6 +187,7 @@ export class RecipeService {
           recipeId: recipe!.id,
           productId: line.productId,
           variant,
+          component: normaliseComponent(line.component),
           // A removal takes the whole ingredient out, so its quantity is
           // meaningless — stored as 0 rather than left to whatever the form
           // happened to send.
@@ -220,6 +243,7 @@ export class RecipeService {
           recipeId: id,
           productId: line.productId,
           variant,
+          component: normaliseComponent(line.component),
           qtyPerCover: REMOVAL_VARIANTS.includes(variant) ? '0' : String(line.qtyPerCover),
           stockUom: line.stockUom ?? seed.stockUom,
           unitCost: line.unitCost != null ? String(line.unitCost) : seed.unitCost,

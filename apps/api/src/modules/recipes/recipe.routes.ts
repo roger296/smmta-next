@@ -39,6 +39,9 @@ const createSchema = z.object({
         variant: z
           .enum(['BASE', 'GF_REMOVE', 'GF_ADD', 'VEGAN_REMOVE', 'VEGAN_ADD'])
           .optional(),
+        // Item 6: which part of the cake. Free text with a suggested list in
+        // the editor; '' is unnamed and is what every older line is.
+        component: z.string().max(40).optional(),
         // Zero is valid for a removal line, where the quantity carries no
         // meaning — the whole ingredient comes out.
         qtyPerCover: z.coerce.number().min(0),

@@ -38,9 +38,29 @@ export const Route = createFileRoute('/_authed/recipes/')({
   component: RecipesPage,
 });
 
+/**
+ * The parts a recipe is usually divided into (Sept-2026, item 6).
+ *
+ * "we should make it possible for a recipe to have multiple lines for the same
+ *  ingredients (for example where icing sugar is used in the cake and then
+ *  separately in the topping)."
+ *
+ * A fixed list with an "Other" box behind it — so the common words stay spelled
+ * one way across recipes and venues without boxing in whoever writes the next
+ * recipe. '' is the default and means unnamed, which is what a single-part
+ * recipe is.
+ */
+const COMPONENT_OPTIONS = ['Cake', 'Filling', 'Topping', 'Decoration'] as const;
+const COMPONENT_NONE = '__none__';
+const COMPONENT_OTHER = '__other__';
+
 interface DraftLine {
   productId: string;
   qtyPerCover: string;
+  /** Which part of the cake (item 6). '' = unnamed. */
+  component?: string;
+  /** True while the free-text box is showing for this line. */
+  componentOther?: boolean;
   /** Kept so the "remove for…" lists can name the ingredient. Without it they
    *  would have nothing but the id to show. */
   label?: string;
@@ -93,6 +113,7 @@ function RecipesPage() {
             productId: l.productId,
             qtyPerCover: Number(l.qtyPerCover),
             variant: 'BASE' as const,
+            component: (l.component ?? '').trim(),
           })),
           ...dietaryLinesToPayload(dietary),
         ],
@@ -217,6 +238,46 @@ function RecipesPage() {
                   value={line.qtyPerCover}
                   onChange={(e) => setLine(i, { qtyPerCover: e.target.value })}
                 />
+                {/* Item 6: which part of the cake this line is for. Two lines
+                    for the same ingredient are legal now, and the part is what
+                    tells them apart — on this page, on the bake form, and in
+                    the unique index. */}
+                {line.componentOther ? (
+                  <Input
+                    className="w-40"
+                    placeholder="Part name"
+                    maxLength={40}
+                    autoFocus
+                    value={line.component ?? ''}
+                    onChange={(e) => setLine(i, { component: e.target.value })}
+                    onBlur={() => {
+                      if (!(line.component ?? '').trim()) {
+                        setLine(i, { component: '', componentOther: false });
+                      }
+                    }}
+                  />
+                ) : (
+                  <Select
+                    value={line.component ? line.component : COMPONENT_NONE}
+                    onValueChange={(v) => {
+                      if (v === COMPONENT_OTHER) setLine(i, { component: '', componentOther: true });
+                      else setLine(i, { component: v === COMPONENT_NONE ? '' : v });
+                    }}
+                  >
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={COMPONENT_NONE}>Whole cake</SelectItem>
+                      {COMPONENT_OPTIONS.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={COMPONENT_OTHER}>Other…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"

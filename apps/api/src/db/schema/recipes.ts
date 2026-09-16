@@ -104,6 +104,22 @@ export const recipeLines = pgTable(
      * below includes the variant.
      */
     variant: varchar('variant', { length: 16 }).notNull().default('BASE'),
+    /**
+     * Which part of the cake this line belongs to (Sept-2026, item 6).
+     *
+     * "we should make it possible for a recipe to have multiple lines for the
+     *  same ingredients (for example where icing sugar is used in the cake and
+     *  then separately in the topping)."
+     *
+     * Free text, offered from a fixed list in the editor (Cake / Filling /
+     * Topping / Decoration) with an Other box for the odd case — so the common
+     * words stay spelled one way across recipes and venues without boxing in
+     * whoever writes the next recipe.
+     *
+     * '' means unnamed, which is what every line written before this was, and
+     * what a single-part recipe still is. It renders as no sub-heading.
+     */
+    component: varchar('component', { length: 40 }).notNull().default(''),
     /** Quantity consumed per cover, in `stockUom`. */
     qtyPerCover: numeric('qty_per_cover', { precision: 18, scale: 4 }).notNull(),
     /** Snapshot of the product's stock_uom the qty is expressed in. */
@@ -115,12 +131,12 @@ export const recipeLines = pgTable(
   },
   (t) => ({
     // (recipe, product) alone would reject a GF_REMOVE line for a product
-    // already in BASE — which is exactly what a removal IS.
-    recipeLinesRecipeProductUnq: uniqueIndex('recipe_lines_recipe_product_variant_unq').on(
-      t.recipeId,
-      t.productId,
-      t.variant,
-    ),
+    // already in BASE — which is exactly what a removal IS. And (recipe,
+    // product, variant) rejected a second icing-sugar line for the topping,
+    // which is what item 6 asked for; the component tells those apart.
+    recipeLinesRecipeProductUnq: uniqueIndex(
+      'recipe_lines_recipe_product_variant_component_unq',
+    ).on(t.recipeId, t.productId, t.variant, t.component),
   }),
 );
 

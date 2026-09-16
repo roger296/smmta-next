@@ -387,6 +387,43 @@
 }
 .touch-app .perTable { opacity: 0.85; }
 
+/* ── Diet sections on the bake form (Sept-2026, item 5) ────────────────────
+   Users "found it confusing" that an ingredient used by both the regular and
+   the vegan recipe collapsed onto one line. Each diet now heads its own block,
+   with the bench count it is answering for, so a baker can see at a glance
+   which list belongs to which benches. */
+.touch-app .section-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.touch-app .section-benches { font-weight: 600; text-transform: none; color: var(--muted); }
+
+/* Which part of the cake a line is for (item 6) — icing sugar in the cake vs
+   icing sugar in the topping. A chip beside the name, so two otherwise
+   identical rows are told apart by reading rather than by position. */
+.touch-app .name .component {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
 /* ── Error banner + queue drawer (Aug-2026 feedback, A-1 … A-4) ────────────── */
 .touch-app .notice-error { display: flex; align-items: flex-start; gap: 10px; }
 .touch-app .notice-error .notice-body { flex: 1; }

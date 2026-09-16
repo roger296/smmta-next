@@ -88,6 +88,11 @@ export const RECIPE_LINES = [
     qtyPerCover: 400,
     unitCost: 0.0012,
     expectedCost: 2.4,
+    // Sept-2026 items 5 and 6: every expected line now says which benches it
+    // is for and which part of the cake.
+    section: 'REGULAR',
+    benches: 5,
+    component: '',
   },
 ];
 

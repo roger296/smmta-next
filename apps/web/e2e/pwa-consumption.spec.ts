@@ -17,6 +17,9 @@ const RECIPE_LINES = [
     stockUom: 'g',
     expectedQty: 500,
     qtyPerCover: 100,
+    section: 'REGULAR',
+    benches: 5,
+    component: '',
   },
 ];
 

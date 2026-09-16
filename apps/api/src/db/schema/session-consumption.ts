@@ -93,6 +93,21 @@ export const sessionConsumptionLines = pgTable(
       .notNull()
       .references(() => sessionConsumption.id, { onDelete: 'cascade' }),
     productId: uuid('product_id').notNull().references(() => products.id),
+    /**
+     * Which benches this line is answering for (Sept-2026, item 5).
+     *
+     * REGULAR / GLUTEN_FREE / VEGAN. Users "found it confusing" that a product
+     * used by both the regular and the vegan recipe collapsed onto one line,
+     * so each diet now gets its own section with its own figure. The section
+     * totals still sum to exactly what the merged line used to say — the split
+     * changes how the question is asked, not the arithmetic.
+     */
+    section: varchar('section', { length: 16 }).notNull().default('REGULAR'),
+    /**
+     * Which part of the cake (Sept-2026, item 6) — mirrors
+     * `recipe_lines.component`. '' means unnamed.
+     */
+    component: varchar('component', { length: 40 }).notNull().default(''),
     /** Expected = recipe × covers (snapshotted at submit, stock_uom). */
     expectedQty: numeric('expected_qty', { precision: 18, scale: 3 }).notNull().default('0'),
     /** Actual used, as confirmed by the baker (the last-applied value — the
@@ -126,10 +141,13 @@ export const sessionConsumptionLines = pgTable(
     ...auditTimestamps,
   },
   (t) => ({
-    sessionConsumptionLinesUnq: uniqueIndex('session_consumption_lines_consumption_product_unq').on(
-      t.consumptionId,
-      t.productId,
-    ),
+    // One bake can now legitimately carry several lines for the same
+    // ingredient: the regular benches' flour and the gluten-free benches'
+    // flour are different questions with different answers, and icing sugar
+    // in the cake is a different line from icing sugar in the topping.
+    sessionConsumptionLinesUnq: uniqueIndex(
+      'session_consumption_lines_consumption_product_section_unq',
+    ).on(t.consumptionId, t.productId, t.section, t.component),
   }),
 );
 
