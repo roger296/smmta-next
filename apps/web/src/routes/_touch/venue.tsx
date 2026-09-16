@@ -14,14 +14,17 @@ export const Route = createFileRoute('/_touch/venue')({
  *
  * A successful PIN used to `navigate({ to: '/' })` — the desktop dashboard,
  * inside the admin shell, on a device with no keyboard and no mouse. This is
- * the three-job screen a venue actually needs: the jobs, in big targets, with
- * the venue named across the top so nobody has to wonder which site they are
- * about to write to.
+ * the job screen a venue actually needs: the jobs, in big targets, with the
+ * venue named across the top so nobody has to wonder which site they are about
+ * to write to.
  */
 const JOBS = [
   { to: '/pwa/goods-in', label: 'Goods In', hint: 'Book in a delivery' },
   { to: '/pwa/consumption', label: 'End of Bake', hint: 'Record what was used' },
   { to: '/pwa/stock-take', label: 'Stock Take', hint: 'Count what is on the shelf' },
+  // Sept-2026 item 7 — wastage is its own job now, not a triangle inside the
+  // end-of-bake form.
+  { to: '/pwa/wastage', label: 'Wastage', hint: 'Mark stock as wasted' },
 ] as const;
 
 function VenueHome() {

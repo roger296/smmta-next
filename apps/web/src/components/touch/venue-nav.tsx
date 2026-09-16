@@ -23,10 +23,15 @@ import { usePrefersReducedMotion } from '@/hooks/use-prefers-reduced-motion';
  * kept out of the admin SPA's design system, and every target here is ≥ 46 px.
  */
 export const VENUE_JOBS = [
-  { to: '/venue', label: 'Home', hint: 'The three jobs' },
+  { to: '/venue', label: 'Home', hint: 'The venue jobs' },
   { to: '/pwa/goods-in', label: 'Goods In', hint: 'Book in a delivery' },
   { to: '/pwa/consumption', label: 'End of Bake', hint: 'Record what was used' },
   { to: '/pwa/stock-take', label: 'Stock Take', hint: 'Count the shelf' },
+  // Sept-2026 item 7. Wastage was a triangle on each row of the end-of-bake
+  // form, so it could only be recorded for an ingredient a recipe expected,
+  // during a bake, by whoever was filing it. A dropped case of eggs on a
+  // Tuesday morning had nowhere to go.
+  { to: '/pwa/wastage', label: 'Wastage', hint: 'Mark stock as wasted' },
 ] as const;
 
 /**

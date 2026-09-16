@@ -337,6 +337,13 @@
       "when": 1789710000000,
       "tag": "0047_recipe_components_and_sections",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1789720000000,
+      "tag": "0048_wastage_events",
+      "breakpoints": true
     }
   ]
 }

@@ -37,6 +37,7 @@ import { Route as AuthedInvoicesIndexRouteImport } from './routes/_authed/invoic
 import { Route as AuthedIntegrationsIndexRouteImport } from './routes/_authed/integrations/index'
 import { Route as AuthedCustomersIndexRouteImport } from './routes/_authed/customers/index'
 import { Route as AuthedCategoriesIndexRouteImport } from './routes/_authed/categories/index'
+import { Route as TouchPwaWastageRouteImport } from './routes/_touch/pwa/wastage'
 import { Route as TouchPwaStockTakeRouteImport } from './routes/_touch/pwa/stock-take'
 import { Route as TouchPwaGoodsInRouteImport } from './routes/_touch/pwa/goods-in'
 import { Route as TouchPwaConsumptionRouteImport } from './routes/_touch/pwa/consumption'
@@ -207,6 +208,11 @@ const AuthedCategoriesIndexRoute = AuthedCategoriesIndexRouteImport.update({
   id: '/categories/',
   path: '/categories/',
   getParentRoute: () => AuthedRouteRoute,
+} as any)
+const TouchPwaWastageRoute = TouchPwaWastageRouteImport.update({
+  id: '/pwa/wastage',
+  path: '/pwa/wastage',
+  getParentRoute: () => TouchRouteRoute,
 } as any)
 const TouchPwaStockTakeRoute = TouchPwaStockTakeRouteImport.update({
   id: '/pwa/stock-take',
@@ -392,6 +398,7 @@ export interface FileRoutesByFullPath {
   '/pwa/consumption': typeof TouchPwaConsumptionRoute
   '/pwa/goods-in': typeof TouchPwaGoodsInRoute
   '/pwa/stock-take': typeof TouchPwaStockTakeRoute
+  '/pwa/wastage': typeof TouchPwaWastageRoute
   '/categories/': typeof AuthedCategoriesIndexRoute
   '/customers/': typeof AuthedCustomersIndexRoute
   '/integrations/': typeof AuthedIntegrationsIndexRoute
@@ -448,6 +455,7 @@ export interface FileRoutesByTo {
   '/pwa/consumption': typeof TouchPwaConsumptionRoute
   '/pwa/goods-in': typeof TouchPwaGoodsInRoute
   '/pwa/stock-take': typeof TouchPwaStockTakeRoute
+  '/pwa/wastage': typeof TouchPwaWastageRoute
   '/categories': typeof AuthedCategoriesIndexRoute
   '/customers': typeof AuthedCustomersIndexRoute
   '/integrations': typeof AuthedIntegrationsIndexRoute
@@ -507,6 +515,7 @@ export interface FileRoutesById {
   '/_touch/pwa/consumption': typeof TouchPwaConsumptionRoute
   '/_touch/pwa/goods-in': typeof TouchPwaGoodsInRoute
   '/_touch/pwa/stock-take': typeof TouchPwaStockTakeRoute
+  '/_touch/pwa/wastage': typeof TouchPwaWastageRoute
   '/_authed/categories/': typeof AuthedCategoriesIndexRoute
   '/_authed/customers/': typeof AuthedCustomersIndexRoute
   '/_authed/integrations/': typeof AuthedIntegrationsIndexRoute
@@ -565,6 +574,7 @@ export interface FileRouteTypes {
     | '/pwa/consumption'
     | '/pwa/goods-in'
     | '/pwa/stock-take'
+    | '/pwa/wastage'
     | '/categories/'
     | '/customers/'
     | '/integrations/'
@@ -621,6 +631,7 @@ export interface FileRouteTypes {
     | '/pwa/consumption'
     | '/pwa/goods-in'
     | '/pwa/stock-take'
+    | '/pwa/wastage'
     | '/categories'
     | '/customers'
     | '/integrations'
@@ -679,6 +690,7 @@ export interface FileRouteTypes {
     | '/_touch/pwa/consumption'
     | '/_touch/pwa/goods-in'
     | '/_touch/pwa/stock-take'
+    | '/_touch/pwa/wastage'
     | '/_authed/categories/'
     | '/_authed/customers/'
     | '/_authed/integrations/'
@@ -901,6 +913,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/categories/'
       preLoaderRoute: typeof AuthedCategoriesIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
+    }
+    '/_touch/pwa/wastage': {
+      id: '/_touch/pwa/wastage'
+      path: '/pwa/wastage'
+      fullPath: '/pwa/wastage'
+      preLoaderRoute: typeof TouchPwaWastageRouteImport
+      parentRoute: typeof TouchRouteRoute
     }
     '/_touch/pwa/stock-take': {
       id: '/_touch/pwa/stock-take'
@@ -1210,6 +1229,7 @@ interface TouchRouteRouteChildren {
   TouchPwaConsumptionRoute: typeof TouchPwaConsumptionRoute
   TouchPwaGoodsInRoute: typeof TouchPwaGoodsInRoute
   TouchPwaStockTakeRoute: typeof TouchPwaStockTakeRoute
+  TouchPwaWastageRoute: typeof TouchPwaWastageRoute
 }
 
 const TouchRouteRouteChildren: TouchRouteRouteChildren = {
@@ -1217,6 +1237,7 @@ const TouchRouteRouteChildren: TouchRouteRouteChildren = {
   TouchPwaConsumptionRoute: TouchPwaConsumptionRoute,
   TouchPwaGoodsInRoute: TouchPwaGoodsInRoute,
   TouchPwaStockTakeRoute: TouchPwaStockTakeRoute,
+  TouchPwaWastageRoute: TouchPwaWastageRoute,
 }
 
 const TouchRouteRouteWithChildren = TouchRouteRoute._addFileChildren(

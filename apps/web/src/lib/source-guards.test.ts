@@ -158,7 +158,15 @@ describe('B-4: the touch layer stays out of the desktop shell', () => {
     const screens = readdirSync(touch)
       .filter((f) => /\.tsx$/.test(f) && !/\.test\./.test(f))
       .sort();
-    expect(screens).toEqual(['consumption.tsx', 'goods-in.tsx', 'stock-take.tsx']);
+    // Wastage joined the list in Sept-2026 (item 7) — it was a triangle inside
+    // the end-of-bake form, which meant it could only be recorded during a
+    // bake, for an ingredient a recipe expected.
+    expect(screens).toEqual([
+      'consumption.tsx',
+      'goods-in.tsx',
+      'stock-take.tsx',
+      'wastage.tsx',
+    ]);
   });
 });
 

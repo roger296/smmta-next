@@ -98,12 +98,14 @@ describe('the venue rail knows which job you are on', () => {
     expect(activeJob('/pin-login')).toBeNull();
   });
 
-  it('offers Home plus the three jobs — nothing from the desktop admin menu', () => {
+  it('offers Home plus the venue jobs — nothing from the desktop admin menu', () => {
     expect(VENUE_JOBS.map((j) => j.label)).toEqual([
       'Home',
       'Goods In',
       'End of Bake',
       'Stock Take',
+      // Sept-2026 item 7: wastage became a job of its own.
+      'Wastage',
     ]);
   });
 });

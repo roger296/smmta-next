@@ -29,6 +29,7 @@ import { squareRoutes } from './modules/square/square.routes.js';
 import { catalogueSyncRoutes } from './modules/catalogue-sync/catalogue-sync.routes.js';
 import { recipeRoutes } from './modules/recipes/recipe.routes.js';
 import { sessionConsumptionRoutes } from './modules/consumption/session-consumption.routes.js';
+import { wastageRoutes } from './modules/consumption/wastage.routes.js';
 import { reportRoutes } from './modules/reports/reports.routes.js';
 import { imageCaptureRoutes } from './modules/images/image-capture.routes.js';
 import { pinAuthRoutes } from './modules/auth/pin.routes.js';
@@ -152,6 +153,7 @@ export async function buildApp() {
 
   // Auto-Stock: head-baker end-of-session consumption form (spec §A6).
   await app.register(sessionConsumptionRoutes, { prefix: '/api/v1' });
+  await app.register(wastageRoutes, { prefix: '/api/v1' });
 
   // Auto-Stock: expected/actual/counted variance + wastage + food-cost reports (spec §A6).
   await app.register(reportRoutes, { prefix: '/api/v1' });

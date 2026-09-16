@@ -34,16 +34,13 @@ import {
   TouchScreen,
   TouchTopbar,
   KeypadSheet,
-  BottomSheet,
   BigButton,
   ActionBar,
   ErrorBanner,
   BlockingNotice,
-  NumericKeypad,
   DiscardGuardSheet,
   selectOnFocus,
 } from '@/components/touch/touch';
-import { useNumericEntry } from '@/components/touch/use-numeric-entry';
 
 export const Route = createFileRoute('/_touch/pwa/consumption')({
   component: ConsumptionScreen,
@@ -56,8 +53,6 @@ export const Route = createFileRoute('/_touch/pwa/consumption')({
  * and the non-destructive toggle.
  */
 type FormLine = ConsumptionLine;
-
-const WASTE_REASONS = ['Spillage', 'Burnt', 'Dropped', 'Over-portioned', 'Off / expired'];
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -115,7 +110,6 @@ export function ConsumptionScreen() {
   // sheets
   const [tableKeypad, setTableKeypad] = React.useState<'regular' | 'gf' | 'vegan' | null>(null);
   const [actualTarget, setActualTarget] = React.useState<number | null>(null);
-  const [wasteTarget, setWasteTarget] = React.useState<number | null>(null);
   const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
   // F-6: named reasons the bake cannot be filed. Held in state (not a toast)
   // because the whole defect was that the refusal did not persist on screen.
@@ -224,8 +218,6 @@ export function ConsumptionScreen() {
           entryMode: l.entryMode,
           actualQty: l.actualQty,
           remainingQty: l.remainingQty,
-          wastageQty: l.wastageQty || undefined,
-          wastageReason: l.wastageReason || null,
         })),
       });
     } catch (err) {
@@ -440,7 +432,6 @@ export function ConsumptionScreen() {
   // Only head the list when there is more than one section to tell apart.
   const showSectionHeads = new Set(lines.map((l) => l.section)).size > 1;
   const at = actualTarget !== null ? lines[actualTarget] : undefined;
-  const wt = wasteTarget !== null ? lines[wasteTarget] : undefined;
 
   return (
     <TouchScreen>
@@ -533,7 +524,6 @@ export function ConsumptionScreen() {
                   {remaining && !l.remainingSet && (
                     <span className="badge warn" style={{ marginLeft: 6 }}>not counted yet</span>
                   )}
-                  {l.wastageQty > 0 && <span className="badge" style={{ marginLeft: 6 }}>waste {l.wastageQty}{l.wastageReason ? ` · ${l.wastageReason}` : ''}</span>}
                 </div>
                 {/* F-7: "Request to show benches under the kilo figures."
                     The count under the figure, in the venue's own word — a
@@ -598,7 +588,6 @@ export function ConsumptionScreen() {
                     +1 {benchWord}
                   </button>
                 </div>
-                <button className={`zero${l.wastageQty > 0 ? ' on' : ''}`} aria-label="Wastage" onClick={() => setWasteTarget(i)}>⚠</button>
               </div>
             </div>
             </React.Fragment>
@@ -640,75 +629,6 @@ export function ConsumptionScreen() {
         />
       )}
 
-      {wt && wasteTarget !== null && (
-        <WastageSheet
-          line={wt}
-          onCancel={() => setWasteTarget(null)}
-          onSave={(qty, reason) => {
-            setLine(wasteTarget, { wastageQty: qty, wastageReason: reason });
-            setWasteTarget(null);
-          }}
-        />
-      )}
     </TouchScreen>
-  );
-}
-
-/**
- * Wastage entry.
- *
- * The keypad here was a near-duplicate of `KeypadSheet`'s, with the same D-4
- * append bug and the same missing keyboard support. Both now share
- * `useNumericEntry` + `NumericKeypad`, so the behaviour cannot drift apart
- * again (Aug-2026, D-4/D-5).
- */
-function WastageSheet({
-  line, onCancel, onSave,
-}: {
-  line: FormLine;
-  onCancel: () => void;
-  onSave: (qty: number, reason: string) => void;
-}) {
-  const entry = useNumericEntry({ initial: line.wastageQty });
-  const [reason, setReason] = React.useState(line.wastageReason);
-  const save = () => onSave(entry.valid ? entry.numeric : 0, reason.trim());
-
-  return (
-    <BottomSheet
-      title={`${line.name} — wastage (${line.stockUom})`}
-      onClose={onCancel}
-      onKeyDown={(event) => {
-        // Only while the keypad has focus — typing a reason must not be
-        // intercepted digit by digit.
-        const target = event.target as HTMLElement | null;
-        if (target?.tagName === 'INPUT') return;
-        const action = entry.handleKey(event);
-        if (action === 'confirm') save();
-        if (action === 'cancel') onCancel();
-      }}
-    >
-      <NumericKeypad entry={entry} />
-      <div className="field" style={{ marginTop: 14 }}>
-        <label htmlFor="waste-reason">Reason</label>
-        <div className="toolbar" style={{ padding: 0, background: 'transparent', border: 'none', flexWrap: 'wrap' }}>
-          {WASTE_REASONS.map((r) => (
-            <button key={r} type="button" className={`chip${reason === r ? ' on' : ''}`} onClick={() => setReason(r)}>{r}</button>
-          ))}
-        </div>
-        <input
-          id="waste-reason"
-          className="input"
-          style={{ marginTop: 10 }}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          onFocus={selectOnFocus}
-          placeholder="or type a reason"
-        />
-      </div>
-      <div className="sheet-actions">
-        <BigButton variant="ghost" onClick={() => onSave(0, '')}>Clear</BigButton>
-        <BigButton variant="solid" onClick={save}>Save</BigButton>
-      </div>
-    </BottomSheet>
   );
 }
