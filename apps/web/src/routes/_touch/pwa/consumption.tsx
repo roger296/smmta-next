@@ -21,6 +21,12 @@ import {
   varianceOf,
   type ConsumptionLine,
 } from '@/features/consumption/line-reducers';
+import {
+  missingForLoad,
+  missingForSubmit,
+  refusalLabel,
+  type SetupAnswers,
+} from '@/features/consumption/form-readiness';
 import { PwaSyncPill } from '@/features/pwa/queue-status';
 import {
   TouchScreen,
@@ -166,16 +172,27 @@ export function ConsumptionScreen() {
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
 
 
-  const canSubmit =
-    !!selectedSiteId &&
-    !!sessionId.trim() &&
-    !!bakerName.trim() &&
-    lines.length > 0 &&
-    // F-8's guard: a REMAINING line with no figure would be sent as
-    // `remainingQty: 0` — "the shelf is empty" — which is a very different
-    // claim from "I haven't counted it".
-    blockedLines(lines).length === 0 &&
-    !submit.isPending;
+  // Item 8 (Sept-2026): the setup answers, in one shape, so the two buttons
+  // below cannot disagree about what is required. They used to: submit needed
+  // a session id and a baker name, loading did not, and the gap between them
+  // was a baker filling in a whole ingredient list behind a dead button.
+  const answers: SetupAnswers = {
+    siteId: selectedSiteId ?? null,
+    bake,
+    regularBenches: regularTables,
+    totalBenches: covers,
+    sessionId,
+    bakerName,
+  };
+  const missingToLoad = missingForLoad(answers);
+  // F-8's guard: a REMAINING line with no figure would be sent as
+  // `remainingQty: 0` — "the shelf is empty" — which is a very different claim
+  // from "I haven't counted it".
+  const missingToSubmit = missingForSubmit(answers, {
+    lines: lines.length,
+    uncounted: blockedLines(lines).length,
+  });
+  const canSubmit = missingToSubmit.length === 0 && !submit.isPending;
 
   const doSubmit = async () => {
     if (!selectedSiteId) return;
@@ -335,17 +352,22 @@ export function ConsumptionScreen() {
 
             <BigButton
               variant="solid"
-              disabled={
-                !selectedSiteId ||
-                !bake.trim() ||
-                regularTables === null ||
-                covers <= 0 ||
-                expected.isPending
-              }
+              disabled={missingToLoad.length > 0 || expected.isPending}
               onClick={() => void loadExpected()}
             >
-              {expected.isPending ? 'Loading…' : 'Load ingredients →'}
+              {expected.isPending
+                ? 'Loading…'
+                : refusalLabel(missingToLoad, 'Load ingredients →')}
             </BigButton>
+            {/* Item 8: a refusing button has to say what it is waiting for.
+                The label names the first missing answer; anything else still
+                outstanding is listed here, so a baker can see the whole of
+                what is left rather than discovering it one press at a time. */}
+            {missingToLoad.length > 1 && (
+              <p className="field-note" role="status">
+                Also needed: {missingToLoad.slice(1).join(', ')}.
+              </p>
+            )}
           </div>
         </div>
 
@@ -384,7 +406,6 @@ export function ConsumptionScreen() {
   // Computed from the mode ACTUALLY IN FORCE (F-2): a toggled line used to
   // count as "adjusted" purely because the toggle had zeroed it.
   const changed = lines.filter(isAdjusted).length;
-  const unanswered = blockedLines(lines);
   const at = actualTarget !== null ? lines[actualTarget] : undefined;
   const wt = wasteTarget !== null ? lines[wasteTarget] : undefined;
 
@@ -518,9 +539,7 @@ export function ConsumptionScreen() {
         <BigButton variant="ok" disabled={!canSubmit} onClick={() => void doSubmit()}>
           {submit.isPending
             ? 'Submitting…'
-            : unanswered.length > 0
-              ? `${unanswered.length} line${unanswered.length === 1 ? '' : 's'} not counted yet`
-              : 'Submit consumption'}
+            : refusalLabel(missingToSubmit, 'Submit consumption')}
         </BigButton>
       </ActionBar>
 

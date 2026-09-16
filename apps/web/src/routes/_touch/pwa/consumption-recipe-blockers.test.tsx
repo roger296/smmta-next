@@ -80,12 +80,20 @@ function renderScreen() {
   );
 }
 
-/** Pick the cake and type a regular table count, then load. */
+/**
+ * Pick the cake, the bench count, the session and the baker, then load.
+ *
+ * The session id and baker name became load-time requirements with item 8
+ * (Sept-2026): they were always needed to SUBMIT, and the gap between the two
+ * gates was a baker counting a full ingredient list behind a dead button.
+ */
 async function setUp(user: ReturnType<typeof userEvent.setup>, tables = 5) {
   await user.click(await screen.findByRole('button', { name: 'Battenburg' }));
-  await user.click(screen.getByRole('button', { name: /number of regular benches/i }));
+  await user.click(screen.getByRole('button', { name: 'Number of Regular Benches' }));
   await user.click(screen.getByRole('button', { name: String(tables) }));
   await user.click(screen.getByRole('button', { name: /^save$/i }));
+  await user.type(screen.getByLabelText(/session id/i), 'BB-12345');
+  await user.type(screen.getByLabelText(/your name/i), 'Sam');
   await user.click(screen.getByRole('button', { name: /load ingredients/i }));
 }
 

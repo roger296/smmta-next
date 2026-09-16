@@ -492,6 +492,11 @@ test.describe('F — End of Bake and recipe data', () => {
     await page.getByRole('button', { name: /number of regular benches/i }).click();
     await page.keyboard.type('5');
     await page.getByRole('button', { name: /^save$/i }).click();
+    // Load now requires the session and the baker too (item 8, Sept-2026):
+    // they were always needed to submit, and the gap between the two gates
+    // stranded bakers on a screen whose Submit could never fire.
+    await page.getByLabel(/session id/i).fill('SESSION-AUG12');
+    await page.getByLabel(/your name/i).fill('Test Baker');
     await page.getByRole('button', { name: /load ingredients/i }).click();
 
     const notice = page.getByRole('alert');
