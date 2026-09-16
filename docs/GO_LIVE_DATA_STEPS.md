@@ -82,13 +82,45 @@ KEPT list is real work from the 12 August session, correctly protected.
 
 ✅ 🖥️ The End of Bake cake list is empty, and none of the four demo names appear.
 
-## Step 3 🐳 — Get the CSVs into the container
+## Step 3 🐳 — Get the recipe CSVs into the container
 
-Head office supplies `ingredients.csv` and `recipes.csv` per
-`docs/RECIPE_IMPORT.md`. **These are the long pole — chase them early.**
+> **Done on 11 Sept 2026** — the five Manchester Ordering Calculator workbooks
+> were converted to these two files, imported, and the audit came back clean.
+> Steps 3–6 only need repeating when the menu changes. This list does not track
+> its own state; it is the procedure, not a checklist of what is outstanding.
+
+### What the two files are
+
+| File | One row per | What it answers |
+|---|---|---|
+| `ingredients.csv` | thing you buy and count | what it is called, the unit it is counted in, how a purchase pack converts to that unit, what it costs |
+| `recipes.csv` | ingredient, per cake, per variant | how much of it ONE BENCH uses |
+
+`recipes.csv`'s `ingredient_slug` points at a `slug` in `ingredients.csv` —
+that is the join. A slug that is not in the ingredients file fails the import.
+
+`variant` is how one cake carries its diets: `BASE`, plus `GF_REMOVE` /
+`GF_ADD` / `VEGAN_REMOVE` / `VEGAN_ADD` expressed as differences FROM base, not
+as separate recipes.
+
+Blank templates, and a filled-in Battenburg with GF and vegan lines:
+
+```
+/app/docs/templates/ingredients.template.csv
+/app/docs/templates/recipes.template.csv
+/app/docs/templates/EXAMPLE-battenburg-ingredients.csv
+/app/docs/templates/EXAMPLE-battenburg-recipes.csv
+/app/docs/templates/README.md
+```
+
+Every column is documented in `/app/docs/RECIPE_IMPORT.md`.
+
+### Getting them in
 
 The Coolify terminal has no file upload, but the container is only a staging
-post: the importer writes straight to the database, so `/tmp` is enough.
+post: the importer writes straight to the database, so `/tmp` is enough. The
+container is rebuilt on every deploy, so anything left in `/tmp` goes with it —
+keep the master copies on your own machine.
 
 Paste each file with a heredoc — type the first line, paste the CSV body, then
 `CSVEOF` on its own line:
