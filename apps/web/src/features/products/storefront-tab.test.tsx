@@ -99,6 +99,8 @@ const baseProduct: Product = {
   purchaseToStockFactor: '1',
   countQuantum: null,
   packDescription: null,
+  itemCategoryId: null,
+  stockCheckInstruction: null,
 };
 
 function setupHandlers() {

@@ -231,6 +231,8 @@ export interface Product {
   /** Counting quantum in the product's own stock UoM. null = do not bucket
    *  stock-take counts of this product (defect D-2). */
   countQuantum: string | null;
+  itemCategoryId: string | null;
+  stockCheckInstruction: string | null;
 }
 
 export interface ProductGroup {

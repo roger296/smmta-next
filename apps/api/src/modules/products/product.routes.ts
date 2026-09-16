@@ -4,6 +4,8 @@ import { hasRole } from '../../shared/middleware/require-role.js';
 import { ProductInUseError, ProductService, ProductValidationError } from './product.service.js';
 import { NeedsSetupService } from './needs-setup.service.js';
 import { buildProductExportCsv, productExportFilename } from './product-export.js';
+import { ProductImportFormatError } from './product-import.js';
+import { ProductImportService } from './product-import.service.js';
 import { z } from 'zod';
 import {
   createProductSchema,
@@ -14,9 +16,21 @@ import {
 
 const productService = new ProductService();
 const needsSetupService = new NeedsSetupService();
+const productImportService = new ProductImportService();
 
 const attachBarcodeSchema = z.object({
   barcode: z.string().trim().min(1).max(64),
+});
+
+/** Query-string booleans arrive as the strings "true"/"false". */
+const boolish = z
+  .union([z.boolean(), z.enum(['true', 'false'])])
+  .optional()
+  .transform((v) => v === true || v === 'true');
+
+const importQuerySchema = z.object({
+  dryRun: boolish,
+  createMissingCategories: boolish,
 });
 
 export async function productRoutes(app: FastifyInstance) {
@@ -64,6 +78,56 @@ export async function productRoutes(app: FastifyInstance) {
         .send(`\uFEFF${buildProductExportCsv(rows)}`)
     );
   });
+
+  // ── POST /products/import ─────────────────────────────────────
+  // The other half of the Export button: same columns, upserted on stock code.
+  //
+  // The body is the CSV itself as text/csv rather than a multipart upload —
+  // this app has no multipart plugin, and the browser can read the chosen file
+  // with File.text() and post it, which keeps the whole feature to one route.
+  app.post(
+    '/products/import',
+    {
+      // A full catalogue export of a few thousand products runs to megabytes,
+      // and Fastify's default cap is 1 MB — which would reject the very file
+      // this endpoint exists to accept.
+      bodyLimit: 32 * 1024 * 1024,
+    },
+    async (request, reply) => {
+      const user = getAuthUser(request);
+      const query = importQuerySchema.safeParse(request.query);
+      if (!query.success) {
+        return reply
+          .status(400)
+          .send({ success: false, error: 'Invalid query', details: query.error.issues });
+      }
+
+      const body = typeof request.body === 'string' ? request.body : '';
+      if (!body.trim()) {
+        return reply
+          .status(400)
+          .send({ success: false, error: 'No CSV was sent. Choose a file and try again.' });
+      }
+
+      try {
+        const result = await productImportService.importCsv(
+          body,
+          { dryRun: query.data.dryRun, createMissingCategories: query.data.createMissingCategories },
+          user.companyId,
+        );
+        // Row errors are the caller's file being wrong, not a server fault, and
+        // nothing was written — 422 so the UI can render the list rather than
+        // treating it as a crash.
+        const status = result.errors.length > 0 ? 422 : 200;
+        return reply.status(status).send({ success: status === 200, data: result });
+      } catch (err) {
+        if (err instanceof ProductImportFormatError) {
+          return reply.status(400).send({ success: false, error: err.message });
+        }
+        throw err;
+      }
+    },
+  );
 
   // ── GET /products/by-code/:code ───────────────────────────────
   // Unambiguous single-product resolution for a scan (defect C-3). Distinct

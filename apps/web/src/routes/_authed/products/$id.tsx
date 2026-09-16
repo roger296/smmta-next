@@ -145,6 +145,8 @@ function ProductDetailPage() {
                     ? Number(data.purchaseToStockFactor)
                     : undefined,
                   countQuantum: data.countQuantum ? Number(data.countQuantum) : null,
+                  itemCategoryId: data.itemCategoryId ?? '',
+                  stockCheckInstruction: data.stockCheckInstruction ?? '',
                 }}
                 submitLabel="Save changes"
                 onSubmit={async (v) => {

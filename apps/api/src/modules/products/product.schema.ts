@@ -64,6 +64,14 @@ export const autoStockProductFieldsSchema = z.object({
    * "no bucketing" is spelled null, never 0.
    */
   countQuantum: z.coerce.number().positive().nullable().optional(),
+  /**
+   * The operator's own classification (Sept-2026 request). `null` clears it.
+   * The id is validated, not the name — the name lives on `item_categories`
+   * and is renameable without touching every product that carries it.
+   */
+  itemCategoryId: z.string().uuid().nullable().optional(),
+  /** What a counter needs to know at the shelf. 200 chars, per the request. */
+  stockCheckInstruction: z.string().max(200).nullable().optional(),
 });
 
 export const createProductSchema = z.object({

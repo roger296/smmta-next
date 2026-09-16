@@ -2,6 +2,7 @@ import { pgTable, varchar, decimal, boolean, integer, text, uuid, jsonb, doubleP
 import { relations } from 'drizzle-orm';
 import { pk, companyId, auditTimestamps, oldId, productTypeEnum, stockItemStatusEnum, itemKindEnum } from './common.js';
 import { categories, manufacturers, warehouses } from './reference.js';
+import { itemCategories } from './item-categories.js';
 import { stockReservations } from './storefront.js';
 
 // ============================================================
@@ -138,6 +139,20 @@ export const products = pgTable(
      * rounding to "the nearest 100" turns a 4 kg count of icing sugar into 0.
      */
     countQuantum: decimal('count_quantum', { precision: 18, scale: 4 }),
+    /**
+     * The operator's own classification — "Dry Stock", "Bar", "Packaging"
+     * (Sept-2026 request). A lookup rather than a pg enum because head office
+     * adds categories from the UI; see migration 0050 for why it is not the
+     * existing `categories` tree. `on delete set null` in the migration, so
+     * retiring a category never deletes products.
+     */
+    itemCategoryId: uuid('item_category_id'),
+    /**
+     * What a counter needs to know at the shelf — "weigh, do not count",
+     * "check the date on the box", "back shelf behind the mixer". Free text,
+     * capped at 200 chars.
+     */
+    stockCheckInstruction: varchar('stock_check_instruction', { length: 200 }),
     // ------------------------------------------------------------------
     oldId: oldId(),
     ...auditTimestamps,
@@ -269,6 +284,10 @@ export const pallets = pgTable('pallets', {
 
 export const productsRelations = relations(products, ({ one, many }) => ({
   manufacturer: one(manufacturers, { fields: [products.manufacturerId], references: [manufacturers.id] }),
+  itemCategory: one(itemCategories, {
+    fields: [products.itemCategoryId],
+    references: [itemCategories.id],
+  }),
   group: one(productGroups, { fields: [products.groupId], references: [productGroups.id] }),
   images: many(productImages),
   categoryMappings: many(productCategoryMappings),

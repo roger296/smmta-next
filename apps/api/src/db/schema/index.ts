@@ -3,6 +3,7 @@ export * from './common.js';
 export * from './reference.js';
 export * from './customers.js';
 export * from './products.js';
+export * from './item-categories.js';
 export * from './orders.js';
 export * from './purchasing.js';
 export * from './gl-posting-log.js';

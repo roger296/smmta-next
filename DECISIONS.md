@@ -1049,3 +1049,79 @@ non-obvious decisions, and the traps found on the way:
 - **The sign-in chooser writes no venue until the baker picks one.** A default
   chosen for them is exactly defect E-1 — a device quietly writing to the wrong
   venue — and worse for someone who really does work at two.
+
+## §F18 — Item Category, Stock Check Instruction, and the CSV import (Sept 2026)
+
+Requested after the September testing round, alongside the product export.
+
+### Item Category is a table, not a Postgres enum
+
+The request was "an enum, but with the option for the user to add a new
+category through the UI". Those two halves cannot both be served by a pg enum:
+extending one needs `ALTER TYPE` in a migration and a deploy. So
+`item_categories` is a user-managed lookup, one row per category, referenced by
+`products.item_category_id` (`on delete set null`, so retiring a category never
+deletes products). Uniqueness is on `lower(name)` per company **among live rows
+only** — a deleted category's name must be reusable, or retiring "Dry Stock"
+would block ever recreating it.
+
+Create is **idempotent on the name**: pressing Add twice, or two people adding
+"Packaging" at once, returns the existing category rather than a 409. The
+operator wanted "a category called X" and now has one; an error there is noise.
+Delete **refuses while products still carry it** and says how many — because
+the FK is `set null`, a permitted delete would silently blank the category on
+every one of them with nothing to undo it from.
+
+### Divergence: it is NOT the existing `categories` table
+
+`categories` is already doing two jobs — the storefront taxonomy, assigned by
+committed rules in `category-mapping.ts` which **rewrite `products.category_id`
+on every backfill run**, and the stock-take sheet's area/section structure, a
+many-to-many via `product_category_mappings` (23 items are counted in two
+places, so a single FK cannot express it). A value head office sets by hand
+must not live anywhere a rule run can overwrite it, and Item Category is
+one-per-product. Hence its own table and its own column. Flagged here because
+"add another category concept" is exactly the kind of thing that deserves
+challenge; the alternative was worse.
+
+### The CSV import's two rules
+
+The import format IS the export format, so the columns are derived from
+`PRODUCT_EXPORT_COLUMNS` rather than listed twice, with a test holding them
+together. Two rules do the real work:
+
+- **A missing COLUMN leaves the field alone; an empty CELL clears it.** These
+  have to differ, or the format cannot express "remove the pack description".
+  Deleting a column is how you say "don't touch this"; blanking a cell is how
+  you say "make this empty". The same distinction is carried into the admin
+  form, where "No category" now genuinely clears the field — the form used to
+  drop every empty value before submitting, which made the choice unsavable.
+- **All-or-nothing, in one transaction.** A half-applied catalogue import is the
+  worst available outcome: the operator cannot tell which rows landed, and
+  re-running to finish re-applies the ones that did. Any bad row fails the
+  whole file, and the response lists every bad row with its spreadsheet row
+  number.
+
+Read-only columns (`Product ID`, timestamps, resolved FK names) are **ignored
+and reported**, not silently dropped — writing them would mean inventing
+suppliers from typos, but saying nothing would leave the operator believing an
+edit had taken.
+
+An **unknown item category is a row error by default**, not an auto-create. The
+usual cause is a typo, and a typo that silently mints "Dry Stok" splits the
+catalogue in a way nobody notices until a count sheet comes out wrong. A
+checkbox opts into creating them, and the error names the categories that do
+exist so the fix is obvious either way.
+
+Choosing a file runs a **dry run**; applying is a second, separate press. A bulk
+write over the whole catalogue should not happen on one click.
+
+### Bug found while building this
+
+`ItemCategoryService.list` first counted products with a correlated subquery
+built from a drizzle `sql` template. Drizzle renders an interpolated column
+**unqualified**, so `where ${products.itemCategoryId} = ${itemCategories.id}`
+came out as `where "item_category_id" = "id"` — both resolving against
+`products`, comparing a product's category to its own id. Always false, every
+count read 0, nothing errored. It is now a LEFT JOIN, which names its own
+tables. Worth remembering before writing another correlated subquery that way.

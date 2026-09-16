@@ -50,7 +50,22 @@ type SearchParamValue = string | number | boolean | undefined | null;
 
 interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
+  /**
+   * A body to send AS IS, without JSON.stringify — for the CSV import, which
+   * posts the file's text under Content-Type: text/csv. Mutually exclusive
+   * with `body`.
+   */
+  rawBody?: string;
   searchParams?: Record<string, SearchParamValue | SearchParamValue[]>;
+  /**
+   * Non-2xx statuses whose envelope should be RETURNED rather than thrown.
+   *
+   * The CSV import answers 422 with the full row-by-row report attached, and
+   * that report is the thing the operator needs to read. Throwing it away and
+   * showing "Request failed with status 422" would hide the only useful part
+   * of the response.
+   */
+  acceptStatuses?: number[];
 }
 
 function buildUrl(path: string, searchParams?: ApiFetchOptions['searchParams']): string {
@@ -94,7 +109,7 @@ function buildUrl(path: string, searchParams?: ApiFetchOptions['searchParams']):
  * On 401: clears token and redirects to /login.
  */
 export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Promise<T> {
-  const { body, searchParams, headers, ...rest } = opts;
+  const { body, rawBody, searchParams, headers, acceptStatuses, ...rest } = opts;
   const token = getToken();
 
   const finalHeaders: Record<string, string> = {
@@ -107,7 +122,7 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
   const response = await fetch(buildUrl(path, searchParams), {
     ...rest,
     headers: finalHeaders,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: rawBody !== undefined ? rawBody : body !== undefined ? JSON.stringify(body) : undefined,
   });
 
   if (response.status === 401) {
@@ -125,7 +140,7 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
     // Non-JSON response
   }
 
-  if (!response.ok) {
+  if (!response.ok && !acceptStatuses?.includes(response.status)) {
     throw new ApiError(
       envelope?.error ?? `Request failed with status ${response.status}`,
       response.status,
@@ -137,7 +152,7 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
     throw new ApiError('Empty response body', response.status);
   }
 
-  if (!envelope.success) {
+  if (!envelope.success && !acceptStatuses?.includes(response.status)) {
     throw new ApiError(envelope.error ?? 'Request failed', response.status, envelope.details);
   }
 

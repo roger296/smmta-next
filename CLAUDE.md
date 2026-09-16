@@ -52,15 +52,33 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   kept for already-filed history.
 - **`/pwa/my-shift`** lists what the signed-in baker has filed, held on the
   device (shared iPads; queued work must show as WAITING TO SEND).
-- **The products page has an Export button** (`GET /products/export.csv`),
-  giving head office the whole catalogue as a CSV — every stored column, one
-  row per live product, foreign keys as name + id, images as URLs. Deliberately
-  **not** paginated and deliberately ignoring the search box: a short export
-  looks identical to a complete one. `shared/utils/csv.ts` guards against
-  spreadsheet formula injection (a product name is free text, and Excel runs a
-  cell starting `=`), exempting numeric literals because Postgres `numeric`
-  arrives as a string. `product-export.test.ts` diffs the exported columns
-  against the real Drizzle table, so a column added later cannot go missing.
+- **The products page Exports and Imports the whole catalogue as CSV**
+  (`GET /products/export.csv`, `POST /products/import`) — one round-trippable
+  format, so the loop is export → edit in a spreadsheet → import.
+  - **Export**: every stored column, one row per live product, foreign keys as
+    name + id, images as URLs. Deliberately **not** paginated and deliberately
+    ignoring the search box — a short export looks identical to a complete one.
+    `shared/utils/csv.ts` guards against spreadsheet formula injection (a
+    product name is free text and Excel runs a cell starting `=`), exempting
+    numeric literals because Postgres `numeric` arrives as a string.
+  - **Import**: upserts on **Stock code**. ⚠️ Two rules make the format
+    expressive, and both matter: a **missing column** leaves the field alone, an
+    **empty cell** clears it. Read-only columns (ids, timestamps, resolved FK
+    names) are ignored and the report lists them. All-or-nothing in one
+    transaction — a half-applied catalogue is unrecoverable by hand — and the UI
+    makes choosing a file a DRY RUN, with a second press to apply.
+  - The importable columns are derived from `PRODUCT_EXPORT_COLUMNS`, and
+    `product-export.test.ts` diffs those against the real Drizzle table, so
+    neither a new column nor a renamed header can silently fall out of the loop.
+- **Products gained `item_category_id` + `stock_check_instruction`**
+  (migration `0050`). Item Category reads as an enum but is a **table**
+  (`item_categories`), because head office adds one from the product form and a
+  pg enum needs a migration to extend; names are unique case-insensitively among
+  live rows. ⚠️ It is deliberately NOT the existing `categories` tree — that is
+  the storefront taxonomy (rewritten by `category-mapping.ts` rules) *and* the
+  stock-take sheet's many-to-many area/section structure, and a value the
+  operator sets by hand must not live where a rule run can overwrite it.
+  Stock check instruction is free text ≤200 chars ("weigh, do not count").
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and

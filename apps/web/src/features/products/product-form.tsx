@@ -16,6 +16,10 @@ import {
 } from '@/components/ui/select';
 import { useManufacturers, useWarehouses } from '../reference/use-reference';
 import { useSuppliersList } from '../suppliers/use-suppliers';
+import { ItemCategoryField } from './item-category-field';
+
+/** Fields where clearing the input means "set this to nothing", not "skip". */
+const CLEARABLE_FIELDS = new Set(['itemCategoryId', 'stockCheckInstruction']);
 
 export const productFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(500),
@@ -59,6 +63,8 @@ export const productFormSchema = z.object({
    * genuinely counts in a fixed increment — a blanket quantum turned a 4 kg
    * count into 0 (defect D-2).
    */
+  itemCategoryId: z.string().uuid().optional().or(z.literal('')),
+  stockCheckInstruction: z.string().max(200, 'Keep it to 200 characters').optional().or(z.literal('')),
   countQuantum: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? null : v),
     z.coerce.number().positive().nullable(),
@@ -128,7 +134,14 @@ export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onC
       onSubmit={handleSubmit(async (v) => {
         const cleaned: Record<string, unknown> = { ...(v as unknown as Record<string, unknown>) };
         for (const k of Object.keys(cleaned)) {
-          if (cleaned[k] === '') delete cleaned[k];
+          if (cleaned[k] !== '') continue;
+          // An empty value means two different things in this form. For most
+          // fields it means "I did not fill this in", so dropping the key
+          // leaves the stored value alone. For these two it is a CHOICE —
+          // "No category", an instruction deleted — and dropping the key would
+          // make that choice silently impossible to save. They go as null.
+          if (CLEARABLE_FIELDS.has(k)) cleaned[k] = null;
+          else delete cleaned[k];
         }
         await onSubmit(cleaned as ProductFormValues);
       })}
@@ -339,6 +352,27 @@ export function ProductForm({ defaultValues, onSubmit, submitLabel = 'Save', onC
             </Field>
           </div>
         )}
+        <div className="grid gap-4 md:grid-cols-2">
+          <ItemCategoryField
+            value={watch('itemCategoryId') ?? ''}
+            onChange={(v) => setValue('itemCategoryId', v, { shouldValidate: true })}
+            error={errors.itemCategoryId?.message}
+          />
+          <Field
+            id="p-stockCheckInstruction"
+            label="Stock check instruction"
+            hint='What a counter needs to know at the shelf — "weigh, do not count", "check the date on the box", "back shelf behind the mixer". 200 characters.'
+            error={errors.stockCheckInstruction?.message}
+          >
+            <Textarea
+              {...register('stockCheckInstruction')}
+              rows={2}
+              maxLength={200}
+              placeholder="Weigh, do not count"
+            />
+          </Field>
+        </div>
+
         <div className="flex flex-col gap-2">
           <label className="flex items-center gap-2 text-sm">
             <Checkbox

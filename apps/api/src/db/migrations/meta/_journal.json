@@ -351,6 +351,13 @@
       "when": 1789730000000,
       "tag": "0049_device_pin_sites",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1789730000001,
+      "tag": "0050_item_categories_and_stock_check",
+      "breakpoints": true
     }
   ]
 }

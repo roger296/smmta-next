@@ -2,6 +2,7 @@ import { and, asc, count, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
   categories,
+  itemCategories,
   manufacturers,
   productCategoryMappings,
   productGroups,
@@ -241,6 +242,7 @@ export class ProductService {
         categoryName: categories.name,
         groupName: productGroups.name,
         defaultWarehouseName: warehouses.name,
+        itemCategoryName: itemCategories.name,
       })
       .from(products)
       .leftJoin(manufacturers, eq(products.manufacturerId, manufacturers.id))
@@ -248,6 +250,7 @@ export class ProductService {
       .leftJoin(categories, eq(products.categoryId, categories.id))
       .leftJoin(productGroups, eq(products.groupId, productGroups.id))
       .leftJoin(warehouses, eq(products.defaultWarehouseId, warehouses.id))
+      .leftJoin(itemCategories, eq(products.itemCategoryId, itemCategories.id))
       .where(and(eq(products.companyId, companyId), isNull(products.deletedAt)))
       .orderBy(asc(products.name));
 
@@ -271,6 +274,7 @@ export class ProductService {
       categoryName: r.categoryName,
       groupName: r.groupName,
       defaultWarehouseName: r.defaultWarehouseName,
+      itemCategoryName: r.itemCategoryName,
       imageUrls: imagesByProduct.get(r.product.id) ?? [],
     }));
   }
@@ -414,6 +418,8 @@ export class ProductService {
         // NULL means "do not bucket counts of this product" — the safe
         // default, and the only one (defect D-2).
         countQuantum: input.countQuantum != null ? input.countQuantum.toString() : null,
+        itemCategoryId: input.itemCategoryId ?? null,
+        stockCheckInstruction: input.stockCheckInstruction ?? null,
       })
       .returning();
 
@@ -510,6 +516,9 @@ export class ProductService {
       updateData.purchaseToStockFactor = input.purchaseToStockFactor.toString();
     if (input.countQuantum !== undefined)
       updateData.countQuantum = input.countQuantum != null ? input.countQuantum.toString() : null;
+    if (input.itemCategoryId !== undefined) updateData.itemCategoryId = input.itemCategoryId;
+    if (input.stockCheckInstruction !== undefined)
+      updateData.stockCheckInstruction = input.stockCheckInstruction;
 
     const [updated] = await this.db
       .update(products)

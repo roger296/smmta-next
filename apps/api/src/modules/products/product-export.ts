@@ -32,6 +32,8 @@ export interface ProductExportRow {
   categoryName: string | null;
   groupName: string | null;
   defaultWarehouseName: string | null;
+  /** Resolved from `item_categories` — the export/import speak NAMES here. */
+  itemCategoryName: string | null;
   /** URLs from the related `product_images` table, priority order. */
   imageUrls: string[];
 }
@@ -92,6 +94,11 @@ export const PRODUCT_EXPORT_COLUMNS: ReadonlyArray<Column> = [
   field('Category ID', 'categoryId'),
   field('Product group', 'groupName'),
   field('Product group ID', 'groupId'),
+  // Item Category travels as a NAME, not an id: the operator edits this column
+  // in a spreadsheet, and "Dry Stock" is something they can type. The import
+  // resolves it back to a row case-insensitively.
+  field('Item category', 'itemCategoryName'),
+  field('Item category ID', 'itemCategoryId'),
   field('Default warehouse', 'defaultWarehouseName'),
   field('Default warehouse ID', 'defaultWarehouseId'),
   // Units of measure
@@ -101,6 +108,7 @@ export const PRODUCT_EXPORT_COLUMNS: ReadonlyArray<Column> = [
   field('Pack description', 'packDescription'),
   field('Purchase to stock factor', 'purchaseToStockFactor'),
   field('Count quantum', 'countQuantum'),
+  field('Stock check instruction', 'stockCheckInstruction'),
   // Money
   field('Expected next cost', 'expectedNextCost'),
   field('Min selling price', 'minSellingPrice'),

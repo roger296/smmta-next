@@ -9,6 +9,7 @@ import { productRoutes } from './modules/products/product.routes.js';
 import { productGroupRoutes } from './modules/products/product-group.routes.js';
 import { stockItemRoutes } from './modules/products/stock-item.routes.js';
 import { referenceRoutes } from './modules/products/reference.routes.js';
+import { itemCategoryRoutes } from './modules/products/item-category.routes.js';
 import { supplierRoutes } from './modules/purchasing/supplier.routes.js';
 import { purchasingRoutes } from './modules/purchasing/purchasing.routes.js';
 import { customerRoutes } from './modules/customers/customer.routes.js';
@@ -68,6 +69,14 @@ export async function buildApp() {
   });
   await app.register(jwt, { secret: env.JWT_SECRET });
 
+  // The product CSV import posts the file as its raw body. Fastify has no
+  // parser for text/csv, and without one it answers 415 before any route runs.
+  app.addContentTypeParser(
+    ['text/csv', 'application/csv', 'text/plain'],
+    { parseAs: 'string' },
+    (_request, body, done) => done(null, body),
+  );
+
   await app.register(swagger, {
     openapi: {
       info: {
@@ -92,6 +101,7 @@ export async function buildApp() {
 
   // Phase 2: Products & Stock
   await app.register(productRoutes, { prefix: '/api/v1' });
+  await app.register(itemCategoryRoutes, { prefix: '/api/v1' });
   await app.register(productGroupRoutes, { prefix: '/api/v1' });
   await app.register(stockItemRoutes, { prefix: '/api/v1' });
   await app.register(referenceRoutes, { prefix: '/api/v1' });

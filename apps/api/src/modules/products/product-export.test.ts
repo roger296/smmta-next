@@ -26,6 +26,7 @@ function row(overrides: Partial<ProductExportRow> = {}): ProductExportRow {
     categoryName: null,
     groupName: null,
     defaultWarehouseName: null,
+    itemCategoryName: null,
     imageUrls: [],
     ...overrides,
   };
@@ -50,6 +51,7 @@ describe('product export coverage', () => {
       'categoryName',
       'groupName',
       'defaultWarehouseName',
+      'itemCategoryName',
       'imageUrls',
     ]);
     const stale = PRODUCT_EXPORT_COLUMNS.map((c) => c.source).filter(

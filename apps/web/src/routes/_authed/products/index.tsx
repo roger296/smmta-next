@@ -10,10 +10,11 @@ import { DataTable, Pagination } from '@/components/data-table/data-table';
 import { EmptyState } from '@/components/empty-state';
 import { useProductsList } from '@/features/products/use-products';
 import { useProductExport } from '@/features/products/use-product-export';
+import { ProductImportDialog } from '@/features/products/product-import-dialog';
 import { useDebounce } from '@/hooks/use-debounce';
 import type { Product } from '@/lib/api-types';
 import { formatMoney } from '@/lib/format';
-import { Download, Package, Plus } from 'lucide-react';
+import { Download, Package, Plus, Upload } from 'lucide-react';
 
 export const Route = createFileRoute('/_authed/products/')({
   component: ProductsListPage,
@@ -60,6 +61,7 @@ function ProductsListPage() {
   // the button says "Export all products", and a file that quietly honoured the
   // search box would be short without saying so.
   const exportAll = useProductExport();
+  const [importOpen, setImportOpen] = React.useState(false);
 
   return (
     <div className="space-y-6">
@@ -78,6 +80,10 @@ function ProductsListPage() {
           >
             <Download className="h-4 w-4" />
             {exportAll.isPending ? 'Exporting…' : 'Export'}
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4" />
+            Import
           </Button>
           <Button asChild>
             <Link to="/products/new">
@@ -98,6 +104,8 @@ function ProductsListPage() {
           </CardContent>
         </Card>
       )}
+
+      <ProductImportDialog open={importOpen} onOpenChange={setImportOpen} />
 
       <Input
         placeholder="Search by name, SKU or EAN…"
