@@ -4,9 +4,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
 import { useBakes, groupBakes } from '@/features/recipes/use-recipes';
 import {
+  describeSession,
   useDietaryCoverage,
   useExpectedConsumption,
+  useSessionsAwaiting,
+  type AwaitingSession,
   type ExpectedBlocker,
+  type SessionFeedStatus,
 } from '@/features/consumption/use-consumption';
 import { useSubmitConsumption } from '@/features/pwa/use-pwa-jobs';
 import {
@@ -90,6 +94,10 @@ export function ConsumptionScreen() {
   const [bakerName, setBakerName] = React.useState('');
   // F-5: what the cake actually has a recipe for. Asked as soon as a cake is
   // picked, so the diet fields can refuse a number that would do nothing.
+  // The day's sittings at this venue that have no record yet (item 8
+  // follow-up). Re-queried when the date changes — a baker filing yesterday's
+  // bake this morning needs yesterday's list.
+  const awaiting = useSessionsAwaiting(selectedSiteId ?? undefined, sessionDate);
   const coverage = useDietaryCoverage({
     siteId: selectedSiteId ?? undefined,
     bake: bake.trim() || undefined,
@@ -363,9 +371,26 @@ export function ConsumptionScreen() {
               <input id="bake-date" className="input" type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} />
             </div>
 
+            {/* Item 8 follow-up (Sept-2026): the field that caused the defect.
+                It was a free-text box captioned "BumbleBee session id" — not a
+                thing anybody in a venue knows — so it got skipped, and a
+                skipped session id was what left the Submit button dead.
+                Guarding it was the fix; REMOVING it is the better one, so the
+                day's sittings are offered instead.
+
+                Typing stays reachable throughout. The feed is not wired in
+                production yet, and a picker that can only ever be empty would
+                be a worse dead end than the box it replaced. */}
             <div className="field">
-              <label htmlFor="bake-session-id">Session ID</label>
-              <input id="bake-session-id" className="input" value={sessionId} onChange={(e) => setSessionId(e.target.value)} onFocus={selectOnFocus} placeholder="BumbleBee session id" />
+              <label id="lbl-session">Which session?</label>
+              <SessionPicker
+                sessions={awaiting.data?.sessions ?? []}
+                feedStatus={awaiting.data?.feedStatus}
+                isPending={awaiting.isPending}
+                failed={awaiting.isError}
+                value={sessionId}
+                onChange={setSessionId}
+              />
             </div>
 
             <div className="field">
@@ -630,5 +655,120 @@ export function ConsumptionScreen() {
       )}
 
     </TouchScreen>
+  );
+}
+
+/**
+ * Pick the sitting being filed (Sept-2026 user testing, item 8 follow-up).
+ *
+ * ── WHY THIS REPLACED A TEXT BOX ────────────────────────────────────────────
+ * The Submit button reported as "not working at all" was disabled because the
+ * Session ID was blank. The field was captioned "BumbleBee session id" — not
+ * something anybody in a venue knows — and sat below the fold, so it got
+ * skipped. Making the refusal explain itself fixed the symptom; offering the
+ * day's sittings removes the question.
+ *
+ * ── WHY TYPING IS STILL HERE ────────────────────────────────────────────────
+ * BumbleBee session polling is NOT wired in production. `feedStatus` says so,
+ * and when it does this renders the manual field with an explanation rather
+ * than an empty list. A picker that can only ever be empty would be a worse
+ * dead end than the box it replaced: at least a baker could get past that one.
+ *
+ * The same escape covers the cases a live feed still misses — a sitting added
+ * after the poll, a walk-in, a venue iPad with no signal.
+ */
+function SessionPicker({
+  sessions,
+  feedStatus,
+  isPending,
+  failed,
+  value,
+  onChange,
+}: {
+  sessions: AwaitingSession[];
+  feedStatus: SessionFeedStatus | undefined;
+  isPending: boolean;
+  failed: boolean;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  // Typing is forced open when there is nothing to choose from, and stays open
+  // once the baker has asked for it — collapsing it under them mid-type would
+  // discard what they had entered.
+  const nothingToOffer = sessions.length === 0;
+  const [typing, setTyping] = React.useState(false);
+  const manual = typing || nothingToOffer;
+  // A typed id that matches nothing on the list still counts as chosen.
+  const chosen = sessions.find((s) => s.sessionId === value);
+
+  if (isPending && !nothingToOffer) {
+    return <p className="field-note">Looking up today's sessions…</p>;
+  }
+
+  return (
+    <>
+      {sessions.length > 0 && (
+        <div className="tile-grid" role="group" aria-labelledby="lbl-session">
+          {sessions.map((s) => (
+            <button
+              key={s.sessionId}
+              className={`tile${value === s.sessionId ? ' on' : ''}`}
+              onClick={() => onChange(s.sessionId)}
+            >
+              {describeSession(s)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Say WHY the list is empty. "Nothing here" with no reason is the
+          failure mode this whole feedback round has been about. */}
+      {nothingToOffer && !isPending && (
+        <p className="field-note">
+          {failed
+            ? 'Could not reach the server for today’s sessions — type the session below.'
+            : feedStatus === 'not_connected'
+              ? 'Session details do not come across from BumbleBee yet, so type the session below.'
+              : 'No sessions are outstanding for this venue and date — type the session below.'}
+        </p>
+      )}
+
+      {!manual && (
+        <button type="button" className="linklike" onClick={() => setTyping(true)}>
+          My session isn’t listed — type it instead
+        </button>
+      )}
+
+      {manual && (
+        <>
+          <input
+            id="bake-session-id"
+            className="input"
+            style={{ marginTop: 8 }}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={selectOnFocus}
+            placeholder="Session ID"
+            aria-label="Session ID"
+          />
+          {sessions.length > 0 && (
+            <button
+              type="button"
+              className="linklike"
+              onClick={() => {
+                setTyping(false);
+                onChange('');
+              }}
+            >
+              Choose from the list instead
+            </button>
+          )}
+        </>
+      )}
+
+      {chosen && (
+        <p className="field-note">Filing the {describeSession(chosen)} session.</p>
+      )}
+    </>
   );
 }

@@ -939,11 +939,23 @@ non-obvious decisions, and the traps found on the way:
 - **Every refusal names what it is waiting for**, phrased as an instruction
   ("Enter the session to continue"), not a state ("1 line not counted yet"). A
   baker mid-task needs to know what to do, not what is wrong.
-- **Open improvement:** "Session ID" is captioned *BumbleBee session id*, which
-  is not something a head baker knows. `/session-consumption/awaiting` already
-  lists the day's sessions for a venue; offering that as a picker would remove
-  the field that got skipped in the first place. Not built — out of scope for
-  the reported defect.
+- **The field itself is now gone**, replaced by a picker of the day's sittings
+  (`/session-consumption/awaiting`), labelled by time and guest count — a bare
+  BumbleBee uuid is not something anybody recognises, and two sittings on one
+  day would be two indistinguishable rows. Guarding the field fixed the
+  symptom; removing it removes the question.
+- **⚠️ TYPING IS STILL REACHABLE, AND THAT IS THE POINT.** BumbleBee session
+  polling is NOT wired in production, so the list is empty there today. A
+  picker that could only ever be empty would be a worse dead end than the box
+  it replaced — at least a baker could get past that one. The endpoint now
+  returns `feedStatus` alongside the list so the screen can tell "nothing
+  outstanding" from "nothing was even asked for" and say which; the manual
+  field opens automatically when there is nothing to choose, stays available
+  behind a link when there is, and never collapses out from under someone
+  mid-type. A failed lookup falls through to it rather than blocking.
+- **Times render `en-GB` explicitly, not in the device locale.** A venue iPad
+  handed out with US regional settings would otherwise show "06:30 PM" against
+  a rota that says 18:30.
 
 ### Items 2 / 3 — bake type and active flag, against a VERSIONED recipe
 

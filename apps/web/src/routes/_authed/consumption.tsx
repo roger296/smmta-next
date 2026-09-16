@@ -100,12 +100,16 @@ function ConsumptionDashboard() {
           <CardTitle className="text-base">Awaiting a consumption record</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {!awaiting.data || awaiting.data.length === 0 ? (
+          {!awaiting.data || awaiting.data.sessions.length === 0 ? (
             <div className="p-6">
               <EmptyState
                 icon={ClipboardList}
                 title="Nothing awaiting"
-                description="Either every session for the day has a record, or BumbleBee session polling isn't connected yet."
+                description={
+                  awaiting.data?.feedStatus === 'not_connected'
+                    ? "BumbleBee session polling isn't connected yet, so no sessions can be listed. Head bakers type the session id by hand."
+                    : 'Every session for the day has a consumption record.'
+                }
               />
             </div>
           ) : (
@@ -118,7 +122,7 @@ function ConsumptionDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {awaiting.data.map((s) => (
+                {awaiting.data.sessions.map((s) => (
                   <tr key={s.sessionId} className="border-b border-[var(--color-border)] last:border-0">
                     <td className="px-4 py-3 font-mono text-xs">{s.sessionId}</td>
                     <td className="px-4 py-3">{formatDate(s.sessionDate)}</td>

@@ -148,6 +148,12 @@ export async function stubAug12(page: Page, opts: { products?: Aug12Product[] } 
   await page.route('**/api/v1/recipes/bakes', (route) =>
     route.fulfill(json({ success: true, data: [{ bake: 'Battenburg', bakeType: 'REGULAR', isActive: true }] })),
   );
+  // The venue picker asks for the day's sittings (Sept-2026, item 8
+  // follow-up). Answered as "not connected", which is production's real
+  // state, so these specs exercise the typed-id fallback the venue uses now.
+  await page.route('**/api/v1/session-consumption/awaiting**', (route) =>
+    route.fulfill(json({ success: true, data: { sessions: [], feedStatus: 'not_connected' } })),
+  );
   await page.route('**/api/v1/recipes/coverage**', (route) =>
     route.fulfill(json({ success: true, data: { hasRecipe: true, glutenFree: true, vegan: true } })),
   );

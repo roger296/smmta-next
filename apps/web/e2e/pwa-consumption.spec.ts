@@ -24,6 +24,13 @@ const RECIPE_LINES = [
 ];
 
 async function stubRecipe(page: import('@playwright/test').Page) {
+  await page.route('**/api/v1/session-consumption/awaiting**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { sessions: [], feedStatus: 'not_connected' } }),
+    }),
+  );
   await page.route('**/api/v1/recipes/coverage', (route) =>
     route.fulfill({
       status: 200,

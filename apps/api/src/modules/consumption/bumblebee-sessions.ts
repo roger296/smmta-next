@@ -31,6 +31,8 @@ export interface BumbleBeeSession {
   sessionId: string;
   siteCanonicalName?: string;
   sessionDate?: string;
+  /** ISO start, when the caller has it. See `DaySession.startsAt`. */
+  startsAt?: string | null;
   /** Order lines. Only set by callers that already hold them — BumbleBee's
    *  sessions endpoint does not return line items. */
   lines?: SessionLine[];
@@ -39,9 +41,40 @@ export interface BumbleBeeSession {
 export interface DaySession {
   sessionId: string;
   sessionDate: string;
+  /**
+   * When the sitting starts, as BumbleBee reports it (ISO). NULL when the feed
+   * did not say.
+   *
+   * Carried so the venue can OFFER these rather than asking a baker to type an
+   * id (Sept-2026, item 8 follow-up). A bare BumbleBee uuid is not something
+   * anybody recognises; "6:30pm · 24 guests" is. Without a time, a day with
+   * three sittings gives the baker three indistinguishable rows and no way to
+   * tell which one they just finished.
+   */
+  startsAt: string | null;
   /** Guest count. The cake baked isn't on the booking — the head-baker picks
    *  it on the form. */
   covers: number;
+}
+
+/**
+ * Why a day's session list is empty — which is not the same question as
+ * whether it is empty.
+ *
+ * 'not_connected' — `BUMBLEBEE_API_BASE_URL` is unset, so nothing was even
+ *   asked for. This is the live state today: session polling is not wired yet,
+ *   which is precisely why bakers still type a session id by hand.
+ * 'live' — the feed answered. An empty list then genuinely means no sittings
+ *   are outstanding.
+ *
+ * The venue screen shows a different message for each. "Nothing here" with no
+ * reason is the failure mode this whole feedback round has been about.
+ */
+export type SessionFeedStatus = 'live' | 'not_connected';
+
+/** Whether the session feed is wired up at all. See `SessionFeedStatus`. */
+export function sessionFeedStatus(): SessionFeedStatus {
+  return getEnv().BUMBLEBEE_API_BASE_URL ? 'live' : 'not_connected';
 }
 
 /** A row of BumbleBee's `GET /api/v1/sessions`. */
@@ -74,6 +107,7 @@ export class BumbleBeeSessionClient {
     const env = getEnv();
     if (!env.BUMBLEBEE_API_BASE_URL) return [];
 
+
     // EVENT only. BumbleBee's other session type, CAFE_BAR, is a synthetic
     // 08:00–22:00 container the Square sweeper creates per site per day to hold
     // till takings — no bake leader, no cake, no consumption statement. Leaving
@@ -88,6 +122,7 @@ export class BumbleBeeSessionClient {
     return rows.map((r) => ({
       sessionId: r.id,
       sessionDate: (r.start ?? params.date).slice(0, 10),
+      startsAt: r.start ?? null,
       covers: covers.get(r.id) ?? 0,
     }));
   }
@@ -146,6 +181,11 @@ export class BumbleBeeSessionClient {
     companyId?: string,
   ): Promise<DaySession> {
     const covers = s.lines?.length ? await this.expected.resolveCovers(s.lines, companyId) : 0;
-    return { sessionId: s.sessionId, sessionDate: s.sessionDate ?? fallbackDate, covers };
+    return {
+      sessionId: s.sessionId,
+      sessionDate: s.sessionDate ?? fallbackDate,
+      startsAt: s.startsAt ?? null,
+      covers,
+    };
   }
 }

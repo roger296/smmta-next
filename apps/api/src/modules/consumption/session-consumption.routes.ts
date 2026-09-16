@@ -2,7 +2,7 @@
  * Head-baker consumption API (P16, spec §A6).
  *
  *   GET  /api/v1/session-consumption                 — list (site / date filter)
- *   GET  /api/v1/session-consumption/awaiting        — sessions with no record yet
+ *   GET  /api/v1/session-consumption/awaiting        — { sessions, feedStatus }
  *   GET  /api/v1/session-consumption/by-session/:sid — record for a session (or 404)
  *   GET  /api/v1/session-consumption/:id             — record + lines
  *   POST /api/v1/session-consumption                 — submit / amend (site-scoped)
@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { requireAuth, getAuthUser, canAccessSite } from '../../shared/middleware/auth.js';
 import { requireRole } from '../../shared/middleware/require-role.js';
 import { SessionConsumptionService } from './session-consumption.service.js';
-import { BumbleBeeSessionClient } from './bumblebee-sessions.js';
+import { BumbleBeeSessionClient, sessionFeedStatus } from './bumblebee-sessions.js';
 import { ConsumptionSweepService } from './consumption-sweep.service.js';
 import { MaterialsCostSyncService } from './materials-cost-sync.service.js';
 import { getDb } from '../../config/database.js';
@@ -128,7 +128,13 @@ export async function sessionConsumptionRoutes(app: FastifyInstance) {
       companyId,
     });
     const awaiting = await service.filterAwaiting(q.siteId, day, companyId);
-    return { success: true, data: awaiting };
+    // `feedStatus` travels with the list so a consumer can tell "no sittings
+    // outstanding" from "nothing was even asked for" (Sept-2026, item 8
+    // follow-up). Today it is `not_connected` in production — BumbleBee
+    // session polling is not wired — and a venue screen that showed a bare
+    // empty picker would be a dead end where the typed field at least let a
+    // baker proceed.
+    return { success: true, data: { sessions: awaiting, feedStatus: sessionFeedStatus() } };
   });
 
   app.get('/session-consumption/by-session/:sid', async (request, reply) => {

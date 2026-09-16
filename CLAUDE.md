@@ -29,7 +29,11 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   which was required to LOAD the ingredients, and the refusal said nothing.
   Everything needed to file a bake is now needed to load it
   (`features/consumption/form-readiness.ts` is the single source of that list),
-  and every refusal names what it is waiting for.
+  and every refusal names what it is waiting for. The field itself is now a
+  PICKER of the day's sittings (`/session-consumption/awaiting`, which also
+  returns `feedStatus`). ⚠️ Typing stays reachable — BumbleBee session polling
+  is not wired in production, so the list is empty there and a picker that
+  could only ever be empty would be a worse dead end than the box it replaced.
 - **Recipes gained `bake_type` (Corporate/Regular/Other) and `is_active`**
   (migration `0046`). The venue cake picker is grouped and shows active cakes
   only. Both read from the NEWEST version; a cake stays on the menu while any
