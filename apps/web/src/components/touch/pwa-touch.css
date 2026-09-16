@@ -217,6 +217,15 @@
 }
 .touch-app .tile.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+/* Cake groups on the end-of-bake picker (Sept-2026, item 2). A heading per
+   group so a baker reads down to "Corporate" rather than scanning an
+   alphabetical list of every cake the company has ever costed. */
+.touch-app .tile-group + .tile-group { margin-top: 16px; }
+.touch-app .tile-group-head {
+  margin: 0 0 8px; font-size: 14px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted);
+}
+
 /* ── Bottom sheet (keypad / add item) ─────────────────────── */
 .touch-app .sheet-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: flex-end; z-index: 50; }
 .touch-app .sheet { width: 100%; background: var(--card); border-radius: 16px 16px 0 0; padding: 18px 18px 28px; max-height: 86%; overflow-y: auto; }

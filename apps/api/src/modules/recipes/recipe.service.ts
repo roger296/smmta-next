@@ -46,6 +46,16 @@ export type RecipeLineVariant = (typeof RECIPE_LINE_VARIANTS)[number];
 /** The variants that take an ingredient out rather than adding one. */
 export const REMOVAL_VARIANTS: readonly RecipeLineVariant[] = ['GF_REMOVE', 'VEGAN_REMOVE'];
 
+/**
+ * How a bake is grouped on the end-of-bake picker (Sept-2026, item 2).
+ *
+ * Presentation only — nothing in the costing or stock maths reads it. A flat
+ * alphabetical list of every cake made a head baker hunt for theirs at the
+ * start of every session.
+ */
+export const BAKE_TYPES = ['CORPORATE', 'REGULAR', 'OTHER'] as const;
+export type BakeType = (typeof BAKE_TYPES)[number];
+
 export interface CreateRecipeInput {
   /** The cake this recipe makes (e.g. "Victoria Sponge"). */
   bake: string;
@@ -55,6 +65,9 @@ export interface CreateRecipeInput {
   effectiveTo?: string | null;
   name?: string | null;
   notes?: string | null;
+  bakeType?: BakeType;
+  /** Defaults true — a new recipe is on the menu unless said otherwise. */
+  isActive?: boolean;
   lines: RecipeLineInput[];
   companyId?: string;
 }
@@ -69,6 +82,8 @@ export interface UpdateRecipeInput {
   effectiveTo?: string | null;
   name?: string | null;
   notes?: string | null;
+  bakeType?: BakeType;
+  isActive?: boolean;
   /** When given, REPLACES the ingredient list wholesale. */
   lines?: RecipeLineInput[];
 }
@@ -134,6 +149,8 @@ export class RecipeService {
         effectiveTo: input.effectiveTo ?? null,
         name: input.name ?? null,
         notes: input.notes ?? null,
+        bakeType: input.bakeType ?? 'REGULAR',
+        isActive: input.isActive ?? true,
       })
       .returning();
 
@@ -186,6 +203,8 @@ export class RecipeService {
     if (input.effectiveTo !== undefined) patch.effectiveTo = input.effectiveTo ?? null;
     if (input.name !== undefined) patch.name = input.name ?? null;
     if (input.notes !== undefined) patch.notes = input.notes ?? null;
+    if (input.bakeType !== undefined) patch.bakeType = input.bakeType;
+    if (input.isActive !== undefined) patch.isActive = input.isActive;
     await this.db.update(recipes).set(patch).where(eq(recipes.id, id));
 
     if (input.lines) {
@@ -290,12 +309,55 @@ export class RecipeService {
   }
 
   /** The distinct cakes that have a recipe (the menu) — for pickers. */
-  async listBakes(companyId = getSingletonCompanyId()): Promise<string[]> {
+  /**
+   * The cakes the end-of-bake picker offers, with the group each belongs to
+   * (Sept-2026, items 2 and 3).
+   *
+   * ACTIVE ONLY by default. "This will reduce clutter on the page and make it
+   * easier to use" — a venue's picker should show tonight's menu, not every
+   * cake the company has ever costed. `includeInactive` is for the admin
+   * Recipes page, which has to be able to find a recipe in order to switch it
+   * back on.
+   *
+   * A cake is active if ANY of its recipe versions is: versions supersede one
+   * another by date, and marking last spring's version inactive must not take
+   * the cake off the menu. The type comes from the newest version, for the
+   * same reason — it is the one describing the cake as it stands.
+   */
+  async listBakes(
+    opts: { includeInactive?: boolean; companyId?: string } = {},
+  ): Promise<Array<{ bake: string; bakeType: BakeType; isActive: boolean }>> {
+    const companyId = opts.companyId ?? getSingletonCompanyId();
     const rows = await this.db
-      .selectDistinct({ bake: recipes.bake })
+      .select({
+        bake: recipes.bake,
+        bakeType: recipes.bakeType,
+        isActive: recipes.isActive,
+        effectiveFrom: recipes.effectiveFrom,
+        version: recipes.version,
+      })
       .from(recipes)
       .where(eq(recipes.companyId, companyId))
-      .orderBy(asc(recipes.bake));
-    return rows.map((r) => r.bake);
+      .orderBy(asc(recipes.bake), desc(recipes.effectiveFrom), desc(recipes.version));
+
+    const byBake = new Map<string, { bake: string; bakeType: BakeType; isActive: boolean }>();
+    for (const row of rows) {
+      const seen = byBake.get(row.bake);
+      if (!seen) {
+        // First row for this cake is the NEWEST version (the ordering above),
+        // so its type is the one that describes the cake now.
+        byBake.set(row.bake, {
+          bake: row.bake,
+          bakeType: (row.bakeType as BakeType) ?? 'REGULAR',
+          isActive: row.isActive,
+        });
+        continue;
+      }
+      // Any live version keeps the cake on the menu.
+      if (row.isActive) seen.isActive = true;
+    }
+
+    const all = [...byBake.values()];
+    return opts.includeInactive ? all : all.filter((b) => b.isActive);
   }
 }

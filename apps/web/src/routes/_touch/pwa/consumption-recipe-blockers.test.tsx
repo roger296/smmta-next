@@ -53,7 +53,12 @@ function stub(opts: {
 }) {
   server.use(
     http.get(`${API}/recipes/bakes`, () =>
-      HttpResponse.json({ success: true, data: ['Battenburg'] }),
+      HttpResponse.json({
+        success: true,
+        // /recipes/bakes returns the cake WITH its group and on-menu state
+        // (Sept-2026, items 2 and 3) — it used to be a bare string list.
+        data: [{ bake: 'Battenburg', bakeType: 'REGULAR', isActive: true }],
+      }),
     ),
     http.get(`${API}/recipes/coverage`, () =>
       HttpResponse.json({ success: true, data: opts.coverage }),

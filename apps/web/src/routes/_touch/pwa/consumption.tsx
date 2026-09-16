@@ -2,7 +2,7 @@ import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
-import { useBakes } from '@/features/recipes/use-recipes';
+import { useBakes, groupBakes } from '@/features/recipes/use-recipes';
 import {
   useDietaryCoverage,
   useExpectedConsumption,
@@ -65,7 +65,10 @@ function today(): string {
 export function ConsumptionScreen() {
   const navigate = useNavigate();
   const { selectedSite, selectedSiteId, isBound } = useSiteContext();
+  // Active cakes only (item 3) — the picker shows tonight's menu, not every
+  // cake ever costed. Grouped Corporate / Regular / Other (item 2).
   const { data: bakes } = useBakes();
+  const bakeGroups = React.useMemo(() => groupBakes(bakes), [bakes]);
   const expected = useExpectedConsumption();
   const submit = useSubmitConsumption();
   const { toast } = useToast();
@@ -268,15 +271,35 @@ export function ConsumptionScreen() {
             <h1>{selectedSite?.name ?? 'Select a site'}</h1>
             <p className="lede">Pick the cake and how many guests baked it, then confirm what was actually used.</p>
 
+            {/* Item 2: "separate bakes into three groups 'Corporate',
+                'Regular' and 'Other' with headers". Fixed order, so the
+                heading a baker is looking for is in the same place every
+                session; an empty group is dropped rather than left as a
+                heading with nothing under it. */}
             <div className="field">
               <label>Cake baked</label>
-              <div className="tile-grid">
-                {(bakes ?? []).map((b) => (
-                  <button key={b} className={`tile${bake === b ? ' on' : ''}`} onClick={() => setBake(b)}>
-                    {b}
-                  </button>
-                ))}
-              </div>
+              {bakeGroups.length === 0 ? (
+                <p className="field-note blocked">
+                  No active cakes for this venue. Head office sets which cakes are on the menu.
+                </p>
+              ) : (
+                bakeGroups.map((group) => (
+                  <div className="tile-group" key={group.type}>
+                    <h2 className="tile-group-head">{group.label}</h2>
+                    <div className="tile-grid">
+                      {group.bakes.map((b) => (
+                        <button
+                          key={b.bake}
+                          className={`tile${bake === b.bake ? ' on' : ''}`}
+                          onClick={() => setBake(b.bake)}
+                        >
+                          {b.bake}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="field">

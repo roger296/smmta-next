@@ -8,6 +8,7 @@ import {
   text,
   uniqueIndex,
   index,
+  boolean,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { pk, companyId, auditTimestamps } from './common.js';
@@ -45,10 +46,31 @@ export const recipes = pgTable(
     effectiveTo: date('effective_to'),
     name: varchar('name', { length: 200 }),
     notes: text('notes'),
+    /**
+     * How the bake is grouped on the end-of-bake picker (Sept-2026, item 2).
+     *
+     * CORPORATE / REGULAR / OTHER — a menu-planning convention, not a
+     * behavioural one: nothing in the costing or stock maths reads it. It
+     * exists because a flat alphabetical list of every cake made a head baker
+     * hunt for theirs at the start of every session.
+     *
+     * A varchar with a CHECK rather than a pg enum, so widening the list later
+     * is a one-line migration.
+     */
+    bakeType: varchar('bake_type', { length: 20 }).notNull().default('REGULAR'),
+    /**
+     * Whether this cake is currently on the menu (Sept-2026, item 3).
+     *
+     * Only active recipes reach the end-of-bake picker. Inactive is NOT a
+     * delete: sessions already filed against the recipe keep resolving, and
+     * re-activating a seasonal cake is a toggle rather than a re-import.
+     */
+    isActive: boolean('is_active').notNull().default(true),
     ...auditTimestamps,
   },
   (t) => ({
     recipesLookupIdx: index('recipes_lookup_idx').on(t.companyId, t.bake, t.siteId),
+    recipesActiveIdx: index('recipes_active_idx').on(t.companyId, t.isActive),
     // Guards site-specific versions; global rows (siteId NULL) are version-
     // allocated by the service (Postgres treats NULLs as distinct here).
     recipesVersionUnq: uniqueIndex('recipes_company_bake_site_version_unq').on(

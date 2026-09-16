@@ -1,10 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 
+/**
+ * How a bake is grouped on the end-of-bake picker (Sept-2026, item 2).
+ * Presentation only — nothing in the costing or stock maths reads it.
+ */
+export const BAKE_TYPES = ['CORPORATE', 'REGULAR', 'OTHER'] as const;
+export type BakeType = (typeof BAKE_TYPES)[number];
+
+/** The order the groups appear on the picker, and their headings. */
+export const BAKE_TYPE_LABELS: Record<BakeType, string> = {
+  CORPORATE: 'Corporate',
+  REGULAR: 'Regular',
+  OTHER: 'Other',
+};
+
+/** One cake on the menu. */
+export interface MenuBake {
+  bake: string;
+  bakeType: BakeType;
+  isActive: boolean;
+}
+
 export interface Recipe {
   id: string;
   /** The cake this recipe makes (free-form, e.g. "Victoria Sponge"). */
   bake: string;
+  bakeType: BakeType;
+  /** Off the menu when false — hidden from the venue picker, not deleted. */
+  isActive: boolean;
   siteId: string | null;
   version: number;
   effectiveFrom: string;
@@ -40,6 +64,8 @@ export interface RecipeLineInput {
 export interface CreateRecipeInput {
   bake: string;
   siteId?: string | null;
+  bakeType?: BakeType;
+  isActive?: boolean;
   effectiveFrom: string;
   effectiveTo?: string | null;
   name?: string | null;
@@ -59,12 +85,43 @@ export function useRecipes(filter?: { bake?: string; siteId?: string }) {
   });
 }
 
-/** The distinct cakes that have a recipe (the menu) — for pickers. */
-export function useBakes() {
-  return useQuery<string[]>({
-    queryKey: [...recipeKeys.all, 'bakes'],
-    queryFn: () => apiFetch<string[]>('/recipes/bakes'),
+/**
+ * The cakes the picker offers, each with its group (Sept-2026, items 2 and 3).
+ *
+ * ACTIVE ONLY by default — the venue picker shows tonight's menu, not every
+ * cake the company has ever costed. The admin Recipes page passes
+ * `includeInactive` so a switched-off cake can be found and switched back on.
+ */
+export function useBakes(opts: { includeInactive?: boolean } = {}) {
+  return useQuery<MenuBake[]>({
+    queryKey: [...recipeKeys.all, 'bakes', opts.includeInactive ?? false],
+    queryFn: () =>
+      apiFetch<MenuBake[]>('/recipes/bakes', {
+        searchParams: opts.includeInactive ? { includeInactive: 'true' } : undefined,
+      }),
   });
+}
+
+/**
+ * Group the menu for display, in the fixed order Corporate → Regular → Other.
+ *
+ * Fixed rather than data-driven: the headings are a convention the venue reads
+ * the same way every session, and a group that moves because tonight happens
+ * to have no corporate bake is a group a baker has to re-find.
+ */
+export function groupBakes(menu: MenuBake[] | undefined): Array<{
+  type: BakeType;
+  label: string;
+  bakes: MenuBake[];
+}> {
+  const order: BakeType[] = ['CORPORATE', 'REGULAR', 'OTHER'];
+  return order
+    .map((type) => ({
+      type,
+      label: BAKE_TYPE_LABELS[type],
+      bakes: (menu ?? []).filter((b) => b.bakeType === type),
+    }))
+    .filter((g) => g.bakes.length > 0);
 }
 
 export function useRecipe(id: string | undefined) {
@@ -91,6 +148,8 @@ export interface UpdateRecipeInput {
   effectiveTo?: string | null;
   name?: string | null;
   notes?: string | null;
+  bakeType?: BakeType;
+  isActive?: boolean;
   /** When given, REPLACES the ingredient list wholesale. */
   lines?: Array<{ productId: string; qtyPerCover: number; variant?: string }>;
 }

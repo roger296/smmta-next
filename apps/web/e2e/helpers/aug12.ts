@@ -141,7 +141,7 @@ export async function stubAug12(page: Page, opts: { products?: Aug12Product[] } 
     route.fulfill(json({ success: true, data: { take: { id: STOCK_TAKE.take.id, status: 'APPROVED' } }, warnings: [] })),
   );
   await page.route('**/api/v1/recipes/bakes', (route) =>
-    route.fulfill(json({ success: true, data: ['Battenburg'] })),
+    route.fulfill(json({ success: true, data: [{ bake: 'Battenburg', bakeType: 'REGULAR', isActive: true }] })),
   );
   await page.route('**/api/v1/recipes/coverage**', (route) =>
     route.fulfill(json({ success: true, data: { hasRecipe: true, glutenFree: true, vegan: true } })),

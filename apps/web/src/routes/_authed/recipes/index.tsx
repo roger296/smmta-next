@@ -27,6 +27,9 @@ import {
 import {
   useRecipes,
   useBakes,
+  BAKE_TYPES,
+  BAKE_TYPE_LABELS,
+  type BakeType,
   useCreateRecipe,
   type Recipe,
 } from '@/features/recipes/use-recipes';
@@ -45,7 +48,9 @@ interface DraftLine {
 
 function RecipesPage() {
   const { data: recipes, isLoading } = useRecipes();
-  const { data: bakes } = useBakes();
+  // includeInactive: the admin page has to be able to find a retired cake in
+  // order to switch it back on (item 3).
+  const { data: bakes } = useBakes({ includeInactive: true });
   const { data: sites } = useSites();
   const create = useCreateRecipe();
   const { toast } = useToast();
@@ -57,6 +62,10 @@ function RecipesPage() {
 
   const [bake, setBake] = React.useState<string>('');
   const [scope, setScope] = React.useState<string>('GLOBAL');
+  // Sept-2026 items 2 and 3. REGULAR + active are the defaults everywhere, so
+  // a recipe written without thinking about either behaves as recipes do now.
+  const [bakeType, setBakeType] = React.useState<BakeType>('REGULAR');
+  const [isActive, setIsActive] = React.useState(true);
   const [effectiveFrom, setEffectiveFrom] = React.useState<string>('');
   const [effectiveTo, setEffectiveTo] = React.useState<string>('');
   const [lines, setLines] = React.useState<DraftLine[]>([{ productId: '', qtyPerCover: '' }]);
@@ -75,6 +84,8 @@ function RecipesPage() {
       await create.mutateAsync({
         bake: bake.trim(),
         siteId: scope === 'GLOBAL' ? null : scope,
+        bakeType,
+        isActive,
         effectiveFrom,
         effectiveTo: effectiveTo || null,
         lines: [
@@ -113,7 +124,7 @@ function RecipesPage() {
           <CardTitle className="text-base">New recipe version</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-6">
             <div className="space-y-1.5">
               <Label>Cake</Label>
               <Input
@@ -124,7 +135,7 @@ function RecipesPage() {
               />
               <datalist id="bake-options">
                 {(bakes ?? []).map((b) => (
-                  <option key={b} value={b} />
+                  <option key={b.bake} value={b.bake} />
                 ))}
               </datalist>
             </div>
@@ -151,6 +162,36 @@ function RecipesPage() {
             <div className="space-y-1.5">
               <Label>Effective to (optional)</Label>
               <Input type="date" value={effectiveTo} onChange={(e) => setEffectiveTo(e.target.value)} />
+            </div>
+            {/* Item 2: the group this cake sits under on the venue picker. */}
+            <div className="space-y-1.5">
+              <Label htmlFor="bake-type">Bake type</Label>
+              <Select value={bakeType} onValueChange={(v) => setBakeType(v as BakeType)}>
+                <SelectTrigger id="bake-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BAKE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {BAKE_TYPE_LABELS[t]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Item 3: on or off the venue picker. Not a delete — sessions
+                already filed against the recipe keep resolving. */}
+            <div className="space-y-1.5">
+              <Label htmlFor="bake-active">Status</Label>
+              <Select value={isActive ? 'ACTIVE' : 'INACTIVE'} onValueChange={(v) => setIsActive(v === 'ACTIVE')}>
+                <SelectTrigger id="bake-active">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

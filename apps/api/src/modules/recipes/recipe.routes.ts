@@ -15,7 +15,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../../shared/middleware/auth.js';
-import { RecipeService } from './recipe.service.js';
+import { RecipeService, BAKE_TYPES } from './recipe.service.js';
 import { ExpectedConsumptionService } from './expected-consumption.service.js';
 
 const bakeSchema = z.string().min(1).max(200);
@@ -28,6 +28,10 @@ const createSchema = z.object({
   effectiveTo: dateSchema.nullable().optional(),
   name: z.string().max(200).nullable().optional(),
   notes: z.string().nullable().optional(),
+  // Sept-2026 items 2 and 3. Both optional so an existing caller — the recipe
+  // importer included — keeps working and gets the defaults.
+  bakeType: z.enum(BAKE_TYPES).optional(),
+  isActive: z.boolean().optional(),
   lines: z
     .array(
       z.object({
@@ -56,6 +60,10 @@ const updateSchema = createSchema
 const listQuerySchema = z.object({
   bake: bakeSchema.optional(),
   siteId: z.string().uuid().optional(),
+});
+
+const bakesQuerySchema = z.object({
+  includeInactive: z.coerce.boolean().optional(),
 });
 
 const effectiveQuerySchema = z.object({
@@ -88,8 +96,12 @@ export async function recipeRoutes(app: FastifyInstance) {
     return { success: true, data };
   });
 
-  app.get('/recipes/bakes', async () => {
-    return { success: true, data: await recipes.listBakes() };
+  // ACTIVE cakes only unless asked otherwise (item 3). The venue picker calls
+  // this bare; the admin Recipes page passes includeInactive so a switched-off
+  // cake can still be found and switched back on.
+  app.get('/recipes/bakes', async (request) => {
+    const q = bakesQuerySchema.parse(request.query);
+    return { success: true, data: await recipes.listBakes({ includeInactive: q.includeInactive }) };
   });
 
   app.get('/recipes/effective', async (request, reply) => {

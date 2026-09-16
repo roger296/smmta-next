@@ -56,7 +56,7 @@ beforeEach(() => {
   localStorage.setItem('smmta_token', tokenWithRoles(['head_baker'], SITE.id));
   server.use(
     http.get(`${API}/recipes/bakes`, () =>
-      HttpResponse.json({ success: true, data: ['Battenburg'] }),
+      HttpResponse.json({ success: true, data: [{ bake: 'Battenburg', bakeType: 'REGULAR', isActive: true }] }),
     ),
     http.get(`${API}/recipes/coverage`, () =>
       HttpResponse.json({ success: true, data: { hasRecipe: true, glutenFree: false, vegan: false } }),
@@ -175,5 +175,37 @@ describe('item 8: the dead Submit button', () => {
     const submit = screen.getByRole('button', { name: /to continue/i });
     expect(submit).toBeDisabled();
     expect(submit).toHaveTextContent('Enter what is left of 1 ingredient to continue');
+  });
+});
+
+describe('item 2: the cake picker is grouped', () => {
+  it('renders a heading per group, in the fixed order', async () => {
+    server.use(
+      http.get(`${API}/recipes/bakes`, () =>
+        HttpResponse.json({
+          success: true,
+          data: [
+            { bake: 'Away Day Bake', bakeType: 'CORPORATE', isActive: true },
+            { bake: 'Battenburg', bakeType: 'REGULAR', isActive: true },
+            { bake: 'Staff Experiment', bakeType: 'OTHER', isActive: true },
+          ],
+        }),
+      ),
+    );
+    renderScreen();
+
+    const headings = await screen.findAllByRole('heading', { level: 2 });
+    expect(headings.map((h) => h.textContent)).toEqual(['Corporate', 'Regular', 'Other']);
+  });
+
+  it('says so when the venue has no active cakes, rather than showing a blank', async () => {
+    // An empty picker with no explanation is the F-6 failure mode again:
+    // nothing on screen, and nothing saying why.
+    server.use(
+      http.get(`${API}/recipes/bakes`, () => HttpResponse.json({ success: true, data: [] })),
+    );
+    renderScreen();
+
+    expect(await screen.findByText(/no active cakes for this venue/i)).toBeInTheDocument();
   });
 });
