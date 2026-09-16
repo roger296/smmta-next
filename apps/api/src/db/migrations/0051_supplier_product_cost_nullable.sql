@@ -1,0 +1,13 @@
+-- A supplier mapping you have the CODE for but not yet the PRICE (Sept 2026).
+--
+-- `cost_gbp` was NOT NULL, which is a drop-ship assumption: those mappings are
+-- created by a connector that returns a price with the SKU. Big Bakes' food
+-- suppliers are the other way round — you learn that Brakes lists the item as
+-- 20954 long before you know what it costs, and the invoice OCR that will
+-- populate most of these carries a code on every line but a usable unit price
+-- on only some.
+--
+-- NULL means "not known", which is what the screen and the reorder engine need
+-- to be able to say. It is NOT zero: a £0.00 cost silently produces a £0.00 PO
+-- line, which is the same class of defect as C-4.
+ALTER TABLE supplier_products ALTER COLUMN cost_gbp DROP NOT NULL;

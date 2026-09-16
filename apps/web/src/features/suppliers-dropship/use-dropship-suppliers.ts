@@ -39,7 +39,13 @@ export interface SupplierMappingRow {
   productId: string;
   supplierId: string;
   supplierSku: string;
-  costGbp: string;
+  /** null = the price is not known yet, which is not the same as 0.00. */
+  costGbp: string | null;
+  /** The supplier's OWN buying unit and pack for this code — "sack", 25.
+   *  Reordering rounds an order up to whole packs of this. */
+  supplierPurchaseUom: string | null;
+  supplierPackSize: string | null;
+  /** Only ever populated for API suppliers; an emailed-PO supplier is never polled. */
   lastKnownStock: number | null;
   lastKnownPrice: string | null;
   lastPolledAt: string | null;
@@ -142,9 +148,12 @@ export interface UpsertMappingsInput {
   mappings: Array<{
     supplierId: string;
     supplierSku: string;
-    costGbp: string;
+    /** null = not known. Omitting the price must not mean "free". */
+    costGbp: string | null;
     priority: number;
     isActive: boolean;
+    supplierPurchaseUom?: string | null;
+    supplierPackSize?: number | null;
   }>;
 }
 

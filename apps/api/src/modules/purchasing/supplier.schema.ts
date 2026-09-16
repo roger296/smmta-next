@@ -76,8 +76,17 @@ export const upsertSupplierMappingsSchema = z.object({
     .array(
       z.object({
         supplierId: z.string().uuid(),
-        supplierSku: z.string().min(1).max(200),
-        costGbp: z.string().regex(/^\d+(\.\d{1,2})?$/, 'costGbp must be a decimal string'),
+        supplierSku: z.string().trim().min(1).max(200),
+        /**
+         * Optional since the mapping became a purchasing record rather than a
+         * drop-ship one: the code is knowable before the price. Omitted or
+         * null both mean "not known".
+         */
+        costGbp: z
+          .string()
+          .regex(/^\d+(\.\d{1,2})?$/, 'costGbp must be a decimal string')
+          .nullable()
+          .optional(),
         priority: z.coerce.number().int().min(0).max(10_000).default(100),
         isActive: z.boolean().default(true),
         // Per-item auto-place override (null ⇒ inherit supplier default) + the

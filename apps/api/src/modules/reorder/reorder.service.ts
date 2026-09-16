@@ -102,7 +102,11 @@ export class ReorderService {
     const packSize = Number(sp?.supplierPackSize ?? product?.purchasePackSize ?? 1) || 1;
     const qtyPurchase = roundUpToPackMultiple(qtyStockRaw / factor, packSize);
     const qtyStock = qtyPurchase * factor;
-    const unitCost = sp ? Number(sp.costGbp) : Number(product?.expectedNextCost ?? 0);
+    // A supplier mapping may carry no price (0051). `Number(null)` is 0, and a
+    // £0.00 PO line is the C-4 defect again — so an unpriced mapping falls back
+    // to the product's own expected cost rather than to zero.
+    const unitCost =
+      sp?.costGbp != null ? Number(sp.costGbp) : Number(product?.expectedNextCost ?? 0);
 
     const channel = supplier?.orderChannel ?? 'EMAIL_PO';
     const auto = sp && supplier ? effectiveAutoPlace(sp, supplier) : false;

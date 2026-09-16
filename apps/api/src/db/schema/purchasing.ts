@@ -105,9 +105,16 @@ export const supplierProducts = pgTable('supplier_products', {
   productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   supplierId: uuid('supplier_id').notNull().references(() => suppliers.id, { onDelete: 'restrict' }),
   supplierSku: varchar('supplier_sku', { length: 200 }).notNull(),
-  /** Manually-entered cost price, used as a fallback when the polling
-   *  worker hasn't updated `lastKnownPrice` yet. */
-  costGbp: decimal('cost_gbp', { precision: 12, scale: 2 }).notNull(),
+  /**
+   * Manually-entered cost price, used as a fallback when the polling worker
+   * hasn't updated `lastKnownPrice` yet.
+   *
+   * NULLABLE since 0051: you learn a supplier's CODE long before their price,
+   * and the invoice OCR that populates most of these carries a code on every
+   * line but a usable unit price on only some. NULL means "not known" — never
+   * 0, which would put a £0.00 line on a purchase order.
+   */
+  costGbp: decimal('cost_gbp', { precision: 12, scale: 2 }),
   /** Most recent stock count from the supplier. NULL = never polled or
    *  the supplier didn't return this SKU. */
   lastKnownStock: integer('last_known_stock'),

@@ -193,29 +193,59 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
       return reply.status(400).send({ success: false, error: 'Invalid body', issues: parsed.error.issues });
     }
     const db = getDb();
+
+    // A mapping's identity is (supplier, SKU), matching the table's unique
+    // index — NOT the supplier alone. One supplier routinely lists the same
+    // item under several codes and pack sizes (Brakes 20954 / A20954, Booker
+    // 318639 / 503510), and the reorder engine compares those alternatives.
+    //
+    // Keying on supplierId here used to collapse them: the first write
+    // inserted both, and every write after it updated ONE of the rows twice
+    // and soft-deleted nothing — so editing a product silently lost a code.
+    // It looked correct until somebody came back to change a price.
+    const keyOf = (supplierId: string, sku: string) =>
+      `${supplierId}::${sku.trim().toLowerCase()}`;
+
+    // A file or a form can offer the same code twice. The unique index would
+    // reject it with a 500; say which code rather than letting it surface as a
+    // server error.
+    const seen = new Set<string>();
+    for (const m of parsed.data.mappings) {
+      const k = keyOf(m.supplierId, m.supplierSku);
+      if (seen.has(k)) {
+        return reply.status(400).send({
+          success: false,
+          error: `Supplier SKU "${m.supplierSku}" is listed twice for the same supplier. Each code can only appear once.`,
+        });
+      }
+      seen.add(k);
+    }
+
     const existing = await db.query.supplierProducts.findMany({
       where: and(
         eq(supplierProducts.productId, id),
         isNull(supplierProducts.deletedAt),
       ),
     });
-    const existingBySupplier = new Map(existing.map((r) => [r.supplierId, r]));
-    const requestedSupplierIds = new Set(parsed.data.mappings.map((m) => m.supplierId));
+    const existingByKey = new Map(
+      existing.map((r) => [keyOf(r.supplierId, r.supplierSku), r]),
+    );
+    const requestedKeys = new Set(
+      parsed.data.mappings.map((m) => keyOf(m.supplierId, m.supplierSku)),
+    );
 
-    // Determine the singleton companyId from any existing supplier or
-    // the singleton helper. Since this is single-tenant, all rows share
-    // the same companyId.
+    // Single-tenant: every row shares the singleton companyId.
     const { getSingletonCompanyId } = await import('../../shared/auth/company.js');
     const companyId = getSingletonCompanyId();
 
     for (const m of parsed.data.mappings) {
-      const e = existingBySupplier.get(m.supplierId);
+      const e = existingByKey.get(keyOf(m.supplierId, m.supplierSku));
       if (e) {
         await db
           .update(supplierProducts)
           .set({
-            supplierSku: m.supplierSku,
-            costGbp: m.costGbp,
+            supplierSku: m.supplierSku.trim(),
+            costGbp: m.costGbp ?? null,
             priority: m.priority,
             isActive: m.isActive,
             ...(m.autoPlaceOverride !== undefined ? { autoPlaceOverride: m.autoPlaceOverride } : {}),
@@ -231,8 +261,8 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
           companyId,
           productId: id,
           supplierId: m.supplierId,
-          supplierSku: m.supplierSku,
-          costGbp: m.costGbp,
+          supplierSku: m.supplierSku.trim(),
+          costGbp: m.costGbp ?? null,
           priority: m.priority,
           isActive: m.isActive,
           autoPlaceOverride: m.autoPlaceOverride ?? null,
@@ -244,9 +274,10 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
         });
       }
     }
-    // Soft-delete any previous mapping not present in the request.
+    // Soft-delete any previous mapping not present in the request — by its own
+    // (supplier, SKU), so dropping one of a supplier's codes keeps the others.
     for (const e of existing) {
-      if (!requestedSupplierIds.has(e.supplierId)) {
+      if (!requestedKeys.has(keyOf(e.supplierId, e.supplierSku))) {
         await db
           .update(supplierProducts)
           .set({ isActive: false, deletedAt: new Date(), updatedAt: new Date() })

@@ -97,6 +97,20 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   submit maps over all lines, a folded section keeps showing its own
   `counted / total`, and there is an e2e test that counts an item, folds its
   section and asserts the count still posts.
+- **Products link to suppliers through `supplier_products`** — the table the
+  drop-ship module already had, now the purchasing record for emailed-PO
+  suppliers too. Its identity is **(product, supplier, supplier_sku)**: one
+  supplier lists the same item under several codes and pack sizes (Brakes
+  33891 @ 1×25 kg vs 114953 @ 6×1.5 kg) and reordering compares them.
+  ⚠️ The `PUT /products/:id/supplier-mappings` write path used to key on
+  `supplierId` ALONE, so the first save inserted both codes and every save
+  after it updated one row twice and soft-deleted nothing — adding worked,
+  editing silently dropped a code. Fixed Sept 2026; there is a test for it.
+  `cost_gbp` is **nullable** (migration `0051`): you learn a supplier's code
+  long before their price, and 0.00 is a £0.00 PO line, not "unknown" — the
+  reorder engine falls back to `products.expected_next_cost`. The Suppliers tab
+  on a product no longer filters to `connectorKind !== 'NONE'`, which had hidden
+  every one of the 72 real (emailed-PO) suppliers.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and
