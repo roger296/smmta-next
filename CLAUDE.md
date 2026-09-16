@@ -127,6 +127,25 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   it writes anything. In the UI the aliases are the "Also known as" column,
   **comma-separated only**: a supplier code can contain a space (`A 33891`), so
   splitting on whitespace would shred it.
+- **Supplier codes are mined out of the OCR'd invoices, not typed**
+  (`extract-invoice-skus.ts` -> review CSV -> `import-invoice-skus.ts`;
+  `apps/api/data/invoice-skus/`). A year of purchase invoices already carries a
+  supplier code on almost every line, so ~460 mappings and their aliases come
+  from there rather than from someone keying two thousand codes. ⚠️ The source
+  is MCP-only and ends in `rows[:500]` with **no total_count and no offset** —
+  a window of 501 lines returns 500 and says nothing. The capture is therefore
+  windowed, every window was counted, **seven that came back at exactly 500
+  were discarded** and re-fetched narrower, and the extractor REFUSES to run on
+  a file without `capture.cap_checked`. Brakes saturates at ~283 distinct codes
+  after two months, so it is sampled a window per month plus recent weeks —
+  which makes `lines_seen` a sample that ranks a work list, not a purchase
+  history. Three things are deliberately never guessed: **which product** a
+  code belongs to (stock-code or exact-name only — a wrong fuzzy match welds a
+  price to the wrong product and every later reorder is wrong silently), the
+  numeric **`supplier_pack_size`** (Brakes bills sacks `100x1` and gloves
+  `1x100` — same shape, opposite meanings), and a **cost somebody typed**.
+  The fiddly rules live in `modules/suppliers/invoice-sku-extract.ts` and are
+  unit-tested against the real spellings observed.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and

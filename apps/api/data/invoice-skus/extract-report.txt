@@ -1,0 +1,29 @@
+source             : bumblebee-purchase-lines.json
+capture window     : 2025-10-02 .. 2026-09-14  (31 windows, 7 discarded at the 500-row cap)
+invoice lines      : 8812  (202 with no SKU - nothing to map)
+
+mappings to import : 461
+  aliases folded   : 374 spelling(s) onto their canonical code
+  without a cost   : 5  (imported anyway - cost_gbp is nullable; 0.00 would be a GBP0 PO line)
+held for review    : 548  (see supplier-skus-review.csv)
+  prefix conflicts : 0
+  pack conflicts   : 143
+
+unit_price disagreed with line_total/quantity on 101 code(s); the
+derived figure won. The observed OCR failure is a line TOTAL read into the
+unit-price column, which would price a purchase order several times over.
+
+Per supplier (importable):
+    226  Brakes
+     49  Sysco
+     42  Twist Ingredients
+     40  Booker
+     40  Makro
+     33  LWC Drinks
+     12  Culpitt
+     11  Amazon
+      8  JMPosner
+
+None of these are attached to an Auto-Stock product yet - an invoice does
+not name one. import-invoice-skus.ts matches on the description and lists
+what it could not place.

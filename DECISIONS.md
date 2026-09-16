@@ -1179,3 +1179,104 @@ has drifted and is worth showing a human once.
 The UI's "Also known as" field splits on commas only. `A 33891` is a real
 supplier code with a space in it; splitting on whitespace would turn one code
 into two, both wrong, and the operator would have no way to enter the real one.
+
+## §F20 — Supplier codes out of the invoice OCR (Sept 2026)
+
+Auto-Stock cannot raise a purchase order for a product it has no supplier code
+for. Keying those in is roughly two thousand codes across nine suppliers.
+
+A year of Big Bakes purchase invoices has already been OCR'd into BumbleBee and
+carries the code on almost every line — Brakes, which is 60% of the lines, is
+0.4% missing. So the codes are mined, reviewed as a CSV, and then imported:
+
+```
+bumblebee-purchase-lines.json → extract-invoice-skus.ts → supplier-skus.csv
+                                                        → supplier-skus-review.csv
+                              → import-invoice-skus.ts  → supplier_products
+                                                        + supplier_product_aliases
+```
+
+### The source truncates silently, so the capture is the risky part
+
+There is no REST route for this data. `bumblebee_invoice_purchase_prices` exists
+only as an MCP tool, and its handler ends in `rows[:500]` — **no `total_count`,
+no offset**. A window holding 501 matching lines returns 500 of them and reports
+nothing unusual.
+
+That is the worst possible failure for this job, because a supplier catalogue
+missing some codes does not look broken: the missing codes look exactly like
+items nobody buys, and they stay unorderable with nobody asking why.
+
+So the capture is windowed by supplier and date, every window was counted
+afterwards, and **seven that came back at exactly 500 rows were discarded** and
+re-fetched narrower. `capture.cap_checked` records that the check happened, and
+the extractor exits rather than read a file without it.
+
+### Sampled, not a census — and the report says so
+
+Brakes' distinct-code count saturates fast: 283 codes after two months, then
+11–15 new ones per further window. Capturing all sixteen months contiguously
+would have cost ~60 more tool calls for a thin seasonal tail, so Brakes is
+sampled one window per month across the year plus contiguous recent weeks for
+fresh prices.
+
+The consequence is named rather than hidden: `lines_seen` is a **sample** count.
+It is good for ranking a work list and worthless as a purchase history, and the
+column is documented that way.
+
+### The one grouping rule, and the counter-example that shapes it
+
+Only `^[A-Za-z]{0,2} ?\d{2,}$` is treated as a spelling variant. That is the
+Brakes case — `33891`, `A 33891`, `A33891`, often twice on ONE invoice with an
+identical line total, because the OCR read the prefix on one pass and not the
+other.
+
+It is deliberately not a general "strip the letters" rule, because Uncle Roy's
+sells `20036PR500` and `20036PR1000`: the same essence in a 500ml and a 1L
+bottle, two separate things to buy at two prices. Letters in the middle fail the
+pattern and are never grouped. A wider rule would fuse the two and lose whichever
+lost the merge.
+
+Two further grouping refusals, both held for review rather than decided:
+
+- **Same digits, two different prefixes** (`A123` and `C123`). Never once in the
+  captured year, but if it happens the prefix is carrying meaning.
+- **One code, two pack sizes** (143 of them). Usually the OCR dropping a case
+  count — `40 x 250g` read as `250g` — and the pack is what a PO gets rounded
+  to, so the error in play is a 40× one.
+
+### Three things the import will not guess
+
+- **Which product a code belongs to**, beyond a stock-code or exact normalised
+  name match. A supplier describes goods its own way ("Wholesome Farms Unsalted
+  Butter"); the venue counts them another ("Butter, unsalted"). A wrong fuzzy
+  match welds a code, a pack and a price to the wrong product, looks deliberate,
+  and makes every later reorder for BOTH products wrong with nothing on screen
+  saying so. Unmatched codes are a work list, busiest first. A name shared by two
+  live products identifies neither, so it resolves to neither.
+- **The numeric `supplier_pack_size`.** Brakes bills compactor sacks as `100x1`
+  (a hundred sacks) and gloves as `1x100` (one box of a hundred) — the same shape
+  meaning opposite things. The observed text goes in the CSV for a human; the
+  column stays theirs.
+- **A cost somebody typed.** An operator who entered a price agreed with the
+  supplier knows more than an OCR'd invoice from four months ago. Existing
+  mappings are gap-filled only.
+
+### Unit price is not trusted over the line total
+
+`unit_price` is absent on most OCR passes, so cost falls back to
+`line_total / quantity`. Where both exist and disagree, the **derived** figure
+wins: the observed failure is a line TOTAL read into the unit-price column
+(32.94 against a real 11.12 on a quantity of three), and a cost three times over
+goes straight onto a purchase order. 101 codes in the captured set hit this.
+
+### Bug found while building this
+
+`importInvoiceSkus` called `aliasConflict(supplierId, alias, ownMappingId)`
+without the company id, so the conflict check ran against
+`getSingletonCompanyId()` regardless of which company the import was writing to.
+Single-tenant production never notices. It surfaced the moment the integration
+test was moved onto a throwaway company id — which it was moved onto because
+`supplier_products` is shared state and vitest runs test files alongside each
+other, so writing under the real singleton races the supplier-poll worker's
+fixtures.
