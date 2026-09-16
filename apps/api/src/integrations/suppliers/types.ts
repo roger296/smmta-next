@@ -102,6 +102,9 @@ export interface SupplierConnectorContext {
   /** The email address on our account with the supplier, from the supplier
    *  record. When set, orders carry it in place of the order's contactEmail. */
   customerAccountEmail?: string | null;
+  /** The supplier's code for how an order should be sent (Uneek: "DPD").
+   *  Empty lets the supplier choose. */
+  deliveryMethodCode?: string | null;
 }
 
 /**

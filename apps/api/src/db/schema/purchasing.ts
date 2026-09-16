@@ -70,6 +70,9 @@ export const suppliers = pgTable('suppliers', {
    *  of SUPPLIER_ORDER_CONTACT_EMAIL. Not `accountsEmail`, which is the
    *  supplier's own accounts department. */
   customerAccountEmail: varchar('customer_account_email', { length: 200 }),
+  /** The supplier's own code for how an order should be sent, e.g. Uneek's
+   *  "DPD". Empty lets the supplier choose. */
+  deliveryMethodCode: varchar('delivery_method_code', { length: 60 }),
   /** Published rate limit — what the supplier told us. The connector
    *  computes its inter-request delay from `(rate_limit_window_seconds
    *  * 1000 / rate_limit_requests) * SAFETY` so the operator never

@@ -166,12 +166,12 @@ Capital O. Request body `APIOrderRequest`, as the connector sends it:
       "deliveryAccountName": "...", "addressLine1": "...", "addressLine2": "...",
       "townCity": "...", "postcode": "...", "countryCode": "GB", "countryName": "United Kingdom"
     },
-    "deliveryOption": { "plainCover": true, "deliveryMethod": "<UNEEK_DELIVERY_METHOD>" }
+    "deliveryOption": { "plainCover": true, "deliveryMethod": "<suppliers.delivery_method_code>" }
   }
 }
 ```
 
-- The spec lists no values for `deliveryMethod`. It comes from the `UNEEK_DELIVERY_METHOD` env var (empty by default). **Ask Uneek for the code.**
+- The spec lists no values for `deliveryMethod`. It comes from the supplier record's `delivery_method_code` (admin Drop-ship tab), empty by default. Uneek accepted a blank field on the first live order (SO2891039, 2026-09-15) and chose **DPD**, so "DPD" is a working code.
 - The address has no county or phone field, so the county is dropped and the phone goes in `specialInstructions`.
 - The spec declares no response body. The connector takes the order number from the usual field names (`OrderNumber`, `SalesOrderNumber`, `orderRef`, `id`…) or a bare string, and otherwise records our `orderReference`, which `GET /orders?reference=` can find. A 2xx whose body says `success: false` or `status: REJECTED` is treated as a refusal.
 

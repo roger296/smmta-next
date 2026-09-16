@@ -47,6 +47,7 @@ export function DropshipTab({ supplierId }: Props) {
         deliveryChargeGbp: s.deliveryChargeGbp,
         accountNumber: s.accountNumber,
         customerAccountEmail: s.customerAccountEmail,
+        deliveryMethodCode: s.deliveryMethodCode,
       });
       setApiKeyInput('');
     }
@@ -287,6 +288,24 @@ export function DropshipTab({ supplierId }: Props) {
                 The email address on your account with this supplier (the one you sign in to its
                 website with). Orders to this supplier are sent with it. Leave blank to use the
                 shop&apos;s general contact address.
+              </p>
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <Label htmlFor="ds-delivery-method">Delivery method code</Label>
+              <Input
+                id="ds-delivery-method"
+                value={form.deliveryMethodCode ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((f) => ({ ...f, deliveryMethodCode: v.trim() === '' ? null : v }));
+                }}
+                placeholder="Supplier's choice"
+                autoComplete="off"
+                className="w-40"
+              />
+              <p className="text-xs text-[var(--color-muted-foreground)]">
+                The supplier's own code for how orders are sent — Uneek uses DPD. Leave blank to
+                let the supplier choose.
               </p>
             </div>
             <div className="space-y-1 md:col-span-2">

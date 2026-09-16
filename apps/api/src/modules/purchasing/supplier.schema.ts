@@ -74,6 +74,9 @@ export const dropshipSupplierSchema = z.object({
     .union([z.string().trim().email().max(200), z.literal('')])
     .nullable()
     .optional(),
+  /** The supplier's code for how an order should be sent (Uneek: "DPD").
+   *  null or "" lets the supplier choose. */
+  deliveryMethodCode: z.string().trim().max(60).nullable().optional(),
 });
 
 export type DropshipSupplierInput = z.infer<typeof dropshipSupplierSchema>;

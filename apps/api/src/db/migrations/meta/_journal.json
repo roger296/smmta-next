@@ -253,6 +253,13 @@
       "when": 1789490461388,
       "tag": "0035_supplier_customer_account_email",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1789536514886,
+      "tag": "0036_supplier_delivery_method_code",
+      "breakpoints": true
     }
   ]
 }

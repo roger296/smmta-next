@@ -24,6 +24,8 @@ export interface DropshipSupplierRow {
   accountNumber: string | null;
   /** The email address on our account with the supplier. */
   customerAccountEmail: string | null;
+  /** The supplier's code for how an order should be sent, e.g. "DPD". */
+  deliveryMethodCode: string | null;
   hasApiKey: boolean;
 }
 
@@ -86,6 +88,7 @@ export interface DropshipUpdateInput {
   deliveryChargeGbp?: string | null;
   accountNumber?: string | null;
   customerAccountEmail?: string | null;
+  deliveryMethodCode?: string | null;
 }
 
 export function useUpdateDropshipSupplier() {

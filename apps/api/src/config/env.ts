@@ -151,9 +151,8 @@ const envSchema = z.object({
   /** The contact email given to suppliers on each order (Uneek asks for one).
    *  Ours, not the customer's: orders go in plain cover under our name. */
   SUPPLIER_ORDER_CONTACT_EMAIL: z.string().default('sales@cleverdeals.net'),
-  /** Uneek's deliveryMethod code. Uneek's API documentation does not list the
-   *  values; empty sends a blank field. Confirm the code with Uneek. */
-  UNEEK_DELIVERY_METHOD: z.string().default(''),
+  // A supplier's delivery-method code lives on its supplier record
+  // (`delivery_method_code`, admin Drop-ship tab), not here.
 
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications

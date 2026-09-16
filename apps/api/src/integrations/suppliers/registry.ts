@@ -39,6 +39,8 @@ export interface SupplierLikeRow {
   accountNumber?: string | null;
   /** The email address on our account with the supplier. */
   customerAccountEmail?: string | null;
+  /** The supplier's code for how an order should be sent. */
+  deliveryMethodCode?: string | null;
 }
 
 /** Stub connectors registered by tests, by supplier id. */
@@ -73,6 +75,7 @@ function buildKey(supplier: SupplierLikeRow): string {
     supplier.apiAuthScheme,
     supplier.accountNumber ?? null,
     supplier.customerAccountEmail ?? null,
+    supplier.deliveryMethodCode ?? null,
     supplier.rateLimitRequests ?? null,
     supplier.rateLimitWindowSeconds ?? null,
     supplier.minRequestIntervalMs ?? null,
@@ -113,6 +116,7 @@ export function resolveConnector(supplier: SupplierLikeRow): SupplierConnector {
     }),
     accountNumber: supplier.accountNumber ?? null,
     customerAccountEmail: supplier.customerAccountEmail ?? null,
+    deliveryMethodCode: supplier.deliveryMethodCode ?? null,
   };
 
   let conn: SupplierConnector;
