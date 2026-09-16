@@ -110,7 +110,7 @@ describe('C-1/C-2: the line reads in the unit a human uses', () => {
     await add(user, ICING);
 
     const hint = document.querySelector('.touch-app .row .hint')!;
-    expect(hint).toHaveTextContent('1 × 25 kg sack = 25 kg');
+    expect(hint).toHaveTextContent('1 × 25 kg sack = 25 kilograms');
     expect(hint).not.toHaveTextContent('= 1 g');
   });
 
@@ -121,9 +121,9 @@ describe('C-1/C-2: the line reads in the unit a human uses', () => {
 
     const hint = document.querySelector('.touch-app .row .hint')!;
     expect(hint).toHaveTextContent('£30.00/sack');
-    // £30 a sack over 25000 g is £0.0012/g — which 2dp formatting rendered as
+    // £30 a sack over 25000 g is £0.0012 per gram — which 2dp formatting rendered as
     // the £0.00 the tester reported.
-    expect(hint).toHaveTextContent('£0.0012/g');
+    expect(hint).toHaveTextContent('£0.0012 per gram');
   });
 
   it('C-1: a product with no purchase unit shows the blocked state, not "= 1 g"', async () => {
@@ -179,7 +179,7 @@ describe('C-6: base-unit increment buttons', () => {
 
     // 4 sacks — the 12 Aug delivery.
     const hint = document.querySelector('.touch-app .row .hint')!;
-    await waitFor(() => expect(hint).toHaveTextContent('4 × 25 kg sack = 100 kg'));
+    await waitFor(() => expect(hint).toHaveTextContent('4 × 25 kg sack = 100 kilograms'));
   });
 
   it('never steps below zero', async () => {

@@ -1,33 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countInstruction, uomFullName } from './count-instruction';
-
-describe('uomFullName', () => {
-  it.each([
-    ['kg', 'kilograms'],
-    ['g', 'grams'],
-    ['l', 'litres'],
-    ['ml', 'millilitres'],
-    ['bottle', 'bottles'],
-    ['pack', 'packs'],
-    ['each', 'single units'],
-  ])('spells "%s" out as "%s"', (uom, expected) => {
-    expect(uomFullName(uom)).toBe(expected);
-  });
-
-  it('is case- and whitespace-insensitive, because the catalogue is hand-typed', () => {
-    expect(uomFullName(' KG ')).toBe('kilograms');
-  });
-
-  it('falls back to the unit itself when it has no long name', () => {
-    expect(uomFullName('firkin')).toBe('firkin');
-  });
-
-  it('returns null for a missing unit rather than an empty string', () => {
-    expect(uomFullName(null)).toBeNull();
-    expect(uomFullName('')).toBeNull();
-    expect(uomFullName('   ')).toBeNull();
-  });
-});
+import { countInstruction } from './count-instruction';
 
 describe('countInstruction', () => {
   it('builds the sentence from the stock unit when the product has no instruction', () => {

@@ -11,7 +11,7 @@
  * product's own stock unit.
  */
 import { describe, expect, it } from 'vitest';
-import { bucketCount, bucketNote, isDiscreteUom, purchaseToStock } from './uom';
+import { bucketCount, bucketNote, formatQtyUom, isDiscreteUom, purchaseToStock, uomFullName, uomFullNameSingular } from './uom';
 
 describe('bucketCount — no bucketing without an explicit quantum (D-2)', () => {
   it('D-2: a 4 kg count stays 4', () => {
@@ -51,7 +51,9 @@ describe('bucketCount — no bucketing without an explicit quantum (D-2)', () =>
 
 describe('bucketNote', () => {
   it('describes an active quantum so the counter can see what happened', () => {
-    expect(bucketNote(100, 'g')).toBe('rounded to nearest 100 g');
+    expect(bucketNote(100, 'g')).toBe('rounded to nearest 100 grams');
+    // Spelled out, and singular when the quantum is 1 (Sept-2026 request).
+    expect(bucketNote(1, 'kg')).toBe('rounded to nearest 1 kilogram');
   });
 
   it('says nothing when nothing is being rounded', () => {
@@ -72,5 +74,71 @@ describe('other uom helpers', () => {
     expect(isDiscreteUom('each')).toBe(true);
     expect(isDiscreteUom(' EA ')).toBe(true);
     expect(isDiscreteUom('g')).toBe(false);
+  });
+});
+
+describe('uomFullName', () => {
+  it.each([
+    ['kg', 'kilograms'],
+    ['g', 'grams'],
+    ['l', 'litres'],
+    ['ml', 'millilitres'],
+    ['bottle', 'bottles'],
+    ['pack', 'packs'],
+    ['each', 'single units'],
+  ])('spells "%s" out as "%s"', (uom, expected) => {
+    expect(uomFullName(uom)).toBe(expected);
+  });
+
+  it('is case- and whitespace-insensitive, because the catalogue is hand-typed', () => {
+    expect(uomFullName(' KG ')).toBe('kilograms');
+  });
+
+  it('falls back to the unit itself when it has no long name', () => {
+    expect(uomFullName('firkin')).toBe('firkin');
+  });
+
+  it('returns null for a missing unit rather than an empty string', () => {
+    expect(uomFullName(null)).toBeNull();
+    expect(uomFullName('')).toBeNull();
+    expect(uomFullName('   ')).toBeNull();
+  });
+});
+
+describe('uomFullNameSingular', () => {
+  it.each([
+    ['kg', 'kilogram'],
+    ['g', 'gram'],
+    ['l', 'litre'],
+    ['box', 'box'],
+  ])('gives the singular of "%s" as "%s"', (uom, expected) => {
+    expect(uomFullNameSingular(uom)).toBe(expected);
+  });
+
+  // "per grams" is the mistake a single plural form would make everywhere.
+  it('is what "per <unit>" needs', () => {
+    expect(`per ${uomFullNameSingular('g')}`).toBe('per gram');
+  });
+});
+
+describe('formatQtyUom', () => {
+  it('pluralises on the number in front of it', () => {
+    expect(formatQtyUom(500, 'g')).toBe('500 grams');
+    expect(formatQtyUom(1, 'g')).toBe('1 gram');
+    expect(formatQtyUom(1, 'kg')).toBe('1 kilogram');
+    expect(formatQtyUom(2, 'l')).toBe('2 litres');
+  });
+
+  it('gives zero the plural, as English does', () => {
+    expect(formatQtyUom(0, 'kg')).toBe('0 kilograms');
+  });
+
+  it('handles a fractional quantity', () => {
+    expect(formatQtyUom(0.5, 'kg')).toBe('0.5 kilograms');
+  });
+
+  it('drops the unit rather than leaving a trailing space', () => {
+    expect(formatQtyUom(3, null)).toBe('3');
+    expect(formatQtyUom(3, '')).toBe('3');
   });
 });

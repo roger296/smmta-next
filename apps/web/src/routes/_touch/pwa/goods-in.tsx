@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { uomFullNameSingular } from '@/lib/uom';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
@@ -356,7 +357,8 @@ export function GoodsInScreen() {
                   {!blocked && (
                     <span className="perStock">
                       {' ('}
-                      {formatMoney(costPerStockUnit(l.unitCost, l.product))}/{l.product.stockUom}
+                      {formatMoney(costPerStockUnit(l.unitCost, l.product))} per{' '}
+                      {uomFullNameSingular(l.product.stockUom) ?? l.product.stockUom}
                       {')'}
                     </span>
                   )}
@@ -547,7 +549,8 @@ function DetailsSheet({
         <p className="hint" style={{ marginTop: 6 }}>
           {formatMoney(parsedCost)} per {line.product.purchaseUom ?? 'unit'}
           {' · '}
-          {formatMoney(costPerStockUnit(parsedCost, line.product))} per {line.product.stockUom}
+          {formatMoney(costPerStockUnit(parsedCost, line.product))} per{' '}
+          {uomFullNameSingular(line.product.stockUom) ?? line.product.stockUom}
         </p>
       </div>
 

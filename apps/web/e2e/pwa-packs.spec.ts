@@ -94,7 +94,7 @@ test.describe('the 12 Aug delivery, booked correctly', () => {
     await expect(addSack).toHaveText('+1 sack');
     for (let i = 0; i < 3; i += 1) await addSack.click();
     await expect(page.locator('.row', { hasText: 'Icing sugar' }).locator('.hint')).toContainText(
-      '4 × 25 kg sack = 100 kg',
+      '4 × 25 kg sack = 100 kilograms',
     );
 
     // Skittles — four 1.6 kg bags.
@@ -104,7 +104,7 @@ test.describe('the 12 Aug delivery, booked correctly', () => {
     const addBag = page.getByRole('button', { name: /add one bag of Skittles/i });
     for (let i = 0; i < 3; i += 1) await addBag.click();
     await expect(page.locator('.row', { hasText: 'Skittles' }).locator('.hint')).toContainText(
-      '4 × 1.6 kg bag = 6.4 kg',
+      '4 × 1.6 kg bag = 6.4 kilograms',
     );
 
     // Neither line reads "= 1 g", which was the whole complaint.

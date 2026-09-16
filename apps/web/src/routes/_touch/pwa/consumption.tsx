@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { formatQtyUom, uomFullName } from '@/lib/uom';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
@@ -532,13 +533,13 @@ export function ConsumptionScreen() {
                   {remaining ? "ENTERING: WHAT'S LEFT — tap to switch" : 'ENTERING: AMOUNT USED — tap to switch'}
                 </button>
                 <div className="hint book">
-                  Expected {l.expectedQty} {l.stockUom}
+                  Expected {formatQtyUom(l.expectedQty, l.stockUom)}
                   {/* What one bench costs, so the Bench± steps are legible and
                       a baker can sanity-check the total in their head. */}
                   {l.qtyPerBench > 0 && (
                     <span className="perTable">
                       {' · '}
-                      {l.qtyPerBench} {l.stockUom} per bench
+                      {formatQtyUom(l.qtyPerBench, l.stockUom)} per bench
                     </span>
                   )}
                   {variance !== null && variance !== 0 && (
@@ -644,7 +645,7 @@ export function ConsumptionScreen() {
 
       {at && actualTarget !== null && (
         <KeypadSheet
-          title={`${at.name} — actual (${at.stockUom})`}
+          title={`${at.name} — actual (${uomFullName(at.stockUom) ?? at.stockUom})`}
           initial={displayedQty(at)}
           onCancel={() => setActualTarget(null)}
           onConfirm={(v) => {

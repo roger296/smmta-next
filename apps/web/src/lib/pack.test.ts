@@ -44,12 +44,12 @@ const UNCONFIGURED = {
 
 describe('describePackLine (C-1/C-2)', () => {
   it('C-1 REGRESSION: reads "4 × 25 kg sack = 100 kg", not "= 1 g"', () => {
-    expect(describePackLine(4, ICING)).toBe('4 × 25 kg sack = 100 kg');
+    expect(describePackLine(4, ICING)).toBe('4 × 25 kg sack = 100 kilograms');
   });
 
   it('C-2 REGRESSION: the 1.6 kg Skittles bag reads correctly', () => {
-    expect(describePackLine(4, SKITTLES)).toBe('4 × 1.6 kg bag = 6.4 kg');
-    expect(describePackLine(1, SKITTLES)).toBe('1 × 1.6 kg bag = 1.6 kg');
+    expect(describePackLine(4, SKITTLES)).toBe('4 × 1.6 kg bag = 6.4 kilograms');
+    expect(describePackLine(1, SKITTLES)).toBe('1 × 1.6 kg bag = 1.6 kilograms');
   });
 
   it('C-1: refuses to complete the phrase with no purchase unit', () => {
@@ -61,32 +61,32 @@ describe('describePackLine (C-1/C-2)', () => {
   it('falls back to the bare purchase unit when there is no pack description', () => {
     expect(
       describePackLine(2, { stockUom: 'ml', purchaseUom: 'drum', purchaseToStockFactor: '20000' }),
-    ).toBe('2 × drum = 40 L');
+    ).toBe('2 × drum = 40 litres');
   });
 });
 
 describe('formatStockQty — display only', () => {
   it('scales g to kg past 1000', () => {
-    expect(formatStockQty(100000, 'g')).toBe('100 kg');
-    expect(formatStockQty(1600, 'g')).toBe('1.6 kg');
+    expect(formatStockQty(100000, 'g')).toBe('100 kilograms');
+    expect(formatStockQty(1600, 'g')).toBe('1.6 kilograms');
   });
 
   it('leaves a sub-kilo figure in grams — a 250 g count is said in grams', () => {
-    expect(formatStockQty(250, 'g')).toBe('250 g');
-    expect(formatStockQty(999, 'g')).toBe('999 g');
+    expect(formatStockQty(250, 'g')).toBe('250 grams');
+    expect(formatStockQty(999, 'g')).toBe('999 grams');
   });
 
   it('scales ml to L', () => {
-    expect(formatStockQty(20000, 'ml')).toBe('20 L');
+    expect(formatStockQty(20000, 'ml')).toBe('20 litres');
   });
 
   it('leaves an unrecognised unit alone', () => {
-    expect(formatStockQty(7, 'each')).toBe('7 each');
-    expect(formatStockQty(4, 'kg')).toBe('4 kg');
+    expect(formatStockQty(7, 'each')).toBe('7 single units');
+    expect(formatStockQty(4, 'kg')).toBe('4 kilograms');
   });
 
   it('does not leave trailing zeroes', () => {
-    expect(formatStockQty(2000, 'g')).toBe('2 kg');
+    expect(formatStockQty(2000, 'g')).toBe('2 kilograms');
   });
 });
 

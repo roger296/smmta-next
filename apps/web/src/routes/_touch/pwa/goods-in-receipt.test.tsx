@@ -115,7 +115,7 @@ describe('A-5: the booking leaves a receipt, not a vanishing list', () => {
     expect(document.querySelector('.receipt-sub')).toHaveTextContent('GRN-0042');
     // The lines are still legible, in the same phrasing as before booking.
     expect(screen.getByText('Icing sugar')).toBeInTheDocument();
-    expect(screen.getByText(/4 × 25 kg sack = 100 kg/)).toBeInTheDocument();
+    expect(screen.getByText(/4 × 25 kg sack = 100 kilograms/)).toBeInTheDocument();
     expect(screen.getByText('£120.00')).toBeInTheDocument();
   });
 

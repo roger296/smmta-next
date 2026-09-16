@@ -10,7 +10,7 @@
  * A baker checking a delivery note reads "4 × 25 kg sack = 100 kg" — quantity,
  * pack, and the resolved amount in a unit a person uses.
  */
-import { purchaseToStock } from './uom';
+import { formatQtyUom, purchaseToStock } from './uom';
 
 export interface PackShape {
   stockUom: string;
@@ -25,7 +25,7 @@ const SCALES: Record<string, Array<{ limit: number; uom: string; divisor: number
     { limit: 1000, uom: 'kg', divisor: 1000 },
   ],
   ml: [
-    { limit: 1000, uom: 'L', divisor: 1000 },
+    { limit: 1000, uom: 'l', divisor: 1000 },
   ],
 };
 
@@ -38,20 +38,24 @@ function trim(value: number, dp = 3): string {
 /**
  * A stock quantity in the unit a person would say out loud.
  *
- * 100000 g → "100 kg"; 250 g → "250 g"; 1600 g → "1.6 kg". **Display only** —
- * everything is still stored and sent in the stock UoM, so this can never
- * change what is booked.
+ * 100000 g → "100 kilograms"; 250 g → "250 grams"; 1600 g → "1.6 kilograms".
+ * Units are spelled out (Sept-2026 request) — a venue iPad is read at arm's
+ * length and "g" against "kg" is exactly where a 4 kg count gets typed as 4000.
+ *
+ * **Display only** — everything is still stored and sent in the stock UoM, so
+ * neither the rescaling nor the wording can change what is booked.
  */
 export function formatStockQty(qty: number, stockUom: string): string {
   const scales = SCALES[stockUom.trim().toLowerCase()];
   if (scales) {
     for (const scale of scales) {
       if (Math.abs(qty) >= scale.limit) {
-        return `${trim(qty / scale.divisor)} ${scale.uom}`;
+        const scaled = Number(trim(qty / scale.divisor));
+        return formatQtyUom(scaled, scale.uom);
       }
     }
   }
-  return `${trim(qty)} ${stockUom}`;
+  return formatQtyUom(Number(trim(qty)), stockUom);
 }
 
 /** What one purchase unit is called: the pack description, else the UoM. */

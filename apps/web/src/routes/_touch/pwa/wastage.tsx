@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { formatQtyUom, uomFullName, uomFullNameSingular } from '@/lib/uom';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, type PaginatedResult } from '@/lib/api-client';
@@ -178,7 +179,7 @@ export function WastageScreen() {
                   <div className="name">{p.name}</div>
                   <div className="hint book">
                     {p.stockCode ? `${p.stockCode} · ` : ''}
-                    per {p.stockUom}
+                    per {uomFullNameSingular(p.stockUom) ?? p.stockUom}
                   </div>
                 </div>
               </button>
@@ -194,14 +195,16 @@ export function WastageScreen() {
             </div>
 
             <div className="field">
-              <label id="lbl-waste-qty">How much was wasted ({picked.stockUom})</label>
+              <label id="lbl-waste-qty">
+                How much was wasted ({uomFullName(picked.stockUom) ?? picked.stockUom})
+              </label>
               <button
                 className="input"
                 style={{ textAlign: 'left', fontWeight: 700 }}
                 aria-labelledby="lbl-waste-qty"
                 onClick={() => setQtyOpen(true)}
               >
-                {qty !== null ? `${qty} ${picked.stockUom}` : 'Tap to enter'}
+                {qty !== null ? formatQtyUom(qty, picked.stockUom) : 'Tap to enter'}
               </button>
             </div>
 
@@ -269,7 +272,7 @@ export function WastageScreen() {
                 <div className="meta">
                   <div className="name">{w.productName}</div>
                   <div className="hint book">
-                    {Number(w.qty)} {w.stockUom} · {w.reason}
+                    {formatQtyUom(Number(w.qty), w.stockUom)} · {w.reason}
                     {w.recordedBy ? ` · ${w.recordedBy}` : ''}
                   </div>
                 </div>
@@ -293,7 +296,7 @@ export function WastageScreen() {
 
       {qtyOpen && picked && (
         <KeypadSheet
-          title={`${picked.name} — wasted (${picked.stockUom})`}
+          title={`${picked.name} — wasted (${uomFullName(picked.stockUom) ?? picked.stockUom})`}
           initial={qty ?? 0}
           onCancel={() => setQtyOpen(false)}
           onConfirm={(v) => {

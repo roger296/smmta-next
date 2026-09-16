@@ -149,7 +149,7 @@ describe('D-2: counts are not rounded to the nearest 100', () => {
     const user = userEvent.setup();
     renderScreen();
     await openTakeCapturing(user, '100.0000');
-    expect(screen.getByText('rounded to nearest 100 g')).toBeInTheDocument();
+    expect(screen.getByText('rounded to nearest 100 grams')).toBeInTheDocument();
   });
 
   it('an unbucketed row says nothing about rounding', async () => {
