@@ -21,7 +21,11 @@ import type { MetadataRoute } from 'next';
 import { listCategories, listGroups } from '@/lib/smmta';
 import { getEnv } from '@/lib/env';
 
-export const revalidate = 3600; // 1 hour — fresh enough for SEO
+// Rendered per request, not prerendered: the build has no reliable
+// STORE_BASE_URL (Coolify builds every storefront with the same project
+// settings, so this shipped the Filament Store's URLs), and the catalogue
+// reads below are cached by the API client anyway.
+export const dynamic = 'force-dynamic';
 
 const MAX_URLS = 5_000;
 const RANGE_LIMIT = 1_000;
