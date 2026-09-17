@@ -91,6 +91,10 @@ export interface MergeDecision {
   factor: number | null;
   /** Set when this pair cannot be merged automatically. */
   refusal?: string;
+  /** No recipe lines move, so `factor` is 1 for want of anything to convert. */
+  nothingToConvert?: boolean;
+  /** The two stock units disagree. Harmless only alongside `nothingToConvert`. */
+  unitsDiffer?: boolean;
 }
 
 /**
@@ -132,9 +136,24 @@ export function decideMerge(name: string, a: MergeSide, b: MergeSide): MergeDeci
     };
   }
 
-  // Only the recipe lines actually move, so a conversion is only needed when
-  // there are any to move.
-  if (retire.recipeLines === 0) return { name, keep, retire, factor: 1 };
+  /**
+   * Only recipe lines cross the unit boundary, so with none to move there is
+   * nothing to convert — even when the two units differ. `Mint` exists as
+   * litres and kilograms with no recipe on either side; retiring the litres
+   * twin moves no quantity anywhere, so the mismatch is real but harmless.
+   * Reported as `nothingToConvert` rather than as agreement, because "same
+   * unit" would be a false statement about a pair whose units differ.
+   */
+  if (retire.recipeLines === 0) {
+    return {
+      name,
+      keep,
+      retire,
+      factor: 1,
+      nothingToConvert: true,
+      unitsDiffer: canonicalUom(retire.stockUom) !== canonicalUom(keep.stockUom),
+    };
+  }
 
   const f = conversionFactor(retire.stockUom ?? '', keep.stockUom ?? '');
   if (typeof f !== 'number') return { name, keep, retire, factor: null, refusal: f.reason };

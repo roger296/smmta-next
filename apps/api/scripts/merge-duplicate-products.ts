@@ -54,6 +54,8 @@ export interface MergeOutcome {
   keep: string;
   retire: string;
   factor: number | null;
+  /** How the quantities were handled, for the operator to read at a glance. */
+  conversion: string;
   recipeLinesMoved: number;
   supplierCodesMoved: number;
   movementsDeleted: number;
@@ -119,6 +121,13 @@ export async function mergeDuplicateProducts(
       keep: d.keep.stockCode ?? d.keep.id,
       retire: d.retire.stockCode ?? d.retire.id,
       factor: d.factor,
+      conversion: d.nothingToConvert
+        ? d.unitsDiffer
+          ? `nothing to convert (units differ: ${d.retire.stockUom} vs ${d.keep.stockUom})`
+          : 'nothing to convert'
+        : d.factor === 1
+          ? 'same unit'
+          : `x${d.factor}`,
       recipeLinesMoved: d.retire.recipeLines,
       supplierCodesMoved: d.retire.supplierCodes,
       movementsDeleted: movements,
@@ -195,10 +204,9 @@ if (isCliEntry) {
       if (r.merged.length > 0) {
         console.log('  ── would merge ──');
         for (const m of r.merged) {
-          const conv = m.factor === 1 ? 'same unit' : `x${m.factor}`;
           console.log(
             `  ${m.name}\n     keep ${m.keep}  <-  retire ${m.retire}  ` +
-              `(${m.recipeLinesMoved} recipe line(s) ${conv}, ${m.supplierCodesMoved} code(s), ` +
+              `(${m.recipeLinesMoved} recipe line(s) ${m.conversion}, ${m.supplierCodesMoved} code(s), ` +
               `${m.movementsDeleted} test movement(s) discarded)`,
           );
         }

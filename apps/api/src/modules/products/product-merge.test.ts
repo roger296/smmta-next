@@ -116,6 +116,23 @@ describe('decideMerge', () => {
   });
 
   /**
+   * Mint exists as litres on one twin and kilograms on the other, with no
+   * recipe on either side. Nothing crosses the unit boundary, so the mismatch
+   * is real but harmless — and must not be reported as the units agreeing.
+   */
+  it('says nothing-to-convert, not same-unit, when the units actually differ', () => {
+    const d = decideMerge(
+      'Mint',
+      side({ stockCode: 'PROD-FRSH-MINT', stockUom: 'kg', supplierCodes: 1 }),
+      side({ stockCode: 'MINT', stockUom: 'l' }),
+    );
+    expect(d.keep.stockCode).toBe('PROD-FRSH-MINT');
+    expect(d.factor).toBe(1);
+    expect(d.nothingToConvert).toBe(true);
+    expect(d.unitsDiffer).toBe(true);
+  });
+
+  /**
    * Olives: same unit, codes on one side, no recipes anywhere. Nothing to
    * convert because nothing moves — a straight retire.
    */
@@ -128,6 +145,8 @@ describe('decideMerge', () => {
     expect(d.keep.stockCode).toBe('PITT-MIXD-OLIV');
     expect(d.retire.stockCode).toBe('OLIV');
     expect(d.factor).toBe(1);
+    expect(d.nothingToConvert).toBe(true);
+    expect(d.unitsDiffer).toBe(false);
   });
 
   /**
