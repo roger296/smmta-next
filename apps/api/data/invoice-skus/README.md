@@ -160,3 +160,34 @@ in `src/modules/suppliers/invoice-sku-decisions.ts`:
 
 A refused row does not hold back the rows that resolved: those are written, the
 refusals are listed, and the process exits non-zero so it cannot scroll past.
+
+### ⚠️ The July-2026 supplier-catalogue rows
+
+`import-supplier-catalogue.ts` ran on **2026-07-28** and wrote ~706
+`supplier_products` rows across 29 suppliers. It predates the alias table
+(migration 0052), so it filed **every spelling of a code as its own canonical
+purchasable line**:
+
+```
+Brakes  149492 / A 149492 / A149492                  -> Ariel Laundry Powder  (3 rows)
+Brakes  113654 / C 113654 / C113654
+        128154 / C 128154 / C128154                  -> Long Life Soya Milk   (6 rows)
+```
+
+Those are not aliases in the schema's sense — they are buying options, and the
+reorder engine ranks buying options against each other by pack size and price.
+Five phantom Soya Milk lines can win an order.
+
+Two consequences you will see in a decisions run:
+
+- **alias conflicts** — the run tries to file `A 149492` as an alias of
+  `149492` and finds it already sitting there as a canonical. Skipped, named,
+  harmless: the canonical code still resolves.
+- **codes skipped as already on another product** — `attachSupplierCode`
+  refuses to add a second row for a code this supplier already uses elsewhere.
+
+**Neither is caused by this importer; both are it declining to make the
+existing problem worse.** The cleanup — fold the spelling variants into
+`supplier_product_aliases` and resolve the ~35 codes sitting on two products —
+is a separate job and is not attempted here, because picking which of two
+products a code belongs to is a judgement, not a rule.

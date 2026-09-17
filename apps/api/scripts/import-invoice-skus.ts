@@ -56,7 +56,7 @@
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { parse as csvParse } from 'csv-parse/sync';
 import { closeDatabase, getDb } from '../src/config/database.js';
 import { products, supplierProductAliases, supplierProducts, suppliers } from '../src/db/schema/index.js';
@@ -129,6 +129,12 @@ export interface ImportReport {
   unmatched: Array<{ supplier: string; sku: string; description: string; linesSeen: number }>;
   /** An alias here is already some OTHER mapping's code. Skipped, never merged. */
   aliasConflicts: Array<{ supplier: string; sku: string; alias: string; reason: string }>;
+  /** This supplier already uses this code for a DIFFERENT product. Skipped.
+   *  See `attachSupplierCode`: one code cannot mean two things. */
+  skuOnOtherProduct: Array<{
+    supplier: string; sku: string; description: string;
+    currentProduct: string; currentStockCode: string | null;
+  }>;
 }
 
 /**
@@ -187,6 +193,43 @@ async function attachSupplierCode(args: {
       }
     }
   } else {
+    // ONE CODE CANNOT MEAN TWO THINGS.
+    //
+    // The existing-mapping lookup above is keyed on (product, supplier, sku),
+    // so it misses when this supplier already uses this code against a
+    // DIFFERENT product - and the insert would then put the same code on two
+    // purchasable lines. The reorder engine ranks those lines against each
+    // other by pack size and price, so the phantom can win the order and the
+    // PO goes out for the wrong goods with nothing on screen saying so.
+    //
+    // This is not hypothetical here: the July 2026 supplier-catalogue import
+    // predates the alias table (migration 0052) and filed every spelling of a
+    // code as its own canonical line, so ~700 rows are already holding these
+    // codes. Refuse and name it; a human decides which product is right.
+    const elsewhere = await db
+      .select({ productName: products.name, productStockCode: products.stockCode })
+      .from(supplierProducts)
+      .innerJoin(products, eq(products.id, supplierProducts.productId))
+      .where(
+        and(
+          eq(supplierProducts.companyId, companyId),
+          eq(supplierProducts.supplierId, supplierId),
+          isNull(supplierProducts.deletedAt),
+          sql`lower(btrim(${supplierProducts.supplierSku})) = ${normaliseSku(row.supplierSku)}`,
+        ),
+      )
+      .limit(1);
+    if (elsewhere[0]) {
+      report.skuOnOtherProduct.push({
+        supplier: row.supplier,
+        sku: row.supplierSku,
+        description: row.description,
+        currentProduct: elsewhere[0].productName,
+        currentStockCode: elsewhere[0].productStockCode,
+      });
+      return;
+    }
+
     report.created += 1;
     if (!dry && productId) {
       const [ins] = await db
@@ -257,6 +300,7 @@ export async function importInvoiceSkus(
   const report: ImportReport = {
     created: 0, gapFilled: 0, unchanged: 0, aliasesAdded: 0,
     packSizeWanted: [], unknownSupplier: [], unmatched: [], aliasConflicts: [],
+    skuOnOtherProduct: [],
   };
 
   const supplierRows = await db
@@ -377,6 +421,7 @@ export async function importInvoiceSkuDecisions(
   const report: DecisionsReport = {
     created: 0, gapFilled: 0, unchanged: 0, aliasesAdded: 0,
     packSizeWanted: [], unknownSupplier: [], unmatched: [], aliasConflicts: [],
+    skuOnOtherProduct: [],
     productsCreated: [], adoptedExisting: [], notStock: 0, undecided: [], refusals: [],
   };
 
@@ -510,6 +555,16 @@ function reportDecisions(r: DecisionsReport, dryRun: boolean): void {
       console.log(`    ${String(p.linesSeen).padStart(4)} lines  ${p.supplier} ${p.sku}  billed as "${p.observedPack}"`);
     }
     if (r.packSizeWanted.length > 10) console.log(`    ... and ${r.packSizeWanted.length - 10} more`);
+  }
+  if (r.skuOnOtherProduct.length > 0) {
+    console.log(`\n  ${r.skuOnOtherProduct.length} code(s) SKIPPED - this supplier already uses them for a`);
+    console.log('  different product. One code cannot mean two things, and a second');
+    console.log('  purchasable line can win a reorder. Decide which product is right:');
+    for (const c of r.skuOnOtherProduct.slice(0, 20)) {
+      console.log(`    ${c.supplier} ${c.sku}  "${c.description}"`);
+      console.log(`      currently on: ${c.currentProduct} [${c.currentStockCode ?? 'no code'}]`);
+    }
+    if (r.skuOnOtherProduct.length > 20) console.log(`    ... and ${r.skuOnOtherProduct.length - 20} more`);
   }
   if (r.aliasConflicts.length > 0) {
     console.log(`\n  ${r.aliasConflicts.length} alias(es) are already another mapping's code - skipped:`);

@@ -291,3 +291,66 @@ describe('importInvoiceSkuDecisions', () => {
       .where(and(eq(products.companyId, COMPANY), like(products.name, 'Sugar Crunch%')))).toHaveLength(1);
   });
 });
+
+describe('one code cannot mean two things', () => {
+  it('skips a code this supplier already uses for a different product', async () => {
+    const db = getDb();
+    // Stand in for the July-2026 supplier-catalogue rows: the code is already
+    // on Cheese, and the sheet now says it belongs to Flour.
+    const [sp] = await db.insert(supplierProducts).values({
+      companyId: COMPANY, productId: cheeseId, supplierId: brakesId, supplierSku: '149492',
+    }).returning();
+
+    const r = await importInvoiceSkuDecisions({
+      decisionsFile: file(DEC_HEADER, [
+        dec({ sku: '149492', description: 'Ariel Professional', decision: 'Y', proposed: `${PREFIX}-FLOUR` }),
+      ]),
+      skusFile: file(SKU_HEADER, [sku({ sku: '149492', description: 'Ariel Professional' })]),
+      companyId: COMPANY,
+    });
+
+    expect(r.created).toBe(0);
+    expect(r.skuOnOtherProduct).toEqual([{
+      supplier: 'Brakes', sku: '149492', description: 'Ariel Professional',
+      currentProduct: 'Cheese (unspecified)', currentStockCode: `${PREFIX}-CHEESE`,
+    }]);
+    // The reorder engine ranks purchasable lines against each other, so a
+    // second row for this code could win the order. There must still be one.
+    const rows = await db.select().from(supplierProducts)
+      .where(and(eq(supplierProducts.supplierId, brakesId), eq(supplierProducts.supplierSku, '149492')));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).toBe(sp!.id);
+  });
+
+  it('compares codes case- and space-insensitively, the way the resolver does', async () => {
+    const db = getDb();
+    await db.insert(supplierProducts).values({
+      companyId: COMPANY, productId: cheeseId, supplierId: brakesId, supplierSku: ' A149492 ',
+    });
+    const r = await importInvoiceSkuDecisions({
+      decisionsFile: file(DEC_HEADER, [
+        dec({ sku: 'a149492', description: 'x', decision: 'Y', proposed: `${PREFIX}-FLOUR` }),
+      ]),
+      skusFile: file(SKU_HEADER, [sku({ sku: 'a149492', description: 'x' })]),
+      companyId: COMPANY,
+    });
+    expect(r.created).toBe(0);
+    expect(r.skuOnOtherProduct).toHaveLength(1);
+  });
+
+  it('still updates the code on the product it is ALREADY against', async () => {
+    const db = getDb();
+    await db.insert(supplierProducts).values({
+      companyId: COMPANY, productId: flourId, supplierId: brakesId, supplierSku: '149492', costGbp: null,
+    });
+    const r = await importInvoiceSkuDecisions({
+      decisionsFile: file(DEC_HEADER, [
+        dec({ sku: '149492', description: 'x', decision: 'Y', proposed: `${PREFIX}-FLOUR` }),
+      ]),
+      skusFile: file(SKU_HEADER, [sku({ sku: '149492', description: 'x' })]),
+      companyId: COMPANY,
+    });
+    expect(r.skuOnOtherProduct).toEqual([]);
+    expect(r.gapFilled).toBe(1);
+  });
+});
