@@ -19,13 +19,15 @@
  *   --default-shipping=<n>  Delivery for warehouse items and suppliers with no
  *                           charge of their own. Default 7.00.
  *   --exclude-out-of-stock  Leave out-of-stock items out entirely.
+ *   --mode=full|stock       `full` (default) is the whole catalogue; `stock`
+ *                           is the supplemental price-and-availability feed.
  *   --limit=<n>             Stop after n products (smoke test).
  *   --dry-run               Report the counts, write nothing.
  *   --help                  This message.
  */
 import 'dotenv/config';
 import { closeDatabase } from '../src/config/database.js';
-import { buildGoogleFeed } from '../src/modules/catalogue/google-feed.service.js';
+import { buildGoogleFeed, type FeedMode } from '../src/modules/catalogue/google-feed.service.js';
 import { getSingletonCompanyId } from '../src/shared/auth/company.js';
 
 interface CliOpts {
@@ -37,6 +39,7 @@ interface CliOpts {
   excludeOutOfStock: boolean;
   limit: number | null;
   dryRun: boolean;
+  mode: FeedMode;
 }
 
 function parseArgs(argv: string[]): CliOpts {
@@ -48,6 +51,7 @@ function parseArgs(argv: string[]): CliOpts {
   let excludeOutOfStock = false;
   let limit: number | null = null;
   let dryRun = false;
+  let mode: FeedMode = 'full';
   for (const arg of argv.slice(2)) {
     if (arg === '--help' || arg === '-h') {
       console.log(
@@ -79,6 +83,10 @@ function parseArgs(argv: string[]): CliOpts {
         process.exit(2);
       }
       limit = Math.floor(n);
+    } else if (arg === '--mode=stock') {
+      mode = 'stock';
+    } else if (arg === '--mode=full') {
+      mode = 'full';
     } else if (arg === '--dry-run') {
       dryRun = true;
     } else if (arg.startsWith('-')) {
@@ -95,7 +103,7 @@ function parseArgs(argv: string[]): CliOpts {
     console.error(`required: ${missing.join(', ')}`);
     process.exit(2);
   }
-  return { channelSlug, baseUrl, outPath, shopName, defaultShippingGbp, excludeOutOfStock, limit, dryRun };
+  return { channelSlug, baseUrl, outPath, shopName, defaultShippingGbp, excludeOutOfStock, limit, dryRun, mode };
 }
 
 async function main() {
@@ -110,6 +118,7 @@ async function main() {
     excludeOutOfStock: opts.excludeOutOfStock,
     limit: opts.limit,
     dryRun: opts.dryRun,
+    mode: opts.mode,
   });
   const skipped = Object.entries(summary.skipped)
     .sort((a, b) => b[1] - a[1])
@@ -117,7 +126,7 @@ async function main() {
     .join(', ');
   console.log('');
   console.log(opts.dryRun ? '=== DRY RUN — nothing written ===' : `=== Wrote ${summary.outPath} ===`);
-  console.log(`  channel             ${summary.channelSlug}`);
+  console.log(`  channel             ${summary.channelSlug} (${summary.mode})`);
   console.log(`  products considered ${summary.considered}`);
   console.log(`  items in feed       ${summary.written}`);
   console.log(`  not on this channel ${summary.notOffered}`);

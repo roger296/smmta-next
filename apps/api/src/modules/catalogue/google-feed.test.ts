@@ -5,6 +5,7 @@ import {
   feedItemXml,
   feedOpen,
   feedSkipReason,
+  feedStockItemXml,
   googleAgeGroup,
   googleGender,
   plainText,
@@ -160,6 +161,30 @@ describe('feedItemXml', () => {
     const count = (xml.match(/additional_image_link/g) ?? []).length / 2;
     expect(count).toBe(10);
     expect(xml).not.toContain(`<g:additional_image_link>${product.imageLink}`);
+  });
+});
+
+describe('feedStockItemXml', () => {
+  it('carries only the id, price and availability', () => {
+    const xml = feedStockItemXml(product);
+    expect(xml).toContain('<g:id>GR11BGXS</g:id>');
+    expect(xml).toContain('<g:price>6.14 GBP</g:price>');
+    expect(xml).toContain('<g:availability>in_stock</g:availability>');
+    // Everything else belongs to the nightly feed; repeating it here would
+    // mean two places to get wrong.
+    expect(xml).not.toContain('<title>');
+    expect(xml).not.toContain('g:brand');
+    expect(xml).not.toContain('g:shipping');
+    expect(xml).not.toContain('g:image_link');
+  });
+
+  it('marks an out-of-stock item without needing the rest', () => {
+    const xml = feedStockItemXml({ id: 'X1', priceGbp: '9.99', availability: 'out_of_stock' });
+    expect(xml).toContain('<g:availability>out_of_stock</g:availability>');
+  });
+
+  it('writes nothing for an item with no id, since Google matches on it', () => {
+    expect(feedStockItemXml({ ...product, id: '' })).toBe('');
   });
 });
 

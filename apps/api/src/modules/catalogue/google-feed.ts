@@ -169,6 +169,29 @@ export function feedItemXml(p: FeedProduct): string {
   );
 }
 
+/**
+ * One `<item>` for a supplemental feed: the id Google matches on, plus only
+ * the attributes that move between nightly builds.
+ *
+ * Why this exists: Google suspends accounts whose price or availability
+ * disagrees with the site, and our nightly file is stale long before the next
+ * one — a full Ralawise stock sweep alone takes about 7 hours. A supplemental
+ * feed fetched hourly corrects both without re-sending 100k full items.
+ *
+ * Only ever an update to an item the main feed already carries: an id Google
+ * doesn't know is ignored, never created.
+ */
+export function feedStockItemXml(p: Pick<FeedProduct, 'id' | 'priceGbp' | 'availability'>): string {
+  if (!p.id) return '';
+  return (
+    '  <item>\n' +
+    tag('g:id', p.id) +
+    tag('g:price', p.priceGbp ? `${p.priceGbp} GBP` : null) +
+    tag('g:availability', p.availability) +
+    '  </item>\n'
+  );
+}
+
 export function feedOpen(shop: { title: string; link: string; description: string }): string {
   return (
     '<?xml version="1.0" encoding="UTF-8"?>\n' +

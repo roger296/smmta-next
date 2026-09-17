@@ -25,6 +25,7 @@ import {
   buildGoogleFeed,
   feedPathFor,
   parseFeedShops,
+  type FeedMode,
 } from '../modules/catalogue/google-feed.service.js';
 import { getEnv } from '../config/env.js';
 import { getSingletonCompanyId } from '../shared/auth/company.js';
@@ -225,18 +226,20 @@ export function installFeatureHandlers(logger: Logger): void {
     }
   });
 
-  // google-feed-build (nightly): one Google Merchant Centre feed file per
-  // shop, written where the API serves it so Google can fetch it on its own
-  // schedule. Off unless GOOGLE_FEED_ENABLED is set.
-  setHandler('google-feed-build', async () => {
+  // Google Merchant Centre feeds, written where the API serves them so Google
+  // can fetch on its own schedule: the whole catalogue nightly, then price and
+  // availability hourly, because Google suspends accounts whose feed disagrees
+  // with the shop and a full Ralawise stock sweep takes about 7 hours. Off
+  // unless GOOGLE_FEED_ENABLED is set.
+  const buildFeeds = async (mode: FeedMode): Promise<void> => {
     const env = getEnv();
     if (!env.GOOGLE_FEED_ENABLED) {
-      logger.debug('google-feed-build skipped: GOOGLE_FEED_ENABLED is false');
+      logger.debug({ mode }, 'google feed skipped: GOOGLE_FEED_ENABLED is false');
       return;
     }
     const shops = parseFeedShops(env.GOOGLE_FEED_SHOPS);
     if (shops.length === 0) {
-      logger.warn('google-feed-build: GOOGLE_FEED_SHOPS is empty, so no feed was built');
+      logger.warn({ mode }, 'google feed: GOOGLE_FEED_SHOPS is empty, so nothing was built');
       return;
     }
     const companyId = getSingletonCompanyId();
@@ -244,19 +247,23 @@ export function installFeatureHandlers(logger: Logger): void {
       try {
         const summary = await buildGoogleFeed({
           companyId,
+          mode,
           channelSlug: shop.channelSlug,
           baseUrl: shop.baseUrl,
-          outPath: feedPathFor(env.GOOGLE_FEED_DIR, shop.channelSlug),
+          outPath: feedPathFor(env.GOOGLE_FEED_DIR, shop.channelSlug, mode),
           defaultShippingGbp: env.GOOGLE_FEED_DEFAULT_SHIPPING_GBP,
         });
-        logger.info(summary, 'google-feed-build wrote a feed');
+        logger.info(summary, 'google feed written');
       } catch (err) {
         // One shop's failure must not cost the other shop its feed.
         logger.error(
-          { channelSlug: shop.channelSlug, err: err instanceof Error ? err.message : String(err) },
-          'google-feed-build failed for a shop',
+          { mode, channelSlug: shop.channelSlug, err: err instanceof Error ? err.message : String(err) },
+          'google feed failed for a shop',
         );
       }
     }
-  });
+  };
+
+  setHandler('google-feed-build', () => buildFeeds('full'));
+  setHandler('google-feed-stock-build', () => buildFeeds('stock'));
 }

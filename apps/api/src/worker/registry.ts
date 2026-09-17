@@ -81,6 +81,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: 'agent-digest', cron: '0 7 * * *', description: 'Daily 07:00: owner digest email' },
   { name: 'expired-draft-sweep', cron: '10 * * * *', description: 'Hourly: expire stale drafts (§17.7)' },
   { name: 'google-feed-build', cron: '40 2 * * *', description: 'Nightly: Google Merchant Centre product feeds' },
+  { name: 'google-feed-stock-build', cron: '15 * * * *', description: 'Hourly: Merchant Centre price + availability feeds' },
 ];
 
 // ---- Retry / dead-letter policy (§12.3) ----
