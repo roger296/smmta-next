@@ -151,6 +151,20 @@ const envSchema = z.object({
   /** The contact email given to suppliers on each order (Uneek asks for one).
    *  Ours, not the customer's: orders go in plain cover under our name. */
   SUPPLIER_ORDER_CONTACT_EMAIL: z.string().default('sales@cleverdeals.net'),
+
+  // Google Merchant Centre product feeds. OFF by default. When on, the worker
+  // writes one file per shop into GOOGLE_FEED_DIR each night and Google
+  // fetches them over HTTPS, so the directory must be one the API serves
+  // (i.e. under UPLOADS_DIR, which is served at /uploads).
+  GOOGLE_FEED_ENABLED: envBool(false),
+  /** `channel-slug=https://origin` pairs, comma separated, e.g.
+   *  `filament-store=https://filament.cleverdeals.net,clothes-shop=https://clothes.cleverdeals.net`.
+   *  Empty means no feed is built even when enabled. */
+  GOOGLE_FEED_SHOPS: z.string().default(''),
+  GOOGLE_FEED_DIR: z.string().default('/app/uploads/feeds'),
+  /** Delivery shown in the feed for warehouse items, and for suppliers with
+   *  no delivery charge of their own. Matches the storefront's standard rate. */
+  GOOGLE_FEED_DEFAULT_SHIPPING_GBP: z.string().default('7.00'),
   // A supplier's delivery-method code lives on its supplier record
   // (`delivery_method_code`, admin Drop-ship tab), not here.
 

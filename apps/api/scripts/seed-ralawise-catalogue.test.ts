@@ -15,6 +15,7 @@ import { parse as csvParse } from 'csv-parse/sync';
 import {
   DEFAULT_MARKUP,
   applyMarkup,
+  normaliseEan,
   normaliseRow,
   parseDecimal,
   parseLicenceExpiry,
@@ -216,5 +217,33 @@ describe('normaliseRow (against the fixture CSV)', () => {
     expect(normaliseRow(r, 2.0).retailGbp).toBe('42.50');
     expect(normaliseRow(r, 3.0).retailGbp).toBe('63.75');
     expect(normaliseRow(r, 1.5).retailGbp).toBe('31.88'); // 31.875 → 31.88
+  });
+});
+
+describe('identifiers for Google Merchant Centre', () => {
+  const rows = csvParse(fs.readFileSync(FIXTURE, 'utf8'), {
+    bom: true,
+    columns: true,
+    skip_empty_lines: true,
+    relax_column_count: true,
+    relax_quotes: true,
+  }) as Array<Record<string, string>>;
+
+  it('carries brand, part number and weight off the row', () => {
+    const r = normaliseRow(rows[0]!, 2.0);
+    expect(r.brand).toBe('FixtureBrand');
+    expect(r.mpn).toBe('TEST01');
+    expect(r.weightKg).toBe('0.500');
+  });
+
+  it('refuses "Not available" as a barcode, as the fixture has it', () => {
+    expect(rows[0]!['EAN Code']).toBe('Not available');
+    expect(normaliseRow(rows[0]!, 2.0).ean).toBeNull();
+  });
+
+  it('normaliseEan keeps real barcodes and rejects the rest', () => {
+    expect(normaliseEan('5056449221259')).toBe('5056449221259');
+    expect(normaliseEan('Not available')).toBeNull();
+    expect(normaliseEan('')).toBeNull();
   });
 });

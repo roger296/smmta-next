@@ -29,7 +29,9 @@
     "seed:ralawise-catalogue": "tsx scripts/seed-ralawise-catalogue.ts",
     "seed:categories": "tsx scripts/seed-categories.ts",
     "assign-categories": "tsx scripts/assign-categories.ts",
-    "repair:seo-copy": "tsx scripts/repair-seo-copy.ts"
+    "repair:seo-copy": "tsx scripts/repair-seo-copy.ts",
+    "import:uneek-barcodes": "tsx scripts/import-uneek-barcodes.ts",
+    "build:google-feed": "tsx scripts/build-google-feed.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",

@@ -33,6 +33,10 @@ export const products = pgTable(
     cartonSize: integer('carton_size'),
     landedCostPence: integer('landed_cost_pence'),
     ean: varchar('ean', { length: 50 }),
+    /** Maker's brand as the supplier states it, e.g. "AWDis Just Hoods" or
+     *  "Uneek Clothing". Google Merchant Centre needs a brand plus a barcode
+     *  or part number for clothing, so the importers carry it through. */
+    brand: varchar('brand', { length: 120 }),
     productType: productTypeEnum('product_type').notNull().default('PHYSICAL'),
     requireSerialNumber: boolean('require_serial_number').notNull().default(false),
     requireBatchNumber: boolean('require_batch_number').notNull().default(false),

@@ -283,8 +283,25 @@ export interface RalawiseNormalisedRow {
   retailGbp: string | null;
   /** Image-licence expiry as a Date, or null. */
   imageLicenceExpiresAt: Date | null;
+  /** Maker's brand, e.g. "AWDis Just Hoods". Google Merchant Centre needs it. */
+  brand: string | null;
+  /** Barcode (GTIN-13). Every live Ralawise SKU has one. */
+  ean: string | null;
+  /** The maker's own style code — Google's "mpn". */
+  mpn: string | null;
+  /** Item weight in kg, as a 3dp string, or null. */
+  weightKg: string | null;
   /** Status from column 50. We only keep 'Live' rows. */
   skuStatus: string;
+}
+
+/** A barcode we will store: digits only, at a GTIN length. Ralawise writes
+ *  "Not available" in this column for some SKUs, which must never be stored
+ *  as a barcode — Google rejects the whole item for a malformed GTIN. */
+export function normaliseEan(raw: string | undefined | null): string | null {
+  const digits = (raw ?? '').trim().replace(/[\s-]+/g, '');
+  if (!/^\d+$/.test(digits)) return null;
+  return [8, 12, 13, 14].includes(digits.length) ? digits : null;
 }
 
 export function normaliseRow(row: RalawiseRawRow, markup: number): RalawiseNormalisedRow {
@@ -312,6 +329,10 @@ export function normaliseRow(row: RalawiseRawRow, markup: number): RalawiseNorma
     costGbp: cost,
     retailGbp: applyMarkup(cost, markup),
     imageLicenceExpiresAt: parseLicenceExpiry(row['Primary Image Licence Expiry Date']),
+    brand: (row['Brand'] ?? '').trim() || null,
+    ean: normaliseEan(row['EAN Code']),
+    mpn: (row['Manufacturer Style Code'] ?? '').trim() || null,
+    weightKg: parseDecimal(row['Item Weight in KG'])?.toFixed(3) ?? null,
     skuStatus: (row['Sku Status'] ?? '').trim(),
   };
 }
@@ -630,6 +651,10 @@ async function applyBatch(
             expectedNextCost: r.costGbp !== null ? r.costGbp.toFixed(2) : undefined,
             attributes: attrs,
             imageLicenceExpiresAt: r.imageLicenceExpiresAt,
+            brand: r.brand,
+            ean: r.ean,
+            manufacturerPartNumber: r.mpn,
+            weight: r.weightKg,
             ...(ctx.publish ? { isPublished: true } : {}),
             updatedAt: new Date(),
           })
@@ -660,6 +685,10 @@ async function applyBatch(
             attributes: attrs,
             supplierId: ctx.supplierId,
             imageLicenceExpiresAt: r.imageLicenceExpiresAt,
+            brand: r.brand,
+            ean: r.ean,
+            manufacturerPartNumber: r.mpn,
+            weight: r.weightKg,
           })
           .returning({ id: products.id, slug: products.slug });
         if (!inserted) throw new Error(`Failed to insert variant ${slug}`);

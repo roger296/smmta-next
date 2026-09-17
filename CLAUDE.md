@@ -65,6 +65,14 @@ Future ecosystem integrations are expected to follow the same shape: an outbound
 - Storefront category pages live at `/shop/c/<top>` and `/shop/c/<top>/<sub>`. Filters (gender / brand / colour / size / price band / stock state) are URL-encoded query params so deep-links work + SEO crawls cleanly. Filter facets are computed server-side from the full category result before pagination so the sidebar counts stay representative.
 - **One card per range, not per size and colour.** `apps/api/src/modules/storefront/listings.ts` groups a category's (or a search's) variants by range: each listing carries the range name, price span, colours, sizes (ordered by `sizes.ts`) and best stock state, and links to `/shop/<groupSlug>` where colour and size are picked. Filters still match single variants (a range shows when any variant matches); facet counts and paging count listings. A product whose range isn't published is listed alone, linking to `/shop/p/<slug>`.
 
+### Google Merchant Centre feeds
+
+- Each storefront channel gets an RSS product feed for Google's free listings: pure formatting in `apps/api/src/modules/catalogue/google-feed.ts`, catalogue reading in `google-feed.service.ts`, a CLI at `apps/api/scripts/build-google-feed.ts`, and a nightly `google-feed-build` worker job (02:40) that writes one file per shop into `GOOGLE_FEED_DIR` (the uploads volume, served by the API at `/uploads/feeds/<channel>.xml`).
+- OFF by default: `GOOGLE_FEED_ENABLED`, plus `GOOGLE_FEED_SHOPS` as `channel-slug=https://origin` pairs.
+- Google needs a brand plus a barcode or part number for clothing, so both importers carry brand/EAN/MPN/weight through (`products.brand`, migration 0037). Barcodes are validated to GTIN lengths — Ralawise writes "Not available" in that column. Uneek's API has no barcodes; `scripts/import-uneek-barcodes.ts` loads them from the account's product-data CSV.
+- Items missing an image, price or link, or whose Ralawise image licence has expired, are left out and counted by reason. `google_product_category` is deliberately not sent (Google assigns it); our taxonomy goes in `product_type`.
+- Plan and operational detail: `docs/GOOGLE-MERCHANT-CENTRE-PLAN.md`.
+
 ### Conversational search
 
 - The Clothes Shop header carries a natural-language search bar that submits to `/shop/search?q=...`. The API's `/storefront/search` endpoint parses the customer query through Claude Haiku into a structured `ParsedQuery` (category slug + filters + keywords + confidence), then feeds the structured form into the same `CategoryService.listCategoryProducts` that backs `/shop/c/...`. If the LLM call fails, the day's budget is exceeded, or `ANTHROPIC_API_KEY` isn't set, the service falls through to a plain keyword search across product names — the customer always gets something.

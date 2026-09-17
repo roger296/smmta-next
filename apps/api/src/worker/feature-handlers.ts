@@ -21,6 +21,13 @@ import { ShippingLabelService } from '../modules/shipping/shipping-label.service
 import { PickNoteNotFoundError, PickNoteService } from '../modules/shipping/pick-note.service.js';
 import { DispatchEmailRejectedError, sendDispatchEmail } from '../modules/shipping/dispatch-email.js';
 import { orderHasWarehouseLines, queueSupplierOrders } from '../modules/suppliers/supplier-order-routing.js';
+import {
+  buildGoogleFeed,
+  feedPathFor,
+  parseFeedShops,
+} from '../modules/catalogue/google-feed.service.js';
+import { getEnv } from '../config/env.js';
+import { getSingletonCompanyId } from '../shared/auth/company.js';
 
 export function installFeatureHandlers(logger: Logger): void {
   const interest = new InterestFlagService();
@@ -215,6 +222,41 @@ export function installFeatureHandlers(logger: Logger): void {
         return;
       }
       throw err;
+    }
+  });
+
+  // google-feed-build (nightly): one Google Merchant Centre feed file per
+  // shop, written where the API serves it so Google can fetch it on its own
+  // schedule. Off unless GOOGLE_FEED_ENABLED is set.
+  setHandler('google-feed-build', async () => {
+    const env = getEnv();
+    if (!env.GOOGLE_FEED_ENABLED) {
+      logger.debug('google-feed-build skipped: GOOGLE_FEED_ENABLED is false');
+      return;
+    }
+    const shops = parseFeedShops(env.GOOGLE_FEED_SHOPS);
+    if (shops.length === 0) {
+      logger.warn('google-feed-build: GOOGLE_FEED_SHOPS is empty, so no feed was built');
+      return;
+    }
+    const companyId = getSingletonCompanyId();
+    for (const shop of shops) {
+      try {
+        const summary = await buildGoogleFeed({
+          companyId,
+          channelSlug: shop.channelSlug,
+          baseUrl: shop.baseUrl,
+          outPath: feedPathFor(env.GOOGLE_FEED_DIR, shop.channelSlug),
+          defaultShippingGbp: env.GOOGLE_FEED_DEFAULT_SHIPPING_GBP,
+        });
+        logger.info(summary, 'google-feed-build wrote a feed');
+      } catch (err) {
+        // One shop's failure must not cost the other shop its feed.
+        logger.error(
+          { channelSlug: shop.channelSlug, err: err instanceof Error ? err.message : String(err) },
+          'google-feed-build failed for a shop',
+        );
+      }
     }
   });
 }

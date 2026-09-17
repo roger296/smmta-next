@@ -464,6 +464,10 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
     sellingPrice: string | null;
     costPrice: string | null;
     attributes: Record<string, string>;
+    /** Maker's brand when Uneek states one. Their API has no barcode field;
+     *  `import-uneek-barcodes.ts` fills barcodes and weights from the
+     *  account's product-data CSV. */
+    brand: string | null;
   };
   const variantPlans: VariantPlan[] = [];
   for (const r of working) {
@@ -495,6 +499,7 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
       shortDescription: r.ShortDescription?.trim().slice(0, 280) || null,
       ...uneekPricing(r, input.markup),
       attributes: attrs,
+      brand: r.Brand?.trim() || null,
     });
   }
 
@@ -620,6 +625,7 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
             maxSellingPrice: vp.sellingPrice ?? undefined,
             expectedNextCost: vp.costPrice ?? undefined,
             attributes: vp.attributes,
+            ...(vp.brand ? { brand: vp.brand } : {}),
             ...(input.publish ? { isPublished: true } : {}),
             updatedAt: new Date(),
           })
@@ -648,6 +654,7 @@ export async function importUneekProducts(input: ImportInput): Promise<ImportSum
             isPublished: input.publish,
             sortOrderInGroup: 0,
             attributes: vp.attributes,
+            brand: vp.brand,
             supplierId: input.supplierId,
           })
           .returning({ id: products.id, slug: products.slug });
