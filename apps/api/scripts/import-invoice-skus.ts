@@ -258,6 +258,28 @@ async function attachSupplierCode(args: {
 
   for (const alias of row.aliases) {
     if (normaliseSku(alias) === normaliseSku(row.supplierSku)) continue;
+
+    // Already on THIS mapping from an earlier run? Then there is nothing to
+    // do, and trying anyway is not harmless: the unique index is
+    // (supplier_id, lower(alias_sku)) WHERE deleted_at IS NULL, so the insert
+    // raises and the run dies partway through, having written some of its
+    // rows. `aliasConflict` will not catch it - it deliberately excludes the
+    // alias's own mapping, leaving this to the caller - so the caller checks.
+    if (supplierProductId) {
+      const [already] = await db
+        .select({ id: supplierProductAliases.id })
+        .from(supplierProductAliases)
+        .where(
+          and(
+            eq(supplierProductAliases.supplierProductId, supplierProductId),
+            isNull(supplierProductAliases.deletedAt),
+            sql`lower(btrim(${supplierProductAliases.aliasSku})) = ${normaliseSku(alias)}`,
+          ),
+        )
+        .limit(1);
+      if (already) continue;
+    }
+
     // Uniqueness spans supplier_products AND supplier_product_aliases, which
     // no single index can see across - so ask before writing.
     const clash = await aliasConflict(supplierId, alias, supplierProductId, companyId);

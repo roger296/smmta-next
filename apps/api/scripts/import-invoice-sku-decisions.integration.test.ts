@@ -354,3 +354,46 @@ describe('one code cannot mean two things', () => {
     expect(r.gapFilled).toBe(1);
   });
 });
+
+describe('re-running is safe', () => {
+  it('does not re-add aliases it already wrote, which the unique index would reject', async () => {
+    const decFile = file(DEC_HEADER, [
+      dec({ sku: '33891', description: 'x', decision: 'Y', proposed: `${PREFIX}-FLOUR` }),
+    ]);
+    const skuFile = file(SKU_HEADER, [
+      sku({ sku: '33891', description: 'x', aliases: 'A 33891, A33891' }),
+    ]);
+    const opts = { decisionsFile: decFile, skusFile: skuFile, companyId: COMPANY };
+
+    const first = await importInvoiceSkuDecisions(opts);
+    expect(first.aliasesAdded).toBe(2);
+
+    // Before the fix this threw on
+    // supplier_product_aliases_supplier_sku_unq, halfway through a run that
+    // had already written other rows.
+    const second = await importInvoiceSkuDecisions(opts);
+    expect(second.aliasesAdded).toBe(0);
+    expect(second.aliasConflicts).toEqual([]);
+
+    const db = getDb();
+    const [sp] = await db.select().from(supplierProducts)
+      .where(and(eq(supplierProducts.supplierId, brakesId), eq(supplierProducts.supplierSku, '33891')));
+    expect(await db.select().from(supplierProductAliases)
+      .where(eq(supplierProductAliases.supplierProductId, sp!.id))).toHaveLength(2);
+  });
+
+  it('matches an existing alias case- and space-insensitively', async () => {
+    const skuFile = file(SKU_HEADER, [sku({ sku: '33891', description: 'x', aliases: 'A 33891' })]);
+    const decRow = [dec({ sku: '33891', description: 'x', decision: 'Y', proposed: `${PREFIX}-FLOUR` })];
+    await importInvoiceSkuDecisions({
+      decisionsFile: file(DEC_HEADER, decRow), skusFile: skuFile, companyId: COMPANY,
+    });
+    // Same alias, differently cased, as a later invoice would spell it.
+    const r = await importInvoiceSkuDecisions({
+      decisionsFile: file(DEC_HEADER, decRow),
+      skusFile: file(SKU_HEADER, [sku({ sku: '33891', description: 'x', aliases: ' a 33891 ' })]),
+      companyId: COMPANY,
+    });
+    expect(r.aliasesAdded).toBe(0);
+  });
+});
