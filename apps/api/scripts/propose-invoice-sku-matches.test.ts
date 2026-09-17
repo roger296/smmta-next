@@ -10,6 +10,7 @@ import {
   buildReview, catalogueFromExport, suggestStockUom, toReviewCsv, REVIEW_HEADER,
 } from './propose-invoice-sku-matches.js';
 import type { CatalogueProduct } from '../src/modules/suppliers/invoice-sku-match.js';
+import { validate, type ClientKeyItem } from '../src/modules/suppliers/client-key-items.js';
 
 const cat: CatalogueProduct[] = [
   { id: '1', stockCode: 'DAIR-UNSL-BUTR', name: 'Unsalted Butter' },
@@ -121,6 +122,73 @@ describe('buildReview', () => {
     );
     expect(r!.newProductName).toBe('Some New Syrup');
     expect(r!.newStockUom).toBe('l');
+  });
+});
+
+describe('buildReview with the client workbook', () => {
+  const client = (p: Partial<ClientKeyItem>): ClientKeyItem => ({
+    suggestedName: 'Unsalted Butter', stockItem: 'Wholesome Farms Unsalted Butter',
+    category: 'ingredient', groupId: '1', sku: '11127', supplier: 'Brakes',
+    packSize: '40x250g', sheet: 'Sheet1', ...p,
+  });
+  const invoices = new Map([
+    ['11127', 'Wholesome Farms Unsalted Butter'],
+    ['128306', 'Oatly Oat Drink Barista Editn'],
+  ]);
+
+  /** The client's own answer beats string matching, and says so. */
+  it('prefers the client s SKU mapping and labels the source', () => {
+    const items = validate([client({})], invoices);
+    const [r] = buildReview([sku({})], cat, new Set(), items);
+    expect(r).toMatchObject({
+      source: 'client-sku',
+      proposedProduct: 'Unsalted Butter',
+      proposedStockCode: 'DAIR-UNSL-BUTR',
+      clientName: 'Unsalted Butter',
+    });
+  });
+
+  /**
+   * The workbook's SKU column is misaligned on some rows, so a contradicted
+   * code must not key anything — but the client still read the description,
+   * and that name stands.
+   */
+  it('falls back to the client s wording when the invoices contradict the SKU', () => {
+    const items = validate(
+      [client({ sku: '128306', stockItem: 'Wholesome Farms Unsalted Butter' })],
+      invoices,
+    );
+    const [r] = buildReview([sku({})], cat, new Set(), items);
+    expect(r!.source).toBe('client-description');
+    expect(r!.proposedStockCode).toBe('DAIR-UNSL-BUTR');
+  });
+
+  /**
+   * The best thing the workbook gives: a code with no product anywhere, but a
+   * name the client has already chosen. An ADD ITEM row that needs no thought.
+   */
+  it('carries a client name through for a code no product matches', () => {
+    const items = validate(
+      [client({ sku: '128306', stockItem: 'Oatly Oat Drink Barista Editn', suggestedName: 'Oat Milk' })],
+      invoices,
+    );
+    const [r] = buildReview(
+      [sku({ supplier_sku: '128306', description: 'Oatly Oat Drink Barista Editn', base_unit: 'L' })],
+      cat,
+      new Set(),
+      items,
+    );
+    expect(r!.proposedStockCode).toBe('');
+    expect(r!.clientName).toBe('Oat Milk');
+    expect(r!.newProductName).toBe('Oat Milk');
+    expect(r!.newStockUom).toBe('l');
+    // Still undecided — the client naming it does not make it stock.
+    expect(r!.decision).toBe('');
+  });
+
+  it('says `matched` when the client never mentioned the code', () => {
+    const [r] = buildReview([sku({})], cat, new Set(), []);
+    expect(r!.source).toBe('matched');
   });
 });
 

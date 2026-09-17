@@ -75,3 +75,38 @@ count, not a census — it ranks a work list, it is not a purchase history.
   human to read; the column is theirs to set.
 - **A cost somebody already typed**, or a `priority`. Existing mappings are
   gap-filled only.
+
+## The client's key-items workbook
+
+`client-key-items.csv` is Rebecca's *Prospective SKUs for stock system* workbook
+(Sheet1 + Phase 1 + Phase 2), flattened to one row per
+`suggested_name / stock_item / sku / supplier` and committed here. It is the
+closest thing to an answer key this exercise has: the client has written, per
+invoice line, what they want the product called.
+
+⚠️ **Its SKU column is misaligned on some rows and cannot be keyed on blindly.**
+Cross-checked against the invoice lines those codes came from, 57 of 617
+checkable rows name a SKU whose real description is nothing like the one beside
+it, and 24 SKUs appear against two or more different products:
+
+```
+SKU 135575  sheet says "Brakes Med Eggs (Shell On)"
+            invoices say "Noble Free Range Liquid Egg White"  (123 lines)
+SKU 26089   sheet says "Brakes Med Eggs (Shell On) 15Dozen"
+            invoices say "Vinyl Gloves Clear Lge PF GD09L"    (66 lines)
+```
+
+One code repeating under unrelated items is a column pasted a few rows out of
+step, not a judgement anybody made. So `client-key-items.ts` uses a row's SKU
+only where the row's own DESCRIPTION agrees with what the invoices say that code
+is; where they disagree the description wins — that is what the client was
+looking at when they wrote the name — and the SKU is dropped for that row.
+
+The `source` column in `match-review.csv` records which of those applied:
+
+| source | meaning |
+|---|---|
+| `client-sku` | the client's code AND wording agree with the invoices |
+| `client-description` | the client's wording, their code contradicted or absent |
+| `matched` | this repo's string matching; the client never mentioned it |
+| `none` | nothing to go on — ADD ITEM or NOT STOCK |
