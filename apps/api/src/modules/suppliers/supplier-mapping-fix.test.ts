@@ -153,16 +153,41 @@ describe('planFixes - corrections outrank everything', () => {
   });
 
   it('uses the correction over a correct-looking sibling', () => {
+    // The sibling says Unsalted Butter and the invoices agree with it, but a
+    // human has said Carrots. The human wins.
     const wrong = mapping();
-    const sibling = mapping({ supplierSku: 'C 11127', productId: 'p-butter', productName: 'Unsalted Butter' });
+    const sibling = mapping({
+      supplierSku: 'C 11127', productId: 'p-butter', productName: 'Unsalted Butter',
+      productStockCode: 'DAIR-UNSL-BUTR',
+    });
+    const plan = run({
+      contradictions: [CONTRA(wrong, 'Wholesome Farms Unsalted Butter', 158)],
+      allMappings: [wrong, sibling],
+      corrections: [['Brakes', '11127', 'CARR']],
+      catalogue: [['CARR', CARROTS]],
+    });
+    expect(plan.deletes).toEqual([]);
+    expect(plan.repoints).toHaveLength(1);
+    expect(plan.repoints[0]!.target).toMatchObject({ stockCode: 'CARR' });
+  });
+
+  it('honours a correction that names the product a sibling already holds, as a delete', () => {
+    // Same rule as the sheet path: moving it there would give that product two
+    // purchasable lines for one code.
+    const wrong = mapping();
+    const sibling = mapping({
+      supplierSku: 'C 11127', productId: 'p-butter', productName: 'Unsalted Butter',
+      productStockCode: 'DAIR-UNSL-BUTR',
+    });
     const plan = run({
       contradictions: [CONTRA(wrong, 'Wholesome Farms Unsalted Butter', 158)],
       allMappings: [wrong, sibling],
       corrections: [['Brakes', '11127', 'DAIR-UNSL-BUTR']],
       catalogue: [['DAIR-UNSL-BUTR', BUTTER]],
     });
-    expect(plan.deletes).toEqual([]);
-    expect(plan.repoints).toHaveLength(1);
+    expect(plan.repoints).toEqual([]);
+    expect(plan.deletes).toHaveLength(1);
+    expect(plan.deletes[0]!.target).toMatchObject({ stockCode: 'DAIR-UNSL-BUTR' });
   });
 
   it('refuses a correction naming a stock code no product has, rather than guessing', () => {
@@ -173,5 +198,55 @@ describe('planFixes - corrections outrank everything', () => {
     });
     expect(plan.repoints).toEqual([]);
     expect(plan.refusals[0]!.reason).toContain('NOT-A-CODE');
+  });
+});
+
+describe('planFixes - never lands a code on a product that already holds it', () => {
+  it('deletes instead of repointing when the sheet target already has the code', () => {
+    // The real Brakes 119649: the sheet said ADD ITEM "Pitted Mixed Olives"
+    // while another row already put the same code on "Olives". Repointing
+    // would give one product two purchasable lines for one code.
+    const wrong = mapping({ supplierSku: '119649', codeDigits: '119649', productId: 'p-pizza', productName: 'Pizza Sauce' });
+    const already = mapping({
+      supplierSku: 'C119649', codeDigits: '119649', productId: 'p-olives',
+      productName: 'Olives', productStockCode: 'PITT-MIXD-OLIV',
+    });
+    const plan = run({
+      contradictions: [CONTRA(wrong, 'Bar Mix Olives (Pitted)', 50)],
+      allMappings: [wrong, already],
+      sheet: [['Brakes', '119649', { productId: 'p-olives', productName: 'Olives', stockCode: 'PITT-MIXD-OLIV' }]],
+    });
+    expect(plan.repoints).toEqual([]);
+    expect(plan.deletes).toHaveLength(1);
+    expect(plan.deletes[0]!.target).toMatchObject({ stockCode: 'PITT-MIXD-OLIV' });
+  });
+
+  it('matches on the code DIGITS, so a different spelling still counts', () => {
+    const wrong = mapping({ supplierSku: '135575', codeDigits: '135575', productId: 'p-eggs', productName: 'Whole Eggs' });
+    // The right product holds the code under a prefixed spelling.
+    const already = mapping({
+      supplierSku: 'C 135575', codeDigits: '135575', productId: 'p-whites',
+      productName: 'Egg Whites', productStockCode: 'LIQD-EGG-WHIT',
+    });
+    const plan = run({
+      contradictions: [CONTRA(wrong, 'Noble Free Range Liquid Egg White', 123)],
+      allMappings: [wrong, already],
+      corrections: [['Brakes', '135575', 'LIQD-EGG-WHIT']],
+      catalogue: [['LIQD-EGG-WHIT', { productId: 'p-whites', productName: 'Egg Whites', stockCode: 'LIQD-EGG-WHIT' }]],
+    });
+    expect(plan.repoints).toEqual([]);
+    expect(plan.deletes).toHaveLength(1);
+    expect(plan.deletes[0]!.source).toBe('correction');
+  });
+
+  it('still repoints when the target does NOT already hold the code', () => {
+    const wrong = mapping({ supplierSku: '10230', codeDigits: '10230', productId: 'p-straws', productName: 'Black Paper Straws' });
+    const plan = run({
+      contradictions: [CONTRA(wrong, 'Cucumber Single BB', 76)],
+      allMappings: [wrong],
+      sheet: [['Brakes', '10230', { productId: 'p-cuke', productName: 'Cucumber', stockCode: 'PROD-CUCU-MBER' }]],
+    });
+    expect(plan.deletes).toEqual([]);
+    expect(plan.repoints).toHaveLength(1);
   });
 });

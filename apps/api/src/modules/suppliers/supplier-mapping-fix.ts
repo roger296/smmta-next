@@ -106,6 +106,22 @@ export function planFixes(args: {
   // cannot have the second wrong row adopt the first as its "correct sibling".
   const condemned = new Set(contradictions.map((c) => c.mapping.id));
 
+  /**
+   * Does the product we are about to move this code ONTO already hold this
+   * supplier's code, in any spelling?
+   *
+   * If it does, moving is the wrong verb: the target would end up with two
+   * purchasable lines for one code, which is the phantom buying option the
+   * whole exercise exists to remove. The row is surplus and goes.
+   *
+   * Compared on the code's DIGITS, not the exact spelling, because `119649`
+   * and `C119649` are one Brakes code and two rows for it on one product would
+   * still compete with each other.
+   */
+  const alreadyThere = (m: LiveMapping, target: FixTarget): LiveMapping | undefined =>
+    (byDigits.get(`${m.supplier.trim().toLowerCase()}\u0000${m.codeDigits ?? ''}`) ?? [])
+      .find((s) => s.id !== m.id && !condemned.has(s.id) && s.productId === target.productId);
+
   for (const c of contradictions) {
     const { mapping: m } = c;
     const row = (over: Partial<FixPlanRow>): FixPlanRow => ({
@@ -123,6 +139,14 @@ export function planFixes(args: {
       }
       if (target.productId === m.productId) {
         plan.refusals.push(row({ reason: 'correction names the product it is already on' }));
+        continue;
+      }
+      const dup = alreadyThere(m, target);
+      if (dup) {
+        plan.deletes.push(row({
+          action: 'DELETE_SURPLUS', source: 'correction',
+          target: { productId: dup.productId, productName: dup.productName, stockCode: dup.productStockCode },
+        }));
         continue;
       }
       plan.repoints.push(row({ action: 'REPOINT', target, source: 'correction' }));
@@ -159,6 +183,18 @@ export function planFixes(args: {
     if (verdictFor(fromSheet.productName, c.invoiceDescription) === 'CONTRADICTS') {
       plan.refusals.push(row({
         reason: `the sheet says "${fromSheet.productName}", which the invoices contradict as well - needs a human`,
+      }));
+      continue;
+    }
+    const dupFromSheet = alreadyThere(m, fromSheet);
+    if (dupFromSheet) {
+      plan.deletes.push(row({
+        action: 'DELETE_SURPLUS', source: 'decision-sheet',
+        target: {
+          productId: dupFromSheet.productId,
+          productName: dupFromSheet.productName,
+          stockCode: dupFromSheet.productStockCode,
+        },
       }));
       continue;
     }
