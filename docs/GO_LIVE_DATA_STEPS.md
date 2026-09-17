@@ -436,6 +436,19 @@ tell you.
 Fix it on the RECIPE, not the product. Changing the product back just moves the
 problem to the stock-take.
 
+```bash
+cd /app && npx tsx apps/api/scripts/fix-recipe-units.ts            # dry run
+cd /app && npx tsx apps/api/scripts/fix-recipe-units.ts --apply
+```
+
+Where the units convert on their own (g to kg) it applies the factor. Mass
+against volume goes through a **density table written down by stock code** in
+the script — 400 g of milk is 0.388 l, not 0.4, and 180 g of rapeseed oil is
+0.196 l, not 0.18. Treating 1 g as 1 ml is water, and 8% out on the oil is a
+cost error on every bake and a stock error on every count. A liquid not in the
+table is reported, never guessed. **Read the dry run's numbers against what the
+kitchen actually measures before applying.**
+
 ---
 
 ## When you're done
