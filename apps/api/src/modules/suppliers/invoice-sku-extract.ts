@@ -17,6 +17,9 @@ export interface InvoiceLine {
   invoice_date: string | null;
   invoice_number: string | null;
   pack_size: string | null;
+  /** kg / L / each, as BumbleBee normalised it. The only unit hint an invoice
+   *  carries, and the starting suggestion when a product has to be created. */
+  base_unit?: string | null;
   quantity: number | null;
   unit_price: number | null;
   line_total: number | null;

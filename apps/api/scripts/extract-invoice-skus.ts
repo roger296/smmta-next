@@ -76,6 +76,10 @@ export interface SkuMapping {
   aliases: string[];
   description: string;
   packSize: string;
+  /** BumbleBee's normalised base unit (kg / L / each). Carried through purely
+   *  as the opening suggestion when a code turns out to need a new product —
+   *  an invoice knows what it weighed, not what a venue counts. */
+  baseUnit: string;
   unitCostGbp: number | null;
   linesSeen: number;
   lastSeen: string;
@@ -141,6 +145,7 @@ function summarise(
       aliases: spellings.filter((s) => s !== canonical).sort(),
       description: newest((l) => l.stock_item).replace(/\s+/g, ' ').trim(),
       packSize: newest((l) => l.pack_size).trim(),
+      baseUnit: newest((l) => l.base_unit ?? null).trim(),
       unitCostGbp: cost == null ? null : Math.round(cost * 10_000) / 10_000,
       linesSeen: rows.length,
       lastSeen: newest((l) => l.invoice_date),
@@ -263,6 +268,7 @@ export const CSV_HEADER = [
   'aliases',
   'description',
   'pack_size',
+  'base_unit',
   'unit_cost_gbp',
   'lines_seen',
   'last_seen',
@@ -276,6 +282,7 @@ export function toCsvRow(m: SkuMapping, withReason: boolean): string {
     m.aliases.join(', '),
     m.description,
     m.packSize,
+    m.baseUnit,
     m.unitCostGbp == null ? '' : String(m.unitCostGbp),
     String(m.linesSeen),
     m.lastSeen,
