@@ -394,6 +394,27 @@ still looks normal. The script reports which twin each pair actually uses and
 gives a verdict — retire the idle one, either, or a real merge with a unit
 conversion.
 
+Then merge them:
+
+```bash
+cd /app && npx tsx apps/api/scripts/merge-duplicate-products.ts            # dry run
+cd /app && npx tsx apps/api/scripts/merge-duplicate-products.ts --apply
+```
+
+The twin that survives is the one NOT in grams — the count-list product, in the
+unit the venue counts in. Recipe lines move onto it **divided by 1000**, which
+is the whole risk: nothing in the system converts units, so a line reading
+`qty_per_cover: 250` on a grams product means 250 **kg** the moment it lands on
+a kilograms one.
+
+It refuses the litres-against-grams pairs (semi-skimmed milk, soya milk,
+rapeseed oil) because grams to litres needs a density and it differs per liquid.
+Set those two products to the same unit by hand, then re-run.
+
+It does NOT carry stock across — the retired twin's movements and levels are
+deleted. They are invented test figures due to be zeroed at step 13 anyway, and
+pushing an invented number through a unit change just invents a different one.
+
 ---
 
 ## When you're done
