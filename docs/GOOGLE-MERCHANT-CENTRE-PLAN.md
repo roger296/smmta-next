@@ -78,6 +78,71 @@ stock sweep takes about 7 hours, so the nightly file is stale by the time it's r
 Submit, then work through whatever Google rejects — usually missing sizes, images it
 can't fetch, or descriptions it doesn't like. Recheck after 3 days and after 2 weeks.
 
+## Built so far (2026-09-17)
+
+Phases 1 and 3 are code-complete and merged behind an off switch. Nothing
+reaches Google until you create the account and turn the feed on.
+
+**Phase 1 — identifiers**
+- `products.brand` added (migration 0037). The Ralawise importer now stores
+  brand, barcode, manufacturer part number and item weight; the Uneek importer
+  stores brand.
+- Barcodes are validated to GTIN lengths, because Ralawise writes
+  "Not available" in that column for some SKUs and a malformed barcode makes
+  Google reject the whole item.
+- `scripts/import-uneek-barcodes.ts` loads barcodes, weights and commodity
+  codes from Uneek's product-data CSV, matched on stock code, since their API
+  has none.
+
+**Phase 3 — the feed**
+- `scripts/build-google-feed.ts` (and the nightly `google-feed-build` worker
+  job) write one RSS file per shop: title, description, link, image, price inc
+  VAT, availability, brand, barcode, part number, condition, colour, size,
+  gender, age group, `item_group_id`, our category path, per-item delivery and
+  weight.
+- Items with no image, no price, no link, or an expired Ralawise image licence
+  are left out and counted by reason.
+- Items with neither a barcode nor brand+part number declare
+  `identifier_exists: no`, which is what Google requires.
+- `google_product_category` is deliberately not sent: Google assigns one
+  itself, and a wrong id is worse than none.
+- Read 500 products at a time, written to a `.tmp` file and renamed, so a
+  100k catalogue never sits in memory and Google never fetches a half-written
+  feed.
+
+### How it runs
+
+The worker builds the feeds at 02:40 each night into the uploads volume; the
+API serves them. Settings (Coolify):
+
+| Setting | Value |
+|---|---|
+| `GOOGLE_FEED_ENABLED` | `true` to switch it on |
+| `GOOGLE_FEED_SHOPS` | `filament-store=https://filament.cleverdeals.net,clothes-shop=https://clothes.cleverdeals.net` |
+| `GOOGLE_FEED_DIR` | `/app/uploads/feeds` (default) |
+| `GOOGLE_FEED_DEFAULT_SHIPPING_GBP` | `7.00` (default) |
+
+The URLs to give Merchant Centre are then:
+
+- `https://api.cleverdeals.net/uploads/feeds/filament-store.xml`
+- `https://api.cleverdeals.net/uploads/feeds/clothes-shop.xml`
+
+To build one by hand (e.g. the first time, in the api container):
+
+```
+npx tsx apps/api/scripts/build-google-feed.ts   --channel=clothes-shop --base-url=https://clothes.cleverdeals.net   --out=/app/uploads/feeds/clothes-shop.xml
+```
+
+### Still to do
+
+- Phase 2 (your Merchant Centre account and verification) and Phase 5
+  (disapprovals).
+- Phase 4, the hourly price-and-stock update, is not built yet. The nightly
+  feed is the first step; add it once Google is accepting items, because a
+  full Ralawise stock sweep takes about 7 hours and the nightly file ages.
+- Load the Uneek barcodes on the live database, and re-run both imports so
+  the new columns fill in.
+
 ## Risks and open questions
 
 - **Uneek barcodes aren't in their API.** Their API product feed has no EAN field, so
