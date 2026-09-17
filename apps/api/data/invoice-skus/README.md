@@ -191,3 +191,24 @@ existing problem worse.** The cleanup — fold the spelling variants into
 `supplier_product_aliases` and resolve the ~35 codes sitting on two products —
 is a separate job and is not attempted here, because picking which of two
 products a code belongs to is a judgement, not a rule.
+
+## Auditing what is already there
+
+The import places codes; the audit checks the ones already placed.
+
+```bash
+npx tsx apps/api/scripts/audit-supplier-mappings.ts            # read-only
+npx tsx apps/api/scripts/audit-supplier-mappings.ts --csv      # for a sheet
+npx tsx apps/api/scripts/fix-supplier-mappings.ts              # DRY RUN
+npx tsx apps/api/scripts/fix-supplier-mappings.ts --apply
+```
+
+Run 17 Sept 2026 against 1016 mappings: 33 contradicted, of which 18 real and
+15 wording. The 18 are fixed — 9 surplus rows soft-deleted, 9 repointed — and
+the audit now reports 15, all of them correct mappings the word-overlap check
+cannot read.
+
+`mapping-corrections.csv` settles anything the two safe shapes cannot, one row
+per human decision, reason included, and outranks the reviewed sheet. Add a row
+and re-run; `mapping-corrections.test.ts` asserts the file still parses, since
+`readCorrectionsCsv` drops malformed rows rather than raising.

@@ -146,6 +146,52 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   `1x100` — same shape, opposite meanings), and a **cost somebody typed**.
   The fiddly rules live in `modules/suppliers/invoice-sku-extract.ts` and are
   unit-tested against the real spellings observed.
+- **The supplier mappings are audited against the invoices, not trusted**
+  (`audit-supplier-mappings.ts` -> `fix-supplier-mappings.ts`, both read-only
+  by default). `supplier_products` said Brakes code 742 was Olives; a year of
+  OCR'd invoices says Brakes bills Coca-Cola under it. ⚠️ **A wrong mapping is
+  invisible** - the reorder engine raises a PO for whatever the code points at
+  and nothing on screen disagrees. The cause was the **2026-07-28
+  `import-supplier-catalogue.ts` run**, which loaded a spreadsheet whose SKU
+  column was pasted out of step with its product column (the same fault as the
+  client's key-items workbook, where code 26089 sat against "Brakes Med Eggs"
+  while 66 invoice lines call it "Vinyl Gloves"). Of 1016 mappings, 33 were
+  contradicted; 18 were real and are fixed, 15 were the checker being literal
+  about wording (`ClingFilm` vs `Cling Film`, `Koppaberg` vs `Kopparberg`,
+  `Roquette` vs `Rocket`) and are left alone.
+  - `verdictFor` is deliberately **not** the matcher's `coverage()`. That
+    scores 0 both for "shares nothing" and "shares most but not all", which is
+    right when proposing a match and useless when grading one. It is symmetric
+    and three-valued (AGREES / PLAUSIBLE / CONTRADICTS), tuned against all 16
+    real rows the importer refused.
+  - The fix has exactly two safe shapes and **refuses everything else by
+    name**: DELETE_SURPLUS (a sibling spelling already points at the right
+    product) and REPOINT (the decisions sheet or `mapping-corrections.csv`
+    names it AND the invoices agree). A repoint is never made on the invoice
+    description alone - that says what the goods ARE, not which catalogue row
+    the venue counts them under.
+  - **Soft delete is sufficient, not merely tidy**: every reader of
+    `supplier_products` filters `deleted_at IS NULL`, including
+    `modules/stock/supplier-products.ts`, which is what ranks buying options.
+    It also soft-deletes that row's aliases — `aliasConflict` does not check
+    whether the mapping owning a spelling is deleted, so one left behind would
+    block the surviving correct mapping forever.
+  - `mapping-corrections.csv` is committed, carries a reason per row, and
+    **outranks the sheet**: a human looking at one row beats 431 filled in at a
+    sitting. Two rows so far, both sheet slips found this way - Brakes 10417
+    ("Prepared Baton Carrots" decided as Popcorn) and 350101 ("Tate & Lyle
+    Icing Sugar" decided as White Icing).
+  - ⚠️ **`NOSKU` is a placeholder, not a code.** ~95 rows carry it where the
+    July import had no code; they are inert, cannot resolve, and are kept by
+    owner decision. Everything ignores them.
+  - **Still open**: ~86 spelling groups where one code sits as several
+    purchasable lines but they agree on the product (a mechanical fold into
+    `supplier_product_aliases`; no tool yet), 21 where they disagree, and three
+    duplicate-product pairs the decisions import created by taking `ADD ITEM`
+    at face value where an equivalent existed - `PITT-MIXD-OLIV`/
+    `PITT-MIXE-OLIV`, `CARA-ONIO-CHUT`/`CARA-ONIO-CHUT-2`, `TOMA-CHEE-QUIC`/
+    `TOMA-CHEE-SLAB`. Merge those with `merge-duplicate-products.ts` BEFORE the
+    stock-ledger reset, since merging moves stock history.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and
