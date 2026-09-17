@@ -137,6 +137,13 @@ services:
       STORE_BASE_URL: ${STORE_INTERNAL_URL:-http://store:3000}
       STORE_INTERNAL_API_KEY: ${STORE_INTERNAL_API_KEY:-}
       CLOTHES_STORE_INTERNAL_URL: ${CLOTHES_STORE_INTERNAL_URL:-http://store-clothes:3000}
+      # Google Merchant Centre feeds. OFF by default. The worker writes one file
+      # per shop into the uploads volume; the api serves them at /uploads/feeds,
+      # which is the URL Google fetches on its own schedule.
+      GOOGLE_FEED_ENABLED: ${GOOGLE_FEED_ENABLED:-false}
+      GOOGLE_FEED_SHOPS: ${GOOGLE_FEED_SHOPS:-}
+      GOOGLE_FEED_DIR: ${GOOGLE_FEED_DIR:-/app/uploads/feeds}
+      GOOGLE_FEED_DEFAULT_SHIPPING_GBP: ${GOOGLE_FEED_DEFAULT_SHIPPING_GBP:-7.00}
       # Smooth Parcel shipping labels. OFF until SMOOTH_PARCEL_ENABLED is set;
       # with it off, paid orders record a DISABLED label and nothing is bought.
       # LIVE by default: a label costs nothing unless the parcel is sent. The
@@ -156,6 +163,8 @@ services:
       # for authenticated download; the worker writes them, so both mount it.
       LABELS_DIR: /app/labels
     volumes:
+      # Feeds are written here and served by the api at /uploads/feeds.
+      - uploads:/app/uploads
       - shipping-labels:/app/labels
     expose:
       - '3100'
