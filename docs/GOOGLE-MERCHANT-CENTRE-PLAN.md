@@ -80,7 +80,7 @@ can't fetch, or descriptions it doesn't like. Recheck after 3 days and after 2 w
 
 ## Built so far (2026-09-17)
 
-Phases 1 and 3 are code-complete and merged behind an off switch. Nothing
+Phases 1, 3 and 4 are code-complete and merged behind an off switch. Nothing
 reaches Google until you create the account and turn the feed on.
 
 **Phase 1 — identifiers**
@@ -110,6 +110,20 @@ reaches Google until you create the account and turn the feed on.
   100k catalogue never sits in memory and Google never fetches a half-written
   feed.
 
+**Phase 4 — keeping prices and stock honest**
+- A second, supplemental feed per shop carries only the item id, price and
+  availability, built hourly (`google-feed-stock-build`, at :15) into
+  `<channel>-stock.xml`. Google matches on the id and updates just those two
+  attributes; an id it doesn't know is ignored, never created.
+- It is built from the same rows and the same filters as the nightly feed, so
+  the two can't disagree about which items exist.
+- About a fifth the size of the full feed, which is why it can run hourly
+  against a 100k catalogue. This matters because Google suspends accounts
+  whose feed disagrees with the shop, and a full Ralawise stock sweep takes
+  about 7 hours.
+- In Merchant Centre, add it as a **supplemental feed** against the same shop,
+  fetched hourly.
+
 ### How it runs
 
 The worker builds the feeds at 02:40 each night into the uploads volume; the
@@ -122,10 +136,13 @@ API serves them. Settings (Coolify):
 | `GOOGLE_FEED_DIR` | `/app/uploads/feeds` (default) |
 | `GOOGLE_FEED_DEFAULT_SHIPPING_GBP` | `7.00` (default) |
 
-The URLs to give Merchant Centre are then:
+The URLs to give Merchant Centre are then — the first two as primary feeds
+(daily), the second two as supplemental feeds (hourly):
 
 - `https://api.cleverdeals.net/uploads/feeds/filament-store.xml`
 - `https://api.cleverdeals.net/uploads/feeds/clothes-shop.xml`
+- `https://api.cleverdeals.net/uploads/feeds/filament-store-stock.xml`
+- `https://api.cleverdeals.net/uploads/feeds/clothes-shop-stock.xml`
 
 To build one by hand (e.g. the first time, in the api container):
 
@@ -137,9 +154,6 @@ npx tsx apps/api/scripts/build-google-feed.ts   --channel=clothes-shop --base-ur
 
 - Phase 2 (your Merchant Centre account and verification) and Phase 5
   (disapprovals).
-- Phase 4, the hourly price-and-stock update, is not built yet. The nightly
-  feed is the first step; add it once Google is accepting items, because a
-  full Ralawise stock sweep takes about 7 hours and the nightly file ages.
 - Load the Uneek barcodes on the live database, and re-run both imports so
   the new columns fill in.
 
