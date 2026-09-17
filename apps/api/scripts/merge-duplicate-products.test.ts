@@ -6,6 +6,9 @@
  * much, and nothing downstream would question it.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../src/config/database.js';
 import {
@@ -285,5 +288,76 @@ describe('mergeDuplicateProducts', () => {
     expect(second.refused).toHaveLength(0);
     const [rl] = await getDb().select().from(recipeLines).where(eq(recipeLines.companyId, COMPANY));
     expect(Number(rl!.qtyPerCover)).toBe(0.25);   // not divided twice
+  });
+});
+
+describe('named pairs', () => {
+  const pairsFile = (rows: string[]) => {
+    const p = join(tmpdir(), `merge-pairs-${Math.random().toString(36).slice(2)}.csv`);
+    writeFileSync(p, ['keep_stock_code,retire_stock_code,why', ...rows].join('\n') + '\n');
+    return p;
+  };
+
+  it('merges two DIFFERENTLY-named products, which no name scan can group', async () => {
+    // The real pair: "Olives" and "Pitted Mixed Olives" are one item the
+    // decisions sheet described two ways.
+    const keep = await mkProduct('Olives', `${PREFIX}-OLIV-KEEP`, 'kg');
+    const retire = await mkProduct('Pitted Mixed Olives', `${PREFIX}-OLIV-GONE`, 'kg');
+
+    const r = await mergeDuplicateProducts({
+      apply: true, companyId: COMPANY,
+      pairsFile: pairsFile([`${PREFIX}-OLIV-KEEP,${PREFIX}-OLIV-GONE,because`]),
+    });
+    expect(r.refused).toEqual([]);
+    expect(r.merged).toHaveLength(1);
+    expect(r.merged[0]!.keep).toBe(`${PREFIX}-OLIV-KEEP`);
+
+    const db = getDb();
+    const [gone] = await db.select().from(products).where(eq(products.id, retire));
+    expect(gone!.deletedAt).not.toBeNull();
+    const [kept] = await db.select().from(products).where(eq(products.id, keep));
+    expect(kept!.deletedAt).toBeNull();
+  });
+
+  it('honours the survivor the file names, against what the rules would pick', async () => {
+    // The rules keep the non-grams twin. The file says otherwise, and with no
+    // recipe lines to convert there is nothing that makes that unsafe.
+    const kg = await mkProduct('Sugar A', `${PREFIX}-SUG-KG`, 'kg');
+    await mkProduct('Sugar B', `${PREFIX}-SUG-G`, 'g');
+    const r = await mergeDuplicateProducts({
+      apply: false, companyId: COMPANY,
+      pairsFile: pairsFile([`${PREFIX}-SUG-G,${PREFIX}-SUG-KG,operator says the grams one is the real row`]),
+    });
+    expect(r.merged).toHaveLength(1);
+    expect(r.merged[0]!.keep).toBe(`${PREFIX}-SUG-G`);
+    expect(r.merged[0]!.retire).toBe(`${PREFIX}-SUG-KG`);
+    void kg;
+  });
+
+  it('names a stale row rather than quietly doing nothing', async () => {
+    await mkProduct('Olives', `${PREFIX}-OLIV-KEEP`, 'kg');
+    const r = await mergeDuplicateProducts({
+      apply: false, companyId: COMPANY,
+      pairsFile: pairsFile([`${PREFIX}-OLIV-KEEP,${PREFIX}-DOES-NOT-EXIST,stale`]),
+    });
+    expect(r.merged).toEqual([]);
+    expect(r.refused).toHaveLength(1);
+    expect(r.refused[0]!.refusal).toContain(`${PREFIX}-DOES-NOT-EXIST`);
+  });
+
+  it('does NOT also run the name scan - the dry run shows only what was listed', async () => {
+    // Two products sharing a name, which the default mode would merge.
+    await mkProduct('Twinned', `${PREFIX}-TWIN-A`, 'kg');
+    await mkProduct('Twinned', `${PREFIX}-TWIN-B`, 'g');
+    const keep = await mkProduct('Olives', `${PREFIX}-OLIV-KEEP`, 'kg');
+    await mkProduct('Pitted Mixed Olives', `${PREFIX}-OLIV-GONE`, 'kg');
+
+    const r = await mergeDuplicateProducts({
+      apply: false, companyId: COMPANY,
+      pairsFile: pairsFile([`${PREFIX}-OLIV-KEEP,${PREFIX}-OLIV-GONE,because`]),
+    });
+    expect(r.merged).toHaveLength(1);
+    expect(r.merged[0]!.keep).toBe(`${PREFIX}-OLIV-KEEP`);
+    void keep;
   });
 });

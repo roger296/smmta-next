@@ -3,9 +3,25 @@
  *
  *   npx tsx apps/api/scripts/merge-duplicate-products.ts            # dry run
  *   npx tsx apps/api/scripts/merge-duplicate-products.ts --apply
+ *   npx tsx apps/api/scripts/merge-duplicate-products.ts --pairs     # named pairs
  *
  * Run `find-duplicate-products.ts` first — it is read-only and shows the same
  * pairs with their usage.
+ *
+ * TWO MODES. By default it groups by NAME, which is what a duplicate usually
+ * looks like. `--pairs` instead reads `data/product-merge-pairs.csv`, where a
+ * human has named both twins by stock code and said which survives.
+ *
+ * That exists because the two duplicates worth merging here are NOT
+ * same-named: "Olives" [PITT-MIXD-OLIV] and "Pitted Mixed Olives"
+ * [PITT-MIXE-OLIV] are one item the decisions sheet described two ways, so no
+ * scan groups them. They are also the exact shape `decideMerge` refuses on its
+ * own - same unit, supplier codes on both sides - because with nothing to tell
+ * two products apart, choosing between them is a judgement. Naming the
+ * survivor IS that judgement, and the file records who made it and why.
+ *
+ * Named-pairs mode REPLACES the name scan rather than adding to it, so a dry
+ * run shows exactly the pairs you listed and nothing else.
  *
  * WHICH TWIN SURVIVES. The one carrying supplier codes: that is the count-list
  * product, in the unit the venue actually counts ("count this item in
@@ -43,7 +59,10 @@
  * history above, the retired twin's stock, and the product itself, soft-deleted.
  */
 import 'dotenv/config';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { parse as csvParse } from 'csv-parse/sync';
 import { closeDatabase, getDb } from '../src/config/database.js';
 import {
   products,
@@ -57,6 +76,35 @@ import {
 } from '../src/db/schema/index.js';
 import { getSingletonCompanyId } from '../src/shared/auth/company.js';
 import { decideMerge, type MergeDecision, type MergeSide } from '../src/modules/products/product-merge.js';
+
+const DATA_DIR = join(import.meta.dirname, '..', 'data');
+
+export interface MergePairRow {
+  keepStockCode: string;
+  retireStockCode: string;
+  why: string;
+}
+
+/**
+ * Pairs a human has named, for duplicates the name scan cannot see.
+ *
+ * "Olives" and "Pitted Mixed Olives" are one item under two names, so nothing
+ * groups them automatically - and they are the shape `decideMerge` refuses on
+ * its own, since both are kilograms and both carry supplier codes. Naming the
+ * survivor IS the judgement; the file records who made it and why.
+ */
+export function readMergePairsCsv(text: string): MergePairRow[] {
+  const records = csvParse(text, { columns: true, skip_empty_lines: true, bom: true }) as Array<
+    Record<string, string>
+  >;
+  return records
+    .map((r) => ({
+      keepStockCode: (r.keep_stock_code ?? '').trim(),
+      retireStockCode: (r.retire_stock_code ?? '').trim(),
+      why: (r.why ?? '').trim(),
+    }))
+    .filter((r) => r.keepStockCode && r.retireStockCode);
+}
 
 export interface MergeOutcome {
   name: string;
@@ -112,7 +160,7 @@ async function countFor(table: { productId: unknown }, productId: string): Promi
 }
 
 export async function mergeDuplicateProducts(
-  opts: { apply?: boolean; companyId?: string } = {},
+  opts: { apply?: boolean; companyId?: string; pairsFile?: string } = {},
 ): Promise<MergeReport> {
   const companyId = opts.companyId ?? getSingletonCompanyId();
   const apply = opts.apply ?? false;
@@ -123,20 +171,53 @@ export async function mergeDuplicateProducts(
     .from(products)
     .where(and(eq(products.companyId, companyId), isNull(products.deletedAt)));
 
-  const byName = new Map<string, typeof live>();
-  for (const p of live) {
-    const k = p.name.trim().toLowerCase();
-    if (!k) continue;
-    const at = byName.get(k);
-    if (at) at.push(p);
-    else byName.set(k, [p]);
-  }
-
   const report: MergeReport = { dryRun: !apply, merged: [], refused: [] };
 
-  for (const [, rows] of [...byName].sort(([a], [b]) => a.localeCompare(b))) {
-    // Three or more under one name is not a pair and not this script's job.
-    if (rows.length !== 2) continue;
+  /**
+   * Candidate pairs, and who chose the survivor.
+   *
+   * Named-pairs mode replaces the name scan rather than adding to it: the two
+   * answer different questions, and a run that silently did both would make
+   * "what is this about to change?" harder to read off a dry run than it needs
+   * to be.
+   */
+  const candidates: Array<{ rows: typeof live; preferKeepId: string | null }> = [];
+  if (opts.pairsFile) {
+    const byCode = new Map(live.filter((p) => p.stockCode).map((p) => [p.stockCode!.trim().toUpperCase(), p]));
+    for (const pair of readMergePairsCsv(readFileSync(opts.pairsFile, 'utf8'))) {
+      const keep = byCode.get(pair.keepStockCode.toUpperCase());
+      const retire = byCode.get(pair.retireStockCode.toUpperCase());
+      // A named pair whose codes do not both resolve is a stale file, not a
+      // merge. Say which, rather than silently doing nothing.
+      if (!keep || !retire) {
+        report.refused.push({
+          name: `${pair.keepStockCode} <- ${pair.retireStockCode}`,
+          keep: pair.keepStockCode, retire: pair.retireStockCode,
+          factor: null, conversion: '-', recipeLinesMoved: 0, supplierCodesMoved: 0,
+          movementsDeleted: 0, historyDeleted: 0,
+          refusal: `no live product with stock code ${!keep ? pair.keepStockCode : pair.retireStockCode}`,
+        });
+        continue;
+      }
+      candidates.push({ rows: [keep, retire], preferKeepId: keep.id });
+    }
+  } else {
+    const byName = new Map<string, typeof live>();
+    for (const p of live) {
+      const k = p.name.trim().toLowerCase();
+      if (!k) continue;
+      const at = byName.get(k);
+      if (at) at.push(p);
+      else byName.set(k, [p]);
+    }
+    for (const [, rows] of [...byName].sort(([a], [b]) => a.localeCompare(b))) {
+      // Three or more under one name is not a pair and not this script's job.
+      if (rows.length !== 2) continue;
+      candidates.push({ rows, preferKeepId: null });
+    }
+  }
+
+  for (const { rows, preferKeepId } of candidates) {
 
     const sides: MergeSide[] = [];
     for (const p of rows) {
@@ -148,7 +229,12 @@ export async function mergeDuplicateProducts(
         supplierCodes: await countFor(supplierProducts, p.id),
       });
     }
-    const d: MergeDecision = decideMerge(rows[0]!.name, sides[0]!, sides[1]!);
+    const d: MergeDecision = decideMerge(
+      preferKeepId ? `${rows[0]!.name} <- ${rows[1]!.name}` : rows[0]!.name,
+      sides[0]!,
+      sides[1]!,
+      preferKeepId,
+    );
 
     /**
      * `recipe_lines` is unique on (recipe, product, variant, component). A
@@ -266,7 +352,14 @@ const isCliEntry = process.argv[1]?.endsWith('merge-duplicate-products.ts') ?? f
 
 if (isCliEntry) {
   const apply = process.argv.includes('--apply');
-  mergeDuplicateProducts({ apply })
+  // `--pairs` with no value uses the committed file; `--pairs=<path>` takes
+  // another. Named-pairs mode REPLACES the name scan - see the header.
+  const pairsArg = process.argv.find((a) => a === '--pairs' || a.startsWith('--pairs='));
+  const pairsFile = pairsArg
+    ? (pairsArg.includes('=') ? pairsArg.slice('--pairs='.length) : join(DATA_DIR, 'product-merge-pairs.csv'))
+    : undefined;
+  if (pairsFile) console.log(`[merge-duplicate-products] named pairs from ${pairsFile}\n`);
+  mergeDuplicateProducts({ apply, pairsFile })
     .then((r) => {
       console.log(
         `[merge-duplicate-products] ${r.dryRun ? 'DRY RUN - nothing written (pass --apply to commit)' : 'APPLIED'}\n`,

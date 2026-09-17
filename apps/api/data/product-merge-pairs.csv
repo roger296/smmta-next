@@ -1,0 +1,2 @@
+keep_stock_code,retire_stock_code,why
+PITT-MIXD-OLIV,PITT-MIXE-OLIV,"One item, two products. The decisions sheet named both for the same goods - Brakes 119649 said ADD ITEM ""Pitted Mixed Olives"" while Sysco C119649 said use the existing PITT-MIXD-OLIV - and the import obeyed both. Invoices: ""Bar Mix Olives (Pitted)"" / ""Cypressa Bar Mix Olives (Pitted)"". Keeping the count-list product the venues already count against. Confirmed 17 Sept 2026."

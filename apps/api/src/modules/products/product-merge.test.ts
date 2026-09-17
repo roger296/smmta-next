@@ -173,3 +173,57 @@ describe('decideMerge', () => {
     expect(d.refusal).toBeTruthy();
   });
 });
+
+describe('decideMerge - a human names the survivor', () => {
+  const olives = (): [MergeSide, MergeSide] => [
+    { id: 'p-mixd', stockCode: 'PITT-MIXD-OLIV', stockUom: 'kg', recipeLines: 0, supplierCodes: 2 },
+    { id: 'p-mixe', stockCode: 'PITT-MIXE-OLIV', stockUom: 'kg', recipeLines: 0, supplierCodes: 1 },
+  ];
+
+  it('refuses this pair on its own - that is why the override exists', () => {
+    const [a, b] = olives();
+    const d = decideMerge('Olives', a, b);
+    expect(d.factor).toBeNull();
+    expect(d.refusal).toContain('nothing distinguishes');
+  });
+
+  it('honours the named survivor either way round', () => {
+    const [a, b] = olives();
+    expect(decideMerge('Olives', a, b, 'p-mixd').keep.stockCode).toBe('PITT-MIXD-OLIV');
+    expect(decideMerge('Olives', a, b, 'p-mixe').keep.stockCode).toBe('PITT-MIXE-OLIV');
+    expect(decideMerge('Olives', b, a, 'p-mixd').keep.stockCode).toBe('PITT-MIXD-OLIV');
+  });
+
+  it('still refuses a conversion it cannot make, even when the survivor is named', () => {
+    // Naming the survivor settles WHICH product, never what a quantity means.
+    const d = decideMerge(
+      'Milk',
+      { id: 'p-l', stockCode: 'MILK-L', stockUom: 'l', recipeLines: 0, supplierCodes: 0 },
+      { id: 'p-g', stockCode: 'MILK-G', stockUom: 'g', recipeLines: 4, supplierCodes: 0 },
+      'p-l',
+    );
+    expect(d.factor).toBeNull();
+    expect(d.refusal).toContain('density');
+  });
+
+  it('still converts recipe quantities when the survivor is named', () => {
+    const d = decideMerge(
+      'Sugar',
+      { id: 'p-kg', stockCode: 'SUGAR-KG', stockUom: 'kg', recipeLines: 0, supplierCodes: 0 },
+      { id: 'p-g', stockCode: 'SUGAR-G', stockUom: 'g', recipeLines: 26, supplierCodes: 0 },
+      'p-kg',
+    );
+    expect(d.keep.stockCode).toBe('SUGAR-KG');
+    expect(d.factor).toBe(0.001);
+  });
+
+  it('falls back to the rules when the named id matches neither side', () => {
+    const d = decideMerge(
+      'Sugar',
+      { id: 'p-kg', stockCode: 'SUGAR-KG', stockUom: 'kg', recipeLines: 0, supplierCodes: 0 },
+      { id: 'p-g', stockCode: 'SUGAR-G', stockUom: 'g', recipeLines: 26, supplierCodes: 0 },
+      'p-nonexistent',
+    );
+    expect(d.keep.stockCode).toBe('SUGAR-KG');
+  });
+});

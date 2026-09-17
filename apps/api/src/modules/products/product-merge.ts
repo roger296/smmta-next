@@ -115,13 +115,33 @@ export interface MergeDecision {
  * With nothing to separate them it is a coin toss, and the pair is handed back
  * rather than decided.
  */
-export function decideMerge(name: string, a: MergeSide, b: MergeSide): MergeDecision {
+/**
+ * @param preferKeepId When a human has named which twin survives, that decides
+ *   it and the rules below are skipped. Needed because the rules deliberately
+ *   REFUSE a pair they cannot tell apart - same unit, supplier codes on both
+ *   sides - and a pair somebody listed by hand is exactly that shape: they are
+ *   not two spellings of one name the scan found, they are two products a
+ *   person looked at and judged to be the same thing. Everything after the
+ *   choice (conversion, the refusals that protect recipe quantities) still
+ *   applies.
+ */
+export function decideMerge(
+  name: string,
+  a: MergeSide,
+  b: MergeSide,
+  preferKeepId?: string | null,
+): MergeDecision {
   let keep: MergeSide | null = null;
   let retire: MergeSide | null = null;
 
+  if (preferKeepId === a.id) [keep, retire] = [a, b];
+  else if (preferKeepId === b.id) [keep, retire] = [b, a];
+
   const aG = canonicalUom(a.stockUom) === 'g';
   const bG = canonicalUom(b.stockUom) === 'g';
-  if (aG !== bG) [keep, retire] = aG ? [b, a] : [a, b];
+  if (keep || retire) {
+    // already chosen
+  } else if (aG !== bG) [keep, retire] = aG ? [b, a] : [a, b];
   else if (a.supplierCodes > 0 && b.supplierCodes === 0) [keep, retire] = [a, b];
   else if (b.supplierCodes > 0 && a.supplierCodes === 0) [keep, retire] = [b, a];
 
