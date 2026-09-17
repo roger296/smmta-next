@@ -28,9 +28,19 @@
  * them, because "the count said 4600 g" becoming "4.6 kg on the other product"
  * looks like data and is not.
  *
- * What moves: recipe lines (converted), supplier codes and their aliases,
- * consumption/stock-take/wastage history, and any other row keyed on the
- * retired product. What goes: the retired product itself, soft-deleted.
+ * ⚠️ THE TEST HISTORY IS DELETED, NOT MOVED. Stock-take lines, consumption
+ * lines and wastage events all carry a quantity in the RETIRED twin's unit. A
+ * line reading 250 is 250 grams where it was written and 250 kilograms once it
+ * hangs off a kilograms product, and unlike a recipe line there is nothing to
+ * convert it for — it is a record of what somebody typed during testing, not a
+ * position. They also collide: `stock_take_lines` is unique on
+ * (stock_take_id, product_id), and a count sheet listing both twins — which is
+ * exactly what a duplicated product does — has a row for each. The first live
+ * run died on that constraint. Deleting is both the honest answer and the one
+ * that cannot collide.
+ *
+ * What moves: recipe lines (converted) and supplier codes. What goes: the test
+ * history above, the retired twin's stock, and the product itself, soft-deleted.
  */
 import 'dotenv/config';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
@@ -42,7 +52,6 @@ import {
   stockLevels,
   stockMovements,
   stockTakeLines,
-  supplierProductAliases,
   supplierProducts,
   wastageEvents,
 } from '../src/db/schema/index.js';
@@ -59,6 +68,8 @@ export interface MergeOutcome {
   recipeLinesMoved: number;
   supplierCodesMoved: number;
   movementsDeleted: number;
+  /** Test-history rows removed with the retired twin. See the header. */
+  historyDeleted: number;
   refusal?: string;
 }
 
@@ -66,6 +77,29 @@ export interface MergeReport {
   dryRun: boolean;
   merged: MergeOutcome[];
   refused: MergeOutcome[];
+}
+
+/** The bake whose recipe names both twins in one section, if any. */
+async function recipeLineCollision(keepId: string, retireId: string): Promise<string | null> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      recipeId: recipeLines.recipeId,
+      productId: recipeLines.productId,
+      variant: recipeLines.variant,
+      component: recipeLines.component,
+    })
+    .from(recipeLines)
+    .where(inArray(recipeLines.productId, [keepId, retireId]));
+  const seen = new Set<string>();
+  for (const r of rows.filter((r) => r.productId === keepId)) {
+    seen.add(`${r.recipeId}|${r.variant}|${r.component}`);
+  }
+  for (const r of rows.filter((r) => r.productId === retireId)) {
+    const k = `${r.recipeId}|${r.variant}|${r.component}`;
+    if (seen.has(k)) return k;
+  }
+  return null;
 }
 
 async function countFor(table: { productId: unknown }, productId: string): Promise<number> {
@@ -115,6 +149,20 @@ export async function mergeDuplicateProducts(
       });
     }
     const d: MergeDecision = decideMerge(rows[0]!.name, sides[0]!, sides[1]!);
+
+    /**
+     * `recipe_lines` is unique on (recipe, product, variant, component). A
+     * recipe naming BOTH twins in one section would collide on the repoint —
+     * and unlike the test history there is no honest way to resolve it here:
+     * summing means adding two numbers in different units, and dropping one
+     * silently loses an ingredient from a cake. Refused, named, left alone.
+     *
+     * It does not arise on the live data (every contested pair has recipes on
+     * one side only), which is precisely why it would go unnoticed until the
+     * day it did.
+     */
+    const collision = await recipeLineCollision(d.keep.id, d.retire.id);
+
     const movements = await countFor(stockMovements, d.retire.id);
     const outcome: MergeOutcome = {
       name: d.name,
@@ -131,9 +179,18 @@ export async function mergeDuplicateProducts(
       recipeLinesMoved: d.retire.recipeLines,
       supplierCodesMoved: d.retire.supplierCodes,
       movementsDeleted: movements,
-      refusal: d.refusal,
+      historyDeleted:
+        (await countFor(stockTakeLines, d.retire.id)) +
+        (await countFor(sessionConsumptionLines, d.retire.id)) +
+        (await countFor(wastageEvents, d.retire.id)),
+      refusal:
+        d.refusal ??
+        (collision
+          ? `a recipe uses BOTH twins in the same section (${collision}) - ` +
+            'merging would either add two different units together or drop an ingredient. Fix that recipe first.'
+          : undefined),
     };
-    if (d.refusal || d.factor == null) {
+    if (outcome.refusal || d.factor == null) {
       report.refused.push(outcome);
       continue;
     }
@@ -161,25 +218,40 @@ export async function mergeDuplicateProducts(
           .where(eq(recipeLines.productId, d.retire.id));
       }
 
-      await tx
-        .update(supplierProducts)
-        .set({ productId: d.keep.id })
+      /**
+       * `supplier_products` is unique on (product, supplier, sku). Both twins
+       * carrying the same supplier's same code is possible, so repoint only
+       * the ones that would not collide and drop the rest — the survivor's own
+       * row already says the same thing.
+       */
+      const keepCodes = await tx
+        .select({ supplierId: supplierProducts.supplierId, sku: supplierProducts.supplierSku })
+        .from(supplierProducts)
+        .where(eq(supplierProducts.productId, d.keep.id));
+      const held = new Set(keepCodes.map((c) => `${c.supplierId}::${c.sku.trim().toLowerCase()}`));
+      const retireCodes = await tx
+        .select({ id: supplierProducts.id, supplierId: supplierProducts.supplierId, sku: supplierProducts.supplierSku })
+        .from(supplierProducts)
         .where(eq(supplierProducts.productId, d.retire.id));
-
-      // History follows the product it described. These carry quantities in the
-      // retired unit, but they are records of the testing rather than the
-      // position, and the position is zeroed separately.
-      for (const t of [sessionConsumptionLines, stockTakeLines, wastageEvents]) {
-        await tx
-          .update(t as never)
-          .set({ productId: d.keep.id } as never)
-          .where(eq((t as never as { productId: never }).productId, d.retire.id));
+      for (const c of retireCodes) {
+        const clash = held.has(`${c.supplierId}::${c.sku.trim().toLowerCase()}`);
+        if (clash) await tx.delete(supplierProducts).where(eq(supplierProducts.id, c.id));
+        else {
+          await tx
+            .update(supplierProducts)
+            .set({ productId: d.keep.id })
+            .where(eq(supplierProducts.id, c.id));
+        }
       }
 
       // NOT carried: an invented quantity through a unit change is a different
-      // invented quantity. See the header.
+      // invented quantity, and the take/consumption lines collide besides. See
+      // the header.
       await tx.delete(stockMovements).where(eq(stockMovements.productId, d.retire.id));
       await tx.delete(stockLevels).where(eq(stockLevels.productId, d.retire.id));
+      await tx.delete(stockTakeLines).where(eq(stockTakeLines.productId, d.retire.id));
+      await tx.delete(sessionConsumptionLines).where(eq(sessionConsumptionLines.productId, d.retire.id));
+      await tx.delete(wastageEvents).where(eq(wastageEvents.productId, d.retire.id));
 
       await tx
         .update(products)
@@ -207,7 +279,7 @@ if (isCliEntry) {
           console.log(
             `  ${m.name}\n     keep ${m.keep}  <-  retire ${m.retire}  ` +
               `(${m.recipeLinesMoved} recipe line(s) ${m.conversion}, ${m.supplierCodesMoved} code(s), ` +
-              `${m.movementsDeleted} test movement(s) discarded)`,
+              `${m.movementsDeleted} movement(s) + ${m.historyDeleted} test history row(s) discarded)`,
           );
         }
         console.log('');

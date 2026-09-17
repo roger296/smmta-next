@@ -9,7 +9,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../src/config/database.js';
 import {
-  products, recipeLines, recipes, sites, stockLevels, stockMovements, suppliers, supplierProducts,
+  products, recipeLines, recipes, sites, stockLevels, stockMovements, stockTakeLines, stockTakes,
+  suppliers, supplierProducts,
 } from '../src/db/schema/index.js';
 import { mergeDuplicateProducts } from './merge-duplicate-products.js';
 
@@ -23,10 +24,12 @@ async function wipe() {
   if (ids.length > 0) {
     await db.delete(recipeLines).where(inArray(recipeLines.productId, ids));
     await db.delete(supplierProducts).where(inArray(supplierProducts.productId, ids));
+    await db.delete(stockTakeLines).where(inArray(stockTakeLines.productId, ids));
     await db.delete(stockMovements).where(inArray(stockMovements.productId, ids));
     await db.delete(stockLevels).where(inArray(stockLevels.productId, ids));
     await db.delete(products).where(inArray(products.id, ids));
   }
+  await db.delete(stockTakes).where(eq(stockTakes.companyId, COMPANY));
   await db.delete(recipes).where(eq(recipes.companyId, COMPANY));
   await db.delete(suppliers).where(eq(suppliers.companyId, COMPANY));
   await db.delete(sites).where(eq(sites.companyId, COMPANY));
@@ -169,6 +172,88 @@ describe('mergeDuplicateProducts', () => {
     expect(await db.select().from(stockLevels).where(eq(stockLevels.productId, retire))).toHaveLength(0);
     // Nothing invented on the survivor.
     expect(await db.select().from(stockLevels).where(eq(stockLevels.productId, keep))).toHaveLength(0);
+  });
+
+  /**
+   * The failure the first live --apply hit. `stock_take_lines` is unique on
+   * (stock_take_id, product_id), and a count sheet listing a duplicated product
+   * has a row for EACH twin — which is exactly what a duplicate is. Repointing
+   * collided on the constraint and the run died part-way through the list.
+   */
+  it('survives both twins appearing on the same stock take', async () => {
+    const db = getDb();
+    const keep = await mkProduct('Caster Sugar', `${PREFIX}-KG`, 'kg');
+    const retire = await mkProduct('Caster Sugar', `${PREFIX}-G`, 'g');
+    await mkSupplierCode(keep, '33891');
+    await mkRecipeLine(retire, '250', 'g');
+    const [site] = await db
+      .insert(sites)
+      .values({ companyId: COMPANY, name: 'S', canonicalName: 'S', slug: `${PREFIX}-s` })
+      .returning();
+    const [take] = await db
+      .insert(stockTakes)
+      .values({ companyId: COMPANY, siteId: site!.id, status: 'OPEN' })
+      .returning();
+    // One line per twin, on the SAME take.
+    await db.insert(stockTakeLines).values([
+      { stockTakeId: take!.id, productId: keep, bookQty: '2', countedQty: '2' },
+      { stockTakeId: take!.id, productId: retire, bookQty: '2000', countedQty: '2000' },
+    ]);
+
+    const r = await mergeDuplicateProducts({ companyId: COMPANY, apply: true });
+    expect(r.merged).toHaveLength(1);
+    expect(r.merged[0]!.historyDeleted).toBe(1);
+    // The survivor's own count line is untouched; the retired twin's is gone,
+    // not repointed — 2000 grams is not 2000 kilograms.
+    const lines = await db.select().from(stockTakeLines).where(eq(stockTakeLines.stockTakeId, take!.id));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.productId).toBe(keep);
+    expect(Number(lines[0]!.countedQty)).toBe(2);
+  });
+
+  /**
+   * `recipe_lines` is unique on (recipe, product, variant, component). Summing
+   * would add grams to kilograms; dropping one would silently lose an
+   * ingredient from a cake. Neither is this script's call.
+   */
+  it('refuses a pair whose recipe names both twins in one section', async () => {
+    const db = getDb();
+    const keep = await mkProduct('Caster Sugar', `${PREFIX}-KG`, 'kg');
+    const retire = await mkProduct('Caster Sugar', `${PREFIX}-G`, 'g');
+    await mkSupplierCode(keep, '33891');
+    const [r0] = await db
+      .insert(recipes)
+      .values({ companyId: COMPANY, bake: `${PREFIX} Bake`, effectiveFrom: '2026-01-01' })
+      .returning();
+    await db.insert(recipeLines).values([
+      { companyId: COMPANY, recipeId: r0!.id, productId: keep, qtyPerCover: '0.25', stockUom: 'kg' },
+      { companyId: COMPANY, recipeId: r0!.id, productId: retire, qtyPerCover: '250', stockUom: 'g' },
+    ]);
+
+    const r = await mergeDuplicateProducts({ companyId: COMPANY, apply: true });
+    expect(r.merged).toHaveLength(0);
+    expect(r.refused[0]!.refusal).toMatch(/uses BOTH twins/);
+    expect(await live(`${PREFIX}-G`)).toBeDefined();
+  });
+
+  /** Both twins carrying the same supplier's same code: keep one, drop the other. */
+  it('drops a supplier code the survivor already holds instead of colliding', async () => {
+    const db = getDb();
+    const keep = await mkProduct('Olives', `${PREFIX}-KEEP`, 'kg');
+    const retire = await mkProduct('Olives', `${PREFIX}-RETIRE`, 'g');
+    const [sup] = await db
+      .insert(suppliers)
+      .values({ companyId: COMPANY, name: `${PREFIX} Brakes`, slug: `${PREFIX}-brakes-dup` })
+      .returning();
+    await db.insert(supplierProducts).values([
+      { companyId: COMPANY, productId: keep, supplierId: sup!.id, supplierSku: '119649' },
+      { companyId: COMPANY, productId: retire, supplierId: sup!.id, supplierSku: '119649' },
+    ]);
+
+    await mergeDuplicateProducts({ companyId: COMPANY, apply: true });
+    const codes = await db.select().from(supplierProducts).where(eq(supplierProducts.companyId, COMPANY));
+    expect(codes).toHaveLength(1);
+    expect(codes[0]!.productId).toBe(keep);
   });
 
   it('leaves a name used by three products alone - that is not a pair', async () => {
