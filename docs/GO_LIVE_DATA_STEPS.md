@@ -336,6 +336,66 @@ that day.
 
 ---
 
+## Step 13 🐳 — Zero the stock position, the day before the first real count
+
+**Run this LAST, immediately before the venues count for real.** Every quantity
+in the system today came out of user testing — invented counts, invented bakes,
+invented goods-in. None of it describes what is on a shelf, and carrying it into
+the first real stock-take makes every variance meaningless and every reorder
+proposal wrong.
+
+```bash
+cd /app && npx tsx apps/api/scripts/reset-stock-ledger.ts
+```
+
+Dry run by default. It prints the movements it would clear, the levels it would
+zero and the total on-hand being discarded. When you're happy:
+
+```bash
+cd /app && npx tsx apps/api/scripts/reset-stock-ledger.ts --apply
+```
+
+⚠️ **It clears the movement ledger as well as the levels, and it has to.**
+`stock_levels.on_hand` is a CACHE of `sum(stock_movements.qty_delta)` —
+`StockLevelService.recomputeOnHand` re-derives it from the ledger and writes it
+back. Zero the levels alone and the next reconcile silently restores every
+made-up number, with nothing on screen saying it happened.
+
+**What it keeps:** reorder points, reorder-up-to levels and days-of-cover.
+Those are configuration somebody chose, and they are still right at zero stock.
+The `stock_levels` rows survive too (zeroed), so a product set up for a site
+stays set up for it.
+
+**What it leaves alone:** consumption lines, stock-takes, wastage events and
+goods-in receipts — the RECORD of the testing rather than the position. It
+counts them and reports them so you can decide separately; deleting them is a
+wider blast radius than "set the levels to zero".
+
+⚠️ **Resolve duplicate products BEFORE this step** (`find-duplicate-products.ts`
+— see below), not after. A first real count that lands on the wrong twin of a
+duplicated product is a wrong opening balance you will be chasing for weeks.
+
+---
+
+## Step 14 🐳 — Check for duplicate products
+
+Read-only, and worth running before every one of the steps above that writes
+products.
+
+```bash
+cd /app && npx tsx apps/api/scripts/find-duplicate-products.ts
+```
+
+The live catalogue carried 29 names used by two products each, the twins
+differing in stock UoM (grams from one import, kilograms from another). A
+duplicated name identifies NEITHER product: supplier codes fail to attach, the
+count lands on one twin while the recipe consumes the other, and every screen
+still looks normal. The script reports which twin each pair actually uses and
+gives a verdict — retire the idle one, either, or a real merge with a unit
+conversion.
+
+---
+
 ## When you're done
 
 Run `docs/RETEST_2026-08-12.md` at the venue — a numbered script mirroring the

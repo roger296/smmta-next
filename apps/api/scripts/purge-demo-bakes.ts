@@ -13,7 +13,7 @@
  * to tidy up a seed would be a far worse outcome than an untidy product list.
  */
 import 'dotenv/config';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../src/config/database.js';
 import {
   products,
@@ -54,12 +54,25 @@ export async function inUseReason(productId: string): Promise<string | null> {
     .limit(1);
   if (consumption.length > 0) return 'has consumption history';
 
-  const levels = await db
-    .select({ id: stockLevels.id })
+  /**
+   * A stock_levels ROW is not evidence of use — an empty row gets created for a
+   * product the first time anything looks at it, so every demo ingredient had
+   * one and all 19 were held back on that alone. What blocks a delete is stock
+   * actually SITTING there. The quantity goes in the reason either way, so the
+   * operator sees what they would be throwing away rather than a bare refusal.
+   */
+  const [level] = await db
+    .select({
+      onHand: sql<string>`coalesce(sum(${stockLevels.onHand}), 0)::text`,
+      allocated: sql<string>`coalesce(sum(${stockLevels.allocated}), 0)::text`,
+    })
     .from(stockLevels)
-    .where(eq(stockLevels.productId, productId))
-    .limit(1);
-  if (levels.length > 0) return 'has a stock level at a site';
+    .where(eq(stockLevels.productId, productId));
+  const onHand = Number(level?.onHand ?? 0);
+  const allocated = Number(level?.allocated ?? 0);
+  if (onHand !== 0 || allocated !== 0) {
+    return `has ${onHand} on hand (${allocated} allocated) across sites`;
+  }
 
   // A line in a recipe that is NOT one of the demo cakes — i.e. the real menu
   // has adopted this ingredient.
