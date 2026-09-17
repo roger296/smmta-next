@@ -415,6 +415,27 @@ It does NOT carry stock across — the retired twin's movements and levels are
 deleted. They are invented test figures due to be zeroed at step 13 anyway, and
 pushing an invented number through a unit change just invents a different one.
 
+### ⚠️ After ANY by-hand change to a product's stock unit
+
+```bash
+cd /app && npx tsx apps/api/scripts/check-recipe-units.ts
+```
+
+Read-only. A recipe line carries its OWN `stock_uom` next to `qty_per_cover`,
+and nothing in the system converts units — so the line and its product are only
+correct when they say the same thing.
+
+The merge only converts when the two PRODUCTS' units differ. Change a product's
+unit by hand — which is exactly what you are told to do for the pairs it refuses
+on density — and the merge then sees two products agreeing, moves the lines
+untouched, and `500 g` silently becomes `500 litres` of milk per cover. The
+merge cannot catch that: by the time it looks, the units already agree. This
+checks the line against the product instead, and it is the only thing that will
+tell you.
+
+Fix it on the RECIPE, not the product. Changing the product back just moves the
+problem to the stock-take.
+
 ---
 
 ## When you're done
