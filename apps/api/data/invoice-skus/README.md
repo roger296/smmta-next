@@ -110,3 +110,53 @@ The `source` column in `match-review.csv` records which of those applied:
 | `client-description` | the client's wording, their code contradicted or absent |
 | `matched` | this repo's string matching; the client never mentioned it |
 | `none` | nothing to go on — ADD ITEM or NOT STOCK |
+
+## Applying the reviewed sheet
+
+`match-review.csv` goes out for review; `match-review-decided.csv` is what came
+back (17 Sept 2026), and it is committed so the run that produced the live
+mappings is reproducible. The `decision` column takes four answers:
+
+| decision | meaning |
+|---|---|
+| `Y` | accept `proposed_stock_code` |
+| a stock code | no, THIS product — overrules the proposal |
+| `ADD ITEM` | no product exists; create one from `new_product_name` + `new_stock_uom` |
+| `NOT STOCK` | not a stock item (a delivery charge, a one-off tool) |
+
+A blank is not a fifth answer. It is an unanswered question, and it is left
+alone rather than guessed at.
+
+```bash
+npx tsx apps/api/scripts/import-invoice-skus.ts \
+  --decisions=apps/api/data/invoice-skus/match-review-decided.csv --dry-run
+```
+
+Drop `--dry-run` to apply. Rules worth knowing before you read the output, all
+in `src/modules/suppliers/invoice-sku-decisions.ts`:
+
+- **Two rows may name one new product, and that makes ONE product.** Twist
+  bills the same confetti as `6462` and `6462-4kg`; Booker and Makro both stock
+  Strathmore Still Glass under `077549`. One product, several purchasable
+  lines — which is exactly what `supplier_products` is for. Creating one
+  product per row would rebuild the duplicate catalogue the September merge
+  cleaned up.
+- **An `ADD ITEM` whose name already exists is an ATTACH, not an insert**, for
+  the same reason. This is also what makes the run **idempotent**: a second
+  pass finds the products the first one made and attaches to them.
+- **A placeholder name is refused, not created.** `UNKNOWN - "4 x 2.5kg"
+  (check invoice)` reached the sheet from the client workbook's own name column
+  and is a question, not a product.
+- **The sheet carries no aliases and no last-seen date** — a reviewer should
+  not have to preserve columns they are not judging. Those are rejoined from
+  `supplier-skus.csv` on `(supplier, sku)`, and a decision for a code that is
+  not in that file is refused rather than written from the sheet alone.
+- **New products get a stock code, a name and a unit, and nothing else.** No
+  purchase unit, no pack size, no cost — so every one of them lands on the
+  Needs-setup list. The invoice cannot supply those honestly: its price is per
+  PACK ("1 x 25kg" at £25.40), and putting that in `expected_next_cost` against
+  a factor of 1 would price the ingredient at £25.40 **per kilo** in every
+  recipe using it. The pack price goes where it is true — on the supplier line.
+
+A refused row does not hold back the rows that resolved: those are written, the
+refusals are listed, and the process exits non-zero so it cannot scroll past.
