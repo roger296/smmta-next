@@ -44,3 +44,15 @@ describe('feedPathFor', () => {
     );
   });
 });
+
+describe('feedPathFor (hourly feed)', () => {
+  it('keeps the price-and-stock feed in its own file', () => {
+    const slash = (p: string) => p.replace(/\\/g, '/');
+    expect(slash(feedPathFor('/app/uploads/feeds', 'clothes-shop', 'stock'))).toBe(
+      '/app/uploads/feeds/clothes-shop-stock.xml',
+    );
+    expect(slash(feedPathFor('/app/uploads/feeds', 'clothes-shop', 'full'))).toBe(
+      '/app/uploads/feeds/clothes-shop.xml',
+    );
+  });
+});

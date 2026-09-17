@@ -29,10 +29,15 @@ import {
   feedItemXml,
   feedOpen,
   feedSkipReason,
+  feedStockItemXml,
   googleAgeGroup,
   googleGender,
   type FeedProduct,
 } from './google-feed.js';
+
+/** `full` is the nightly feed; `stock` is the hourly supplemental one, which
+ *  carries only id, price and availability for the same items. */
+export type FeedMode = 'full' | 'stock';
 
 const CHUNK = 500;
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
@@ -57,9 +62,12 @@ export interface BuildGoogleFeedOptions {
   limit?: number | null;
   /** Report the counts, write nothing. */
   dryRun?: boolean;
+  /** `full` (default) or the hourly price-and-stock supplemental feed. */
+  mode?: FeedMode;
 }
 
 export interface FeedBuildSummary {
+  mode: FeedMode;
   channelSlug: string;
   outPath: string;
   considered: number;
@@ -99,7 +107,9 @@ export async function buildGoogleFeed(opts: BuildGoogleFeedOptions): Promise<Fee
   }
 
   const paths = await categoryPaths(opts.companyId);
+  const mode: FeedMode = opts.mode ?? 'full';
   const summary: FeedBuildSummary = {
+    mode,
     channelSlug: opts.channelSlug,
     outPath: opts.outPath,
     considered: 0,
@@ -118,7 +128,10 @@ export async function buildGoogleFeed(opts: BuildGoogleFeedOptions): Promise<Fee
       feedOpen({
         title: opts.shopName ?? channel.displayName,
         link: baseUrl,
-        description: `${opts.shopName ?? channel.displayName} product feed`,
+        description:
+          mode === 'stock'
+            ? `${opts.shopName ?? channel.displayName} price and availability`
+            : `${opts.shopName ?? channel.displayName} product feed`,
       }),
     );
   }
@@ -284,7 +297,10 @@ export async function buildGoogleFeed(opts: BuildGoogleFeedOptions): Promise<Fee
         shippingGbp: shippingByProduct.get(row.id) ?? defaultShippingGbp,
         shippingWeightKg: row.weight,
       };
-      await write(feedItemXml(item));
+      // The supplemental feed updates the same items, so it is built from the
+      // same rows and the same filters: an item missing from the main feed
+      // must not appear here either.
+      await write(mode === 'stock' ? feedStockItemXml(item) : feedItemXml(item));
       summary.written++;
     }
     if (opts.limit != null && summary.considered >= opts.limit) break;
@@ -329,7 +345,8 @@ export function parseFeedShops(raw: string | null | undefined): FeedShop[] {
   return out;
 }
 
-/** Where a shop's feed file is written: `<dir>/<channel-slug>.xml`. */
-export function feedPathFor(dir: string, channelSlug: string): string {
-  return path.join(dir, `${channelSlug}.xml`);
+/** Where a shop's feed file is written: `<dir>/<channel-slug>.xml` for the
+ *  nightly feed, `<dir>/<channel-slug>-stock.xml` for the hourly one. */
+export function feedPathFor(dir: string, channelSlug: string, mode: FeedMode = 'full'): string {
+  return path.join(dir, `${channelSlug}${mode === 'stock' ? '-stock' : ''}.xml`);
 }
