@@ -807,7 +807,10 @@ async function main(): Promise<void> {
     apiKey,
     apiBaseUrl: supplier.apiBaseUrl,
     apiAuthScheme: supplier.apiAuthScheme,
-    timeoutMs: 60_000,
+    // The whole catalogue in one response (~9 MB). Twice on 2026-09-18 it did
+    // not arrive within 60 s and the import aborted, so give it five minutes:
+    // this is a manual/bulk job, and only this call uses the connector here.
+    timeoutMs: 300_000,
   });
 
   // Uneek's product data endpoint answers 500 without the customer number.
