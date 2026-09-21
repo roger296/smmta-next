@@ -7,14 +7,19 @@ import {
   ShippingLabelService,
 } from '../shipping/shipping-label.service.js';
 import { PickNoteNotFoundError, PickNoteService } from '../shipping/pick-note.service.js';
-import { ShipOrderError, ShipOrderNotFoundError, ShipOrderService } from '../shipping/ship-order.service.js';
+import {
+  OwnLabelError,
+  ShipOrderError,
+  ShipOrderNotFoundError,
+  ShipOrderService,
+} from '../shipping/ship-order.service.js';
 import { InvoiceDocumentService } from './invoice-document.service.js';
 import { OrderService, OrderValidationError } from './order.service.js';
 import { InvoiceService, InvoiceError } from './invoice.service.js';
 import {
   createOrderSchema, updateOrderSchema, orderQuerySchema,
   orderStatusChangeSchema, orderNoteSchema, allocateStockSchema,
-  createInvoiceFromOrderSchema, createCreditNoteSchema, allocatePaymentSchema,
+  createInvoiceFromOrderSchema, createCreditNoteSchema, allocatePaymentSchema, ownLabelSchema,
 } from './order.schema.js';
 import { paginationSchema } from '../../shared/utils/pagination.js';
 
@@ -190,6 +195,34 @@ export async function orderRoutes(app: FastifyInstance) {
       .header('Content-Disposition', 'inline; filename="' + file.filename + '"')
       .header('Cache-Control', 'private, no-store')
       .send(file.buffer);
+  });
+
+  // -- Own label -----------------------------------------------------
+  // For an order going out with a label made outside this system: the courier
+  // and tracking number are typed in, and stand in for a bought label.
+  app.put('/orders/:id/own-label', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    const input = ownLabelSchema.parse(request.body);
+    try {
+      return { success: true, data: await shipOrderService.setOwnLabel(id, user.companyId, input) };
+    } catch (err) {
+      if (err instanceof ShipOrderNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      if (err instanceof OwnLabelError) return reply.status(409).send({ success: false, error: err.message });
+      throw err;
+    }
+  });
+
+  app.delete('/orders/:id/own-label', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    try {
+      return { success: true, data: await shipOrderService.clearOwnLabel(id, user.companyId) };
+    } catch (err) {
+      if (err instanceof ShipOrderNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      if (err instanceof OwnLabelError) return reply.status(409).send({ success: false, error: err.message });
+      throw err;
+    }
   });
 
   // -- Pick notes -----------------------------------------------------

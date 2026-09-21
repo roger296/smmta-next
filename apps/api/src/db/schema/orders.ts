@@ -56,6 +56,12 @@ export const customerOrders = pgTable('customer_orders', {
   trackingNumber: varchar('tracking_number', { length: 200 }),
   trackingLink: varchar('tracking_link', { length: 500 }),
   courierName: varchar('courier_name', { length: 100 }),
+  /**
+   * The order goes out with a label made outside this system, so no label is
+   * bought for it. The courier and tracking number above were typed in by the
+   * dispatcher, and stand in for the label when the order is shipped.
+   */
+  ownLabel: boolean('own_label').notNull().default(false),
   revenue: decimal('revenue', { precision: 18, scale: 2 }).default('0'),
   cogs: decimal('cogs', { precision: 18, scale: 2 }).default('0'),
   margin: decimal('margin', { precision: 18, scale: 2 }).default('0'),
