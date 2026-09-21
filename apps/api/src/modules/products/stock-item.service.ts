@@ -7,6 +7,7 @@ import { LucaGLService } from '../../integrations/luca/luca-gl.service.js';
 import type { StockAdjustmentInput, StockTransferInput, StockItemQueryInput, StockReportQueryInput } from './stock-item.schema.js';
 import { paginationOffset, paginationMeta } from '../../shared/utils/pagination.js';
 import { roundMoney } from '../../shared/utils/currency.js';
+import { SerialNumberError, serialsForIncomingStock } from './serial-numbers.js';
 
 /**
  * StockItemService — stock management with FIFO selling,
@@ -115,6 +116,14 @@ export class StockItemService {
       const dateStr = dateNow.toISOString().slice(0, 10);
 
       if (input.type === 'ADD') {
+        let serials: Array<string | null>;
+        try {
+          serials = await serialsForIncomingStock(txDb, companyId, product, input.quantity, input.serialNumbers);
+        } catch (err) {
+          if (err instanceof SerialNumberError) throw new StockValidationError(err.message);
+          throw err;
+        }
+
         // Create stock items
         const itemsToInsert = [];
         for (let i = 0; i < input.quantity; i++) {
@@ -122,7 +131,7 @@ export class StockItemService {
             companyId,
             productId: input.productId,
             warehouseId: input.warehouseId,
-            serialNumber: input.serialNumbers?.[i] ?? null,
+            serialNumber: serials[i] ?? null,
             batchId: input.batchId ?? null,
             locationIsle: input.locationIsle ?? null,
             locationShelf: input.locationShelf ?? null,

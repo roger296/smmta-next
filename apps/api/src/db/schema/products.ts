@@ -1,5 +1,5 @@
 import { pgTable, varchar, decimal, boolean, integer, text, uuid, jsonb, doublePrecision, index, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import { pk, companyId, auditTimestamps, oldId, productTypeEnum, stockItemStatusEnum } from './common.js';
 import { categories, manufacturers, warehouses } from './reference.js';
 import { stockReservations } from './storefront.js';
@@ -212,7 +212,13 @@ export const stockItems = pgTable('stock_items', {
   currencyCode: varchar('currency_code', { length: 3 }).default('GBP'),
   oldId: oldId(),
   ...auditTimestamps,
-});
+}, (t) => ({
+  // A serial number identifies one live unit of a product, whatever its case.
+  // The backstop for two people booking in the same serial at the same moment.
+  stockItemsProductSerialUnq: uniqueIndex('stock_items_product_serial_unq')
+    .on(t.companyId, t.productId, sql`lower(${t.serialNumber})`)
+    .where(sql`${t.serialNumber} IS NOT NULL AND ${t.deletedAt} IS NULL`),
+}));
 
 // ============================================================
 // Pallets

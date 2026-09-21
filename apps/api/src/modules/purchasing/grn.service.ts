@@ -11,6 +11,7 @@ import type { CreateGRNInput } from './purchase-order.schema.js';
 import { roundMoney } from '../../shared/utils/currency.js';
 import { NotifyMeService, type NotifyMeSender } from '../storefront/notify-me.service.js';
 import { HttpNotifyMeSender } from '../storefront/notify-me.sender.js';
+import { SerialNumberError, serialsForIncomingStock } from '../products/serial-numbers.js';
 
 /**
  * GRNService — Goods Received Note (book-in stock) with GL posting.
@@ -138,7 +139,6 @@ export class GRNService {
         // or moves stock (free stock, allocation, reservations, shipping) treats
         // a row as one unit, so a single row holding the whole quantity would
         // be counted, allocated and sold as one.
-        const isSerialTracked = product.requireSerialNumber;
         const warehouseId = po.deliveryWarehouseId ?? product.defaultWarehouseId;
 
         if (product.productType !== 'SERVICE') {
@@ -149,11 +149,19 @@ export class GRNService {
             throw new GRNValidationError(`Book in whole units of ${product.name}: ${lineInput.quantityBookedIn} is not a whole number`);
           }
 
-          const units = Array.from({ length: lineInput.quantityBookedIn }, (_, i) => ({
+          let serials: Array<string | null>;
+          try {
+            serials = await serialsForIncomingStock(txDb, companyId, product, lineInput.quantityBookedIn, lineInput.serialNumbers);
+          } catch (err) {
+            if (err instanceof SerialNumberError) throw new GRNValidationError(err.message);
+            throw err;
+          }
+
+          const units = serials.map((serialNumber) => ({
             companyId,
             productId: lineInput.productId,
             warehouseId,
-            serialNumber: isSerialTracked ? (lineInput.serialNumbers?.[i] ?? null) : null,
+            serialNumber,
             batchId: lineInput.batchId ?? null,
             locationIsle: lineInput.locationIsle ?? null,
             locationShelf: lineInput.locationShelf ?? null,

@@ -130,3 +130,46 @@ describe('GRNService.bookIn', () => {
     expect(await stockOf(product.id)).toHaveLength(0);
   });
 });
+
+describe('booking in a serial-tracked product', () => {
+  const bookIn = (poId: string, productId: string, quantityBookedIn: number, serialNumbers?: string[]) =>
+    service().bookIn(poId, COMPANY_ID, USER_ID, { lines: [{ productId, quantityBookedIn, serialNumbers }] });
+
+  it('stores one serial per unit, trimmed', async () => {
+    const product = await makeProduct({ requireSerialNumber: true });
+    const poId = await makePO(product.id, 3);
+    await bookIn(poId, product.id, 3, [' SN-001 ', 'SN-002', 'SN-003']);
+    expect((await stockOf(product.id)).map((r) => r.serialNumber).sort()).toEqual(['SN-001', 'SN-002', 'SN-003']);
+  });
+
+  it('refuses too few serials, a repeat, or one already in the system, and books nothing in', async () => {
+    const product = await makeProduct({ requireSerialNumber: true });
+    const poId = await makePO(product.id, 10);
+    await expect(bookIn(poId, product.id, 2)).rejects.toThrow(/2 units need 2 serial numbers, and 0 were given/);
+    await expect(bookIn(poId, product.id, 2, ['A-1'])).rejects.toThrow(/1 was given/);
+    await expect(bookIn(poId, product.id, 2, ['A-1', 'a-1'])).rejects.toThrow(/more than once/);
+    expect(await stockOf(product.id)).toHaveLength(0);
+
+    await bookIn(poId, product.id, 1, ['A-1']);
+    await expect(bookIn(poId, product.id, 2, ['A-2', 'a-1'])).rejects.toThrow(/Already in the system.*A-1/);
+    expect(await stockOf(product.id)).toHaveLength(1);
+  });
+
+  it('lets two products share a serial, and ignores serials sent for a product that is not tracked', async () => {
+    const tracked = await makeProduct({ requireSerialNumber: true });
+    const other = await makeProduct({ requireSerialNumber: true });
+    const plain = await makeProduct();
+    await bookIn(await makePO(tracked.id, 1), tracked.id, 1, ['SHARED-1']);
+    await bookIn(await makePO(other.id, 1), other.id, 1, ['SHARED-1']);
+    await bookIn(await makePO(plain.id, 2), plain.id, 2, ['X', 'Y']);
+    expect((await stockOf(plain.id)).map((r) => r.serialNumber)).toEqual([null, null]);
+  });
+
+  it('is backed by the database: the same serial cannot be written twice for a product', async () => {
+    const product = await makeProduct({ requireSerialNumber: true });
+    await bookIn(await makePO(product.id, 1), product.id, 1, ['DB-1']);
+    await expect(
+      getDb().insert(stockItems).values({ companyId: COMPANY_ID, productId: product.id, warehouseId, serialNumber: 'db-1' }),
+    ).rejects.toThrow();
+  });
+});
