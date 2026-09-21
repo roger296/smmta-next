@@ -17,7 +17,7 @@ import { NotificationService } from '../modules/notification/notification.servic
 import { MarketingService } from '../modules/marketing/marketing.service.js';
 import { SubscriptionService } from '../modules/subscriptions/subscription.service.js';
 import { DigestService } from '../modules/digest/digest.service.js';
-import { ShippingLabelService } from '../modules/shipping/shipping-label.service.js';
+import { ShippingLabelConflictError, ShippingLabelService } from '../modules/shipping/shipping-label.service.js';
 import { PickNoteNotFoundError, PickNoteService } from '../modules/shipping/pick-note.service.js';
 import { DispatchEmailRejectedError, sendDispatchEmail } from '../modules/shipping/dispatch-email.js';
 import { orderHasWarehouseLines, queueSupplierOrders } from '../modules/suppliers/supplier-order-routing.js';
@@ -154,8 +154,17 @@ export function installFeatureHandlers(logger: Logger): void {
       logger.info({ orderId: payload.orderId }, 'create-shipping-label: no warehouse lines, no label needed');
       return;
     }
-    const label = await shippingLabels.requestLabel(payload.orderId, event.companyId);
-    logger.info({ orderId: payload.orderId, status: label.status }, 'create-shipping-label ran');
+    try {
+      const label = await shippingLabels.requestLabel(payload.orderId, event.companyId);
+      logger.info({ orderId: payload.orderId, status: label.status }, 'create-shipping-label ran');
+    } catch (err) {
+      // The order is going out with a label made elsewhere; retrying cannot change that.
+      if (err instanceof ShippingLabelConflictError) {
+        logger.info({ orderId: payload.orderId }, 'create-shipping-label: ' + err.message);
+        return;
+      }
+      throw err;
+    }
   });
 
   // create-pick-note: make or refresh the order's pick note. Triggered by

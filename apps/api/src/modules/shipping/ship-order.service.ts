@@ -2,8 +2,9 @@
  * Shipping an order: the dispatcher's one button.
  *
  * Available only when the order has a shipping label, a pick note, and every
- * item it ships from the warehouse allocated. Shipping then, in one
- * transaction:
+ * item it ships from the warehouse allocated. A label made outside this system
+ * counts: the dispatcher records its courier and tracking number on the order
+ * (setOwnLabel), and no label is bought. Shipping then, in one transaction:
  *   - creates the invoice (or keeps one already made by hand),
  *   - marks the order's allocated stock SOLD,
  *   - sets the order SHIPPED, with the date, courier and tracking number,
@@ -28,6 +29,8 @@ import { ShippingLabelService } from './shipping-label.service.js';
 const COURIER_FALLBACK = 'Smooth Parcel';
 /** Shown when a supplier order is marked shipped without a carrier. */
 const DROP_SHIP_COURIER_FALLBACK = 'our delivery partner';
+/** setOwnLabel always stores a courier; this covers a row edited some other way. */
+const OWN_LABEL_COURIER_FALLBACK = 'our delivery partner';
 
 const SHIPPED_STATUSES: readonly string[] = ['SHIPPED', 'PARTIALLY_SHIPPED', 'COMPLETED'];
 const BLOCKED_STATUSES: Record<string, string> = {
@@ -44,6 +47,28 @@ export class ShipOrderError extends Error {
     super(message);
     this.name = 'ShipOrderError';
   }
+}
+
+/** The order's state rules out recording or removing its own label. */
+export class OwnLabelError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OwnLabelError';
+  }
+}
+
+export interface OwnLabelInput {
+  courierName: string;
+  trackingNumber: string;
+  trackingLink?: string | null;
+}
+
+export interface OwnLabelSummary {
+  orderId: string;
+  ownLabel: boolean;
+  courierName: string | null;
+  trackingNumber: string | null;
+  trackingLink: string | null;
 }
 
 export class ShipOrderNotFoundError extends Error {
@@ -66,6 +91,8 @@ export interface ShipReadiness {
   /** Why the order cannot be shipped yet, in words for the dispatcher. */
   reasons: string[];
   hasLabel: boolean;
+  /** The label was made outside this system; its courier and tracking number are on the order. */
+  ownLabel: boolean;
   hasPickNote: boolean;
   allocated: boolean;
   unallocated: UnallocatedItem[];
@@ -125,8 +152,8 @@ export class ShipOrderService {
     if (blocked) reasons.push(blocked);
 
     const label = await this.latestLabel(orderId, companyId);
-    const hasLabel = label?.status === 'CREATED' && !!label.labelPath;
-    if (!hasLabel) reasons.push('Create the shipping label.');
+    const hasLabel = order.ownLabel || (label?.status === 'CREATED' && !!label.labelPath);
+    if (!hasLabel) reasons.push('Create the shipping label, or record your own label.');
 
     const pickNote = await this.pickNotes.getForOrder(orderId, companyId);
     const hasPickNote = pickNote?.status === 'CREATED';
@@ -144,6 +171,7 @@ export class ShipOrderService {
       alreadyShipped,
       reasons,
       hasLabel,
+      ownLabel: order.ownLabel,
       hasPickNote,
       allocated: unallocated.length === 0,
       unallocated,
@@ -155,9 +183,65 @@ export class ShipOrderService {
     if (readiness.alreadyShipped) throw new ShipOrderError('This order has already been shipped.');
     if (!readiness.ready) throw new ShipOrderError('This order cannot be shipped yet.', readiness.reasons);
 
+    if (readiness.ownLabel) {
+      const own = await this.ownLabelOf(orderId, companyId);
+      return this.commitShipment(orderId, companyId, {
+        courierName: own.courierName ?? OWN_LABEL_COURIER_FALLBACK,
+        trackingNumber: own.trackingNumber,
+      });
+    }
     const label = await this.latestLabel(orderId, companyId);
     const courierName = courierNameFrom(label?.responsePayload) ?? COURIER_FALLBACK;
     return this.commitShipment(orderId, companyId, { courierName, trackingNumber: label?.trackingNumber ?? null });
+  }
+
+  /**
+   * Records that the order goes out with a label made outside this system,
+   * with the courier and tracking number the customer will be sent. Refused
+   * once a label has been bought for the order: that shipment exists and has
+   * been paid for, so two labels would be in play.
+   */
+  async setOwnLabel(orderId: string, companyId: string, input: OwnLabelInput): Promise<OwnLabelSummary> {
+    const order = await this.ownLabelOf(orderId, companyId);
+    if (SHIPPED_STATUSES.includes(order.status)) throw new OwnLabelError('This order has already been shipped.');
+    if (order.status === 'CANCELLED') throw new OwnLabelError('This order is cancelled.');
+    const label = await this.latestLabel(orderId, companyId);
+    if (label?.status === 'CREATED' && label.labelPath) {
+      throw new OwnLabelError('This order already has a shipping label, so ship it with that one.');
+    }
+
+    const [row] = await this.db
+      .update(customerOrders)
+      .set({
+        ownLabel: true,
+        courierName: input.courierName.trim(),
+        trackingNumber: input.trackingNumber.trim(),
+        trackingLink: input.trackingLink?.trim() || null,
+        updatedAt: this.deps.now?.() ?? new Date(),
+      })
+      .where(eq(customerOrders.id, orderId))
+      .returning();
+    return ownLabelSummary(row!);
+  }
+
+  /** Back to needing a bought label. The typed courier and tracking number go with it. */
+  async clearOwnLabel(orderId: string, companyId: string): Promise<OwnLabelSummary> {
+    const order = await this.ownLabelOf(orderId, companyId);
+    if (SHIPPED_STATUSES.includes(order.status)) throw new OwnLabelError('This order has already been shipped.');
+    if (!order.ownLabel) return ownLabelSummary(order);
+
+    const [row] = await this.db
+      .update(customerOrders)
+      .set({
+        ownLabel: false,
+        courierName: null,
+        trackingNumber: null,
+        trackingLink: null,
+        updatedAt: this.deps.now?.() ?? new Date(),
+      })
+      .where(eq(customerOrders.id, orderId))
+      .returning();
+    return ownLabelSummary(row!);
   }
 
   /**
@@ -284,10 +368,14 @@ export class ShipOrderService {
     };
   }
 
-  /** The pick note and shipping label as one PDF, pick note first. Null unless both exist. */
+  /**
+   * The pick note and shipping label as one PDF, pick note first. Null unless
+   * both exist — except that an order with its own label has no label file
+   * here, so its pick note is the whole document.
+   */
   async dispatchDocuments(orderId: string, companyId: string): Promise<{ buffer: Buffer; filename: string } | null> {
     const [order] = await this.db
-      .select({ orderNumber: customerOrders.orderNumber })
+      .select({ orderNumber: customerOrders.orderNumber, ownLabel: customerOrders.ownLabel })
       .from(customerOrders)
       .where(and(eq(customerOrders.id, orderId), eq(customerOrders.companyId, companyId), isNull(customerOrders.deletedAt)))
       .limit(1);
@@ -297,9 +385,27 @@ export class ShipOrderService {
       if (err instanceof PickNoteNotFoundError) return null;
       throw err;
     });
+    if (pickNote && order.ownLabel) return { buffer: pickNote.buffer, filename: `dispatch-${order.orderNumber}.pdf` };
     const label = await this.labels.readLabelFile(orderId, companyId);
     if (!pickNote || !label) return null;
     return { buffer: await combinePdfs([pickNote.buffer, label.buffer]), filename: `dispatch-${order.orderNumber}.pdf` };
+  }
+
+  private async ownLabelOf(orderId: string, companyId: string) {
+    const [row] = await this.db
+      .select({
+        id: customerOrders.id,
+        status: customerOrders.status,
+        ownLabel: customerOrders.ownLabel,
+        courierName: customerOrders.courierName,
+        trackingNumber: customerOrders.trackingNumber,
+        trackingLink: customerOrders.trackingLink,
+      })
+      .from(customerOrders)
+      .where(and(eq(customerOrders.id, orderId), eq(customerOrders.companyId, companyId), isNull(customerOrders.deletedAt)))
+      .limit(1);
+    if (!row) throw new ShipOrderNotFoundError(orderId);
+    return row;
   }
 
   private async latestLabel(orderId: string, companyId: string) {
@@ -354,4 +460,20 @@ export class ShipOrderService {
     }
     return [...needs.values()].filter((item) => item.allocated + 1e-9 < item.needed);
   }
+}
+
+function ownLabelSummary(row: {
+  id: string;
+  ownLabel: boolean;
+  courierName: string | null;
+  trackingNumber: string | null;
+  trackingLink: string | null;
+}): OwnLabelSummary {
+  return {
+    orderId: row.id,
+    ownLabel: row.ownLabel,
+    courierName: row.courierName,
+    trackingNumber: row.trackingNumber,
+    trackingLink: row.trackingLink,
+  };
 }

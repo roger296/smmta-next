@@ -33,8 +33,8 @@ import { InvoiceDocumentService } from '../orders/invoice-document.service.js';
 import { InvoiceService } from '../orders/invoice.service.js';
 import { DispatchEmailRejectedError, sendDispatchEmail } from './dispatch-email.js';
 import { PickNoteService } from './pick-note.service.js';
-import { ShipOrderError, ShipOrderService } from './ship-order.service.js';
-import { ShippingLabelService } from './shipping-label.service.js';
+import { OwnLabelError, ShipOrderError, ShipOrderService } from './ship-order.service.js';
+import { ShippingLabelConflictError, ShippingLabelService } from './shipping-label.service.js';
 
 const COMPANY_ID = '44444444-4444-4444-8444-444444444444';
 const NOW = new Date('2026-09-11T10:00:00.000Z');
@@ -227,7 +227,7 @@ describe('ShipOrderService.readiness', () => {
     const orderId = await makeOrder({ label: false });
     const err = await services().ship.ship(orderId, COMPANY_ID).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ShipOrderError);
-    expect((err as ShipOrderError).reasons).toContain('Create the shipping label.');
+    expect((err as ShipOrderError).reasons).toContain('Create the shipping label, or record your own label.');
   });
 });
 
@@ -418,5 +418,75 @@ describe('sendDispatchEmail', () => {
     expect(err).toBeInstanceOf(DispatchEmailRejectedError);
     expect((err as DispatchEmailRejectedError).status).toBe(404);
     expect(nobody).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('an order shipped with a label made elsewhere', () => {
+  const OWN = { courierName: ' Parcelforce ', trackingNumber: ' PF123456789GB ', trackingLink: 'https://www.parcelforce.com/track/PF123456789GB' };
+
+  it('is ready to ship without a bought label once the courier and tracking number are recorded', async () => {
+    const orderId = await makeOrder({ label: false });
+    const { ship } = services();
+    expect(await ship.readiness(orderId, COMPANY_ID)).toMatchObject({ ready: false, hasLabel: false, ownLabel: false });
+
+    const saved = await ship.setOwnLabel(orderId, COMPANY_ID, OWN);
+    expect(saved).toMatchObject({ ownLabel: true, courierName: 'Parcelforce', trackingNumber: 'PF123456789GB', trackingLink: OWN.trackingLink });
+    expect(await ship.readiness(orderId, COMPANY_ID)).toMatchObject({ ready: true, hasLabel: true, ownLabel: true, reasons: [] });
+  });
+
+  it('ships exactly as a bought label does, with the typed courier and tracking number', async () => {
+    const orderId = await makeOrder({ label: false });
+    const { ship } = services();
+    await ship.setOwnLabel(orderId, COMPANY_ID, OWN);
+    const result = await ship.ship(orderId, COMPANY_ID);
+    expect(result).toMatchObject({ status: 'SHIPPED', courierName: 'Parcelforce', trackingNumber: 'PF123456789GB', invoicePdfError: null });
+
+    const db = getDb();
+    const [order] = await db.select().from(customerOrders).where(eq(customerOrders.id, orderId));
+    expect(order).toMatchObject({ status: 'SHIPPED', ownLabel: true, courierName: 'Parcelforce', trackingNumber: 'PF123456789GB', trackingLink: OWN.trackingLink });
+    const stock = await db.select().from(stockItems).where(eq(stockItems.salesOrderId, orderId));
+    expect(stock.map((s) => s.status)).toEqual(['SOLD', 'SOLD']);
+    expect(await db.select().from(invoices).where(eq(invoices.orderId, orderId))).toHaveLength(1);
+    const events = await db
+      .select()
+      .from(domainEvents)
+      .where(and(eq(domainEvents.aggregateId, orderId), eq(domainEvents.eventType, 'order.dispatched')));
+    expect(events).toHaveLength(1);
+  });
+
+  it('prints the pick note alone, there being no label file here', async () => {
+    const orderId = await makeOrder({ label: false });
+    const { ship } = services();
+    expect(await ship.dispatchDocuments(orderId, COMPANY_ID)).toBeNull();
+    await ship.setOwnLabel(orderId, COMPANY_ID, OWN);
+    const file = await ship.dispatchDocuments(orderId, COMPANY_ID);
+    expect((await PDFDocument.load(file!.buffer)).getPageCount()).toBe(1);
+  });
+
+  it('is refused once a label has been bought, and once the order has shipped', async () => {
+    const { ship } = services();
+    const bought = await makeOrder();
+    await expect(ship.setOwnLabel(bought, COMPANY_ID, OWN)).rejects.toThrow(OwnLabelError);
+
+    const shipped = await makeOrder({ label: false });
+    await ship.setOwnLabel(shipped, COMPANY_ID, OWN);
+    await ship.ship(shipped, COMPANY_ID);
+    await expect(ship.setOwnLabel(shipped, COMPANY_ID, OWN)).rejects.toThrow(/already been shipped/);
+    await expect(ship.clearOwnLabel(shipped, COMPANY_ID)).rejects.toThrow(/already been shipped/);
+  });
+
+  it('stops a label being bought, until it is removed', async () => {
+    const orderId = await makeOrder({ label: false });
+    const { ship } = services();
+    const labels = new ShippingLabelService({ labelsDir: dir, enabled: false });
+    await ship.setOwnLabel(orderId, COMPANY_ID, OWN);
+    await expect(labels.requestLabel(orderId, COMPANY_ID)).rejects.toThrow(ShippingLabelConflictError);
+    expect(await labels.latestForOrder(orderId, COMPANY_ID)).toBeNull();
+
+    const cleared = await ship.clearOwnLabel(orderId, COMPANY_ID);
+    expect(cleared).toMatchObject({ ownLabel: false, courierName: null, trackingNumber: null, trackingLink: null });
+    expect(await ship.readiness(orderId, COMPANY_ID)).toMatchObject({ ready: false, hasLabel: false, ownLabel: false });
+    // Smooth Parcel is off in tests, so the request now gets as far as saying so.
+    expect(await labels.requestLabel(orderId, COMPANY_ID)).toMatchObject({ status: 'DISABLED' });
   });
 });

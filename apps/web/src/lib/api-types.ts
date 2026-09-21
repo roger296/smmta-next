@@ -353,6 +353,8 @@ export interface Order {
   trackingNumber: string | null;
   trackingLink: string | null;
   courierName: string | null;
+  /** Going out with a label made outside this system; the courier and tracking number were typed in. */
+  ownLabel?: boolean;
   shippedDate?: string | null;
   lines?: OrderLine[];
   invoices?: Invoice[];
@@ -603,6 +605,7 @@ export interface ShipReadiness {
   /** Why the order cannot be shipped yet, in words for the dispatcher. */
   reasons: string[];
   hasLabel: boolean;
+  ownLabel: boolean;
   hasPickNote: boolean;
   allocated: boolean;
   unallocated: Array<{ sku: string | null; name: string; needed: number; allocated: number }>;

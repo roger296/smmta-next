@@ -246,7 +246,7 @@ function OrderDetailPage() {
 
       <div className={invoice ? 'grid gap-4 lg:grid-cols-3' : 'grid gap-4 lg:grid-cols-2'}>
         <PickNoteCard orderId={data.id} />
-        <ShippingLabelCard orderId={data.id} />
+        <ShippingLabelCard order={data} />
         {invoice && <InvoiceCard invoice={invoice} currencyCode={data.currencyCode} />}
       </div>
 
