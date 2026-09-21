@@ -21,6 +21,8 @@ import {
   customerInvoiceAddresses,
   invoiceLines,
   invoices,
+  products,
+  stockItems,
 } from '../../db/schema/index.js';
 import { toPence } from './invoice-figures.js';
 import { longDate, renderInvoicePdf, type InvoicePdfInput } from './invoice-pdf.js';
@@ -107,6 +109,26 @@ export class InvoiceDocumentService {
   private async documentFor(
     invoice: NonNullable<Awaited<ReturnType<InvoiceDocumentService['load']>>>,
   ): Promise<InvoicePdfInput> {
+    // Which units went to this customer, for products that track serial numbers.
+    const serials = new Map<string, string[]>();
+    if (invoice.orderId) {
+      const units = await this.db
+        .select({ productId: stockItems.productId, serialNumber: stockItems.serialNumber })
+        .from(stockItems)
+        .innerJoin(products, eq(products.id, stockItems.productId))
+        .where(
+          and(
+            eq(stockItems.salesOrderId, invoice.orderId),
+            eq(products.requireSerialNumber, true),
+            isNull(stockItems.deletedAt),
+          ),
+        )
+        .orderBy(stockItems.serialNumber);
+      for (const u of units) {
+        if (u.serialNumber) serials.set(u.productId, [...(serials.get(u.productId) ?? []), u.serialNumber]);
+      }
+    }
+
     const [invoiceAddress] = invoice.invoiceAddressId
       ? await this.db.select().from(customerInvoiceAddresses).where(eq(customerInvoiceAddresses.id, invoice.invoiceAddressId)).limit(1)
       : [];
@@ -148,6 +170,7 @@ export class InvoiceDocumentService {
       lines: invoice.lines.map((l) => ({
         description: l.product?.name ?? 'Item',
         sku: l.product?.stockCode ?? null,
+        serialNumbers: serials.get(l.productId),
         quantity: Number(l.quantity),
         unitNetPence: toPence(l.pricePerUnit),
         vatRate: Number(l.taxRate ?? 0),

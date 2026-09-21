@@ -25,6 +25,7 @@ import { ArrowLeft, FileText, PackageCheck, PackageX, Printer, Send, Trash2, XCi
 import { orderTotalLabels } from '@/features/orders/order-totals';
 import { ShippingLabelCard } from '@/features/orders/shipping-label-card';
 import { OrderHoldPanel } from '@/features/orders/order-hold-panel';
+import { SerialScanCard } from '@/features/orders/serial-scan-card';
 import { webExtensions } from '@/extensions/registry';
 import { PickNoteCard } from '@/features/orders/pick-note-card';
 import { InvoiceCard } from '@/features/orders/invoice-card';
@@ -250,6 +251,8 @@ function OrderDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <SerialScanCard order={data} />
 
       <div className={invoice ? 'grid gap-4 lg:grid-cols-3' : 'grid gap-4 lg:grid-cols-2'}>
         <PickNoteCard orderId={data.id} />

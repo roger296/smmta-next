@@ -16,6 +16,8 @@ import { pdfText } from '../shipping/pick-note-content.js';
 export interface InvoicePdfLine {
   description: string;
   sku: string | null;
+  /** The units supplied, for a product that tracks serial numbers. */
+  serialNumbers?: string[];
   quantity: number;
   unitNetPence: number;
   vatRate: number;
@@ -138,7 +140,11 @@ export async function renderInvoicePdf(inv: InvoicePdfInput, opts: { compress?: 
 
   const rows = inv.lines.map((l) => ({
     description: pdfText(l.description),
-    sub: l.sku ? pdfText(`SKU ${l.sku}`) : null,
+    sub:
+      [l.sku ? `SKU ${l.sku}` : '', l.serialNumbers?.length ? `Serial ${l.serialNumbers.length === 1 ? 'number' : 'numbers'}: ${l.serialNumbers.join(', ')}` : '']
+        .filter(Boolean)
+        .map(pdfText)
+        .join('  ·  ') || null,
     quantity: qty(l.quantity),
     unit: gbp(l.unitNetPence),
     vat: rate(l.vatRate),
@@ -150,7 +156,9 @@ export async function renderInvoicePdf(inv: InvoicePdfInput, opts: { compress?: 
 
   for (const row of rows) {
     doc.font('Helvetica').fontSize(10);
-    const height = doc.heightOfString(row.description, { width: DESC_W }) + (row.sub ? 12 : 0) + 9;
+    const subHeight = row.sub ? doc.fontSize(8).heightOfString(row.sub, { width: DESC_W }) + 3 : 0;
+    doc.fontSize(10);
+    const height = doc.heightOfString(row.description, { width: DESC_W }) + subHeight + 9;
     if (y + height > BODY_BOTTOM) {
       doc.addPage();
       y = tableHeader(MARGIN);

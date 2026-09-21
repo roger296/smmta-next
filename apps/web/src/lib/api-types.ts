@@ -606,12 +606,37 @@ export interface ShipReadiness {
   alreadyShipped: boolean;
   /** Why the order cannot be shipped yet, in words for the dispatcher. */
   reasons: string[];
+  serialsScanned: boolean;
   held: boolean;
   hasLabel: boolean;
   ownLabel: boolean;
   hasPickNote: boolean;
   allocated: boolean;
   unallocated: Array<{ sku: string | null; name: string; needed: number; allocated: number }>;
+}
+
+/** From GET /orders/:id/serial-scan: the serial-tracked units to scan before the order ships. */
+export interface SerialScanProgress {
+  orderId: string;
+  /** False when nothing on the order tracks serial numbers. */
+  required: boolean;
+  complete: boolean;
+  lines: Array<{
+    productId: string;
+    sku: string | null;
+    name: string;
+    needed: number;
+    scanned: Array<{ stockItemId: string; serialNumber: string; scannedAt: string | null }>;
+  }>;
+}
+
+/** From POST /orders/:id/serial-scan. */
+export interface SerialScanResult {
+  outcome: 'scanned' | 'swapped-from-stock' | 'swapped-with-order' | 'added';
+  serialNumber: string;
+  productName: string;
+  message: string;
+  progress: SerialScanProgress;
 }
 
 /** From POST /orders/:id/ship. */

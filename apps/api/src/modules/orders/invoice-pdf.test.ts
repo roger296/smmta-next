@@ -42,6 +42,17 @@ describe('renderInvoicePdf', () => {
 });
 
 describe('formatting', () => {
+  it('lists the serial numbers supplied, however many, and still fits the page', async () => {
+    // The text itself is not searchable in the PDF stream (it is written as
+    // positioned glyph runs), so this checks the document grows and still fits.
+    const plain = await renderInvoicePdf(invoice(1), { compress: false });
+    const input = invoice(1);
+    input.lines[0]!.serialNumbers = Array.from({ length: 60 }, (_, i) => `SN-${String(i + 1).padStart(4, '0')}`);
+    const withSerials = await renderInvoicePdf(input, { compress: false });
+    expect(withSerials.length).toBeGreaterThan(plain.length);
+    expect(pageCount(withSerials)).toBe(1);
+  });
+
   it('writes dates in full and money in pounds', () => {
     expect(longDate('2026-09-11')).toBe('11 September 2026');
     expect(gbp(2951)).toBe('£29.51');

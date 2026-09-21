@@ -2,7 +2,8 @@
  * Shipping an order: the dispatcher's one button.
  *
  * Available only when the order has a shipping label, a pick note, and every
- * item it ships from the warehouse allocated. A label made outside this system
+ * item it ships from the warehouse allocated, and every serial-tracked unit
+ * scanned (serial-scan.service.ts). A label made outside this system
  * counts: the dispatcher records its courier and tracking number on the order
  * (setOwnLabel), and no label is bought. Shipping then, in one transaction:
  *   - creates the invoice (or keeps one already made by hand),
@@ -25,6 +26,7 @@ import { combinePdfs } from './dispatch-documents.js';
 import { PickNoteNotFoundError, PickNoteService } from './pick-note.service.js';
 import { ShippingLabelService } from './shipping-label.service.js';
 import { OrderHoldService, holdReasons } from '../orders/order-hold.service.js';
+import { SerialScanService } from './serial-scan.service.js';
 
 /** Shown to the customer when Smooth Parcel's reply does not name the carrier. */
 const COURIER_FALLBACK = 'Smooth Parcel';
@@ -91,6 +93,8 @@ export interface ShipReadiness {
   alreadyShipped: boolean;
   /** Why the order cannot be shipped yet, in words for the dispatcher. */
   reasons: string[];
+  /** Every serial-tracked unit on the order has been scanned (true when there are none). */
+  serialsScanned: boolean;
   /** The order has a hold that has not been released. */
   held: boolean;
   hasLabel: boolean;
@@ -171,10 +175,16 @@ export class ShipOrderService {
       );
     }
 
+    // Serial-tracked units must each be scanned, so the record says which unit
+    // went to this customer. Asked for once the stock is there to scan.
+    const toScan = alreadyShipped ? [] : await new SerialScanService().outstanding(orderId, companyId);
+    reasons.push(...toScan);
+
     return {
       ready: reasons.length === 0,
       alreadyShipped,
       reasons,
+      serialsScanned: toScan.length === 0,
       held: holds.length > 0,
       hasLabel,
       ownLabel: order.ownLabel,
