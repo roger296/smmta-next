@@ -35,8 +35,12 @@ describe('AddToCartButton — component contract', () => {
     // The notify-me form (out-of-stock branch) legitimately uses
     // `<button type="submit">` because it's inside an actual <form> —
     // that's a different component and the e2e tests don't touch it.
-    const activeBlock =
-      SOURCE.match(/function AddToCartActiveButton[\s\S]+?\n\}/)?.[0] ?? '';
+    // Sliced between the two function names, as the Filament Store's copy of
+    // this test does: the parameter list spans several lines, so a non-greedy
+    // match to `\n}` stops at `}: {` and reads almost none of the component.
+    const start = SOURCE.indexOf('function AddToCartActiveButton');
+    const end = SOURCE.indexOf('function NotifyMeForm');
+    const activeBlock = start >= 0 && end > start ? SOURCE.slice(start, end) : '';
     expect(activeBlock).toMatch(/type="button"/);
     expect(activeBlock).not.toMatch(/type="submit"/);
   });

@@ -7,7 +7,8 @@
  *     name, address and phone number to post an order;
  *   - the search paragraph describes the Clothes Shop's natural-language
  *     search, which sends only the typed query to the model provider;
- *   - no Google Analytics: this storefront sets only essential cookies.
+ *   - Google Analytics, behind the cookie banner, shares the Filament Store's
+ *     GA4 property (Roger, 2026-09-21); reports separate the shops by hostname.
  */
 import type { Metadata } from 'next';
 import { LEGAL } from '@/lib/legal';
@@ -159,9 +160,18 @@ export default function PrivacyPage() {
 
       <LegalSection id="cookies" heading="9. Cookies">
         <p>
-          This site uses cookies and similar browser storage only to keep your basket and checkout
-          working. These are essential and always on; if you block them in your browser, the basket
-          and checkout will not work. We do not use advertising or analytics cookies on this site.
+          This site uses cookies and similar browser storage to keep your basket working and to
+          remember your choices, including your cookie preference. These are essential and always
+          on; if you block them in your browser, the basket and checkout will not work.
+        </p>
+        <p>
+          With your permission, we also use Google Analytics to understand how the site is used so
+          we can improve it. It sets cookies (named <code>_ga</code> and <code>_ga_</code> followed
+          by an ID) that record which pages are visited, which products are added to the basket and
+          which orders are placed, and how visitors arrived, without identifying you by name. These
+          cookies are only set if you choose &ldquo;Accept&rdquo; on the cookie banner. You can
+          change your mind at any time with &ldquo;Cookie settings&rdquo; at the foot of every page;
+          if you withdraw permission, we remove them.
         </p>
       </LegalSection>
 

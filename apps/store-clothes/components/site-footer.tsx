@@ -17,6 +17,7 @@
  * visual identity to inherit CleverDeals' yellow-on-black palette.
  */
 import Link from 'next/link';
+import { CookieSettingsButton } from '@/components/cookie-settings-button';
 import { listCategories } from '@/lib/smmta';
 import { LEGAL } from '@/lib/legal';
 
@@ -108,6 +109,9 @@ export async function SiteFooter() {
               >
                 Privacy policy
               </Link>
+            </li>
+            <li>
+              <CookieSettingsButton className="cursor-pointer text-left transition-colors hover:text-[var(--brand-ink)]" />
             </li>
             <li>
               <a

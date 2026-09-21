@@ -165,7 +165,21 @@ export function SwatchPicker({ groupName, variants, attributeAxes }: SwatchPicke
               : DISPATCH_COPY[selectedState].primary}
           </p>
 
-          <AddToCartButton productId={selected ? selected.id : ''} inStock={sellable} />
+          <AddToCartButton
+            productId={selected ? selected.id : ''}
+            inStock={sellable}
+            item={
+              selected
+                ? {
+                    id: selected.slug ?? selected.id,
+                    name: groupName,
+                    priceGbp: selected.priceGbp,
+                    colour: selection.colour ?? selected.colour,
+                    size: selection.size,
+                  }
+                : undefined
+            }
+          />
         </div>
       </div>
     </div>

@@ -6,12 +6,15 @@
  * kept in localStorage: remembering it is strictly necessary and needs no
  * consent of its own.
  *
- * Tenant configuration, like lib/legal.ts: a re-skinned storefront sets its own
- * Measurement ID here. Client-safe — no server-only imports and nothing secret,
- * since a Measurement ID is published in every page that loads the tag.
+ * Client-safe — no server-only imports and nothing secret, since a Measurement
+ * ID is published in every page that loads the tag.
  */
 
-/** GA4 web stream for filament.cleverdeals.net (property 484721657). */
+/**
+ * The CleverDeals storefronts share one GA4 property (Roger, 2026-09-21), so
+ * this is deliberately the same id as the Filament Store's. Reports separate
+ * the shops by hostname; give a shop its own id here if that ever changes.
+ */
 export const GA_MEASUREMENT_ID = 'G-3RJWFM59VV';
 
 export const CONSENT_STORAGE_KEY = 'store_cookie_consent';

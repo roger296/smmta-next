@@ -12,6 +12,7 @@
  */
 import * as React from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { addToCartEventParams, gaEvent, type CartItemForAnalytics } from '@/lib/analytics';
 
 interface AddArgs {
   productId: string;
@@ -60,6 +61,8 @@ export interface AddToCartButtonProps {
   /** Trade-break hint shown under the stepper, e.g. "10+ spools:
    *  discount applied at checkout". */
   bulkHint?: string;
+  /** What was added, for Google Analytics. Omitted, nothing is reported. */
+  item?: CartItemForAnalytics;
 }
 
 export function AddToCartButton({
@@ -68,6 +71,7 @@ export function AddToCartButton({
   label = 'Add to cart',
   showQuantity = false,
   bulkHint,
+  item,
 }: AddToCartButtonProps) {
   if (!inStock) {
     return <NotifyMeForm productId={productId} />;
@@ -79,6 +83,7 @@ export function AddToCartButton({
       label={label}
       showQuantity={showQuantity}
       bulkHint={bulkHint}
+      item={item}
     />
   );
 }
@@ -91,11 +96,13 @@ function AddToCartActiveButton({
   label,
   showQuantity,
   bulkHint,
+  item,
 }: {
   productId: string;
   label: string;
   showQuantity: boolean;
   bulkHint?: string;
+  item?: CartItemForAnalytics;
 }) {
   const [justAdded, setJustAdded] = React.useState(false);
   const [quantity, setQuantity] = React.useState(1);
@@ -106,6 +113,7 @@ function AddToCartActiveButton({
     onSuccess: () => {
       setError(null);
       setJustAdded(true);
+      if (item) gaEvent('add_to_cart', addToCartEventParams(item, quantity));
       window.dispatchEvent(new Event('cart:updated'));
       setTimeout(() => setJustAdded(false), 6_000);
     },

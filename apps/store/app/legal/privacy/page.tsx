@@ -177,8 +177,8 @@ export default function PrivacyPage() {
         <p>
           With your permission, we also use Google Analytics to understand how the site is used so
           we can improve it. It sets cookies (named <code>_ga</code> and <code>_ga_</code> followed
-          by an ID) that record which pages are visited and how visitors arrived, without
-          identifying you by name. These cookies are only set if you choose &ldquo;Accept&rdquo; on
+          by an ID) that record which pages are visited, which products are added to the basket and
+          which orders are placed, and how visitors arrived, without identifying you by name. These cookies are only set if you choose &ldquo;Accept&rdquo; on
           the cookie banner. You can change your mind at any time with &ldquo;Cookie settings&rdquo;
           at the foot of every page; if you withdraw permission, we remove them.
         </p>

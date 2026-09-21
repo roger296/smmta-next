@@ -10,6 +10,8 @@ import { SearchBar } from '@/components/search-bar';
 import { ShopMegamenu, type NavCategoryTop } from '@/components/shop-megamenu';
 import { listCategories } from '@/lib/smmta';
 import { SiteFooter } from '@/components/site-footer';
+import { AnalyticsConsent } from '@/components/analytics-consent';
+import { resolveMeasurementId } from '@/lib/analytics';
 
 const STORE_NAME = 'Clothes Shop';
 const STORE_TAGLINE =
@@ -88,6 +90,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </main>
           <SiteFooter />
+        {/* Google Analytics, loaded only after the visitor accepts. */}
+        <AnalyticsConsent measurementId={resolveMeasurementId(getEnv())} />
         </QueryProvider>
       </body>
     </html>

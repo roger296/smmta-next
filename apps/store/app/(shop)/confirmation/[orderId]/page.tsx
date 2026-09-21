@@ -16,6 +16,7 @@ import { checkouts } from '@/drizzle/schema';
 import { smmtaFetch, SmmtaApiError } from '@/lib/smmta';
 import { enqueue } from '@/lib/email';
 import { getEnv } from '@/lib/env';
+import { PurchaseEvent } from '@/components/purchase-event';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -94,6 +95,8 @@ export default async function ConfirmationPage({
 
   return (
     <section aria-labelledby="thanks-heading" className="space-y-6">
+      {/* Reports the sale to Google Analytics once, if the visitor accepted cookies. */}
+      <PurchaseEvent orderId={order.id} order={order} />
       <h1
         id="thanks-heading"
         className="text-3xl font-semibold tracking-tight md:text-4xl"
