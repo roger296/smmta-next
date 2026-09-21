@@ -263,6 +263,12 @@ export default async function StandaloneProductPage({
           <AddToCartButton
             productId={product.id}
             inStock={product.availableQty > 0}
+            item={{
+              id: product.slug ?? product.id,
+              name: product.name,
+              priceGbp: product.priceGbp,
+              colour: product.colour,
+            }}
           />
           {product.availableQty > 0 && <WatchOffersButton sku={product.slug ?? product.id} />}
 

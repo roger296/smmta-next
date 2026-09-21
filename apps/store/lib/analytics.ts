@@ -77,3 +77,140 @@ export function cookieDomainsFor(hostname: string): string[] {
   for (let i = 0; i < parts.length - 1; i++) domains.push(`.${parts.slice(i).join('.')}`);
   return domains;
 }
+
+
+// ---------------------------------------------------------------------------
+// Ecommerce events
+//
+// Nothing here loads or configures Google Analytics: `gaEvent` is a no-op
+// unless the tag is already running, which only happens after the visitor has
+// accepted cookies. So a refusal means no events, without every call site
+// having to check.
+// ---------------------------------------------------------------------------
+
+/** One line of an ecommerce event, in GA4's shape. */
+export interface GaItem {
+  item_id: string;
+  item_name: string;
+  price?: number;
+  quantity?: number;
+  /** Colour, or colour and size — what distinguishes this variant. */
+  item_variant?: string;
+  item_brand?: string;
+}
+
+type GtagWindow = Window & { gtag?: (...args: unknown[]) => void };
+
+/** Send an event to GA4, or do nothing when analytics isn't running. */
+export function gaEvent(name: string, params: Record<string, unknown>): void {
+  if (typeof window === 'undefined') return;
+  const gtag = (window as GtagWindow).gtag;
+  if (typeof gtag !== 'function') return;
+  gtag('event', name, params);
+}
+
+/** True once the tag is running, i.e. the visitor accepted cookies. */
+export function hasAnalytics(): boolean {
+  return typeof window !== 'undefined' && typeof (window as GtagWindow).gtag === 'function';
+}
+
+/** Money as GA4 wants it: a number, or undefined when we don't have one. */
+export function gaPrice(value: string | number | null | undefined): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  const n = typeof value === 'number' ? value : Number.parseFloat(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** The variant label for an item: "Bottle Green · XL", or just the colour. */
+export function gaVariant(parts: Array<string | null | undefined>): string | undefined {
+  const kept = parts.filter((p): p is string => Boolean(p && p.trim()));
+  return kept.length > 0 ? kept.join(' · ') : undefined;
+}
+
+/** What a call site knows about the item being added to the basket. */
+export interface CartItemForAnalytics {
+  id: string;
+  name: string;
+  priceGbp?: string | number | null;
+  colour?: string | null;
+  size?: string | null;
+  brand?: string | null;
+}
+
+/** The `add_to_cart` event for one item. Pure, so it can be tested. */
+export function addToCartEventParams(
+  item: CartItemForAnalytics,
+  quantity: number,
+): Record<string, unknown> {
+  const price = gaPrice(item.priceGbp);
+  return {
+    currency: 'GBP',
+    value: price === undefined ? undefined : Number((price * quantity).toFixed(2)),
+    items: [
+      {
+        item_id: item.id,
+        item_name: item.name,
+        price,
+        quantity,
+        item_variant: gaVariant([item.colour, item.size]),
+        item_brand: item.brand ?? undefined,
+      },
+    ],
+  };
+}
+
+export interface OrderForAnalytics {
+  orderNumber: string;
+  currencyCode?: string | null;
+  totals: { grandTotal: string; taxTotal?: string; deliveryCharge?: string };
+  lines: Array<{
+    productSlug: string | null;
+    productName: string | null;
+    colour?: string | null;
+    size?: string | null;
+    quantity: number;
+    pricePerUnit: string;
+  }>;
+}
+
+/** The `purchase` event for an order. Pure, so it can be tested without a browser. */
+export function purchaseEventParams(order: OrderForAnalytics): Record<string, unknown> {
+  return {
+    transaction_id: order.orderNumber,
+    // The whole amount the customer paid, delivery and VAT included.
+    value: gaPrice(order.totals.grandTotal) ?? 0,
+    tax: gaPrice(order.totals.taxTotal),
+    shipping: gaPrice(order.totals.deliveryCharge),
+    currency: order.currencyCode || 'GBP',
+    items: order.lines.map((line) => ({
+      item_id: line.productSlug ?? '',
+      item_name: line.productName ?? '',
+      price: gaPrice(line.pricePerUnit),
+      quantity: line.quantity,
+      item_variant: gaVariant([line.colour, line.size]),
+    })),
+  };
+}
+
+/** Where a sent purchase is remembered, so a refresh doesn't count it twice. */
+export function purchaseSentKey(orderId: string): string {
+  return `store_ga_purchase_${orderId}`;
+}
+
+/**
+ * True the first time an order is seen, false afterwards. A customer who
+ * refreshes the confirmation page, or returns to it from their email, must not
+ * be counted as a second sale. Storage being unavailable is not a reason to
+ * lose the sale, so it reports the event once and accepts the risk.
+ */
+export function claimPurchase(orderId: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const key = purchaseSentKey(orderId);
+  try {
+    if (window.localStorage.getItem(key)) return false;
+    window.localStorage.setItem(key, new Date().toISOString());
+    return true;
+  } catch {
+    return true;
+  }
+}

@@ -14,6 +14,7 @@
  */
 import * as React from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { addToCartEventParams, gaEvent, type CartItemForAnalytics } from '@/lib/analytics';
 
 interface AddArgs {
   productId: string;
@@ -56,17 +57,32 @@ export interface AddToCartButtonProps {
   inStock: boolean;
   /** Optional override label (default "In stock – add to cart"). */
   label?: string;
+  /** What was added, for Google Analytics. Omitted, nothing is reported. */
+  item?: CartItemForAnalytics;
 }
 
-export function AddToCartButton({ productId, inStock, label = 'In stock – add to cart' }: AddToCartButtonProps) {
+export function AddToCartButton({
+  productId,
+  inStock,
+  label = 'In stock – add to cart',
+  item,
+}: AddToCartButtonProps) {
   if (!inStock) {
     return <NotifyMeForm productId={productId} />;
   }
 
-  return <AddToCartActiveButton productId={productId} label={label} />;
+  return <AddToCartActiveButton productId={productId} label={label} item={item} />;
 }
 
-function AddToCartActiveButton({ productId, label }: { productId: string; label: string }) {
+function AddToCartActiveButton({
+  productId,
+  label,
+  item,
+}: {
+  productId: string;
+  label: string;
+  item?: CartItemForAnalytics;
+}) {
   const [justAdded, setJustAdded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -75,6 +91,7 @@ function AddToCartActiveButton({ productId, label }: { productId: string; label:
     onSuccess: () => {
       setError(null);
       setJustAdded(true);
+      if (item) gaEvent('add_to_cart', addToCartEventParams(item, 1));
       window.dispatchEvent(new Event('cart:updated'));
       setTimeout(() => setJustAdded(false), 2_000);
     },

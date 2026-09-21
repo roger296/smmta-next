@@ -220,7 +220,17 @@ export default async function StandaloneProductPage({
 
           {/* availableQty counts warehouse stock only; supplier-held items
               are sellable too, so decide on the stock state. */}
-          <AddToCartButton productId={product.id} inStock={sellable} />
+          <AddToCartButton
+            productId={product.id}
+            inStock={sellable}
+            item={{
+              id: product.slug ?? product.id,
+              name: product.name,
+              priceGbp: product.priceGbp,
+              colour: product.colour,
+              size: product.attributes?.size,
+            }}
+          />
         </div>
       </div>
 

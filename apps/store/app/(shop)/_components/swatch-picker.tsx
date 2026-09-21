@@ -263,6 +263,12 @@ export function SwatchPicker({ groupName, variants, priceRange }: SwatchPickerPr
               inStock={inStock}
               showQuantity
               bulkHint="The price per roll drops with every roll you add, in any colour. Best price at 10 or more."
+              item={{
+                id: selected.slug ?? selected.id,
+                name: groupName,
+                priceGbp: selected.priceGbp,
+                colour: selected.colour,
+              }}
             />
           </div>
         </div>
@@ -357,7 +363,12 @@ function StickyBuyBar({
           )}
         </div>
         <div className="w-40 shrink-0">
-          <AddToCartButton productId={productId} inStock label="Add" />
+          <AddToCartButton
+            productId={productId}
+            inStock
+            label="Add"
+            item={{ id: productId, name: groupName, priceGbp, colour }}
+          />
         </div>
       </div>
     </div>
