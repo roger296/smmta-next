@@ -173,6 +173,33 @@ Strategies:
 The progress callback prints a status line every 5000 rows so the
 operator knows it's still alive.
 
+## Stray quotes in the CSV (and how to clean them up)
+
+Ralawise's CSV isn't strictly RFC 4180: the inches mark inside a quoted
+field isn't doubled, so `"Essential 13" laptop case"` makes `csv-parse`
+abandon the field and (under `relax_quotes`) hand back its raw text with
+the outer quotes still attached. Until September 2026 those quotes went
+straight into `products.name`, so the shop's page titles read
+`"Hamblin 22" traveller"` and the Merchant Centre feed carried the same.
+
+`normaliseRow` now routes every descriptive column through
+`repairRelaxedQuotes`, which unwraps a value quoted at *both* ends and
+un-doubles what's inside. A value the parser handled properly never
+arrives wrapped, so clean rows are untouched.
+
+To fix rows already in the database, without a 30-minute re-import that
+also rewrites prices and stock:
+
+```bash
+DATABASE_URL=... npx tsx apps/api/scripts/repair-quoted-text.ts --dry-run
+DATABASE_URL=... npx tsx apps/api/scripts/repair-quoted-text.ts
+```
+
+It walks products and ranges, fixes name / description / short and SEO
+description / colour / brand, and is idempotent — a second run finds
+nothing. Storefronts pick the change up within their 60s cache; the
+Google feeds carry it after the nightly rebuild.
+
 ## Error handling per row
 
 - Empty / malformed rows (missing SKU or Style Code) → counted in

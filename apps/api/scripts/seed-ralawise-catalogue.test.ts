@@ -20,6 +20,7 @@ import {
   parseDecimal,
   parseLicenceExpiry,
   pickHeroImage,
+  repairRelaxedQuotes,
   rgbToHex,
   slugify,
   topLevelCategory,
@@ -245,5 +246,45 @@ describe('identifiers for Google Merchant Centre', () => {
     expect(normaliseEan('5056449221259')).toBe('5056449221259');
     expect(normaliseEan('Not available')).toBeNull();
     expect(normaliseEan('')).toBeNull();
+  });
+});
+
+describe('repairRelaxedQuotes', () => {
+  it("unwraps a field the parser gave up on, keeping the inches mark", () => {
+    expect(repairRelaxedQuotes('"Essential 13" laptop case"')).toBe('Essential 13" laptop case');
+    expect(repairRelaxedQuotes('"Hamblin 22" traveller"')).toBe('Hamblin 22" traveller');
+  });
+
+  it('leaves a field the parser handled properly alone', () => {
+    expect(repairRelaxedQuotes('Classic hoodie')).toBe('Classic hoodie');
+    expect(repairRelaxedQuotes('Tridri seamless "3D fit" bra')).toBe('Tridri seamless "3D fit" bra');
+    expect(repairRelaxedQuotes('Laptop case 15"')).toBe('Laptop case 15"');
+  });
+
+  it('un-doubles quotes that were escaped inside the raw text', () => {
+    expect(repairRelaxedQuotes('"Tridri ""3D fit"" 13" case"')).toBe('Tridri "3D fit" 13" case');
+  });
+
+  it('handles empty and missing values', () => {
+    expect(repairRelaxedQuotes(undefined)).toBe('');
+    expect(repairRelaxedQuotes(null)).toBe('');
+    expect(repairRelaxedQuotes('  ')).toBe('');
+    expect(repairRelaxedQuotes('"')).toBe('"');
+  });
+});
+
+describe('normaliseRow strips the stray quotes', () => {
+  it('cleans the name a relaxed parse leaves quoted', () => {
+    const row = {
+      'Sku Code': 'BG067BLACOS',
+      'Style Code': 'BG067',
+      'Style Name': '"Essential 13" laptop case"',
+      'Colour Name': 'Black',
+      'Product Type': 'Bags',
+      'Brand': 'BagBase',
+    } as Record<string, string>;
+    const out = normaliseRow(row, DEFAULT_MARKUP);
+    expect(out.styleName).toBe('Essential 13" laptop case');
+    expect(out.skuCode).toBe('BG067BLACOS');
   });
 });

@@ -304,23 +304,46 @@ export function normaliseEan(raw: string | undefined | null): string | null {
   return [8, 12, 13, 14].includes(digits.length) ? digits : null;
 }
 
+/**
+ * Undo what `relax_quotes` leaves behind (see `streamCsv`).
+ *
+ * Ralawise doesn't double the inches mark inside a quoted field, so
+ * `"Essential 13" laptop case"` defeats the parser: it stops treating
+ * the field as quoted and hands back the raw text, outer quotes and
+ * all. Left alone those quotes reach the shop's page titles and the
+ * Merchant Centre feed, where Google is fussy about titles.
+ *
+ * A field the parser handled properly never comes back wrapped in
+ * quotes, so a leading *and* trailing quote is the signature of the
+ * relaxed case: only then do we unwrap and un-double the inside. The
+ * one thing this gets wrong is a field whose whole value is a quoted
+ * phrase (`"3D fit"` and nothing else), which loses its quotes — no
+ * such value exists in the catalogue, and a stray quote on every
+ * product name is the worse of the two.
+ */
+export function repairRelaxedQuotes(raw: string | null | undefined): string {
+  const value = (raw ?? '').trim();
+  if (value.length < 2 || !value.startsWith('"') || !value.endsWith('"')) return value;
+  return value.slice(1, -1).replace(/""/g, '"').trim();
+}
+
 export function normaliseRow(row: RalawiseRawRow, markup: number): RalawiseNormalisedRow {
   const cost = parseDecimal(row['Single Price']);
   return {
     skuCode: (row['Sku Code'] ?? '').trim(),
     styleCode: (row['Style Code'] ?? '').trim(),
-    styleName: (row['Style Name'] ?? '').trim(),
+    styleName: repairRelaxedQuotes(row['Style Name']),
     colourCode: (row['Colour Code'] ?? '').trim(),
-    colourName: (row['Colour Name'] ?? '').trim(),
+    colourName: repairRelaxedQuotes(row['Colour Name']),
     sizeCode: (row['Size Code'] ?? '').trim(),
-    sizeName: (row['Size Name'] ?? '').trim(),
-    specification: (row['Specification'] ?? '').trim(),
-    retailDescription: (row['Retail Description'] ?? '').trim(),
-    productType: (row['Product Type'] ?? '').trim(),
-    categorisation: (row['Categorisation'] ?? '').trim(),
-    ageGroup: (row['Age Group'] ?? '').trim(),
-    gender: (row['Gender'] ?? '').trim(),
-    fabric: (row['Fabric'] ?? '').trim(),
+    sizeName: repairRelaxedQuotes(row['Size Name']),
+    specification: repairRelaxedQuotes(row['Specification']),
+    retailDescription: repairRelaxedQuotes(row['Retail Description']),
+    productType: repairRelaxedQuotes(row['Product Type']),
+    categorisation: repairRelaxedQuotes(row['Categorisation']),
+    ageGroup: repairRelaxedQuotes(row['Age Group']),
+    gender: repairRelaxedQuotes(row['Gender']),
+    fabric: repairRelaxedQuotes(row['Fabric']),
     weightGsm: (row['Weight (GSM)'] ?? '').trim(),
     heroImageUrl: pickHeroImage(row),
     groupHeroImageUrl: row['Primary Product Image URL']?.trim() || null,
@@ -329,9 +352,9 @@ export function normaliseRow(row: RalawiseRawRow, markup: number): RalawiseNorma
     costGbp: cost,
     retailGbp: applyMarkup(cost, markup),
     imageLicenceExpiresAt: parseLicenceExpiry(row['Primary Image Licence Expiry Date']),
-    brand: (row['Brand'] ?? '').trim() || null,
+    brand: repairRelaxedQuotes(row['Brand']) || null,
     ean: normaliseEan(row['EAN Code']),
-    mpn: (row['Manufacturer Style Code'] ?? '').trim() || null,
+    mpn: repairRelaxedQuotes(row['Manufacturer Style Code']) || null,
     weightKg: parseDecimal(row['Item Weight in KG'])?.toFixed(3) ?? null,
     skuStatus: (row['Sku Status'] ?? '').trim(),
   };
