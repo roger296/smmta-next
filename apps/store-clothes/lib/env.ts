@@ -41,6 +41,9 @@ const envSchema = z.object({
 
   // Public storefront origin — used for canonical URLs / OG images.
   STORE_BASE_URL: z.string().default('http://localhost:3000'),
+  // Switches analytics and the cookie banner off; CI sets it so the banner
+  // can never sit over an element the checkout tests click.
+  STORE_ANALYTICS_DISABLED: z.string().default(''),
 
   // HMAC secret used to sign the cart_id cookie (Prompt 9). The default
   // here is unsafe in production but fine for tests; the deploy in
