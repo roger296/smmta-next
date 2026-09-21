@@ -9,6 +9,9 @@ Files that make this work (already in the repo):
 `docker-compose.coolify.yml`, `docker/{api,worker,store,web}.Dockerfile`,
 `docker/web-nginx.conf`, `docker/postgres-init/`.
 
+No web shop? See **Back-office deployment (no storefront)** near the end: a
+second compose file with postgres, api, worker and web only.
+
 ---
 
 ## 0. Before you start
@@ -152,6 +155,57 @@ the Postgres service, e.g. nightly `pg_dump -Fc` pushed to Backblaze B2 — see
       (add them to the `store` service env; NextAuth wiring is the storefront pass).
 - [ ] `SENTRY_ENABLED=true` + `SENTRY_DSN` for error alerts (optional).
 - [ ] Verify `/healthz` on the API and (if exposed) the worker.
+
+---
+
+## Back-office deployment (no storefront)
+
+A business that takes its orders from a CSV feed, an API feed or the admin
+screens, and never from a web shop, deploys
+**`docker-compose.coolify.backoffice.yml`** instead. It carries four services:
+**postgres, api, worker, web**. The storefronts, the outbox drainer and every
+storefront-only variable are left out; the comment at the top of the file says
+what is missing and why. (It is a separate file because Coolify does not honour
+compose profiles.)
+
+Follow the steps above with these differences:
+
+1. **Compose file path**: `docker-compose.coolify.backoffice.yml`.
+2. **Secrets**: generate a fresh `COMPANY_ID` as well (`uuidgen`, or
+   `python3 -c "import uuid; print(uuid.uuid4())"`). The file requires it: the
+   default id in the code belongs to the reference deployment, and a new
+   business must not share it. Set `ENCRYPTION_KEY` too (`openssl rand -hex 32`)
+   so credentials held on admin records survive a later `JWT_SECRET` rotation.
+   `SMMTA_API_KEY`, `STORE_COOKIE_SECRET`, `MOLLIE_API_KEY` and the
+   `STORE_*` values are not needed.
+3. **Domains**: `web` → `https://admin.example.com` (port 80). The SPA's nginx
+   proxies `/api/` to the api service on the internal network, so the API needs
+   no hostname of its own unless something outside the network must call it
+   (an order feed posting to the API, a SendGrid webhook). If it does, give
+   `api` a domain (port 3000) and set `APP_BASE_URL` to it.
+4. **Bootstrap**: only the admin user. Skip `issue-store-key.ts`; there is no
+   storefront to hold a key. A key for an external order feed is issued from
+   the API's `/api/v1/admin/api-keys` route with only the scopes that feed
+   needs.
+5. **Shipping labels**: set the `SMOOTH_PARCEL_*` values for this business's
+   own Smooth Parcel account and `SMOOTH_PARCEL_ENABLED=true` once a test label
+   has been checked. Orders from a file or the order feed are never "paid"
+   here, so set `SHIPPING_LABEL_ON_ALLOCATION=true` to have the worker buy the
+   label the moment an order is fully allocated in the admin; the operator's
+   Create label button remains for anything else.
+6. **Feature switches**: drop-ship polling and ordering, Google feeds, the
+   sales assistant and Mollie are all off by default and stay off.
+7. **Menu**: hide the admin sections this business will not use with
+   `VITE_HIDDEN_SECTIONS`, a comma-separated list of section keys (a section's
+   path without the slash). For a stock, orders, purchasing and labels
+   deployment a sensible list is
+   `digest,outbox,approval,agents,chatbot,subscriptions,product-groups,categories,inbound,prospective,supplier-orders`.
+   It is baked into the `web` image at build, so changing it means
+   redeploying that service. It tidies the menu only; the pages still exist.
+
+Coolify keeps the first-deployed value of every `${VAR:-default}` in the compose
+file. Changing a default in the repo later does not reach the containers; edit
+the value in Coolify.
 
 ---
 

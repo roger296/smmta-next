@@ -1,5 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
+import { hiddenSectionsFromEnv, visibleNavItems } from '@/lib/nav-sections';
 import {
   LayoutDashboard,
   Users,
@@ -30,6 +31,9 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+/** Every section the admin has. A deployment hides the ones it does not use
+ *  with VITE_HIDDEN_SECTIONS (see lib/nav-sections.ts); the key of each is its
+ *  path without the slash, and `dashboard` for the first. */
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
   { label: 'Digest', to: '/digest', icon: Newspaper },
@@ -55,6 +59,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Settings', to: '/settings', icon: Settings },
 ];
 
+const SHOWN_NAV_ITEMS = visibleNavItems(NAV_ITEMS, hiddenSectionsFromEnv());
+
 interface SidebarProps {
   /** When true, always show (used inside mobile Sheet). */
   alwaysShow?: boolean;
@@ -74,7 +80,7 @@ export function Sidebar({ alwaysShow = false }: SidebarProps = {}) {
         <span className="text-base font-semibold">SMMTA-Next</span>
       </div>
       <nav className="flex flex-col gap-1 p-2">
-        {NAV_ITEMS.map((item) => {
+        {SHOWN_NAV_ITEMS.map((item) => {
           const active = item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to);
           const Icon = item.icon;
           return (

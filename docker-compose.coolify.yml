@@ -158,6 +158,10 @@ services:
       SMOOTH_PARCEL_SENDER_NAME: ${SMOOTH_PARCEL_SENDER_NAME:-}
       SMOOTH_PARCEL_DEFAULT_PHONE: ${SMOOTH_PARCEL_DEFAULT_PHONE:-}
       SMOOTH_PARCEL_FALLBACK_EMAIL: ${SMOOTH_PARCEL_FALLBACK_EMAIL:-}
+      # Buy the label as soon as an order is fully allocated, whatever route it
+      # came in by. OFF: a storefront order gets its label on payment. ON suits
+      # orders that arrive by file or API feed and are never paid here.
+      SHIPPING_LABEL_ON_ALLOCATION: ${SHIPPING_LABEL_ON_ALLOCATION:-false}
       # Label PDFs hold customer addresses, so they live on their own volume
       # that nothing serves publicly — unlike /app/uploads. The API reads them
       # for authenticated download; the worker writes them, so both mount it.
@@ -301,6 +305,10 @@ services:
         # Baked in at build. Point the SPA at the API's public URL, or use the
         # nginx same-origin /api proxy (default).
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        # Sections to leave out of the admin's menu, comma-separated: each is
+        # its path without the slash (orders, categories, supplier-orders…).
+        # Baked in at build, so changing it needs a rebuild of this service.
+        VITE_HIDDEN_SECTIONS: ${VITE_HIDDEN_SECTIONS:-}
     restart: unless-stopped
     depends_on:
       api:

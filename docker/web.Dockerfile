@@ -17,6 +17,10 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /app
 ARG VITE_API_BASE_URL=/api/v1
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+# Sections to leave out of the admin's menu, comma-separated (see
+# apps/web/src/lib/nav-sections.ts). Empty shows everything.
+ARG VITE_HIDDEN_SECTIONS=
+ENV VITE_HIDDEN_SECTIONS=$VITE_HIDDEN_SECTIONS
 # Cap Node's heap so the build stays under memory pressure on small hosts
 # (e.g. a VPS building all images at once) rather than tripping the OOM killer.
 ENV NODE_OPTIONS=--max-old-space-size=2048

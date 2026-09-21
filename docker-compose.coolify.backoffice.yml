@@ -1,0 +1,172 @@
+# Back-office deployment for Coolify (Docker Compose resource): stock control,
+# orders by CSV or API, purchase orders, goods-in and shipping labels, with NO
+# customer-facing storefront. Four services on one internal network: postgres,
+# api, worker and web (the admin SPA).
+#
+# Use this file, not docker-compose.coolify.yml, for a business that takes its
+# orders from a file feed, an API feed or the admin screens rather than from a
+# web shop. It is a separate file because Coolify does not honour compose
+# profiles; its docs say to keep one compose file per deployment shape.
+#
+# What is left out and why:
+#   store, store-clothes  the storefronts; nothing here serves customers.
+#   outbox-cron           drains the storefronts' email outboxes; no storefront,
+#                         nothing to drain.
+#   STORE_* variables     the API creates and migrates a storefront database
+#                         only when STORE_DATABASE_URL is set, so leaving it out
+#                         leaves the database alone.
+#   Mollie, OpenRouter, Google feeds, drop-ship suppliers: all off by default in
+#   the code; none are wired here. Set them in Coolify if a need appears.
+#
+# Set the secrets and domains in the Coolify UI (see docs/COOLIFY-DEPLOY.md,
+# "Back-office deployment"). Coolify keeps the first-deployed value of every
+# ${VAR:-default}; change values in Coolify, not by editing the defaults here.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smmta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a strong POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-smmta_next}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-smmta} -d ${POSTGRES_DB:-smmta_next}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-smmta_next}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      # Encrypts credentials held on admin records (supplier API keys). Set it
+      # so those records survive a JWT_SECRET rotation; without it the code
+      # derives the key from JWT_SECRET instead.
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      # A fresh deployment gets its own id: generate a UUID rather than
+      # keeping the default, which belongs to the reference deployment.
+      COMPANY_ID: ${COMPANY_ID:?set COMPANY_ID to a fresh UUID}
+      # Public origin of the API, used in links the API writes.
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      PGBOSS_SCHEMA: pgboss
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_WEBHOOK_KEY: ${SENDGRID_WEBHOOK_KEY:-change-me}
+      SENDGRID_WEBHOOK_VERIFICATION_KEY: ${SENDGRID_WEBHOOK_VERIFICATION_KEY:-}
+      SENDGRID_SANDBOX: ${SENDGRID_SANDBOX:-true}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENABLED: ${SENTRY_ENABLED:-false}
+      # Uploaded product images live here and are served from /uploads. MUST be
+      # a mounted volume: a container filesystem does not survive a redeploy.
+      UPLOADS_DIR: /app/uploads
+      # Smooth Parcel shipping labels. OFF until SMOOTH_PARCEL_ENABLED is set.
+      # The API key authenticates label requests; the username (account email)
+      # and password are the account's login. All set in Coolify, never here.
+      SMOOTH_PARCEL_ENABLED: ${SMOOTH_PARCEL_ENABLED:-false}
+      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api.smoothparcel.com}
+      SMOOTH_PARCEL_API_KEY: ${SMOOTH_PARCEL_API_KEY:-}
+      SMOOTH_PARCEL_USERNAME: ${SMOOTH_PARCEL_USERNAME:-}
+      SMOOTH_PARCEL_PASSWORD: ${SMOOTH_PARCEL_PASSWORD:-}
+      SMOOTH_PARCEL_SENDER_NAME: ${SMOOTH_PARCEL_SENDER_NAME:-}
+      SMOOTH_PARCEL_DEFAULT_PHONE: ${SMOOTH_PARCEL_DEFAULT_PHONE:-}
+      SMOOTH_PARCEL_FALLBACK_EMAIL: ${SMOOTH_PARCEL_FALLBACK_EMAIL:-}
+      SMOOTH_PARCEL_DEFAULT_WEIGHT_KG: ${SMOOTH_PARCEL_DEFAULT_WEIGHT_KG:-1.3}
+      # Label PDFs hold customer addresses, so they live on their own volume
+      # that nothing serves publicly. The API reads them for authenticated
+      # download; the worker writes them, so both mount it.
+      LABELS_DIR: /app/labels
+    volumes:
+      - uploads:/app/uploads
+      - shipping-labels:/app/labels
+    expose:
+      - '3000'
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-smmta_next}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      COMPANY_ID: ${COMPANY_ID:?set COMPANY_ID to a fresh UUID}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      PGBOSS_SCHEMA: pgboss
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_SANDBOX: ${SENDGRID_SANDBOX:-true}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
+      WORKER_HEALTH_PORT: '3100'
+      # Same Smooth Parcel values as the api service: the worker is what buys
+      # the label when an order event calls for one.
+      SMOOTH_PARCEL_ENABLED: ${SMOOTH_PARCEL_ENABLED:-false}
+      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api.smoothparcel.com}
+      SMOOTH_PARCEL_API_KEY: ${SMOOTH_PARCEL_API_KEY:-}
+      SMOOTH_PARCEL_USERNAME: ${SMOOTH_PARCEL_USERNAME:-}
+      SMOOTH_PARCEL_PASSWORD: ${SMOOTH_PARCEL_PASSWORD:-}
+      SMOOTH_PARCEL_SENDER_NAME: ${SMOOTH_PARCEL_SENDER_NAME:-}
+      SMOOTH_PARCEL_DEFAULT_PHONE: ${SMOOTH_PARCEL_DEFAULT_PHONE:-}
+      SMOOTH_PARCEL_FALLBACK_EMAIL: ${SMOOTH_PARCEL_FALLBACK_EMAIL:-}
+      # Buy the label as soon as an order is fully allocated, whatever route it
+      # came in by. OFF: a storefront order gets its label on payment. ON suits
+      # orders that arrive by file or API feed and are never paid here.
+      SHIPPING_LABEL_ON_ALLOCATION: ${SHIPPING_LABEL_ON_ALLOCATION:-false}
+      SMOOTH_PARCEL_DEFAULT_WEIGHT_KG: ${SMOOTH_PARCEL_DEFAULT_WEIGHT_KG:-1.3}
+      LABELS_DIR: /app/labels
+    volumes:
+      - uploads:/app/uploads
+      - shipping-labels:/app/labels
+    expose:
+      - '3100'
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        # Baked in at build. The default uses the SPA's own nginx as a
+        # same-origin /api proxy to the api service, so the admin needs one
+        # hostname and the API none. Set it to the API's public URL only if the
+        # API must also be reachable directly (an external order feed, say).
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        # Sections to leave out of the admin's menu, comma-separated: each is
+        # its path without the slash (orders, categories, supplier-orders…).
+        # Baked in at build, so changing it needs a rebuild of this service.
+        VITE_HIDDEN_SECTIONS: ${VITE_HIDDEN_SECTIONS:-}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    expose:
+      - '80'
+
+volumes:
+  pgdata:
+  # Product image uploads. Back this up with the database.
+  uploads:
+  # Shipping label PDFs. PRIVATE: customer names and addresses. Never serve this
+  # directory; back it up alongside the database.
+  shipping-labels:

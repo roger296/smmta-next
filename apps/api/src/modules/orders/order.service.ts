@@ -280,10 +280,24 @@ export class OrderService {
         ? 'PARTIALLY_ALLOCATED'
         : 'BACK_ORDERED';
 
-    await this.db
-      .update(customerOrders)
-      .set({ status: newStatus, updatedAt: new Date() })
-      .where(eq(customerOrders.id, id));
+    // The status and the event that announces full allocation land together:
+    // an order must never read ALLOCATED without the event that can get it a
+    // label, nor the other way round.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(customerOrders)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(eq(customerOrders.id, id));
+      if (newStatus === 'ALLOCATED') {
+        await emitDomainEvent(tx, {
+          companyId,
+          eventType: 'order.allocated',
+          aggregateType: 'order',
+          aggregateId: id,
+          payload: { orderId: id, orderNumber: order.orderNumber, source: order.sourceChannel },
+        });
+      }
+    });
 
     return { totalAllocated, totalShortfall, status: newStatus };
   }

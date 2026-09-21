@@ -18,6 +18,7 @@ import { MarketingService } from '../modules/marketing/marketing.service.js';
 import { SubscriptionService } from '../modules/subscriptions/subscription.service.js';
 import { DigestService } from '../modules/digest/digest.service.js';
 import { ShippingLabelConflictError, ShippingLabelService } from '../modules/shipping/shipping-label.service.js';
+import { labelWantedFor } from '../modules/shipping/label-trigger.js';
 import { PickNoteNotFoundError, PickNoteService } from '../modules/shipping/pick-note.service.js';
 import { DispatchEmailRejectedError, sendDispatchEmail } from '../modules/shipping/dispatch-email.js';
 import { orderHasWarehouseLines, queueSupplierOrders } from '../modules/suppliers/supplier-order-routing.js';
@@ -135,19 +136,23 @@ export function installFeatureHandlers(logger: Logger): void {
   });
 
   // create-shipping-label: buy and store a Smooth Parcel label for a paid
-  // storefront order. Idempotent, so the retry policy can never buy a second
-  // label. Pre-order payments also emit order.paid but ship later, so only
-  // events tagged source: 'storefront' are acted on.
+  // storefront order, or for any fully allocated order when
+  // SHIPPING_LABEL_ON_ALLOCATION is on. Idempotent, so the retry policy can
+  // never buy a second label, and an order that is paid and then allocated
+  // gets one label, not two. Pre-order payments also emit order.paid but ship
+  // later, so of those only events tagged source: 'storefront' are acted on
+  // (see labelWantedFor).
   setHandler('create-shipping-label', async (data) => {
     const { eventId } = (data ?? {}) as { eventId?: string };
     if (!eventId) return;
     const [event] = await getDb()
-      .select({ payload: domainEvents.payload, companyId: domainEvents.companyId })
+      .select({ eventType: domainEvents.eventType, payload: domainEvents.payload, companyId: domainEvents.companyId })
       .from(domainEvents)
       .where(eq(domainEvents.id, eventId))
       .limit(1);
     const payload = event?.payload as { orderId?: string; source?: string } | undefined;
-    if (!event || !payload?.orderId || payload.source !== 'storefront') return;
+    if (!event || !payload?.orderId) return;
+    if (!labelWantedFor(event.eventType, payload.source, getEnv().SHIPPING_LABEL_ON_ALLOCATION)) return;
     // A supplier posts its own lines, so an order with nothing from our
     // warehouse needs no label from us.
     if (!(await orderHasWarehouseLines(payload.orderId))) {

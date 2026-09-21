@@ -8,6 +8,10 @@ import { z } from 'zod';
 export const apiKeyScopeSchema = z.enum([
   'storefront:read',
   'storefront:write',
+  /** An external system posting orders to the order feed. */
+  'orders:write',
+  /** An external system reading an order's progress from the order feed. */
+  'orders:read',
 ]);
 
 export const createApiKeySchema = z.object({
