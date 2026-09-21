@@ -195,10 +195,15 @@ DATABASE_URL=... npx tsx apps/api/scripts/repair-quoted-text.ts --dry-run
 DATABASE_URL=... npx tsx apps/api/scripts/repair-quoted-text.ts
 ```
 
-It walks products and ranges, fixes name / description / short and SEO
-description / colour / brand, and is idempotent — a second run finds
+It walks products and ranges, fixes name / description / short, long
+and SEO description / colour / brand, and is idempotent — a second run finds
 nothing. Storefronts pick the change up within their 60s cache; the
 Google feeds carry it after the nightly rebuild.
+
+A variant's name is `style · colour · size`, so a damaged style name
+leaves its closing quote in the *middle* of the value: the script
+repairs each segment in turn rather than looking for a value quoted at
+both ends, which would miss every variant.
 
 ## Error handling per row
 

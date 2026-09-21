@@ -31,11 +31,28 @@ import { productGroups, products } from '../src/db/schema/index.js';
 import { getSingletonCompanyId } from '../src/shared/auth/company.js';
 import { repairRelaxedQuotes } from './seed-ralawise-catalogue.js';
 
+/** What the importer joins a product's name parts with. */
+const SEGMENT = ' · ';
+
+/**
+ * A product's name is `style · colour · size`, so a damaged style name
+ * leaves its closing quote in the middle of the value and only the
+ * opening one at the start — `"Hamblin 22" traveller" · Black · OS`.
+ * Repairing each segment in turn puts that right; a colour or size never
+ * carries quotes, so they come back untouched.
+ */
+export function repairSegments(value: string): string {
+  return value
+    .split(SEGMENT)
+    .map((part) => repairRelaxedQuotes(part))
+    .join(SEGMENT);
+}
+
 /** A value worth rewriting: one the repair actually changes. `null` and
  *  empty stay as they are, so the script never turns a NULL into ''. */
 export function repairedOrNull(value: string | null): string | null {
   if (value === null || value === '') return null;
-  const fixed = repairRelaxedQuotes(value);
+  const fixed = repairSegments(value);
   return fixed === value ? null : fixed;
 }
 
@@ -52,14 +69,27 @@ export function buildPatch<T extends Record<string, string | null>>(
   return patch;
 }
 
-/** Wrapped in quotes at both ends — the signature of the relaxed parse.
- *  Doing this in SQL keeps us from reading 100k rows to change a few. */
-function quotedAtBothEnds(columns: SQL[]): SQL {
+/**
+ * Anything starting with a quote is worth a look. That is wider than the
+ * relaxed parse's signature (quoted at *both* ends), because a product
+ * name carries its closing quote mid-value — but it still lets Postgres
+ * do the narrowing instead of us reading 100k rows to change a few. The
+ * per-row repair decides what actually changes.
+ */
+function looksQuoted(columns: SQL[]): SQL {
   return or(...columns)!;
 }
 
-const PRODUCT_FIELDS = ['name', 'description', 'shortDescription', 'seoDescription', 'colour', 'brand'] as const;
-const GROUP_FIELDS = ['name', 'description', 'shortDescription', 'seoDescription'] as const;
+const PRODUCT_FIELDS = [
+  'name',
+  'description',
+  'shortDescription',
+  'longDescription',
+  'seoDescription',
+  'colour',
+  'brand',
+] as const;
+const GROUP_FIELDS = ['name', 'description', 'shortDescription', 'longDescription', 'seoDescription'] as const;
 
 interface CliOpts {
   dryRun: boolean;
@@ -96,6 +126,7 @@ async function main() {
       name: products.name,
       description: products.description,
       shortDescription: products.shortDescription,
+      longDescription: products.longDescription,
       seoDescription: products.seoDescription,
       colour: products.colour,
       brand: products.brand,
@@ -105,10 +136,10 @@ async function main() {
       and(
         eq(products.companyId, companyId),
         isNull(products.deletedAt),
-        quotedAtBothEnds(PRODUCT_FIELDS.map((f) => like(products[f], '"%"'))),
+        looksQuoted(PRODUCT_FIELDS.map((f) => like(products[f], '"%'))),
       ),
     );
-  console.log(`[repair-quotes] ${productRows.length} products look quoted.`);
+  console.log(`[repair-quotes] ${productRows.length} products start with a quote.`);
 
   for (const row of productRows) {
     const patch = buildPatch(row, [...PRODUCT_FIELDS]);
@@ -129,16 +160,17 @@ async function main() {
       name: productGroups.name,
       description: productGroups.description,
       shortDescription: productGroups.shortDescription,
+      longDescription: productGroups.longDescription,
       seoDescription: productGroups.seoDescription,
     })
     .from(productGroups)
     .where(
       and(
         eq(productGroups.companyId, companyId),
-        quotedAtBothEnds(GROUP_FIELDS.map((f) => like(productGroups[f], '"%"'))),
+        looksQuoted(GROUP_FIELDS.map((f) => like(productGroups[f], '"%'))),
       ),
     );
-  console.log(`[repair-quotes] ${groupRows.length} ranges look quoted.`);
+  console.log(`[repair-quotes] ${groupRows.length} ranges start with a quote.`);
 
   for (const row of groupRows) {
     const patch = buildPatch(row, [...GROUP_FIELDS]);

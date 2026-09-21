@@ -4,11 +4,30 @@
  * narrowed, so the interesting logic is which fields get rewritten.
  */
 import { describe, expect, it } from 'vitest';
-import { buildPatch, repairedOrNull } from './repair-quoted-text.js';
+import { buildPatch, repairSegments, repairedOrNull } from './repair-quoted-text.js';
+
+describe('repairSegments', () => {
+  it("repairs a variant name, where the closing quote sits mid-value", () => {
+    expect(repairSegments('"Hamblin 22" traveller" · Black · OS')).toBe(
+      'Hamblin 22" traveller · Black · OS',
+    );
+  });
+
+  it('repairs a range name, which has no segments', () => {
+    expect(repairSegments('"Essential 13" laptop case"')).toBe('Essential 13" laptop case');
+  });
+
+  it('leaves the colour and size alone', () => {
+    expect(repairSegments('Classic hoodie · Navy · XL')).toBe('Classic hoodie · Navy · XL');
+  });
+});
 
 describe('repairedOrNull', () => {
   it('returns the repaired value only when it differs', () => {
     expect(repairedOrNull('"Hamblin 22" traveller"')).toBe('Hamblin 22" traveller');
+    expect(repairedOrNull('"Hamblin 22" traveller" · Black · OS')).toBe(
+      'Hamblin 22" traveller · Black · OS',
+    );
     expect(repairedOrNull('Classic hoodie')).toBeNull();
   });
 
