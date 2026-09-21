@@ -1,9 +1,29 @@
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
-import { customers, customerDeliveryAddresses, customerContacts, customerOrders, products } from '../../db/schema/index.js';
+import {
+  customers,
+  customerDeliveryAddresses,
+  customerInvoiceAddresses,
+  customerOrders,
+  products,
+  warehouses,
+} from '../../db/schema/index.js';
 import { OrderService } from '../../modules/orders/order.service.js';
 import { CustomerService } from '../../modules/customers/customer.service.js';
-import type { MarketplaceOrder, MarketplaceOrderLine, MarketplaceImportResult } from './marketplace.types.js';
+import type {
+  MarketplaceAddress,
+  MarketplaceOrder,
+  MarketplaceOrderLine,
+  MarketplaceImportResult,
+} from './marketplace.types.js';
+
+/** The order cannot be imported as sent; the message says why. */
+export class MarketplaceOrderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MarketplaceOrderError';
+  }
+}
 
 /**
  * MarketplaceService — Normalises marketplace orders and imports them.
@@ -34,44 +54,36 @@ export class MarketplaceService {
     userId: string,
     orders: MarketplaceOrder[],
   ): Promise<MarketplaceImportResult> {
-    const result: MarketplaceImportResult = { imported: 0, skipped: 0, errors: [] };
+    const result: MarketplaceImportResult = { imported: 0, skipped: 0, errors: [], orders: [] };
 
     for (const mktOrder of orders) {
       try {
         // Skip duplicates
-        const existing = await this.db.query.customerOrders.findFirst({
-          where: and(
-            eq(customerOrders.companyId, companyId),
-            eq(customerOrders.thirdPartyOrderId, mktOrder.thirdPartyOrderId),
-            isNull(customerOrders.deletedAt),
-          ),
-        });
+        const existing = await this.findByReference(companyId, mktOrder.thirdPartyOrderId);
         if (existing) {
           result.skipped++;
           continue;
         }
 
+        // Every line must name a product we sell. Dropping an unknown line
+        // would ship an incomplete order with nothing to say so.
+        const mappedLines = await this.mapLinesToProducts(companyId, mktOrder.lines);
+        const warehouseId = await this.resolveWarehouse(companyId, mktOrder.warehouseName);
+
         // Find or create customer
         const customerId = await this.resolveCustomer(companyId, mktOrder);
 
-        // Create delivery address
-        const deliveryAddressId = await this.createDeliveryAddress(customerId, mktOrder);
-
-        // Map lines to local products
-        const mappedLines = await this.mapLinesToProducts(companyId, mktOrder.lines);
-
-        if (mappedLines.length === 0) {
-          result.errors.push({
-            thirdPartyOrderId: mktOrder.thirdPartyOrderId,
-            error: 'No lines could be mapped to local products',
-          });
-          continue;
-        }
+        const deliveryAddressId = await this.createAddress(customerDeliveryAddresses, customerId, mktOrder.deliveryAddress);
+        const invoiceAddressId = mktOrder.invoiceAddress
+          ? await this.createAddress(customerInvoiceAddresses, customerId, mktOrder.invoiceAddress)
+          : undefined;
 
         // Create order via standard service
-        await this.orderService.create(companyId, {
+        const order = await this.orderService.create(companyId, {
           customerId,
           deliveryAddressId,
+          invoiceAddressId,
+          warehouseId,
           currencyCode: mktOrder.currencyCode,
           deliveryCharge: mktOrder.deliveryCharge,
           orderDate: mktOrder.orderDate,
@@ -83,25 +95,23 @@ export class MarketplaceService {
           integrationMetadata: mktOrder.rawData,
           lines: mappedLines,
         });
+        if (!order) throw new Error('Order was not created');
 
-        // Update the order with thirdPartyOrderId (post-create patch)
-        // The order was just created, find it by customer + date + order number
-        const latestOrder = await this.db.query.customerOrders.findFirst({
-          where: and(
-            eq(customerOrders.companyId, companyId),
-            eq(customerOrders.customerId, customerId),
-            eq(customerOrders.sourceChannel, mktOrder.sourceChannel),
-            isNull(customerOrders.deletedAt),
-          ),
-          orderBy: (o, { desc }) => [desc(o.createdAt)],
+        // The reference the sender knows the order by, and the courier they
+        // asked for, are not part of the create input.
+        await this.db
+          .update(customerOrders)
+          .set({
+            thirdPartyOrderId: mktOrder.thirdPartyOrderId,
+            courierName: mktOrder.courierName ?? null,
+          })
+          .where(eq(customerOrders.id, order.id));
+
+        result.orders.push({
+          thirdPartyOrderId: mktOrder.thirdPartyOrderId,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
         });
-        if (latestOrder) {
-          await this.db
-            .update(customerOrders)
-            .set({ thirdPartyOrderId: mktOrder.thirdPartyOrderId })
-            .where(eq(customerOrders.id, latestOrder.id));
-        }
-
         result.imported++;
       } catch (err) {
         result.errors.push({
@@ -112,6 +122,32 @@ export class MarketplaceService {
     }
 
     return result;
+  }
+
+  /** The order a sender's reference was imported as, if any. */
+  async findByReference(companyId: string, thirdPartyOrderId: string) {
+    return this.db.query.customerOrders.findFirst({
+      where: and(
+        eq(customerOrders.companyId, companyId),
+        eq(customerOrders.thirdPartyOrderId, thirdPartyOrderId),
+        isNull(customerOrders.deletedAt),
+      ),
+    });
+  }
+
+  // ── Resolve the warehouse by name ──
+
+  private async resolveWarehouse(companyId: string, name: string | undefined): Promise<string | undefined> {
+    if (!name) return undefined;
+    const warehouse = await this.db.query.warehouses.findFirst({
+      where: and(
+        eq(warehouses.companyId, companyId),
+        sql`lower(${warehouses.name}) = lower(${name})`,
+        isNull(warehouses.deletedAt),
+      ),
+    });
+    if (!warehouse) throw new MarketplaceOrderError(`Unknown warehouse "${name}"`);
+    return warehouse.id;
   }
 
   // ── Resolve or create customer from marketplace data ──
@@ -132,25 +168,30 @@ export class MarketplaceService {
     return customer.id;
   }
 
-  // ── Create delivery address ──
+  // ── Create an address row for the customer ──
 
-  private async createDeliveryAddress(customerId: string, order: MarketplaceOrder): Promise<string | undefined> {
-    if (!order.deliveryAddress.line1) return undefined;
+  private async createAddress(
+    table: typeof customerDeliveryAddresses | typeof customerInvoiceAddresses,
+    customerId: string,
+    address: MarketplaceAddress,
+  ): Promise<string | undefined> {
+    if (!address.line1) return undefined;
 
     const [addr] = await this.db
-      .insert(customerDeliveryAddresses)
+      .insert(table)
       .values({
         customerId,
-        contactName: order.deliveryAddress.contactName,
-        line1: order.deliveryAddress.line1,
-        line2: order.deliveryAddress.line2,
-        city: order.deliveryAddress.city,
-        region: order.deliveryAddress.region,
-        postCode: order.deliveryAddress.postCode,
-        country: order.deliveryAddress.country,
+        contactName: address.contactName,
+        ...(table === customerDeliveryAddresses && address.phone ? { phone: address.phone } : {}),
+        line1: address.line1,
+        line2: address.line2,
+        city: address.city,
+        region: address.region,
+        postCode: address.postCode,
+        country: address.country,
       })
       .returning();
-    return addr.id;
+    return addr!.id;
   }
 
   // ── Map marketplace SKUs to local product IDs ──
@@ -160,6 +201,7 @@ export class MarketplaceService {
     lines: MarketplaceOrderLine[],
   ): Promise<Array<{ productId: string; quantity: number; pricePerUnit: number; taxRate: number }>> {
     const mapped = [];
+    const unknown: string[] = [];
 
     for (const line of lines) {
       // Try to match by stock code / SKU
@@ -189,9 +231,15 @@ export class MarketplaceService {
           pricePerUnit: line.pricePerUnit,
           taxRate: line.taxRate,
         });
+      } else {
+        unknown.push(line.sku || '(blank)');
       }
-      // If no match, skip the line (error logged at caller level)
     }
+
+    if (unknown.length > 0) {
+      throw new MarketplaceOrderError(`Unknown product code(s): ${unknown.join(', ')}`);
+    }
+    if (mapped.length === 0) throw new MarketplaceOrderError('Order has no lines');
 
     return mapped;
   }

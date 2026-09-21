@@ -12,7 +12,10 @@ export interface MarketplaceImportConfig {
 export interface ImportResult {
   imported: number;
   skipped: number;
-  errors?: { reference: string; error: string }[];
+  /** One entry per order that was not imported, keyed by the sender's reference. */
+  errors: { thirdPartyOrderId: string; error: string }[];
+  /** The orders created, with the numbers they were given. */
+  orders?: { thirdPartyOrderId: string; orderId: string; orderNumber: string }[];
 }
 
 export function useMarketplaceImport() {

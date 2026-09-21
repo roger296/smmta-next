@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useCSVImport, parseCSVPreview } from '@/features/integrations/use-integrations';
+import { useCSVImport, parseCSVPreview, type ImportResult } from '@/features/integrations/use-integrations';
 import { useToast } from '@/hooks/use-toast';
 
 export const Route = createFileRoute('/_authed/integrations/csv')({
@@ -15,6 +15,7 @@ function CSVImportPage() {
   const [csvText, setCsvText] = React.useState('');
   const preview = React.useMemo(() => (csvText ? parseCSVPreview(csvText, 10) : null), [csvText]);
   const importMutation = useCSVImport();
+  const [result, setResult] = React.useState<ImportResult | null>(null);
 
   const handleFile = async (file: File) => {
     const text = await file.text();
@@ -26,7 +27,10 @@ function CSVImportPage() {
       <div>
         <h1 className="text-2xl font-semibold">CSV order import</h1>
         <p className="text-sm text-[var(--color-muted-foreground)]">
-          Upload a CSV file to bulk-create orders.
+          Upload a CSV file to bulk-create orders. One row per order line, grouped by order number.
+          Both the native column layout (OrderNumber, SKU, Qty…) and the legacy layout (Order Id,
+          Product Code, Quantity, with the address columns “… For Delivery Address” and “… For
+          Invoice Address”) are recognised from their headings.
         </p>
       </div>
       <Card>
@@ -89,6 +93,44 @@ function CSVImportPage() {
         </p>
       )}
 
+      {result && (
+        <Card>
+          <CardHeader>
+            <CardTitle>3. Result</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              <span className="font-medium text-green-700">{result.imported} imported</span>
+              {' · '}
+              <span>{result.skipped} already present</span>
+              {' · '}
+              <span className="font-medium text-[var(--color-destructive)]">{result.errors.length} failed</span>
+            </p>
+            {result.orders && result.orders.length > 0 && (
+              <ul className="text-xs text-[var(--color-muted-foreground)]">
+                {result.orders.map((o) => (
+                  <li key={o.orderId}>
+                    {o.thirdPartyOrderId} → {o.orderNumber}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {result.errors.length > 0 && (
+              <div>
+                <p className="font-medium">Not imported:</p>
+                <ul role="list" className="mt-1 text-xs text-[var(--color-destructive)]">
+                  {result.errors.map((e, i) => (
+                    <li key={i}>
+                      {e.thirdPartyOrderId}: {e.error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {csvText && (
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => setCsvText('')}>
@@ -98,10 +140,11 @@ function CSVImportPage() {
             disabled={importMutation.isPending}
             onClick={async () => {
               try {
-                const result = await importMutation.mutateAsync(csvText);
+                const outcome = await importMutation.mutateAsync(csvText);
+                setResult(outcome);
                 toast({
                   title: 'CSV import complete',
-                  description: `Imported ${result.imported}, skipped ${result.skipped}`,
+                  description: `Imported ${outcome.imported}, skipped ${outcome.skipped}, failed ${outcome.errors.length}`,
                 });
                 setCsvText('');
               } catch (err) {
