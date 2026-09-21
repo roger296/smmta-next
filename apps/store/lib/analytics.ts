@@ -214,3 +214,64 @@ export function claimPurchase(orderId: string): boolean {
     return true;
   }
 }
+
+/** A basket as the checkout page knows it. */
+export interface CartForAnalytics {
+  cartId: string | null;
+  currencyCode?: string | null;
+  subtotalGbp: string;
+  lines: Array<{
+    productId: string;
+    slug?: string | null;
+    name?: string | null;
+    colour?: string | null;
+    size?: string | null;
+    quantity: number;
+    pricePerUnitGbp: string;
+  }>;
+}
+
+/** The `begin_checkout` event for a basket. Pure, so it can be tested. */
+export function beginCheckoutEventParams(cart: CartForAnalytics): Record<string, unknown> {
+  return {
+    currency: cart.currencyCode || 'GBP',
+    // The basket total. Delivery isn't settled yet at this point, so unlike
+    // `purchase` this is the subtotal, which is what GA4 expects here.
+    value: gaPrice(cart.subtotalGbp) ?? 0,
+    items: cart.lines.map((line) => ({
+      item_id: line.slug ?? line.productId,
+      item_name: line.name ?? '',
+      price: gaPrice(line.pricePerUnitGbp),
+      quantity: line.quantity,
+      item_variant: gaVariant([line.colour, line.size]),
+    })),
+  };
+}
+
+/**
+ * What makes one visit to the checkout distinct from another. Reloading the
+ * page shouldn't add a second funnel step, but going back, changing the
+ * basket and returning is a genuine new attempt — so the basket's contents
+ * are part of the token, not just its id.
+ */
+export function beginCheckoutToken(cart: CartForAnalytics): string {
+  const lines = cart.lines.map((l) => `${l.productId}x${l.quantity}`).join(',');
+  return `${cart.cartId ?? 'anon'}|${cart.subtotalGbp}|${lines}`;
+}
+
+/**
+ * True the first time this basket reaches the checkout in this browsing
+ * session. Session storage, not local: someone who comes back tomorrow and
+ * checks out the same basket is starting a new attempt, and should count.
+ */
+export function claimBeginCheckout(token: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const key = `store_ga_begin_checkout_${token}`;
+  try {
+    if (window.sessionStorage.getItem(key)) return false;
+    window.sessionStorage.setItem(key, new Date().toISOString());
+    return true;
+  } catch {
+    return true;
+  }
+}

@@ -17,6 +17,7 @@ import { getOrCreateCart } from '@/lib/cart';
 import { getEnv } from '@/lib/env';
 import { getDeliveryQuote, type DeliveryQuote } from '@/lib/smmta';
 import { deliveryNote, summariseParcels } from '@/lib/delivery';
+import { BeginCheckoutEvent } from '@/components/begin-checkout-event';
 import { CheckoutForm } from './_components/checkout-form';
 
 export const dynamic = 'force-dynamic';
@@ -59,6 +60,22 @@ export default async function CheckoutPage() {
 
   return (
     <section aria-labelledby="checkout-heading" className="space-y-6">
+      <BeginCheckoutEvent
+        cart={{
+          cartId: cart.cartId,
+          currencyCode: cart.currencyCode,
+          subtotalGbp: cart.subtotalGbp,
+          lines: cart.lines.map((l) => ({
+            productId: l.productId,
+            slug: l.display.slug,
+            name: l.display.name,
+            colour: l.display.colour,
+            quantity: l.quantity,
+            pricePerUnitGbp: l.pricePerUnitGbp,
+          })),
+        }}
+      />
+
       <h1
         id="checkout-heading"
         className="text-3xl font-semibold tracking-tight md:text-4xl"
