@@ -4,6 +4,9 @@ import {
   GA_MEASUREMENT_ID,
   addToCartEventParams,
   analyticsCookieNames,
+  beginCheckoutEventParams,
+  beginCheckoutToken,
+  claimBeginCheckout,
   claimPurchase,
   cookieDomainsFor,
   gaEvent,
@@ -150,12 +153,15 @@ describe('purchaseEventParams', () => {
  * its absence, so a small stand-in is enough to exercise the browser paths.
  */
 function withFakeWindow<T>(body: (win: Record<string, unknown>) => T): T {
-  const store = new Map<string, string>();
+  const local = new Map<string, string>();
+  const session = new Map<string, string>();
+  const asStorage = (store: Map<string, string>) => ({
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+  });
   const win: Record<string, unknown> = {
-    localStorage: {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => void store.set(k, v),
-    },
+    localStorage: asStorage(local),
+    sessionStorage: asStorage(session),
   };
   (globalThis as { window?: unknown }).window = win;
   try {
@@ -199,6 +205,85 @@ describe('gaEvent', () => {
       expect(hasAnalytics()).toBe(true);
       gaEvent('purchase', { transaction_id: 'X1' });
       expect(calls).toEqual([['event', 'purchase', { transaction_id: 'X1' }]]);
+    });
+  });
+});
+
+describe('beginCheckoutEventParams', () => {
+  const cart = {
+    cartId: 'cart-1',
+    currencyCode: 'GBP',
+    subtotalGbp: '31.20',
+    lines: [
+      {
+        productId: 'p1',
+        slug: 'classic-hoodie-navy',
+        name: 'Classic hoodie · Navy · XL',
+        colour: 'Navy',
+        quantity: 2,
+        pricePerUnitGbp: '12.60',
+      },
+      {
+        productId: 'p2',
+        slug: null,
+        name: null,
+        quantity: 1,
+        pricePerUnitGbp: '6.00',
+      },
+    ],
+  };
+
+  it('reports the basket, falling back to the product id when there is no slug', () => {
+    expect(beginCheckoutEventParams(cart)).toEqual({
+      currency: 'GBP',
+      value: 31.2,
+      items: [
+        {
+          item_id: 'classic-hoodie-navy',
+          item_name: 'Classic hoodie · Navy · XL',
+          price: 12.6,
+          quantity: 2,
+          item_variant: 'Navy',
+        },
+        {
+          item_id: 'p2',
+          item_name: '',
+          price: 6,
+          quantity: 1,
+          item_variant: undefined,
+        },
+      ],
+    });
+  });
+
+  it('defaults the currency when the basket does not say', () => {
+    expect(beginCheckoutEventParams({ ...cart, currencyCode: null }).currency).toBe('GBP');
+  });
+});
+
+describe('beginCheckoutToken', () => {
+  const base = {
+    cartId: 'cart-1',
+    subtotalGbp: '10.00',
+    lines: [{ productId: 'p1', quantity: 1, pricePerUnitGbp: '10.00' }],
+  };
+
+  it('is stable for the same basket, so a reload does not count twice', () => {
+    expect(beginCheckoutToken(base)).toBe(beginCheckoutToken({ ...base }));
+  });
+
+  it('changes when the basket changes, so a second attempt counts', () => {
+    const changed = { ...base, subtotalGbp: '20.00', lines: [{ ...base.lines[0], quantity: 2 }] };
+    expect(beginCheckoutToken(changed)).not.toBe(beginCheckoutToken(base));
+  });
+});
+
+describe('claimBeginCheckout', () => {
+  it('is true once per basket per session', () => {
+    withFakeWindow(() => {
+      expect(claimBeginCheckout('token-a')).toBe(true);
+      expect(claimBeginCheckout('token-a')).toBe(false);
+      expect(claimBeginCheckout('token-b')).toBe(true);
     });
   });
 });
