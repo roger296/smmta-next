@@ -259,17 +259,28 @@ export class OrderService {
     });
     if (!order) throw new OrderValidationError('Order not found');
 
+    // Stock the order already holds counts towards each line first, so
+    // pressing Allocate again on a part-allocated order only tops it up.
+    const held = await this.stockService.allocatedToOrder(companyId, id);
+
     let totalAllocated = 0;
+    let newlyAllocated = 0;
     let totalShortfall = 0;
 
     for (const line of order.lines) {
       const needed = Math.ceil(line.quantity - (line.numberShipped ?? 0));
       if (needed <= 0) continue;
 
+      const alreadyHeld = Math.min(held.get(line.productId) ?? 0, needed);
+      held.set(line.productId, (held.get(line.productId) ?? 0) - alreadyHeld);
+      totalAllocated += alreadyHeld;
+      if (alreadyHeld === needed) continue;
+
       const result = await this.stockService.allocateToOrder(
-        companyId, id, line.productId, warehouseId, needed,
+        companyId, id, line.productId, warehouseId, needed - alreadyHeld,
       );
       totalAllocated += result.allocated;
+      newlyAllocated += result.allocated;
       totalShortfall += result.shortfall;
     }
 
@@ -285,7 +296,8 @@ export class OrderService {
       .set({ status: newStatus, updatedAt: new Date() })
       .where(eq(customerOrders.id, id));
 
-    return { totalAllocated, totalShortfall, status: newStatus };
+    // totalAllocated is what the order holds now; newlyAllocated is this call's share.
+    return { totalAllocated, newlyAllocated, totalShortfall, status: newStatus };
   }
 
   // ================================================================

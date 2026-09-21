@@ -256,6 +256,13 @@ export class StockItemService {
   //
   // Old: StockItemServices.AllocateStockToOrder / SellItemFifo
   // No GL posting here — GL happens at invoice time
+  //
+  // Takes what is there: when stock is short, the units available are still
+  // allocated and the rest reported as the shortfall. `allocated` is always
+  // the number of rows this call actually gave to the order, so the order
+  // status built from it agrees with the stock rows. The order page offers
+  // "Allocate stock" again on a part-allocated order to top it up, and the
+  // ship gate reads "1 of 2 units allocated" straight from these rows.
   // ----------------------------------------------------------------
 
   async allocateToOrder(
@@ -280,27 +287,41 @@ export class StockItemService {
       .orderBy(asc(stockItems.createdAt)) // FIFO
       .limit(quantity);
 
-    if (available.length < quantity) {
-      return {
-        allocated: available.length,
-        requested: quantity,
-        shortfall: quantity - available.length,
-      };
-    }
-
     const dateNow = new Date();
+    let allocated = 0;
     for (const item of available) {
-      await this.db
+      // Only count a row still IN_STOCK: another order may have taken it
+      // between the select and this update.
+      const result = await this.db
         .update(stockItems)
         .set({
           status: 'ALLOCATED',
           salesOrderId: orderId,
           updatedAt: dateNow,
         })
-        .where(eq(stockItems.id, item.id));
+        .where(and(eq(stockItems.id, item.id), eq(stockItems.status, 'IN_STOCK')));
+      allocated += result.rowCount ?? 0;
     }
 
-    return { allocated: available.length, requested: quantity, shortfall: 0 };
+    return { allocated, requested: quantity, shortfall: quantity - allocated };
+  }
+
+  /** Units each product already has allocated to an order, keyed by product id. */
+  async allocatedToOrder(companyId: string, orderId: string): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({ productId: stockItems.productId })
+      .from(stockItems)
+      .where(
+        and(
+          eq(stockItems.companyId, companyId),
+          eq(stockItems.salesOrderId, orderId),
+          eq(stockItems.status, 'ALLOCATED'),
+          isNull(stockItems.deletedAt),
+        ),
+      );
+    const held = new Map<string, number>();
+    for (const row of rows) held.set(row.productId, (held.get(row.productId) ?? 0) + 1);
+    return held;
   }
 
   // ----------------------------------------------------------------
