@@ -267,6 +267,7 @@ export default async function StandaloneProductPage({
               id: product.slug ?? product.id,
               name: product.name,
               priceGbp: product.priceGbp,
+              maxPriceGbp: product.maxPriceGbp,
               colour: product.colour,
             }}
           />

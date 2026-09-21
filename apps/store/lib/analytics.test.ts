@@ -5,6 +5,7 @@ import {
   addToCartEventParams,
   analyticsCookieNames,
   beginCheckoutEventParams,
+  unitPriceForQuantity,
   beginCheckoutToken,
   claimBeginCheckout,
   claimPurchase,
@@ -285,5 +286,42 @@ describe('claimBeginCheckout', () => {
       expect(claimBeginCheckout('token-a')).toBe(false);
       expect(claimBeginCheckout('token-b')).toBe(true);
     });
+  });
+});
+
+describe('unitPriceForQuantity', () => {
+  const sliding = { id: 'p', name: 'Spool', priceGbp: '6.50', maxPriceGbp: '13.00' };
+
+  it('charges the single-unit price for one, not the volume rate', () => {
+    expect(unitPriceForQuantity(sliding, 1)).toBe(13);
+  });
+
+  it('charges the volume rate at ten', () => {
+    expect(unitPriceForQuantity(sliding, 10)).toBe(6.5);
+  });
+
+  it('slides in between', () => {
+    const five = unitPriceForQuantity(sliding, 5)!;
+    expect(five).toBeLessThan(13);
+    expect(five).toBeGreaterThan(6.5);
+  });
+
+  it('uses the only price a product that does not slide has', () => {
+    expect(unitPriceForQuantity({ id: 'p', name: 'Tee', priceGbp: '12.00' }, 1)).toBe(12);
+  });
+
+  it('is undefined when there is no price at all', () => {
+    expect(unitPriceForQuantity({ id: 'p', name: 'Tee' }, 1)).toBeUndefined();
+  });
+});
+
+describe('addToCartEventParams with volume pricing', () => {
+  it('reports what the customer will actually pay', () => {
+    const params = addToCartEventParams(
+      { id: 'spool-beige', name: 'Landau PLA Basic', priceGbp: '6.50', maxPriceGbp: '13.00' },
+      1,
+    ) as { value: number; items: Array<{ price: number }> };
+    expect(params.value).toBe(13);
+    expect(params.items[0]!.price).toBe(13);
   });
 });
