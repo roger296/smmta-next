@@ -70,7 +70,10 @@ export async function buildApp() {
   });
 
   // Plugins
-  await app.register(cors, { origin: true });
+  // @fastify/cors 11 allows only GET, HEAD and POST unless told otherwise, which
+  // blocks every PUT, PATCH and DELETE from an admin app served on another origin
+  // (local development; production serves both from one origin).
+  await app.register(cors, { origin: true, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] });
 
   // Product image uploads. The limit is enforced per-file at the route too;
   // this is the transport-level backstop so an oversized body is rejected

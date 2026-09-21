@@ -107,5 +107,19 @@ export const allocatePaymentSchema = z.object({
   reference: z.string().optional(),
 });
 
+/** The courier and tracking number of a label made outside this system. */
+export const ownLabelSchema = z.object({
+  courierName: z.string().trim().min(1, 'Enter the courier').max(100),
+  trackingNumber: z.string().trim().min(1, 'Enter the tracking number').max(200),
+  trackingLink: z
+    .string()
+    .trim()
+    .max(500)
+    .url('Enter the full tracking link, starting https://')
+    .refine((v) => /^https?:\/\//i.test(v), 'Enter the full tracking link, starting https://')
+    .nullish()
+    .or(z.literal('')),
+});
+
 export type CreateOrderInput = z.input<typeof createOrderSchema>;
 export type OrderQueryInput = z.infer<typeof orderQuerySchema>;

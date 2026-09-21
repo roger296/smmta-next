@@ -153,6 +153,12 @@ export class ShippingLabelService {
     opts: { newShipment?: boolean } = {},
   ): Promise<ShippingLabelSummary> {
     const input = await this.loadOrderInput(orderId, companyId);
+    // Checked first: nothing is sent to the carrier for an order with its own label.
+    if (await this.hasOwnLabel(orderId)) {
+      throw new ShippingLabelConflictError(
+        'This order is going out with your own label, so no label was bought. Remove your own label first to buy one.',
+      );
+    }
     let row = await this.ensureRow(orderId, companyId);
 
     if (opts.newShipment) {
@@ -372,6 +378,15 @@ export class ShippingLabelService {
         heightCm: num(l.product?.height),
       })),
     };
+  }
+
+  private async hasOwnLabel(orderId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ ownLabel: customerOrders.ownLabel })
+      .from(customerOrders)
+      .where(eq(customerOrders.id, orderId))
+      .limit(1);
+    return row?.ownLabel ?? false;
   }
 
   /** Creates the order's label row if absent; race-safe via the unique key. */
