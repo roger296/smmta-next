@@ -155,6 +155,31 @@ the Postgres service, e.g. nightly `pg_dump -Fc` pushed to Backblaze B2 — see
 
 ---
 
+### Alternative: back office only, no storefront
+
+For a business that takes its orders by upload or by API and has no shop of its
+own, use **`docker-compose.coolify.backoffice.yml`** as the compose file path in
+step 2. It runs `postgres`, `api`, `worker` and `web` only.
+
+- **Its own Coolify project**, even on a server that already runs another
+  deployment: own database, own volumes, own secrets. Nothing is shared.
+- **Environment variables:** `POSTGRES_PASSWORD`, `JWT_SECRET`, `ENCRYPTION_KEY`,
+  `UNSUBSCRIBE_SECRET` and **`COMPANY_ID`** (a new UUID — this file refuses to start
+  without one, so two businesses can never share the default). Add the
+  `SMOOTH_PARCEL_*` values if labels are bought through Smooth Parcel. None of
+  the storefront, Mollie, supplier or Google feed settings apply.
+- **Domain:** give it to the `web` service only. nginx there proxies `/api/` to the
+  API, so the API is `https://<host>/api/v1/...` on the same hostname — that is the
+  address to give anyone sending orders in by API key.
+- **Bootstrap:** the `create-user.ts` line from step 6. There is no storefront key
+  to issue. Keys for sending orders in are made in the admin app under API keys.
+- **No "your order has shipped" email is sent.** Those are rendered and delivered
+  by a storefront, and there is none. The worker logs `no-storefront` and moves on.
+- Two deployments on one server each have services called `api` and `postgres`.
+  Coolify gives every compose resource its own network, so they do not meet —
+  unless "Connect To Predefined Network" is switched on for the resource. Leave it
+  off.
+
 ### Alternative: one application per service
 
 If you prefer separate Coolify **Applications** (independent scaling/redeploys)

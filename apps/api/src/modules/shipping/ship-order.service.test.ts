@@ -419,6 +419,18 @@ describe('sendDispatchEmail', () => {
     expect((err as DispatchEmailRejectedError).status).toBe(404);
     expect(nobody).toHaveBeenCalledTimes(2);
   });
+
+  it('sends nothing, and says so, on a deployment with no storefront', async () => {
+    const orderId = await makeOrder();
+    await services().ship.ship(orderId, COMPANY_ID);
+    const fetchMock = vi.fn();
+    const none = { fetch: fetchMock as unknown as typeof fetch, storeBaseUrls: ['', ' '], storeKey: '' };
+    expect(await sendDispatchEmail(orderId, COMPANY_ID, none)).toBe('no-storefront');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // A storefront without its key is still a mistake worth hearing about.
+    await expect(sendDispatchEmail(orderId, COMPANY_ID, { ...none, storeBaseUrls: ['http://filament.test'] })).rejects.toThrow(/STORE_INTERNAL_API_KEY/);
+  });
 });
 
 describe('an order shipped with a label made elsewhere', () => {

@@ -1,0 +1,151 @@
+# Back-office-only stack for Coolify: stock, orders, purchasing, shipping and the
+# admin app, with NO storefront. For a business that sells by uploaded or API
+# orders and has no shop of its own. Point the Coolify resource's "Docker
+# Compose Location" at this file instead of docker-compose.coolify.yml.
+#
+# It is that file with the store, store-clothes and outbox-cron services left
+# out, and with everything that only a storefront uses left unset: no storefront
+# databases are created, and no "your order has shipped" email is sent, because
+# those emails are rendered and delivered by a storefront. Keep the two files in
+# step when a setting the API or worker needs is added to the other.
+#
+# Give the `web` service the public domain. Its nginx proxies /api/ to the API on
+# the same origin, so one hostname serves the admin app and the API
+# (https://<host>/api/v1/...), including for orders sent in by API key.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smmta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a strong POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-smmta_next}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-smmta} -d ${POSTGRES_DB:-smmta_next}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      # The entrypoint migrates this database on every boot. STORE_DATABASE_URL
+      # and CLOTHES_STORE_DATABASE_URL are deliberately absent, so it creates no
+      # storefront databases.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-smmta_next}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      # Encrypts stored credentials. Set it: without it they are tied to JWT_SECRET.
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      # Generate a fresh UUID for each business; never reuse another deployment's.
+      COMPANY_ID: ${COMPANY_ID:?set COMPANY_ID to a new UUID}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      PGBOSS_SCHEMA: pgboss
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_WEBHOOK_VERIFICATION_KEY: ${SENDGRID_WEBHOOK_VERIFICATION_KEY:-}
+      SENDGRID_SANDBOX: ${SENDGRID_SANDBOX:-true}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENABLED: ${SENTRY_ENABLED:-false}
+      # No storefront. Empty on purpose: see the note at the top.
+      STORE_BASE_URL: ''
+      CLOTHES_STORE_INTERNAL_URL: ''
+      # MUST be a mounted volume: a container filesystem does not survive a redeploy.
+      UPLOADS_DIR: /app/uploads
+      # Smooth Parcel shipping labels. OFF until SMOOTH_PARCEL_ENABLED is set.
+      # The key, username and password are set in Coolify, never in the repo.
+      SMOOTH_PARCEL_ENABLED: ${SMOOTH_PARCEL_ENABLED:-false}
+      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api.smoothparcel.com}
+      SMOOTH_PARCEL_API_KEY: ${SMOOTH_PARCEL_API_KEY:-}
+      SMOOTH_PARCEL_USERNAME: ${SMOOTH_PARCEL_USERNAME:-}
+      SMOOTH_PARCEL_PASSWORD: ${SMOOTH_PARCEL_PASSWORD:-}
+      SMOOTH_PARCEL_SENDER_NAME: ${SMOOTH_PARCEL_SENDER_NAME:-}
+      SMOOTH_PARCEL_DEFAULT_PHONE: ${SMOOTH_PARCEL_DEFAULT_PHONE:-}
+      SMOOTH_PARCEL_FALLBACK_EMAIL: ${SMOOTH_PARCEL_FALLBACK_EMAIL:-}
+      # Label PDFs hold customer addresses: their own volume, served by nothing.
+      LABELS_DIR: /app/labels
+    volumes:
+      - uploads:/app/uploads
+      - shipping-labels:/app/labels
+    expose:
+      - '3000'
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smmta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-smmta_next}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      COMPANY_ID: ${COMPANY_ID:?set COMPANY_ID to a new UUID}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      PGBOSS_SCHEMA: pgboss
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SENDGRID_SANDBOX: ${SENDGRID_SANDBOX:-true}
+      UNSUBSCRIBE_SECRET: ${UNSUBSCRIBE_SECRET:?set UNSUBSCRIBE_SECRET}
+      WORKER_HEALTH_PORT: '3100'
+      STORE_BASE_URL: ''
+      CLOTHES_STORE_INTERNAL_URL: ''
+      # Drop-ship suppliers and Google feeds belong to the storefronts: off.
+      SUPPLIER_POLL_ENABLED: 'false'
+      SUPPLIER_ORDER_PLACING_ENABLED: 'false'
+      GOOGLE_FEED_ENABLED: 'false'
+      SMOOTH_PARCEL_ENABLED: ${SMOOTH_PARCEL_ENABLED:-false}
+      SMOOTH_PARCEL_API_BASE_URL: ${SMOOTH_PARCEL_API_BASE_URL:-https://api.smoothparcel.com}
+      SMOOTH_PARCEL_API_KEY: ${SMOOTH_PARCEL_API_KEY:-}
+      SMOOTH_PARCEL_USERNAME: ${SMOOTH_PARCEL_USERNAME:-}
+      SMOOTH_PARCEL_PASSWORD: ${SMOOTH_PARCEL_PASSWORD:-}
+      SMOOTH_PARCEL_SENDER_NAME: ${SMOOTH_PARCEL_SENDER_NAME:-}
+      SMOOTH_PARCEL_DEFAULT_PHONE: ${SMOOTH_PARCEL_DEFAULT_PHONE:-}
+      SMOOTH_PARCEL_FALLBACK_EMAIL: ${SMOOTH_PARCEL_FALLBACK_EMAIL:-}
+      LABELS_DIR: /app/labels
+    volumes:
+      - uploads:/app/uploads
+      - shipping-labels:/app/labels
+    expose:
+      - '3100'
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        # Baked in at build. The default uses nginx's same-origin /api proxy.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    expose:
+      - '80'
+
+volumes:
+  pgdata:
+  # Product image uploads. Back this up with the database.
+  uploads:
+  # Shipping label PDFs. PRIVATE: customer names and addresses. Never serve this
+  # directory; back it up alongside the database.
+  shipping-labels:

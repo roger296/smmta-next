@@ -15,6 +15,10 @@
  * admin-created orders (MANUAL). Amazon, eBay and Etsy send their own shipping
  * notices and restrict contacting their buyers directly, and Shopify and
  * WooCommerce orders come from shops that notify their own customers.
+ *
+ * A deployment with no storefront at all (no storefront URL configured) has
+ * nothing to render or send the email, so it reports 'no-storefront' and sends
+ * none. A storefront URL without its key is still a mistake, and still throws.
  */
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
@@ -24,7 +28,13 @@ import { longDate } from '../orders/invoice-pdf.js';
 
 export const DISPATCH_EMAIL_CHANNELS: readonly string[] = ['MANUAL', 'API'];
 
-export type DispatchEmailOutcome = 'sent' | 'not-found' | 'not-shipped' | 'marketplace-order' | 'no-customer-email';
+export type DispatchEmailOutcome =
+  | 'sent'
+  | 'not-found'
+  | 'not-shipped'
+  | 'marketplace-order'
+  | 'no-customer-email'
+  | 'no-storefront';
 
 /** The storefront refused the request; retrying the same request cannot help. */
 export class DispatchEmailRejectedError extends Error {
@@ -71,8 +81,9 @@ export async function sendDispatchEmail(
     .map((b) => b.trim().replace(/\/+$/, ''))
     .filter(Boolean);
   const key = deps.storeKey ?? env.STORE_INTERNAL_API_KEY;
-  if (bases.length === 0 || !key) {
-    throw new Error('STORE_BASE_URL / STORE_INTERNAL_API_KEY are not configured, so the shipped email cannot be handed to the storefront');
+  if (bases.length === 0) return 'no-storefront';
+  if (!key) {
+    throw new Error('STORE_INTERNAL_API_KEY is not configured, so the shipped email cannot be handed to the storefront');
   }
 
   const name = (order.deliveryAddress?.contactName || order.contact?.name || order.customer?.name || '').trim();
