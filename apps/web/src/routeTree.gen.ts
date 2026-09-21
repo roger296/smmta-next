@@ -54,6 +54,7 @@ import { Route as AuthedIntegrationsCsvRouteImport } from './routes/_authed/inte
 import { Route as AuthedIntegrationsBulkRouteImport } from './routes/_authed/integrations/bulk'
 import { Route as AuthedCustomersNewRouteImport } from './routes/_authed/customers/new'
 import { Route as AuthedCustomersIdRouteImport } from './routes/_authed/customers/$id'
+import { Route as AuthedXExtPageRouteImport } from './routes/_authed/x/$ext.$page'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -286,6 +287,11 @@ const AuthedCustomersIdRoute = AuthedCustomersIdRouteImport.update({
   path: '/customers/$id',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedXExtPageRoute = AuthedXExtPageRouteImport.update({
+  id: '/x/$ext/$page',
+  path: '/x/$ext/$page',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
@@ -332,6 +338,7 @@ export interface FileRoutesByFullPath {
   '/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
   '/suppliers/': typeof AuthedSuppliersIndexRoute
+  '/x/$ext/$page': typeof AuthedXExtPageRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -378,6 +385,7 @@ export interface FileRoutesByTo {
   '/supplier-invoices': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders': typeof AuthedSupplierOrdersIndexRoute
   '/suppliers': typeof AuthedSuppliersIndexRoute
+  '/x/$ext/$page': typeof AuthedXExtPageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -426,6 +434,7 @@ export interface FileRoutesById {
   '/_authed/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/_authed/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
   '/_authed/suppliers/': typeof AuthedSuppliersIndexRoute
+  '/_authed/x/$ext/$page': typeof AuthedXExtPageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -474,6 +483,7 @@ export interface FileRouteTypes {
     | '/supplier-invoices/'
     | '/supplier-orders/'
     | '/suppliers/'
+    | '/x/$ext/$page'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -520,6 +530,7 @@ export interface FileRouteTypes {
     | '/supplier-invoices'
     | '/supplier-orders'
     | '/suppliers'
+    | '/x/$ext/$page'
   id:
     | '__root__'
     | '/_authed'
@@ -567,6 +578,7 @@ export interface FileRouteTypes {
     | '/_authed/supplier-invoices/'
     | '/_authed/supplier-orders/'
     | '/_authed/suppliers/'
+    | '/_authed/x/$ext/$page'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -891,6 +903,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCustomersIdRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/x/$ext/$page': {
+      id: '/_authed/x/$ext/$page'
+      path: '/x/$ext/$page'
+      fullPath: '/x/$ext/$page'
+      preLoaderRoute: typeof AuthedXExtPageRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
   }
 }
 
@@ -938,6 +957,7 @@ interface AuthedRouteRouteChildren {
   AuthedSupplierInvoicesIndexRoute: typeof AuthedSupplierInvoicesIndexRoute
   AuthedSupplierOrdersIndexRoute: typeof AuthedSupplierOrdersIndexRoute
   AuthedSuppliersIndexRoute: typeof AuthedSuppliersIndexRoute
+  AuthedXExtPageRoute: typeof AuthedXExtPageRoute
 }
 
 const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
@@ -984,6 +1004,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedSupplierInvoicesIndexRoute: AuthedSupplierInvoicesIndexRoute,
   AuthedSupplierOrdersIndexRoute: AuthedSupplierOrdersIndexRoute,
   AuthedSuppliersIndexRoute: AuthedSuppliersIndexRoute,
+  AuthedXExtPageRoute: AuthedXExtPageRoute,
 }
 
 const AuthedRouteRouteWithChildren = AuthedRouteRoute._addFileChildren(

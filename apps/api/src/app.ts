@@ -56,6 +56,8 @@ import { subscriptionRoutes, subscriptionAdminRoutes } from './modules/subscript
 import { healthRoutes } from './modules/health/health.routes.js';
 import { digestRoutes } from './modules/digest/digest.routes.js';
 
+import { installApiExtensions } from './shared/extensions/load.js';
+
 export async function buildApp() {
   const env = getEnv();
   initSentry('api');
@@ -216,6 +218,9 @@ export async function buildApp() {
 
   // Admin digest (Prompt 15): the operator cockpit on demand. JWT-gated.
   await app.register(digestRoutes, { prefix: '/api/v1' });
+
+  // A deployment's own additions (apps/api/src/extensions). None upstream.
+  await installApiExtensions(app);
 
   return app;
 }

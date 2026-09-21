@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/utils';
 import { hiddenSectionsFromEnv, visibleNavItems } from '@/lib/nav-sections';
+import { extensionPath, webExtensions } from '@/extensions/registry';
 import {
   LayoutDashboard,
   Users,
@@ -23,6 +24,7 @@ import {
   Sparkles,
   CreditCard,
   ClipboardList,
+  Puzzle,
 } from 'lucide-react';
 
 interface NavItem {
@@ -59,7 +61,16 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Settings', to: '/settings', icon: Settings },
 ];
 
-const SHOWN_NAV_ITEMS = visibleNavItems(NAV_ITEMS, hiddenSectionsFromEnv());
+/** Screens added by this deployment's extensions, after the core's own. */
+const EXTENSION_NAV_ITEMS: NavItem[] = webExtensions().flatMap((ext) =>
+  (ext.navItems ?? []).map((item) => ({
+    label: item.label,
+    to: extensionPath(ext.key, item.page),
+    icon: item.icon ?? Puzzle,
+  })),
+);
+
+const SHOWN_NAV_ITEMS = [...visibleNavItems(NAV_ITEMS, hiddenSectionsFromEnv()), ...EXTENSION_NAV_ITEMS];
 
 interface SidebarProps {
   /** When true, always show (used inside mobile Sheet). */

@@ -24,6 +24,8 @@ import { formatDate, formatMoney } from '@/lib/format';
 import { ArrowLeft, FileText, PackageCheck, PackageX, Printer, Send, Trash2, XCircle } from 'lucide-react';
 import { orderTotalLabels } from '@/features/orders/order-totals';
 import { ShippingLabelCard } from '@/features/orders/shipping-label-card';
+import { OrderHoldPanel } from '@/features/orders/order-hold-panel';
+import { webExtensions } from '@/extensions/registry';
 import { PickNoteCard } from '@/features/orders/pick-note-card';
 import { InvoiceCard } from '@/features/orders/invoice-card';
 import { printDispatchDocuments, useShipOrder, useShipReadiness } from '@/features/orders/use-ship-order';
@@ -189,6 +191,11 @@ function OrderDetailPage() {
           )}
         </div>
       </div>
+
+      <OrderHoldPanel order={data} />
+      {webExtensions().flatMap((ext) =>
+        (ext.orderPanels ?? []).map((Panel, i) => <Panel key={`${ext.key}-${i}`} order={data} />),
+      )}
 
       {!isShipped && readiness && !readiness.ready && readiness.reasons.length > 0 && (
         <div className="text-sm text-[var(--color-muted-foreground)]" data-test="ship-blockers">

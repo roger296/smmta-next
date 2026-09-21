@@ -36,6 +36,7 @@ import {
   type LabelOrderInput,
   type MapperOptions,
 } from './smooth-parcel-mapper.js';
+import { OrderHoldService } from '../orders/order-hold.service.js';
 
 export const SMOOTH_PARCEL_PROVIDER = 'SMOOTH_PARCEL';
 /** Followed by the tracking number. */
@@ -153,6 +154,8 @@ export class ShippingLabelService {
     opts: { newShipment?: boolean } = {},
   ): Promise<ShippingLabelSummary> {
     const input = await this.loadOrderInput(orderId, companyId);
+    // A held order is not going anywhere yet, so nothing is bought for it.
+    await new OrderHoldService().assertFree(orderId);
     // Checked first: nothing is sent to the carrier for an order with its own label.
     if (await this.hasOwnLabel(orderId)) {
       throw new ShippingLabelConflictError(

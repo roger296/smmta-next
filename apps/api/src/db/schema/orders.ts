@@ -1,8 +1,8 @@
 import {
   pgTable, varchar, decimal, boolean, integer, text, uuid,
-  jsonb, doublePrecision, date as pgDate, timestamp,
+  jsonb, doublePrecision, date as pgDate, timestamp, index, uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   pk, companyId, auditTimestamps, oldId,
   orderStatusEnum, sourceChannelEnum, invoiceStatusEnum,
@@ -246,6 +246,7 @@ export const customerOrdersRelations = relations(customerOrders, ({ one, many })
   invoices: many(invoices),
   shippingLabels: many(shippingLabels),
   pickNotes: many(pickNotes),
+  holds: many(orderHolds),
 }));
 
 export const orderLinesRelations = relations(orderLines, ({ one }) => ({
@@ -278,6 +279,43 @@ export const creditNoteLinesRelations = relations(creditNoteLines, ({ one }) => 
 
 export const orderNotesRelations = relations(orderNotes, ({ one }) => ({
   order: one(customerOrders, { fields: [orderNotes.orderId], references: [customerOrders.id] }),
+}));
+
+// ============================================================
+// Order Holds
+// ============================================================
+
+/**
+ * A reason an order may not go to the warehouse yet.
+ *
+ * A held order is an ordinary order in every other way: it keeps its status and
+ * stock is allocated to it as usual. While it has a hold that is not released it
+ * gets no pick note and no shipping label, and cannot be shipped. Releasing the
+ * last hold emits order.released, which makes the documents it was denied.
+ *
+ * holderKey names who placed the hold and is the only party that should release
+ * it: 'manual' for a person using the order page, or the key of an extension
+ * (apps/api/src/extensions) that holds orders for its own reasons. One live hold
+ * per holder per order; a holder changes its reason by updating its hold.
+ */
+export const orderHolds = pgTable('order_holds', {
+  id: pk(),
+  companyId: companyId(),
+  orderId: uuid('order_id').notNull().references(() => customerOrders.id, { onDelete: 'cascade' }),
+  holderKey: varchar('holder_key', { length: 60 }).notNull(),
+  /** Shown to the dispatcher, e.g. "Waiting for the customer's purchase order". */
+  reason: varchar('reason', { length: 300 }).notNull(),
+  placedBy: uuid('placed_by'),
+  releasedAt: timestamp('released_at', { withTimezone: true }),
+  releasedBy: uuid('released_by'),
+  ...auditTimestamps,
+}, (t) => ({
+  orderHoldsLiveUnq: uniqueIndex('order_holds_live_unq').on(t.orderId, t.holderKey).where(sql`${t.releasedAt} IS NULL`),
+  orderHoldsOrderIdx: index('order_holds_order_idx').on(t.orderId),
+}));
+
+export const orderHoldsRelations = relations(orderHolds, ({ one }) => ({
+  order: one(customerOrders, { fields: [orderHolds.orderId], references: [customerOrders.id] }),
 }));
 
 // ============================================================

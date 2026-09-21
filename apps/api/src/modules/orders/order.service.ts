@@ -1,8 +1,9 @@
-import { eq, and, or, isNull, ilike, inArray, count, gte, lte } from 'drizzle-orm';
+import { eq, and, or, isNull, ilike, inArray, notInArray, count, gte, lte, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
+import { OrderHoldService } from './order-hold.service.js';
 import { emitDomainEvent } from '../../shared/events/emit.js';
 import {
-  customerOrders, orderLines, orderNotes, customers,
+  customerOrders, orderLines, orderNotes, customers, orderHolds,
 } from '../../db/schema/index.js';
 import type { CreateOrderInput, OrderQueryInput } from './order.schema.js';
 import { paginationOffset, paginationMeta } from '../../shared/utils/pagination.js';
@@ -41,7 +42,7 @@ export class OrderService {
   // ================================================================
 
   async list(companyId: string, query: OrderQueryInput) {
-    const { page, pageSize, customerId, status, sourceChannel, search, dateFrom, dateTo } = query;
+    const { page, pageSize, customerId, status, sourceChannel, search, dateFrom, dateTo, held } = query;
     const offset = paginationOffset(page, pageSize);
 
     const conditions = [eq(customerOrders.companyId, companyId), isNull(customerOrders.deletedAt)];
@@ -72,6 +73,16 @@ export class OrderService {
       }
       conditions.push(or(...terms)!);
     }
+    if (held !== undefined) {
+      // By id lookup, not a raw subquery: see the note on customer search above.
+      const heldRows = await this.db
+        .selectDistinct({ orderId: orderHolds.orderId })
+        .from(orderHolds)
+        .where(and(eq(orderHolds.companyId, companyId), isNull(orderHolds.releasedAt), isNull(orderHolds.deletedAt)));
+      const heldIds = heldRows.map((r) => r.orderId);
+      if (held) conditions.push(heldIds.length > 0 ? inArray(customerOrders.id, heldIds) : sql`false`);
+      else if (heldIds.length > 0) conditions.push(notInArray(customerOrders.id, heldIds));
+    }
     if (dateFrom) conditions.push(gte(customerOrders.orderDate, dateFrom));
     if (dateTo) conditions.push(lte(customerOrders.orderDate, dateTo));
 
@@ -88,8 +99,12 @@ export class OrderService {
       }),
     ]);
 
+    const holds = await new OrderHoldService().liveByOrder(rows.map((r) => r.id));
     return {
-      data: rows.map(withCustomerName),
+      data: rows.map((row) => ({
+        ...withCustomerName(row),
+        holds: (holds.get(row.id) ?? []).map((h) => ({ holderKey: h.holderKey, reason: h.reason })),
+      })),
       ...paginationMeta(Number(totalResult[0]?.count ?? 0), page, pageSize),
     };
   }
@@ -114,6 +129,10 @@ export class OrderService {
         notes: {
           where: isNull(orderNotes.deletedAt),
           orderBy: (n, { desc }) => [desc(n.createdAt)],
+        },
+        holds: {
+          where: (h: any, { isNull: isN, and: all }: any) => all(isN(h.releasedAt), isN(h.deletedAt)),
+          orderBy: (h: any, { asc }: any) => [asc(h.createdAt)],
         },
         invoices: {
           where: (i: any, { isNull: isN }: any) => isN(i.deletedAt),
@@ -196,6 +215,17 @@ export class OrderService {
     }));
 
     await tx.insert(orderLines).values(lineInserts);
+
+    // Before order.created, so the pick note that event asks for finds the hold.
+    await new OrderHoldService().applyChecks(tx, {
+      id: order.id,
+      companyId,
+      orderNumber,
+      warehouseId: order.warehouseId,
+      customerId: order.customerId,
+      sourceChannel: order.sourceChannel,
+      grandTotal: order.grandTotal,
+    });
 
     await emitDomainEvent(tx, {
       companyId,

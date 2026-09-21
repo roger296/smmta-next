@@ -33,6 +33,7 @@ import {
   type ReservationSupplierLine,
 } from '../../db/schema/index.js';
 import { emitDomainEvent } from '../../shared/events/emit.js';
+import { OrderHoldService } from '../orders/order-hold.service.js';
 import { bestSupplierAvailable, pickSupplierForProduct } from '../suppliers/pick-supplier.js';
 import type { DeliveryQuote } from '../../db/schema/index.js';
 import { quoteDeliveryForLines } from './delivery.js';
@@ -415,6 +416,18 @@ export class ReservationService {
       if (lineRows.length > 0) {
         await tx.insert(orderLines).values(lineRows);
       }
+
+      // Any extension that holds new orders is asked about this one too, before
+      // order.paid, so the label and pick note that event asks for find the hold.
+      await new OrderHoldService().applyChecks(tx, {
+        id: order.id,
+        companyId,
+        orderNumber: inputs.orderNumber,
+        warehouseId: order.warehouseId,
+        customerId: order.customerId,
+        sourceChannel: order.sourceChannel,
+        grandTotal: order.grandTotal,
+      });
 
       // A storefront order only exists once Mollie has confirmed payment, so this
       // is the moment it is paid. Emitted inside the same transaction: if the

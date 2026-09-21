@@ -16,6 +16,9 @@ export const DOMAIN_EVENT_TYPES = [
   'order.lines_changed',
   // Every line of the order now has stock allocated to it.
   'order.allocated',
+  // A hold was placed on the order, or its last hold was released.
+  'order.held',
+  'order.released',
   'order.paid',
   'order.dispatched',
   'order.cancelled',

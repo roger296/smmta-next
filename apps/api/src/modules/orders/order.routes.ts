@@ -14,12 +14,13 @@ import {
   ShipOrderService,
 } from '../shipping/ship-order.service.js';
 import { InvoiceDocumentService } from './invoice-document.service.js';
+import { MANUAL_HOLDER, OrderHeldError, OrderHoldError, OrderHoldService } from './order-hold.service.js';
 import { OrderService, OrderValidationError } from './order.service.js';
 import { InvoiceService, InvoiceError } from './invoice.service.js';
 import {
   createOrderSchema, updateOrderSchema, orderQuerySchema,
   orderStatusChangeSchema, orderNoteSchema, allocateStockSchema,
-  createInvoiceFromOrderSchema, createCreditNoteSchema, allocatePaymentSchema, ownLabelSchema,
+  createInvoiceFromOrderSchema, createCreditNoteSchema, allocatePaymentSchema, ownLabelSchema, orderHoldSchema,
 } from './order.schema.js';
 import { paginationSchema } from '../../shared/utils/pagination.js';
 
@@ -30,6 +31,7 @@ const shippingLabelService = new ShippingLabelService();
 const pickNoteService = new PickNoteService();
 const shipOrderService = new ShipOrderService();
 const invoiceDocumentService = new InvoiceDocumentService();
+const orderHoldService = new OrderHoldService();
 
 export async function orderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
@@ -177,7 +179,7 @@ export async function orderRoutes(app: FastifyInstance) {
       if (err instanceof ShippingLabelNotFoundError) {
         return reply.status(404).send({ success: false, error: err.message });
       }
-      if (err instanceof ShippingLabelConflictError) {
+      if (err instanceof ShippingLabelConflictError || err instanceof OrderHeldError) {
         return reply.status(409).send({ success: false, error: err.message });
       }
       const message = err instanceof Error ? err.message : 'Label request failed';
@@ -195,6 +197,35 @@ export async function orderRoutes(app: FastifyInstance) {
       .header('Content-Disposition', 'inline; filename="' + file.filename + '"')
       .header('Cache-Control', 'private, no-store')
       .send(file.buffer);
+  });
+
+  // -- Holds ---------------------------------------------------------
+  // A held order is allocated as usual but gets no pick note or label and cannot
+  // ship. A person's hold is the 'manual' one; holds placed by an extension are
+  // released through that extension's own routes, not here.
+  app.get('/orders/:id/holds', async (request) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    return { success: true, data: await orderHoldService.historyFor(id, user.companyId) };
+  });
+
+  app.put('/orders/:id/hold', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    const { reason } = orderHoldSchema.parse(request.body);
+    try {
+      const hold = await orderHoldService.place(id, user.companyId, MANUAL_HOLDER, reason, { userId: user.userId });
+      return { success: true, data: hold };
+    } catch (err) {
+      if (err instanceof OrderHoldError) return reply.status(409).send({ success: false, error: err.message });
+      throw err;
+    }
+  });
+
+  app.delete('/orders/:id/hold', async (request) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    return { success: true, data: await orderHoldService.release(id, user.companyId, MANUAL_HOLDER, { userId: user.userId }) };
   });
 
   // -- Own label -----------------------------------------------------
@@ -242,6 +273,7 @@ export async function orderRoutes(app: FastifyInstance) {
       return { success: true, data: await pickNoteService.generate(id, user.companyId, { force: true }) };
     } catch (err) {
       if (err instanceof PickNoteNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      if (err instanceof OrderHeldError) return reply.status(409).send({ success: false, error: err.message });
       const message = err instanceof Error ? err.message : 'Pick note failed';
       return reply.status(500).send({ success: false, error: message });
     }
@@ -261,6 +293,7 @@ export async function orderRoutes(app: FastifyInstance) {
         .send(file.buffer);
     } catch (err) {
       if (err instanceof PickNoteNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      if (err instanceof OrderHeldError) return reply.status(409).send({ success: false, error: err.message });
       throw err;
     }
   });
