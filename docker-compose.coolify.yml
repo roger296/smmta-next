@@ -305,6 +305,10 @@ services:
         # Baked in at build. Point the SPA at the API's public URL, or use the
         # nginx same-origin /api proxy (default).
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        # Sections to leave out of the admin's menu, comma-separated: each is
+        # its path without the slash (orders, categories, supplier-orders…).
+        # Baked in at build, so changing it needs a rebuild of this service.
+        VITE_HIDDEN_SECTIONS: ${VITE_HIDDEN_SECTIONS:-}
     restart: unless-stopped
     depends_on:
       api:

@@ -195,6 +195,13 @@ Follow the steps above with these differences:
    Create label button remains for anything else.
 6. **Feature switches**: drop-ship polling and ordering, Google feeds, the
    sales assistant and Mollie are all off by default and stay off.
+7. **Menu**: hide the admin sections this business will not use with
+   `VITE_HIDDEN_SECTIONS`, a comma-separated list of section keys (a section's
+   path without the slash). For a stock, orders, purchasing and labels
+   deployment a sensible list is
+   `digest,outbox,approval,agents,chatbot,subscriptions,product-groups,categories,inbound,prospective,supplier-orders`.
+   It is baked into the `web` image at build, so changing it means
+   redeploying that service. It tidies the menu only; the pages still exist.
 
 Coolify keeps the first-deployed value of every `${VAR:-default}` in the compose
 file. Changing a default in the repo later does not reach the containers; edit
