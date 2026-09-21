@@ -19,6 +19,7 @@ import { purchasingRoutes } from './modules/purchasing/purchasing.routes.js';
 import { customerRoutes } from './modules/customers/customer.routes.js';
 import { orderRoutes } from './modules/orders/order.routes.js';
 import { integrationRoutes } from './modules/orders/integration.routes.js';
+import { orderFeedRoutes } from './modules/orders/order-feed.routes.js';
 import { apiKeyAdminRoutes } from './modules/admin/api-keys.routes.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { channelRoutes } from './modules/channels/channel.routes.js';
@@ -133,6 +134,8 @@ export async function buildApp() {
 
   // Phase 5: Integrations, Bulk Ops, Year-End
   await app.register(integrationRoutes, { prefix: '/api/v1' });
+  // The order feed: orders posted by an external system with an API key.
+  await app.register(orderFeedRoutes, { prefix: '/api/v1' });
 
   // Admin: service API key management (Prompt 2 of buldmeawebstore.md).
   await app.register(apiKeyAdminRoutes, { prefix: '/api/v1' });
