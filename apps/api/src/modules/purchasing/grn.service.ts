@@ -17,7 +17,7 @@ import { HttpNotifyMeSender } from '../storefront/notify-me.sender.js';
  *
  * When goods arrive against a PO, this service:
  *   1. Creates a GRN record and GRN lines
- *   2. Creates stock items for each booked-in unit
+ *   2. Creates one stock item for each booked-in unit (none for a service)
  *   3. Updates PO line quantities
  *   4. Posts a MANUAL_JOURNAL to Luca: Debit Stock (1150), Credit GRNI Accrual (2310)
  *
@@ -134,51 +134,41 @@ export class GRNService {
             qtyBookedIn: lineInput.quantityBookedIn,
           });
 
-        // Create individual stock items (one per unit for serial-tracked, or batch)
+        // One stock row per unit, serial-tracked or not. Everything that counts
+        // or moves stock (free stock, allocation, reservations, shipping) treats
+        // a row as one unit, so a single row holding the whole quantity would
+        // be counted, allocated and sold as one.
         const isSerialTracked = product.requireSerialNumber;
         const warehouseId = po.deliveryWarehouseId ?? product.defaultWarehouseId;
 
-        if (!warehouseId) {
-          throw new GRNValidationError(`No warehouse specified for product ${product.name}`);
-        }
-
-        if (isSerialTracked && lineInput.serialNumbers) {
-          // One stock item per serial number
-          for (let i = 0; i < lineInput.quantityBookedIn; i++) {
-            await txDb.insert(stockItems).values({
-              companyId,
-              productId: lineInput.productId,
-              warehouseId,
-              serialNumber: lineInput.serialNumbers[i] ?? null,
-              batchId: lineInput.batchId ?? null,
-              locationIsle: lineInput.locationIsle ?? null,
-              locationShelf: lineInput.locationShelf ?? null,
-              locationBin: lineInput.locationBin ?? null,
-              quantity: 1,
-              status: 'IN_STOCK',
-              bookedInDate: dateBookedIn,
-              purchaseOrderId,
-              value: valuePerUnit.toString(),
-              currencyCode: po.currencyCode,
-            });
+        if (product.productType !== 'SERVICE') {
+          if (!warehouseId) {
+            throw new GRNValidationError(`No warehouse specified for product ${product.name}`);
           }
-        } else {
-          // Single stock item with quantity
-          await txDb.insert(stockItems).values({
+          if (!Number.isInteger(lineInput.quantityBookedIn)) {
+            throw new GRNValidationError(`Book in whole units of ${product.name}: ${lineInput.quantityBookedIn} is not a whole number`);
+          }
+
+          const units = Array.from({ length: lineInput.quantityBookedIn }, (_, i) => ({
             companyId,
             productId: lineInput.productId,
             warehouseId,
+            serialNumber: isSerialTracked ? (lineInput.serialNumbers?.[i] ?? null) : null,
             batchId: lineInput.batchId ?? null,
             locationIsle: lineInput.locationIsle ?? null,
             locationShelf: lineInput.locationShelf ?? null,
             locationBin: lineInput.locationBin ?? null,
-            quantity: lineInput.quantityBookedIn,
-            status: 'IN_STOCK',
+            quantity: 1,
+            status: 'IN_STOCK' as const,
             bookedInDate: dateBookedIn,
             purchaseOrderId,
             value: valuePerUnit.toString(),
             currencyCode: po.currencyCode,
-          });
+          }));
+          // Chunked: a large delivery would otherwise pass Postgres's parameter limit.
+          for (let i = 0; i < units.length; i += 500) {
+            await txDb.insert(stockItems).values(units.slice(i, i + 500));
+          }
         }
 
         // Update PO line booked-in quantity
