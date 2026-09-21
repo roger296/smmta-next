@@ -189,7 +189,10 @@ Follow the steps above with these differences:
    needs.
 5. **Shipping labels**: set the `SMOOTH_PARCEL_*` values for this business's
    own Smooth Parcel account and `SMOOTH_PARCEL_ENABLED=true` once a test label
-   has been checked.
+   has been checked. Orders from a file or the order feed are never "paid"
+   here, so set `SHIPPING_LABEL_ON_ALLOCATION=true` to have the worker buy the
+   label the moment an order is fully allocated in the admin; the operator's
+   Create label button remains for anything else.
 6. **Feature switches**: drop-ship polling and ordering, Google feeds, the
    sales assistant and Mollie are all off by default and stay off.
 

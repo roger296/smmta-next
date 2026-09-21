@@ -14,6 +14,8 @@ export const DOMAIN_EVENT_TYPES = [
   'order.created',
   // Items were added to, removed from or changed on an existing order.
   'order.lines_changed',
+  // Every line of the order now has stock allocated to it.
+  'order.allocated',
   'order.paid',
   'order.dispatched',
   'order.cancelled',

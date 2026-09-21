@@ -53,6 +53,9 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   // Every other new order gets a pick note, and a changed order a fresh one.
   'order.created': ['create-pick-note'],
   'order.lines_changed': ['create-pick-note'],
+  // A fully allocated order gets a label too, when SHIPPING_LABEL_ON_ALLOCATION
+  // is on (the handler checks). A label is never bought twice.
+  'order.allocated': ['create-shipping-label'],
   // A shipped order tells the customer, with the courier and tracking number.
   'order.dispatched': ['send-dispatch-email'],
 };

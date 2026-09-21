@@ -72,6 +72,12 @@ const envSchema = z.object({
   // Per spool, used when a product has no weight recorded. Smooth Parcel
   // re-weighs every parcel, so this only needs to be a fair estimate.
   SMOOTH_PARCEL_DEFAULT_WEIGHT_KG: z.coerce.number().default(1.3),
+  // Buy the label as soon as an order is fully allocated, whatever route it
+  // came in by. OFF by default: a storefront order gets its label on payment
+  // and needs nothing more. ON suits a business whose orders arrive by file or
+  // API feed and are never "paid" here, so that allocating in the admin is the
+  // last thing an operator does before the label prints. Read by the worker.
+  SHIPPING_LABEL_ON_ALLOCATION: envBool(false),
   // Label PDFs. PRIVATE — they carry customer names and addresses, so this must
   // never be a directory the static /uploads route serves.
   LABELS_DIR: z.string().default('./labels'),
