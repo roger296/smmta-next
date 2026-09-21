@@ -267,6 +267,7 @@ export function SwatchPicker({ groupName, variants, priceRange }: SwatchPickerPr
                 id: selected.slug ?? selected.id,
                 name: groupName,
                 priceGbp: selected.priceGbp,
+                maxPriceGbp: selected.maxPriceGbp,
                 colour: selected.colour,
               }}
             />
@@ -287,6 +288,7 @@ export function SwatchPicker({ groupName, variants, priceRange }: SwatchPickerPr
           groupName={groupName}
           colour={selected.colour}
           priceGbp={selected.priceGbp}
+          maxPriceGbp={selected.maxPriceGbp}
           productId={selected.id}
         />
       )}
@@ -306,11 +308,13 @@ function StickyBuyBar({
   groupName,
   colour,
   priceGbp,
+  maxPriceGbp,
   productId,
 }: {
   groupName: string;
   colour: string | null;
   priceGbp: string | null;
+  maxPriceGbp: string | null;
   productId: string;
 }) {
   const [showBar, setShowBar] = React.useState(false);
@@ -367,7 +371,7 @@ function StickyBuyBar({
             productId={productId}
             inStock
             label="Add"
-            item={{ id: productId, name: groupName, priceGbp, colour }}
+            item={{ id: productId, name: groupName, priceGbp, maxPriceGbp, colour }}
           />
         </div>
       </div>

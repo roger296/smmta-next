@@ -12,6 +12,8 @@
  */
 
 /** GA4 web stream for filament.cleverdeals.net (property 484721657). */
+import { tieredUnitPricePence } from '@smmta/shared-types';
+
 export const GA_MEASUREMENT_ID = 'G-3RJWFM59VV';
 
 export const CONSENT_STORAGE_KEY = 'store_cookie_consent';
@@ -131,10 +133,34 @@ export function gaVariant(parts: Array<string | null | undefined>): string | und
 export interface CartItemForAnalytics {
   id: string;
   name: string;
+  /** The FLOOR price — what a unit costs at the volume quantity. */
   priceGbp?: string | number | null;
+  /** The ceiling: what a single unit costs. Absent for a product that
+   *  doesn't slide, where the floor is the only price it has. */
+  maxPriceGbp?: string | number | null;
   colour?: string | null;
   size?: string | null;
   brand?: string | null;
+}
+
+const toPence = (value: number) => Math.round(value * 100);
+
+/**
+ * What a customer actually pays per unit for the quantity being added.
+ *
+ * Filament slides with volume: `priceGbp` is the 10+ rate and `maxPriceGbp`
+ * is a single unit, roughly twice as much. Reporting the floor for a
+ * one-roll basket told Analytics £6.50 for a £13.00 sale, and disagreed
+ * with the begin_checkout and purchase events, which read the real basket.
+ */
+export function unitPriceForQuantity(
+  item: CartItemForAnalytics,
+  quantity: number,
+): number | undefined {
+  const floor = gaPrice(item.priceGbp);
+  if (floor === undefined) return undefined;
+  const ceiling = gaPrice(item.maxPriceGbp);
+  return tieredUnitPricePence(toPence(floor), ceiling === undefined ? null : toPence(ceiling), quantity) / 100;
 }
 
 /** The `add_to_cart` event for one item. Pure, so it can be tested. */
@@ -142,7 +168,7 @@ export function addToCartEventParams(
   item: CartItemForAnalytics,
   quantity: number,
 ): Record<string, unknown> {
-  const price = gaPrice(item.priceGbp);
+  const price = unitPriceForQuantity(item, quantity);
   return {
     currency: 'GBP',
     value: price === undefined ? undefined : Number((price * quantity).toFixed(2)),
