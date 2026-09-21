@@ -13,6 +13,7 @@ import {
   ShipOrderNotFoundError,
   ShipOrderService,
 } from '../shipping/ship-order.service.js';
+import { SerialScanError, SerialScanNotFoundError, SerialScanService } from '../shipping/serial-scan.service.js';
 import { InvoiceDocumentService } from './invoice-document.service.js';
 import { MANUAL_HOLDER, OrderHeldError, OrderHoldError, OrderHoldService } from './order-hold.service.js';
 import { OrderService, OrderValidationError } from './order.service.js';
@@ -32,6 +33,7 @@ const pickNoteService = new PickNoteService();
 const shipOrderService = new ShipOrderService();
 const invoiceDocumentService = new InvoiceDocumentService();
 const orderHoldService = new OrderHoldService();
+const serialScanService = new SerialScanService();
 
 export async function orderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
@@ -294,6 +296,45 @@ export async function orderRoutes(app: FastifyInstance) {
     } catch (err) {
       if (err instanceof PickNoteNotFoundError) return reply.status(404).send({ success: false, error: err.message });
       if (err instanceof OrderHeldError) return reply.status(409).send({ success: false, error: err.message });
+      throw err;
+    }
+  });
+
+  // -- Serial numbers at despatch ---------------------------------------
+  // Each serial-tracked unit is scanned onto the order before it can ship. The
+  // scanned unit takes the place of whichever one the system had allocated.
+  app.get('/orders/:id/serial-scan', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    try {
+      return { success: true, data: await serialScanService.progress(id, user.companyId) };
+    } catch (err) {
+      if (err instanceof SerialScanNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      throw err;
+    }
+  });
+
+  app.post('/orders/:id/serial-scan', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    const { code } = z.object({ code: z.string().trim().min(1).max(100) }).parse(request.body);
+    try {
+      return { success: true, data: await serialScanService.scan(id, user.companyId, code, user.userId) };
+    } catch (err) {
+      if (err instanceof SerialScanNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      if (err instanceof SerialScanError) return reply.status(409).send({ success: false, error: err.message });
+      throw err;
+    }
+  });
+
+  app.delete('/orders/:id/serial-scan/:stockItemId', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id, stockItemId } = request.params as { id: string; stockItemId: string };
+    try {
+      return { success: true, data: await serialScanService.unscan(id, user.companyId, stockItemId) };
+    } catch (err) {
+      if (err instanceof SerialScanNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+      if (err instanceof SerialScanError) return reply.status(409).send({ success: false, error: err.message });
       throw err;
     }
   });

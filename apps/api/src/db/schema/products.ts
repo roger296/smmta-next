@@ -206,6 +206,13 @@ export const stockItems = pgTable('stock_items', {
   bookedOutDate: varchar('booked_out_date', { length: 10 }),
   purchaseOrderId: uuid('purchase_order_id'),
   salesOrderId: uuid('sales_order_id'),
+  /**
+   * When this unit was scanned onto its order at despatch. Only serial-tracked
+   * units are scanned; an order cannot ship until each of them has been. Cleared
+   * when the unit leaves the order.
+   */
+  scannedAt: timestamp('scanned_at', { withTimezone: true }),
+  scannedBy: uuid('scanned_by'),
   /** FK to stock_reservations.id — populated only while status='RESERVED'. */
   reservationId: uuid('reservation_id').references(() => stockReservations.id),
   value: decimal('value', { precision: 18, scale: 2 }).default('0'),

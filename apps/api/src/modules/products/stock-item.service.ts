@@ -353,6 +353,8 @@ export class StockItemService {
       .set({
         status: 'IN_STOCK',
         salesOrderId: null,
+        scannedAt: null,
+        scannedBy: null,
         updatedAt: new Date(),
       })
       .where(and(...conditions));
