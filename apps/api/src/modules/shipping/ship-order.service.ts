@@ -24,6 +24,7 @@ import { InvoiceDocumentService } from '../orders/invoice-document.service.js';
 import { combinePdfs } from './dispatch-documents.js';
 import { PickNoteNotFoundError, PickNoteService } from './pick-note.service.js';
 import { ShippingLabelService } from './shipping-label.service.js';
+import { OrderHoldService, holdReasons } from '../orders/order-hold.service.js';
 
 /** Shown to the customer when Smooth Parcel's reply does not name the carrier. */
 const COURIER_FALLBACK = 'Smooth Parcel';
@@ -90,6 +91,8 @@ export interface ShipReadiness {
   alreadyShipped: boolean;
   /** Why the order cannot be shipped yet, in words for the dispatcher. */
   reasons: string[];
+  /** The order has a hold that has not been released. */
+  held: boolean;
   hasLabel: boolean;
   /** The label was made outside this system; its courier and tracking number are on the order. */
   ownLabel: boolean;
@@ -150,14 +153,16 @@ export class ShipOrderService {
     if (alreadyShipped) reasons.push('This order has already been shipped.');
     const blocked = BLOCKED_STATUSES[order.status];
     if (blocked) reasons.push(blocked);
+    const holds = await new OrderHoldService().liveFor(orderId);
+    reasons.push(...holdReasons(holds));
 
     const label = await this.latestLabel(orderId, companyId);
     const hasLabel = order.ownLabel || (label?.status === 'CREATED' && !!label.labelPath);
-    if (!hasLabel) reasons.push('Create the shipping label, or record your own label.');
+    if (!hasLabel && holds.length === 0) reasons.push('Create the shipping label, or record your own label.');
 
     const pickNote = await this.pickNotes.getForOrder(orderId, companyId);
     const hasPickNote = pickNote?.status === 'CREATED';
-    if (!hasPickNote) reasons.push('Create the pick note.');
+    if (!hasPickNote && holds.length === 0) reasons.push('Create the pick note.');
 
     const unallocated = await this.unallocatedItems(orderId, companyId, order.lines);
     for (const item of unallocated) {
@@ -170,6 +175,7 @@ export class ShipOrderService {
       ready: reasons.length === 0,
       alreadyShipped,
       reasons,
+      held: holds.length > 0,
       hasLabel,
       ownLabel: order.ownLabel,
       hasPickNote,
@@ -265,6 +271,8 @@ export class ShipOrderService {
     if (SHIPPED_STATUSES.includes(order.status)) return { shipped: false, reason: 'This order has already been shipped.' };
     const blocked = BLOCKED_STATUSES[order.status];
     if (blocked) return { shipped: false, reason: blocked };
+    const holds = await new OrderHoldService().liveFor(orderId);
+    if (holds.length > 0) return { shipped: false, reason: holdReasons(holds).join(' ') };
     if (order.lines.length === 0 || order.lines.some((l) => l.fulfilmentSource !== 'SUPPLIER')) {
       return { shipped: false, reason: 'This order has items from the warehouse, so ship it with the Ship button.' };
     }

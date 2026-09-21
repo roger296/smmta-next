@@ -56,6 +56,8 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   // A fully allocated order gets a label too, when SHIPPING_LABEL_ON_ALLOCATION
   // is on (the handler checks). A label is never bought twice.
   'order.allocated': ['create-shipping-label'],
+  // A released order gets the pick note and label it was refused while held.
+  'order.released': ['create-pick-note', 'create-shipping-label'],
   // A shipped order tells the customer, with the courier and tracking number.
   'order.dispatched': ['send-dispatch-email'],
 };

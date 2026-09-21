@@ -27,6 +27,7 @@ import {
   type PickNoteSource,
 } from './pick-note-content.js';
 import { renderPickNotePdf } from './pick-note-pdf.js';
+import { OrderHoldService } from '../orders/order-hold.service.js';
 
 /** Filenames are always a server-generated UUID; anything else is refused. */
 const FILENAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/;
@@ -114,6 +115,8 @@ export class PickNoteService {
     companyId: string,
     force: boolean,
   ): Promise<{ row: PickNoteRow; content: PickNoteContent }> {
+    // A held order is not to be picked, so it gets no list to pick from.
+    await new OrderHoldService().assertFree(orderId);
     const content = buildPickNoteContent(await this.loadSource(orderId, companyId));
     const hash = pickNoteHash(content);
     let row = await this.ensureRow(orderId, companyId);

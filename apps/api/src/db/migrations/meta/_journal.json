@@ -288,6 +288,13 @@
       "when": 1790003773337,
       "tag": "0040_stock_item_serial_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790003898029,
+      "tag": "0041_order_holds",
+      "breakpoints": true
     }
   ]
 }

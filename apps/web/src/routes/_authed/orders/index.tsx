@@ -36,13 +36,21 @@ const columns: ColumnDef<Order>[] = [
   {
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ getValue }) => {
+    cell: ({ getValue, row }) => {
       const status = getValue<OrderStatus>();
       const meta = ORDER_STATUSES.find((s) => s.value === status);
+      const holds = row.original.holds ?? [];
       return (
-        <Badge variant={(meta?.color ?? 'outline') as 'default' | 'secondary' | 'destructive' | 'outline'}>
-          {meta?.label ?? status}
-        </Badge>
+        <span className="flex flex-wrap items-center gap-1">
+          <Badge variant={(meta?.color ?? 'outline') as 'default' | 'secondary' | 'destructive' | 'outline'}>
+            {meta?.label ?? status}
+          </Badge>
+          {holds.length > 0 && (
+            <Badge variant="destructive" title={holds.map((h) => h.reason).join('; ')}>
+              On hold
+            </Badge>
+          )}
+        </span>
       );
     },
   },

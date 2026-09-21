@@ -6,7 +6,7 @@
 import type { Logger } from 'pino';
 import { getDb } from '../config/database.js';
 import { eq } from 'drizzle-orm';
-import { domainEvents } from '../db/schema/index.js';
+import { customerOrders, domainEvents } from '../db/schema/index.js';
 import { setHandler } from './handlers.js';
 import { InterestFlagService } from '../modules/interest/interest.service.js';
 import { PreorderService } from '../modules/payments/preorder.service.js';
@@ -17,6 +17,7 @@ import { NotificationService } from '../modules/notification/notification.servic
 import { MarketingService } from '../modules/marketing/marketing.service.js';
 import { SubscriptionService } from '../modules/subscriptions/subscription.service.js';
 import { DigestService } from '../modules/digest/digest.service.js';
+import { OrderHeldError } from '../modules/orders/order-hold.service.js';
 import { ShippingLabelConflictError, ShippingLabelService } from '../modules/shipping/shipping-label.service.js';
 import { labelWantedFor } from '../modules/shipping/label-trigger.js';
 import { PickNoteNotFoundError, PickNoteService } from '../modules/shipping/pick-note.service.js';
@@ -153,6 +154,17 @@ export function installFeatureHandlers(logger: Logger): void {
     const payload = event?.payload as { orderId?: string; source?: string } | undefined;
     if (!event || !payload?.orderId) return;
     if (!labelWantedFor(event.eventType, payload.source, getEnv().SHIPPING_LABEL_ON_ALLOCATION)) return;
+    // order.allocated says the order is fully allocated; order.released does
+    // not, so look. A released order still short of stock gets its label when
+    // the rest is allocated, from order.allocated as usual.
+    if (event.eventType === 'order.released') {
+      const [order] = await getDb()
+        .select({ status: customerOrders.status })
+        .from(customerOrders)
+        .where(eq(customerOrders.id, payload.orderId))
+        .limit(1);
+      if (order?.status !== 'ALLOCATED') return;
+    }
     // A supplier posts its own lines, so an order with nothing from our
     // warehouse needs no label from us.
     if (!(await orderHasWarehouseLines(payload.orderId))) {
@@ -163,8 +175,9 @@ export function installFeatureHandlers(logger: Logger): void {
       const label = await shippingLabels.requestLabel(payload.orderId, event.companyId);
       logger.info({ orderId: payload.orderId, status: label.status }, 'create-shipping-label ran');
     } catch (err) {
-      // The order is going out with a label made elsewhere; retrying cannot change that.
-      if (err instanceof ShippingLabelConflictError) {
+      // On hold, or going out with a label made elsewhere; retrying cannot change
+      // that. A held order is asked for again when it is released.
+      if (err instanceof ShippingLabelConflictError || err instanceof OrderHeldError) {
         logger.info({ orderId: payload.orderId }, 'create-shipping-label: ' + err.message);
         return;
       }
@@ -189,6 +202,11 @@ export function installFeatureHandlers(logger: Logger): void {
       const note = await pickNotes.generate(orderId, event.companyId);
       logger.info({ orderId, status: note.status }, 'create-pick-note ran');
     } catch (err) {
+      // A held order gets its pick note when it is released (order.released).
+      if (err instanceof OrderHeldError) {
+        logger.info({ orderId }, 'create-pick-note: order is on hold');
+        return;
+      }
       // A deleted order will never have a pick note; retrying cannot help.
       if (err instanceof PickNoteNotFoundError) {
         logger.warn({ orderId }, 'create-pick-note: order not found');

@@ -8,6 +8,10 @@
  *     the pick note. This is the route for orders that arrive by file or API
  *     feed and are never "paid" here.
  *
+ *   - `order.released`, on the same setting: an order allocated while on hold
+ *     was refused its label then, so it is asked for again when the hold lifts.
+ *     The handler checks the order really is fully allocated.
+ *
  * Kept apart from the worker so the rule can be tested without a queue.
  */
 export function labelWantedFor(
@@ -17,5 +21,7 @@ export function labelWantedFor(
 ): boolean {
   if (eventType === 'order.paid') return source === 'storefront';
   if (eventType === 'order.allocated') return labelOnAllocation;
+  // A released order that was allocated while held missed its order.allocated label.
+  if (eventType === 'order.released') return labelOnAllocation;
   return false;
 }

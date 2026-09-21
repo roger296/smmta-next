@@ -355,6 +355,8 @@ export interface Order {
   courierName: string | null;
   /** Going out with a label made outside this system; the courier and tracking number were typed in. */
   ownLabel?: boolean;
+  /** Live holds: while there are any, the order gets no pick note or label and cannot ship. */
+  holds?: Array<{ holderKey: string; reason: string }>;
   shippedDate?: string | null;
   lines?: OrderLine[];
   invoices?: Invoice[];
@@ -604,6 +606,7 @@ export interface ShipReadiness {
   alreadyShipped: boolean;
   /** Why the order cannot be shipped yet, in words for the dispatcher. */
   reasons: string[];
+  held: boolean;
   hasLabel: boolean;
   ownLabel: boolean;
   hasPickNote: boolean;

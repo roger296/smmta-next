@@ -52,6 +52,8 @@ export const updateOrderSchema = z.object({
 });
 
 export const orderQuerySchema = paginationSchema.extend({
+  /** true: only orders on hold. false: only orders that are not. */
+  held: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
   customerId: z.string().uuid().optional(),
   status: z.enum([
     'DRAFT', 'CONFIRMED', 'ALLOCATED', 'PARTIALLY_ALLOCATED',
@@ -119,6 +121,10 @@ export const ownLabelSchema = z.object({
     .refine((v) => /^https?:\/\//i.test(v), 'Enter the full tracking link, starting https://')
     .nullish()
     .or(z.literal('')),
+});
+
+export const orderHoldSchema = z.object({
+  reason: z.string().trim().min(1, 'Say why the order is on hold').max(300),
 });
 
 export type CreateOrderInput = z.input<typeof createOrderSchema>;

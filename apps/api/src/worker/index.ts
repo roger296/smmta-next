@@ -19,6 +19,7 @@ import {
 } from './registry.js';
 import { installStubHandlers, workQueue } from './handlers.js';
 import { installFeatureHandlers } from './feature-handlers.js';
+import { installWorkerExtensions } from '../shared/extensions/load.js';
 import { runDispatchLoop, type DispatchLoopHandle } from './dispatcher.js';
 import {
   startSupplierOrderPlacerLoop,
@@ -92,6 +93,7 @@ export async function startWorker(opts: StartWorkerOptions = {}): Promise<Worker
   await setupQueues();
   // Real handlers first; stubs only fill the gaps for queues not yet implemented.
   installFeatureHandlers(logger);
+  await installWorkerExtensions(logger);
   installStubHandlers(logger);
 
   // Wire a pg-boss worker for every handler + scheduled queue.
