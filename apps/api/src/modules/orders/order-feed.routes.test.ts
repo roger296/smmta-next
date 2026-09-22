@@ -38,13 +38,16 @@ async function issueKey(name: string, scopes: string[]): Promise<string> {
 
 async function cleanup() {
   const db = getDb();
-  for (const reference of ['FEED-1', 'FEED-2']) {
-    const orders = await db.select({ id: customerOrders.id }).from(customerOrders).where(eq(customerOrders.thirdPartyOrderId, reference));
-    for (const o of orders) await db.delete(orderLines).where(eq(orderLines.orderId, o.id));
-    await db.delete(customerOrders).where(eq(customerOrders.thirdPartyOrderId, reference));
-  }
+  // Every order of the test customer goes, by customer rather than by
+  // reference: a run that died between creating the order and writing its
+  // reference would otherwise leave one behind that blocks the next run.
   const owned = await db.select({ id: customers.id }).from(customers).where(eq(customers.email, EMAIL));
-  for (const c of owned) await db.delete(customerDeliveryAddresses).where(eq(customerDeliveryAddresses.customerId, c.id));
+  for (const c of owned) {
+    const orders = await db.select({ id: customerOrders.id }).from(customerOrders).where(eq(customerOrders.customerId, c.id));
+    for (const o of orders) await db.delete(orderLines).where(eq(orderLines.orderId, o.id));
+    await db.delete(customerOrders).where(eq(customerOrders.customerId, c.id));
+    await db.delete(customerDeliveryAddresses).where(eq(customerDeliveryAddresses.customerId, c.id));
+  }
   await db.delete(customers).where(eq(customers.email, EMAIL));
   await db.delete(products).where(eq(products.stockCode, 'FEED-SKU'));
   await db.delete(warehouses).where(eq(warehouses.name, 'Feed Test Warehouse'));

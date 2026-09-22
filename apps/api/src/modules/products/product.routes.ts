@@ -7,14 +7,17 @@ import {
   isAlreadyLocal,
 } from './remote-image.js';
 import { ProductService, ProductValidationError } from './product.service.js';
+import { ProductCsvImportService } from './product-csv-import.service.js';
 import {
   createProductSchema,
   updateProductSchema,
   productQuerySchema,
   productImageSchema,
+  productImportSchema,
 } from './product.schema.js';
 
 const productService = new ProductService();
+const productCsvImportService = new ProductCsvImportService();
 
 export async function productRoutes(app: FastifyInstance) {
   // All routes require auth
@@ -50,6 +53,16 @@ export async function productRoutes(app: FastifyInstance) {
       }
       throw err;
     }
+  });
+
+  // ── POST /products/import-csv ─────────────────────────────────
+  // A whole catalogue in one file can run to a few megabytes of text, so
+  // this route takes more than the default body limit.
+  app.post('/products/import-csv', { bodyLimit: 16 * 1024 * 1024 }, async (request) => {
+    const user = getAuthUser(request);
+    const { csvText, updateExisting } = productImportSchema.parse(request.body);
+    const result = await productCsvImportService.importCsv(user.companyId, csvText, { updateExisting });
+    return { success: true, data: result };
   });
 
   // ── PUT /products/:id ─────────────────────────────────────────

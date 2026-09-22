@@ -12,7 +12,7 @@ import { useProductsList } from '@/features/products/use-products';
 import { useDebouncedSearch } from '@/hooks/use-debounce';
 import type { Product } from '@/lib/api-types';
 import { formatMoney } from '@/lib/format';
-import { Package, Plus } from 'lucide-react';
+import { Package, Plus, Upload } from 'lucide-react';
 
 export const Route = createFileRoute('/_authed/products/')({
   component: ProductsListPage,
@@ -64,12 +64,20 @@ function ProductsListPage() {
             Manage product catalogue, pricing and stock settings.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/products/new">
-            <Plus className="h-4 w-4" />
-            New product
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline">
+            <Link to="/products/import">
+              <Upload className="h-4 w-4" />
+              Import CSV
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to="/products/new">
+              <Plus className="h-4 w-4" />
+              New product
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Input

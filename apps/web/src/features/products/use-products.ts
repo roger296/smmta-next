@@ -172,3 +172,35 @@ export function useRemoveCategoryFromProduct() {
     },
   });
 }
+
+// ── CSV import ──────────────────────────────────────────────────
+
+export interface ProductImportProblem {
+  line: number;
+  stockCode: string | null;
+  kind: 'skipped' | 'failed';
+  message: string;
+}
+
+export interface ProductImportResult {
+  rows: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  groupsCreated: number;
+  manufacturersCreated: number;
+  problems: ProductImportProblem[];
+}
+
+export function useProductsImport() {
+  const qc = useQueryClient();
+  return useMutation<ProductImportResult, Error, { csvText: string; updateExisting: boolean }>({
+    mutationFn: (body) => apiFetch<ProductImportResult>('/products/import-csv', { method: 'POST', body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['product-groups'] });
+      qc.invalidateQueries({ queryKey: ['manufacturers'] });
+    },
+  });
+}
