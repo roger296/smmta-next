@@ -96,6 +96,12 @@ export const productQuerySchema = paginationSchema.extend({
   supplierId: z.string().uuid().optional(),
 });
 
+export const productImportSchema = z.object({
+  csvText: z.string().min(1),
+  /** Update products whose stock code already exists. Default true. */
+  updateExisting: z.boolean().default(true),
+});
+
 export const productImageSchema = z.object({
   imageUrl: z.string().url().max(500),
   priority: z.coerce.number().int().min(0).default(0),

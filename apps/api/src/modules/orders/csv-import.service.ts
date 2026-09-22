@@ -1,5 +1,6 @@
 import { MarketplaceService } from '../../integrations/marketplace/marketplace.service.js';
 import type { MarketplaceOrder, MarketplaceImportResult } from '../../integrations/marketplace/marketplace.types.js';
+import { normaliseHeading, parseCsvRecords } from '../../shared/utils/csv.js';
 
 /**
  * CSVImportService — parses CSV order data and imports it via MarketplaceService.
@@ -46,10 +47,7 @@ export class CSVImportService {
 
 export type CsvLayout = 'native' | 'legacy';
 
-/** A heading reduced to letters and digits: "Order Date(dd/mm/yyyy)" → "orderdateddmmyyyy". */
-export function normaliseHeading(heading: string): string {
-  return heading.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
+export { normaliseHeading, parseCsvRecords } from '../../shared/utils/csv.js';
 
 /** Which layout a header row is in. Legacy is recognised by its two signature columns. */
 export function detectCsvLayout(headings: string[]): CsvLayout {
@@ -228,51 +226,4 @@ function groupBy<T>(items: T[], key: (item: T, index: number) => string): Map<st
     else groups.set(k, [item]);
   });
   return groups;
-}
-
-/**
- * Split CSV text into records of fields. Handles CRLF and LF line endings,
- * quoted fields containing commas, doubled quotes and line breaks.
- * Every field is trimmed.
- */
-export function parseCsvRecords(csvText: string): string[][] {
-  const text = csvText.replace(/^﻿/, '');
-  const records: string[][] = [];
-  let record: string[] = [];
-  let field = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += ch;
-      }
-    } else if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === ',') {
-      record.push(field.trim());
-      field = '';
-    } else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && text[i + 1] === '\n') i++;
-      record.push(field.trim());
-      records.push(record);
-      record = [];
-      field = '';
-    } else {
-      field += ch;
-    }
-  }
-  if (field !== '' || record.length > 0) {
-    record.push(field.trim());
-    records.push(record);
-  }
-  return records.filter((r) => !(r.length === 1 && r[0] === ''));
 }
