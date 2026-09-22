@@ -1,18 +1,20 @@
 /**
- * Clothes Shop fonts.
+ * Clothes Shop fonts, self-hosted from files in this repository.
  *
  * Body: Inter (same family as the Filament Store — body type doesn't
  * need to be the differentiator).
  * Display: Fraunces — friendly serif with personality, the actual
- * brand differentiator. Italic available for accent quotes.
+ * brand differentiator.
  *
- * Self-hosted via next/font/google.
+ * Both are the variable WOFF2s in `lib/fonts/` (latin subset, from the
+ * fontsource builds of the SIL OFL releases; licences alongside), served by
+ * next/font/local. `next/font/google` fetched them from Google on every
+ * build, and a bad answer from Google failed the whole deploy.
  */
-import { Fraunces, Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 
-const interBody = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500'],
+const interBody = localFont({
+  src: [{ path: './fonts/inter-latin-wght-normal.woff2', weight: '100 900', style: 'normal' }],
   variable: '--font-body',
   display: 'swap',
   fallback: [
@@ -26,9 +28,8 @@ const interBody = Inter({
   ],
 });
 
-const fraunces = Fraunces({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
+const fraunces = localFont({
+  src: [{ path: './fonts/fraunces-latin-wght-normal.woff2', weight: '100 900', style: 'normal' }],
   variable: '--font-display',
   display: 'swap',
   fallback: ['Georgia', 'Times New Roman', 'serif'],
