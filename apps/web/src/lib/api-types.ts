@@ -360,6 +360,8 @@ export interface Order {
   shippedDate?: string | null;
   lines?: OrderLine[];
   invoices?: Invoice[];
+  /** Where an online order came from and how it was paid; `mollie` present means paid through a storefront. */
+  integrationMetadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }

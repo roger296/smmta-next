@@ -15,6 +15,7 @@ import {
 } from '../shipping/ship-order.service.js';
 import { SerialScanError, SerialScanNotFoundError, SerialScanService } from '../shipping/serial-scan.service.js';
 import { InvoiceDocumentService } from './invoice-document.service.js';
+import { OrderLineError, OrderLineNotFoundError, OrderLinesService } from './order-lines.service.js';
 import { MANUAL_HOLDER, OrderHeldError, OrderHoldError, OrderHoldService } from './order-hold.service.js';
 import { OrderService, OrderValidationError } from './order.service.js';
 import { InvoiceService, InvoiceError } from './invoice.service.js';
@@ -22,6 +23,7 @@ import {
   createOrderSchema, updateOrderSchema, orderQuerySchema,
   orderStatusChangeSchema, orderNoteSchema, allocateStockSchema,
   createInvoiceFromOrderSchema, createCreditNoteSchema, allocatePaymentSchema, ownLabelSchema, orderHoldSchema,
+  addOrderLineSchema, changeOrderLineSchema,
 } from './order.schema.js';
 import { paginationSchema } from '../../shared/utils/pagination.js';
 
@@ -34,6 +36,7 @@ const shipOrderService = new ShipOrderService();
 const invoiceDocumentService = new InvoiceDocumentService();
 const orderHoldService = new OrderHoldService();
 const serialScanService = new SerialScanService();
+const orderLinesService = new OrderLinesService();
 
 export async function orderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', requireAuth);
@@ -78,6 +81,48 @@ export async function orderRoutes(app: FastifyInstance) {
     const ok = await orderService.delete(id, user.companyId);
     if (!ok) return reply.status(404).send({ success: false, error: 'Order not found' });
     return { success: true, message: 'Order deleted' };
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // ORDER LINES — change quantity or price, add, remove (open orders only)
+  // ═══════════════════════════════════════════════════════════════
+
+  const lineFailure = (err: unknown, reply: { status: (n: number) => { send: (b: unknown) => unknown } }) => {
+    if (err instanceof OrderLineNotFoundError) return reply.status(404).send({ success: false, error: err.message });
+    if (err instanceof OrderLineError) return reply.status(409).send({ success: false, error: err.message });
+    throw err;
+  };
+
+  app.post('/orders/:id/lines', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id } = request.params as { id: string };
+    const input = addOrderLineSchema.parse(request.body);
+    try {
+      return { success: true, data: await orderLinesService.addLine(id, user.companyId, input) };
+    } catch (err) {
+      return lineFailure(err, reply);
+    }
+  });
+
+  app.patch('/orders/:id/lines/:lineId', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id, lineId } = request.params as { id: string; lineId: string };
+    const input = changeOrderLineSchema.parse(request.body);
+    try {
+      return { success: true, data: await orderLinesService.updateLine(id, user.companyId, lineId, input) };
+    } catch (err) {
+      return lineFailure(err, reply);
+    }
+  });
+
+  app.delete('/orders/:id/lines/:lineId', async (request, reply) => {
+    const user = getAuthUser(request);
+    const { id, lineId } = request.params as { id: string; lineId: string };
+    try {
+      return { success: true, data: await orderLinesService.removeLine(id, user.companyId, lineId) };
+    } catch (err) {
+      return lineFailure(err, reply);
+    }
   });
 
   // ═══════════════════════════════════════════════════════════════

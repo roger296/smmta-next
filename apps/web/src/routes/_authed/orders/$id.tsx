@@ -26,6 +26,7 @@ import { orderTotalLabels } from '@/features/orders/order-totals';
 import { ShippingLabelCard } from '@/features/orders/shipping-label-card';
 import { OrderHoldPanel } from '@/features/orders/order-hold-panel';
 import { SerialScanCard } from '@/features/orders/serial-scan-card';
+import { OrderLinesTable } from '@/features/orders/order-lines-table';
 import { webExtensions } from '@/extensions/registry';
 import { PickNoteCard } from '@/features/orders/pick-note-card';
 import { InvoiceCard } from '@/features/orders/invoice-card';
@@ -268,34 +269,7 @@ function OrderDetailPage() {
         <TabsContent value="lines">
           <Card>
             <CardContent className="p-0">
-              <table className="w-full text-sm">
-                <thead className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium">Product</th>
-                    <th className="px-4 py-2 text-right font-medium">Qty</th>
-                    <th className="px-4 py-2 text-right font-medium">Unit price</th>
-                    <th className="px-4 py-2 text-right font-medium">Tax %</th>
-                    <th className="px-4 py-2 text-right font-medium">Line total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data.lines ?? []).map((line) => (
-                    <tr key={line.id} className="border-b border-[var(--color-border)] last:border-b-0">
-                      <td className="px-4 py-2">
-                        {line.product?.name ?? line.productName ?? line.productId.slice(0, 8)}
-                      </td>
-                      <td className="px-4 py-2 text-right">{line.quantity}</td>
-                      <td className="px-4 py-2 text-right">
-                        {formatMoney(line.pricePerUnit, data.currencyCode)}
-                      </td>
-                      <td className="px-4 py-2 text-right">{line.taxRate}%</td>
-                      <td className="px-4 py-2 text-right font-medium">
-                        {formatMoney(line.lineTotal, data.currencyCode)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <OrderLinesTable order={data} />
             </CardContent>
           </Card>
         </TabsContent>

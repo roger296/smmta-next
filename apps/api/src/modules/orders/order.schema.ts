@@ -127,5 +127,16 @@ export const orderHoldSchema = z.object({
   reason: z.string().trim().min(1, 'Say why the order is on hold').max(300),
 });
 
+/** A line added to an open order. */
+export const addOrderLineSchema = orderLineSchema;
+
+/** A change to a line of an open order: either or both. */
+export const changeOrderLineSchema = z
+  .object({
+    quantity: z.coerce.number().min(0.01).optional(),
+    pricePerUnit: z.coerce.number().min(0).optional(),
+  })
+  .refine((v) => v.quantity !== undefined || v.pricePerUnit !== undefined, 'Nothing to change');
+
 export type CreateOrderInput = z.input<typeof createOrderSchema>;
 export type OrderQueryInput = z.infer<typeof orderQuerySchema>;
