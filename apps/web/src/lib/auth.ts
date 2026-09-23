@@ -18,6 +18,8 @@ export interface DecodedJwt {
   companyId: string;
   email: string;
   roles: string[];
+  /** A PIN sign-in's person name (the PIN label). Absent on email sign-ins. */
+  label?: string;
   iat?: number;
   exp?: number;
 }
@@ -33,6 +35,17 @@ export function decodeJwt(token: string): DecodedJwt | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The signed-in user's id, as the server records it on what they save
+ * (`pin:<uuid>` for a PIN sign-in, a bare uuid for an email one). Used to say
+ * "you" instead of your own name; the server, not this, decides who saved what.
+ */
+export function currentUserId(): string | null {
+  const token = getToken();
+  if (!token) return null;
+  return decodeJwt(token)?.userId ?? null;
 }
 
 export function isAuthenticated(): boolean {

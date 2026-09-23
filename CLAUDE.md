@@ -192,6 +192,15 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
     `PITT-MIXE-OLIV`, `CARA-ONIO-CHUT`/`CARA-ONIO-CHUT-2`, `TOMA-CHEE-QUIC`/
     `TOMA-CHEE-SLAB`. Merge those with `merge-duplicate-products.ts` BEFORE the
     stock-ledger reset, since merging moves stock history.
+- **Several counters can share one stock-take** (migration `0053`;
+  `DECISIONS.md` §F21). The start screen lists the site's OPEN takes to JOIN
+  instead of always opening a new one; each line records who saved it (taken
+  from the token — PIN label or `users.name` — never the body), and the screen
+  re-reads the take every 15 s so each counter sees the others' saved counts
+  with names and times. ⚠️ Replacing someone ELSE's different count asks first;
+  it is last-writer-wins, not a sum. ⚠️ The count idempotency key used to be
+  `takeId:productId`, so a CORRECTION was dropped as a replay — it now carries a
+  uuid per save. Counts sent to an approved take get **409**, not silence.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and

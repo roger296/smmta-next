@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, MAX_PAGE_SIZE, type PaginatedResult } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
@@ -16,9 +16,23 @@ import {
 } from '@/features/pwa/count-sections';
 import {
   useOpenStockTake,
+  useOpenStockTakes,
   useRecordStockTakeCounts,
   useApproveStockTake,
+  useStockTake,
+  type OpenStockTake,
 } from '@/features/pwa/use-pwa-jobs';
+import {
+  attribution,
+  clockTime,
+  conflicts,
+  countersOn,
+  rowCount,
+  settleQueued,
+  type CountConflict,
+  type CountMap,
+} from '@/features/pwa/shared-take';
+import { currentUserId } from '@/lib/auth';
 import type { Product } from '@/lib/api-types';
 import { PwaSyncPill } from '@/features/pwa/queue-status';
 import {
@@ -32,6 +46,7 @@ import {
   ActionBar,
   ErrorBanner,
   DiscardGuardSheet,
+  BottomSheet,
 } from '@/components/touch/touch';
 
 export const Route = createFileRoute('/_touch/pwa/stock-take')({
@@ -62,7 +77,20 @@ interface TakeLine {
   stockCheckInstruction?: string | null;
   /** Item Category, which splits the sheet into sections. Also on the line. */
   itemCategoryName?: string | null;
+  /** The SAVED count and whose it is — shared by every counter on the take
+   *  (Sept 2026). null until somebody saves this line. */
+  countedQty?: string | null;
+  countedByUserId?: string | null;
+  countedByName?: string | null;
+  countedAt?: string | null;
 }
+
+interface TakeData {
+  take: { id: string; scope?: string; openedByName?: string | null };
+  lines: TakeLine[];
+}
+
+const SCOPE_LABEL: Record<string, string> = { FULL: 'Full count', CYCLE: 'Cycle count', CATEGORY: 'Category count' };
 
 const SCOPES: Array<{ value: string; label: string }> = [
   { value: 'FULL', label: 'Full count' },
@@ -149,6 +177,7 @@ export function matchesSearch(line: TakeLine, mapped: Product | undefined, query
 /** Exported so the component tests can render the screen without a router. */
 export function StockTakeScreen() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { selectedSite, selectedSiteId, isBound } = useSiteContext();
   const { data: productMap } = useProductMap();
   const open = useOpenStockTake();
@@ -160,11 +189,16 @@ export function StockTakeScreen() {
   // baker cannot explain is a dead end, which is the complaint this came from.
   const { can } = useRoles();
   const mayApprove = can(['site_manager']);
+  // Who "you" is, so your own saved counts say "you" rather than your name.
+  const meId = React.useMemo(currentUserId, []);
 
   const [scope, setScope] = React.useState('FULL');
   const [takeId, setTakeId] = React.useState<string | null>(null);
-  const [lines, setLines] = React.useState<TakeLine[]>([]);
-  const [counts, setCounts] = React.useState<Record<string, number>>({});
+  // Several counters, one take (Sept 2026). Three sources of a number, never
+  // confused (see features/pwa/shared-take.ts): typed here and not yet sent,
+  // sent while offline and still queued, and saved on the server by anyone.
+  const [pending, setPending] = React.useState<CountMap>({});
+  const [queued, setQueued] = React.useState<CountMap>({});
   const [search, setSearch] = React.useState('');
   const [filter, setFilter] = React.useState<'all' | 'todo'>('all');
   // Which category sections this device has folded away. Read once from the
@@ -179,6 +213,30 @@ export function StockTakeScreen() {
   const [error, setError] = React.useState<{ title: string; message: string } | null>(null);
   // A-5: counts entered but not saved must not disappear on a stray Back.
   const [confirmExit, setConfirmExit] = React.useState(false);
+  // Counts about to overwrite a DIFFERENT number someone else saved.
+  const [replacing, setReplacing] = React.useState<CountConflict[] | null>(null);
+
+  // The venue's open takes, so a second counter joins rather than starting a
+  // parallel count nobody else can see. Only fetched on the start screen.
+  const openTakes = useOpenStockTakes(selectedSiteId, !takeId);
+  // The take itself, re-read on a timer so each counter sees the others' saves.
+  const takeQuery = useStockTake<TakeData>(takeId);
+  const lines = React.useMemo(() => takeQuery.data?.lines ?? [], [takeQuery.data]);
+
+  // Queued counts that the server now shows as saved by me move from
+  // "Waiting to send" to "Saved by you".
+  React.useEffect(() => {
+    setQueued((q) => settleQueued(q, lines, meId));
+  }, [lines, meId]);
+
+  const leaveTake = () => {
+    setTakeId(null);
+    setPending({});
+    setQueued({});
+    setSearch('');
+    setFilter('all');
+    void queryClient.invalidateQueries({ queryKey: ['stock-takes', 'open'] });
+  };
 
   const startCount = async () => {
     if (!selectedSiteId) return;
@@ -193,20 +251,35 @@ export function StockTakeScreen() {
       });
       return;
     }
-    setTakeId(res.data.take.id);
-    setLines((res.data.lines as TakeLine[]) ?? []);
-    setCounts({});
+    // Hand the screen the lines we were just given rather than fetching them
+    // again; the poll takes over from here.
+    queryClient.setQueryData<TakeData>(['stock-take', res.data.take.id], {
+      take: res.data.take,
+      lines: (res.data.lines as TakeLine[]) ?? [],
+    });
+    setPending({});
+    setQueued({});
     setSearch('');
     setFilter('all');
+    setTakeId(res.data.take.id);
+  };
+
+  const joinTake = (t: OpenStockTake) => {
+    setError(null);
+    setPending({});
+    setQueued({});
+    setSearch('');
+    setFilter('all');
+    setTakeId(t.id);
   };
 
   const setCount = (productId: string, q: number) =>
-    setCounts((c) => ({ ...c, [productId]: Math.round(q * 100) / 100 }));
+    setPending((c) => ({ ...c, [productId]: Math.round(q * 100) / 100 }));
 
-  const submitCounts = async () => {
-    if (!takeId) return;
-    const counted = lines
-      .filter((l) => counts[l.productId] !== undefined)
+  /** The counts this iPad would send, bucketed as they will be saved. */
+  const outgoing = () =>
+    lines
+      .filter((l) => pending[l.productId] !== undefined)
       .map((l) => {
         const uom = l.stockUom ?? productMap?.get(l.productId)?.stockUom ?? 'each';
         // The quantum is the product's own configured one, or nothing at all.
@@ -214,10 +287,30 @@ export function StockTakeScreen() {
         // icing sugar to 0 and a 250 g count to 300 (defect D-2).
         return {
           productId: l.productId,
-          countedQty: bucketCount(counts[l.productId], uom, quantumOf(l)),
+          countedQty: bucketCount(pending[l.productId]!, uom, quantumOf(l)),
         };
       });
+
+  const submitCounts = async (replaceConfirmed = false) => {
+    if (!takeId) return;
+    const counted = outgoing();
     if (counted.length === 0) return;
+    // What was typed when Save was pressed, to tell a later edit from this one.
+    const typedAtSave = { ...pending };
+    // Saving is last-writer-wins per line. Before overwriting a different
+    // number somebody else saved, say whose and ask.
+    if (!replaceConfirmed) {
+      const clash = conflicts(
+        lines,
+        Object.fromEntries(counted.map((c) => [c.productId, c.countedQty])),
+        meId,
+      );
+      if (clash.length > 0) {
+        setReplacing(clash);
+        return;
+      }
+    }
+    setReplacing(null);
     setError(null);
     let res;
     try {
@@ -238,6 +331,22 @@ export function StockTakeScreen() {
       });
       return;
     }
+    const sent = new Map(counted.map((c) => [c.productId, c.countedQty]));
+    // Clear only what was sent. A number retyped while the save was in flight
+    // is newer than the one that went, so it stays pending.
+    setPending((p) => {
+      const next: CountMap = {};
+      for (const [id, qty] of Object.entries(p)) {
+        if (!sent.has(id) || qty !== typedAtSave[id]) next[id] = qty;
+      }
+      return next;
+    });
+    if (res.status === 'queued') {
+      // Not on the server yet, so nobody else can see these — keep them on
+      // this screen, labelled as waiting, until the queue delivers them.
+      setQueued((q) => ({ ...q, ...Object.fromEntries(sent) }));
+    }
+    void queryClient.invalidateQueries({ queryKey: ['stock-take', takeId] });
     toast({ title: res.status === 'sent' ? 'Counts saved' : 'Saved offline — will sync' });
   };
 
@@ -254,13 +363,12 @@ export function StockTakeScreen() {
       return;
     }
     toast({ title: 'Stock-take approved — ledger trued up' });
-    setTakeId(null);
-    setLines([]);
-    setCounts({});
+    leaveTake();
   };
 
   // ── Start screen ──────────────────────────────────────────
   if (!takeId) {
+    const inProgress = openTakes.data ?? [];
     return (
       <TouchScreen>
         <TouchTopbar
@@ -273,7 +381,36 @@ export function StockTakeScreen() {
           {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
           <div className="center">
             <h1>{selectedSite?.name ?? 'Select a site'}</h1>
-            <p className="lede">Count stock against the book figure. Variance is trued up on approval.</p>
+            {inProgress.length > 0 && (
+              <div className="field" data-testid="open-takes">
+                {/* Joining is the default when a count is already running:
+                    two people starting two takes would each count into one
+                    the other can never see. */}
+                <label>Count in progress — join it to count together</label>
+                {inProgress.map((t) => (
+                  <div key={t.id} className="join-take">
+                    <div className="join-take-meta">
+                      <strong>{SCOPE_LABEL[t.scope] ?? 'Count'}</strong>
+                      {' · started '}
+                      {clockTime(t.createdAt) || 'earlier'}
+                      {t.openedByName ? ` by ${t.openedByName}` : ''}
+                      <div className="join-take-progress">
+                        {t.countedCount} of {t.lineCount} counted
+                        {t.counters.length > 0 ? ` by ${t.counters.join(', ')}` : ''}
+                      </div>
+                    </div>
+                    <BigButton variant="solid" onClick={() => joinTake(t)}>
+                      Join this count
+                    </BigButton>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="lede">
+              {inProgress.length > 0
+                ? 'Or start a separate count:'
+                : 'Count stock against the book figure. Variance is trued up on approval.'}
+            </p>
             <div className="field">
               <label>What are you counting?</label>
               <div className="tile-grid">
@@ -288,8 +425,12 @@ export function StockTakeScreen() {
                 ))}
               </div>
             </div>
-            <BigButton variant="solid" disabled={!selectedSiteId || open.isPending} onClick={() => void startCount()}>
-              {open.isPending ? 'Opening…' : 'Start count'}
+            <BigButton
+              variant={inProgress.length > 0 ? 'outline' : 'solid'}
+              disabled={!selectedSiteId || open.isPending}
+              onClick={() => void startCount()}
+            >
+              {open.isPending ? 'Opening…' : inProgress.length > 0 ? 'Start a new count' : 'Start count'}
             </BigButton>
           </div>
         </div>
@@ -298,17 +439,22 @@ export function StockTakeScreen() {
   }
 
   // ── Count screen ──────────────────────────────────────────
-  const countedTotal = lines.filter((l) => counts[l.productId] !== undefined).length;
+  const rows = new Map(lines.map((l) => [l.productId, rowCount(l, pending, queued, meId)]));
+  const rowOf = (l: TakeLine) => rows.get(l.productId)!;
+  const pendingCount = Object.keys(pending).length;
+  const countedTotal = lines.filter((l) => rowOf(l).counted).length;
   const pct = lines.length === 0 ? 0 : Math.round((countedTotal / lines.length) * 100);
   const visible = lines.filter((l) => {
     if (!matchesSearch(l, productMap?.get(l.productId), search)) return false;
-    if (filter === 'todo' && counts[l.productId] !== undefined) return false;
+    if (filter === 'todo' && rowOf(l).counted) return false;
     return true;
   });
   // Sections are built from the FILTERED list, so search and "Not counted"
   // narrow what is on screen; their progress counts are the section's own.
-  const sections = groupByCategory(visible, (l) => counts[l.productId] !== undefined);
+  const sections = groupByCategory(visible, (l) => rowOf(l).counted);
   const anyCollapsed = sections.some((sec) => isCollapsed(collapsed, sec.name));
+  const counters = countersOn(lines, meId);
+  const takeScope = takeQuery.data?.take.scope ?? scope;
 
   const target = typeTarget ? productMap?.get(typeTarget) : undefined;
   const targetLine = typeTarget ? lines.find((l) => l.productId === typeTarget) : undefined;
@@ -319,11 +465,11 @@ export function StockTakeScreen() {
         title="Stock-take"
         venue={selectedSite?.name ?? null}
         venueBound={isBound}
-        sub={scope === 'FULL' ? 'Full' : scope === 'CYCLE' ? 'Cycle' : 'Category'}
+        sub={takeScope === 'FULL' ? 'Full' : takeScope === 'CYCLE' ? 'Cycle' : 'Category'}
         onBack={() => {
           // Uncommitted counts are the ones a Back tap would lose.
-          if (Object.keys(counts).length > 0) setConfirmExit(true);
-          else setTakeId(null);
+          if (pendingCount > 0) setConfirmExit(true);
+          else leaveTake();
         }}
         right={<PwaSyncPill />}
         stat={`${countedTotal} / ${lines.length} counted`}
@@ -341,9 +487,27 @@ export function StockTakeScreen() {
         )}
       </TouchToolbar>
 
+      {/* Who else is on this count, and how fresh this screen's copy is. */}
+      <div className="shared-take-note" data-testid="shared-take-note">
+        {counters.length > 0
+          ? `Saved counts: ${counters.map((c) => `${c.name} (${c.lines})`).join(' · ')}`
+          : 'No counts saved yet.'}
+        {takeQuery.dataUpdatedAt > 0 && (
+          <span className="shared-take-fresh">
+            {takeQuery.isError
+              ? ` · could not refresh — showing counts from ${clockTime(new Date(takeQuery.dataUpdatedAt).toISOString())}`
+              : ` · updated ${clockTime(new Date(takeQuery.dataUpdatedAt).toISOString())}`}
+          </span>
+        )}
+      </div>
+
       <div className="scroll">
         {error && <ErrorBanner title={error.title} message={error.message} onDismiss={() => setError(null)} />}
-        {lines.length === 0 && <div className="empty">No stock lines in scope.</div>}
+        {!takeQuery.data && takeQuery.isLoading && <div className="empty">Loading the count…</div>}
+        {!takeQuery.data && takeQuery.isError && (
+          <div className="empty">Could not load this count. Go back and try again.</div>
+        )}
+        {takeQuery.data && lines.length === 0 && <div className="empty">No stock lines in scope.</div>}
         {lines.length > 0 && visible.length === 0 && <div className="empty">Nothing matches.</div>}
         {sections.map((section) => {
           const folded = isCollapsed(collapsed, section.name);
@@ -372,11 +536,13 @@ export function StockTakeScreen() {
           const p = productMap?.get(l.productId);
           const uom = l.stockUom ?? p?.stockUom ?? '';
           const book = Number(l.bookQty);
-          const counted = counts[l.productId] !== undefined;
-          const qty = counts[l.productId] ?? 0;
+          const row = rowOf(l);
+          const counted = row.counted;
+          const qty = row.qty;
           const variance = counted ? Math.round((qty - book) * 100) / 100 : null;
           const unknown = isUnidentified(l, p);
           const note = bucketNote(quantumOf(l), uom);
+          const who = attribution(row);
           return (
             <CountRow
               key={l.productId}
@@ -398,6 +564,12 @@ export function StockTakeScreen() {
                       should see what happened to their number here, not
                       discover it later on the variance report. */}
                   {note && <span className="badge" style={{ marginLeft: 6 }}>{note}</span>}
+                  {/* Whose number this is: yours, a colleague's, or not sent. */}
+                  {who && (
+                    <span className={`counted-by counted-by-${row.source}${row.mine ? ' mine' : ''}`}>
+                      {who}
+                    </span>
+                  )}
                 </>
               }
               counted={counted}
@@ -419,8 +591,8 @@ export function StockTakeScreen() {
       </div>
 
       <ActionBar>
-        <BigButton variant="outline" disabled={record.isPending || countedTotal === 0} onClick={() => void submitCounts()}>
-          {record.isPending ? 'Saving…' : 'Save counts'}
+        <BigButton variant="outline" disabled={record.isPending || pendingCount === 0} onClick={() => void submitCounts()}>
+          {record.isPending ? 'Saving…' : pendingCount > 0 ? `Save counts (${pendingCount})` : 'Save counts'}
         </BigButton>
         {mayApprove && (
           <BigButton variant="ok" disabled={approve.isPending} onClick={() => void approveTake()}>
@@ -432,15 +604,41 @@ export function StockTakeScreen() {
       {confirmExit && (
         <DiscardGuardSheet
           title="Leave the count?"
-          message={`You have ${Object.keys(counts).length} count${Object.keys(counts).length === 1 ? '' : 's'} that have not been saved.`}
+          message={`You have ${pendingCount} count${pendingCount === 1 ? '' : 's'} that have not been saved.`}
           discardLabel="Discard them"
           onKeep={() => setConfirmExit(false)}
           onDiscard={() => {
             setConfirmExit(false);
-            setCounts({});
-            setTakeId(null);
+            leaveTake();
           }}
         />
+      )}
+
+      {replacing && (
+        <BottomSheet title="Replace someone else's count?" onClose={() => setReplacing(null)}>
+          <p className="lede">
+            {replacing.length === 1
+              ? 'This item was already counted by someone else. Saving replaces their number with yours:'
+              : `${replacing.length} items were already counted by someone else. Saving replaces their numbers with yours:`}
+          </p>
+          <ul className="replace-list">
+            {replacing.map((c) => {
+              const l = lines.find((x) => x.productId === c.productId);
+              const uom = l?.stockUom ?? '';
+              return (
+                <li key={c.productId}>
+                  <strong>{l ? takeLineLabel(l, productMap?.get(c.productId)) : c.productId}</strong>
+                  {` — ${c.theirName} counted ${c.theirQty} ${uom}, you have ${c.yourQty} ${uom}`}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="sheet-actions">
+            {/* Going back is the SOLID one — the safe choice first. */}
+            <BigButton variant="solid" onClick={() => setReplacing(null)}>Go back and check</BigButton>
+            <BigButton variant="ghost" onClick={() => void submitCounts(true)}>Replace with mine</BigButton>
+          </div>
+        </BottomSheet>
       )}
 
       {typeTarget && (
@@ -450,7 +648,7 @@ export function StockTakeScreen() {
               ? takeLineLabel(targetLine, target)
               : (target?.name ?? 'Enter count')
           }
-          initial={counts[typeTarget] ?? 0}
+          initial={targetLine ? rowOf(targetLine).qty : 0}
           onCancel={() => setTypeTarget(null)}
           onConfirm={(v) => {
             setCount(typeTarget, v);

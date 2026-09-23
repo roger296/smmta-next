@@ -19,7 +19,7 @@ import {
   stockTakes,
 } from '../../db/schema/index.js';
 import { StockLevelService } from '../stock/stock-level.service.js';
-import { StockTakeService } from './stock-take.service.js';
+import { StockTakeClosedError, StockTakeService } from './stock-take.service.js';
 
 const COMPANY = 'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3';
 const svc = new StockTakeService();
@@ -274,5 +274,124 @@ describe('partial scope', () => {
     await svc.approve(take.id, COMPANY);
     expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(5200); // trued up
     expect(Number(await levels.getOnHand(sugarId, siteId, COMPANY))).toBe(3000); // untouched
+  });
+});
+
+// ── Several counters, one take (Sept 2026) ────────────────────────────────
+describe('who counted what', () => {
+  const sam = { userId: 'pin:sam', name: 'Sam' };
+  const alex = { userId: 'pin:alex', name: 'Alex' };
+
+  it('records who opened the take', async () => {
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY, openedBy: sam });
+    expect(take.openedByName).toBe('Sam');
+    expect(take.openedByUserId).toBe('pin:sam');
+  });
+
+  it("records each count against the person who saved it, and both are visible to either", async () => {
+    await setLevel(flourId, 5000);
+    await setLevel(sugarId, 3000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY, openedBy: sam });
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4900 }], sam);
+    await svc.recordCounts(take.id, [{ productId: sugarId, countedQty: 3000 }], alex);
+
+    const { lines } = (await svc.get(take.id, COMPANY))!;
+    const flour = lines.find((l) => l.productId === flourId)!;
+    const sugar = lines.find((l) => l.productId === sugarId)!;
+    expect([flour.countedByName, flour.countedByUserId]).toEqual(['Sam', 'pin:sam']);
+    expect([sugar.countedByName, sugar.countedByUserId]).toEqual(['Alex', 'pin:alex']);
+  });
+
+  it('the last person to save a line becomes its counter', async () => {
+    // The number on the line is theirs, so the name must be too. The screen
+    // warns before anyone replaces someone else's count.
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4900 }], sam);
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4800 }], alex);
+    const line = (await svc.get(take.id, COMPANY))!.lines.find((l) => l.productId === flourId)!;
+    expect(Number(line.countedQty)).toBe(4800);
+    expect(line.countedByName).toBe('Alex');
+  });
+
+  it('an uncounted line has no counter', async () => {
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY, openedBy: sam });
+    const line = (await svc.get(take.id, COMPANY))!.lines[0]!;
+    expect(line.countedByName).toBeNull();
+    expect(line.countedByUserId).toBeNull();
+  });
+
+  it('refuses counts once the take is approved, rather than storing them unused', async () => {
+    // Before two people shared a take this could barely happen; now one
+    // counter can approve while the other is still saving. A count written to
+    // an approved take would be kept and never applied — lost, silently.
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4900 }], sam);
+    await svc.approve(take.id, COMPANY);
+    await expect(
+      svc.recordCounts(take.id, [{ productId: flourId, countedQty: 1 }], alex),
+    ).rejects.toBeInstanceOf(StockTakeClosedError);
+    const line = (await svc.get(take.id, COMPANY))!.lines[0]!;
+    expect(Number(line.countedQty)).toBe(4900);
+    expect(line.countedByName).toBe('Sam');
+  });
+});
+
+describe('list: progress for joining a take', () => {
+  it('reports lines, counted lines, counters A→Z and the last count', async () => {
+    await setLevel(flourId, 5000);
+    await setLevel(sugarId, 3000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY, openedBy: { userId: 'pin:sam', name: 'Sam' } });
+    await svc.recordCounts(take.id, [{ productId: sugarId, countedQty: 1 }], { userId: 'pin:sam', name: 'Sam' });
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 1 }], { userId: 'pin:alex', name: 'Alex' });
+
+    const [row] = await svc.list({ siteId, status: 'OPEN', companyId: COMPANY });
+    expect(row!.id).toBe(take.id);
+    expect(row!.openedByName).toBe('Sam');
+    expect(row!.lineCount).toBe(2);
+    expect(row!.countedCount).toBe(2);
+    expect(row!.counters).toEqual(['Alex', 'Sam']);
+    expect(row!.lastCountedAt).toBeInstanceOf(Date);
+  });
+
+  it('an untouched take reports nothing counted, and no counters', async () => {
+    await setLevel(flourId, 5000);
+    await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    const [row] = await svc.list({ siteId, status: 'OPEN', companyId: COMPANY });
+    expect(row!.lineCount).toBe(1);
+    expect(row!.countedCount).toBe(0);
+    expect(row!.counters).toEqual([]);
+    expect(row!.lastCountedAt).toBeNull();
+  });
+
+  it('only OPEN takes are offered to join when asked for OPEN', async () => {
+    await setLevel(flourId, 5000);
+    const { take: done } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.approve(done.id, COMPANY);
+    const { take: live } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    const open = await svc.list({ siteId, status: 'OPEN', companyId: COMPANY });
+    expect(open.map((t) => t.id)).toEqual([live.id]);
+  });
+});
+
+describe('idempotency keys: replays vs corrections', () => {
+  it('a replay (same key) is ignored, but a correction (new key) lands', async () => {
+    // The iPad used to send take+product as the key, so every later save of a
+    // product looked like a replay and was dropped — no count could ever be
+    // corrected. It now sends a key per save; a queued save resends its own.
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    const first = `${take.id}:${flourId}:save-1`;
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4900, countIdempotencyKey: first }]);
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 1, countIdempotencyKey: first }]);
+    let line = (await svc.get(take.id, COMPANY))!.lines[0]!;
+    expect(Number(line.countedQty)).toBe(4900);
+
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4950, countIdempotencyKey: `${take.id}:${flourId}:save-2` }]);
+    line = (await svc.get(take.id, COMPANY))!.lines[0]!;
+    expect(Number(line.countedQty)).toBe(4950);
   });
 });

@@ -372,6 +372,13 @@
       "when": 1789730000003,
       "tag": "0052_supplier_product_aliases",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1789730000004,
+      "tag": "0053_stock_take_counted_by",
+      "breakpoints": true
     }
   ]
 }

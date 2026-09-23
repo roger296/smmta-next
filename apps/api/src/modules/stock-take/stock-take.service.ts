@@ -7,7 +7,7 @@
  * and posts ONE stock adjustment to Xero, then marks the take APPROVED.
  * `approve` is idempotent — re-approving an APPROVED take re-applies nothing.
  */
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
   itemCategories,
@@ -19,6 +19,7 @@ import {
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { StockLevelService } from '../stock/stock-level.service.js';
 import { getStockGLService } from '../../integrations/gl-provider.js';
+import type { Actor } from '../../shared/auth/actor.js';
 
 export type StockTake = typeof stockTakes.$inferSelect;
 export type StockTakeLine = typeof stockTakeLines.$inferSelect;
@@ -83,6 +84,31 @@ export interface StockTakeWarning {
   message: string;
 }
 
+/**
+ * A take as the "join a count" list shows it: enough for a second counter to
+ * pick the right take and see how far it has got, without opening every one.
+ */
+export interface StockTakeWithProgress extends StockTake {
+  lineCount: number;
+  countedCount: number;
+  /** Everyone who has saved a count on this take, A→Z. */
+  counters: string[];
+  lastCountedAt: Date | null;
+}
+
+/** Counting into a take that is no longer OPEN. Approval has already trued the
+ *  ledger up, so a count saved now would be stored and then never used. */
+export class StockTakeClosedError extends Error {
+  constructor(public readonly status: string) {
+    super(
+      status === 'APPROVED'
+        ? 'This stock-take has already been approved, so these counts can no longer be added to it. Start a new count for anything that still needs counting.'
+        : `This stock-take is ${status.toLowerCase()} and no longer takes counts.`,
+    );
+    this.name = 'StockTakeClosedError';
+  }
+}
+
 export class StockTakeService {
   private db = getDb();
   private levels = new StockLevelService();
@@ -93,6 +119,7 @@ export class StockTakeService {
     scope: StockTakeScope;
     scopeRef?: string | null;
     companyId?: string;
+    openedBy?: Actor;
   }): Promise<{ take: StockTake; lines: StockTakeLineWithProduct[] }> {
     const companyId = input.companyId ?? getSingletonCompanyId();
 
@@ -116,6 +143,8 @@ export class StockTakeService {
         siteId: input.siteId,
         scope: input.scope,
         scopeRef: input.scopeRef ?? null,
+        openedByUserId: input.openedBy?.userId ?? null,
+        openedByName: input.openedBy?.name ?? null,
       })
       .returning();
 
@@ -138,6 +167,9 @@ export class StockTakeService {
     countedQty: number;
     countIdempotencyKey?: string;
     photoRefs?: unknown;
+    /** Who is saving this count. Recorded on the line so every counter on the
+     *  take can see whose number it is. */
+    countedBy?: Actor;
   }): Promise<StockTakeLine | null> {
     const line = await this.db.query.stockTakeLines.findFirst({
       where: and(
@@ -162,6 +194,11 @@ export class StockTakeService {
         variance: String(variance),
         countIdempotencyKey: input.countIdempotencyKey ?? line.countIdempotencyKey,
         photoRefs: (input.photoRefs as Record<string, unknown> | undefined) ?? line.photoRefs,
+        // The LAST person to save the line is its counter: the number on the
+        // line is theirs. A second counter re-saving someone else's line
+        // takes it over, and the screen warns them before they do.
+        countedByUserId: input.countedBy?.userId ?? null,
+        countedByName: input.countedBy?.name ?? null,
         countedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -170,13 +207,28 @@ export class StockTakeService {
     return updated ?? null;
   }
 
+  /**
+   * Record a batch of counts from one counter.
+   *
+   * Refuses a take that is no longer OPEN (StockTakeClosedError). Before two
+   * people shared a take this could not really happen; now one counter can
+   * approve while the other is still saving, and a count written to an
+   * approved take is stored and never used — the worst kind of lost work,
+   * because nothing says it was lost.
+   */
   async recordCounts(
     stockTakeId: string,
     counts: Array<{ productId: string; countedQty: number; countIdempotencyKey?: string }>,
+    countedBy?: Actor,
   ): Promise<number> {
+    const take = await this.db.query.stockTakes.findFirst({
+      where: eq(stockTakes.id, stockTakeId),
+      columns: { status: true },
+    });
+    if (take && take.status !== 'OPEN') throw new StockTakeClosedError(take.status);
     let n = 0;
     for (const c of counts) {
-      const r = await this.recordCount({ stockTakeId, ...c });
+      const r = await this.recordCount({ stockTakeId, ...c, countedBy });
       if (r) n += 1;
     }
     return n;
@@ -307,14 +359,51 @@ export class StockTakeService {
     return warnings;
   }
 
-  async list(filter: { siteId?: string; status?: string; companyId?: string } = {}): Promise<StockTake[]> {
+  /**
+   * Takes, newest first, each with its progress and who has been counting.
+   *
+   * The progress is what lets a second counter JOIN a take rather than open a
+   * parallel one: "Full count, started 09:40 by Sam — 45 of 400 counted by Sam
+   * and Alex" is enough to know it is the right one. One grouped query for the
+   * whole page, not one per take.
+   */
+  async list(
+    filter: { siteId?: string; status?: string; companyId?: string } = {},
+  ): Promise<StockTakeWithProgress[]> {
     const companyId = filter.companyId ?? getSingletonCompanyId();
     const where = [eq(stockTakes.companyId, companyId)];
     if (filter.siteId) where.push(eq(stockTakes.siteId, filter.siteId));
     if (filter.status) where.push(eq(stockTakes.status, filter.status as never));
-    return this.db.query.stockTakes.findMany({
+    const takes = await this.db.query.stockTakes.findMany({
       where: and(...where),
       orderBy: (s, { desc }) => [desc(s.createdAt)],
+    });
+    if (takes.length === 0) return [];
+
+    const progress = await this.db
+      .select({
+        stockTakeId: stockTakeLines.stockTakeId,
+        lineCount: sql<number>`count(*)::int`,
+        countedCount: sql<number>`count(${stockTakeLines.countedQty})::int`,
+        counters: sql<string[] | null>`array_agg(distinct ${stockTakeLines.countedByName}) filter (where ${stockTakeLines.countedByName} is not null)`,
+        lastCountedAt: sql<Date | null>`max(${stockTakeLines.countedAt})`,
+      })
+      .from(stockTakeLines)
+      .where(inArray(stockTakeLines.stockTakeId, takes.map((t) => t.id)))
+      .groupBy(stockTakeLines.stockTakeId);
+    const byTake = new Map(progress.map((p) => [p.stockTakeId, p]));
+
+    return takes.map((t) => {
+      const p = byTake.get(t.id);
+      const last = p?.lastCountedAt ?? null;
+      return {
+        ...t,
+        lineCount: p?.lineCount ?? 0,
+        countedCount: p?.countedCount ?? 0,
+        counters: [...(p?.counters ?? [])].sort((a, b) => a.localeCompare(b)),
+        // max() over a timestamptz comes back through `sql` as a string.
+        lastCountedAt: last == null ? null : new Date(last as unknown as string),
+      };
     });
   }
 }

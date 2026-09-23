@@ -684,3 +684,31 @@ body.touch-layout-active { overflow: hidden; overscroll-behavior: none; }
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── Several counters, one take (Sept 2026) ─────────────────────────────────
+   Whose number is on each row, who else is counting, and joining a count in
+   progress. The "Saved by" line sits in the row's hint so it reads with the
+   item, not as a separate control. */
+.touch-app .counted-by { display: inline-block; margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.touch-app .counted-by-saved { color: var(--ink); }
+.touch-app .counted-by-saved.mine { color: var(--ok); }
+/* Not on the server yet: nobody else can see these numbers. */
+.touch-app .counted-by-pending,
+.touch-app .counted-by-queued { color: var(--warn); }
+
+.touch-app .shared-take-note {
+  padding: 6px 16px; font-size: 13px; color: var(--muted);
+  background: var(--card); border-bottom: 1px solid var(--line);
+}
+.touch-app .shared-take-fresh { white-space: nowrap; }
+
+.touch-app .join-take {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  margin-bottom: 10px; background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--t-radius);
+}
+.touch-app .join-take-meta { font-size: 15px; }
+.touch-app .join-take-progress { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+.touch-app .replace-list { margin: 0 0 4px; padding-left: 18px; font-size: 15px; }
+.touch-app .replace-list li { margin-bottom: 6px; }

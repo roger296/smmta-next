@@ -1280,3 +1280,73 @@ test was moved onto a throwaway company id — which it was moved onto because
 `supplier_products` is shared state and vitest runs test files alongside each
 other, so writing under the real singleton races the supplier-poll worker's
 fixtures.
+
+## §F21 — Several counters on one stock-take (Sept 2026)
+
+Two people counting one venue on two iPads, each signed in with their own PIN,
+must each see what the other has SAVED, and whose it is.
+
+### What was actually broken
+
+- **The screen could not share.** "Start count" always opened a NEW take, so two
+  counters produced two takes, each with half the counts, and approving either
+  one wrote the other half's lines back to book as a variance. The start screen
+  now lists the site's OPEN takes ("Count in progress — join it to count
+  together", who started it, `N of M counted by …`) and joining one loads it.
+  "Start a new count" is still there, demoted to an outline button.
+- **Corrections were silently dropped.** The count idempotency key was
+  `takeId:productId`, so a counter who saved 12 and then corrected it to 11 sent
+  the same key twice: the server read the second as a replay and kept 12. The
+  key now carries a fresh uuid per save. The offline queue's own retry of one
+  queued action still re-sends that action's key, so a replay is still a no-op —
+  which is the only thing the key was ever for.
+- **Counts saved after approval vanished.** `recordCounts` wrote to an approved
+  take without complaint and nothing ever read those rows. It now refuses with
+  **409** ("already been approved … start a new count"), which the PWA shows as
+  the in-screen error, not "saved offline".
+
+### Who counted
+
+- `stock_take_lines.counted_by_user_id / counted_by_name` and
+  `stock_takes.opened_by_user_id / opened_by_name` (migration `0053`). The NAME
+  is stored, not only the id: a PIN's label is its person, and a PIN can be
+  renamed or revoked long after the count — the sheet must still say who counted
+  it. The id is `varchar`, not `uuid`, because a PIN token's user id is
+  `pin:<uuid>`.
+- The counter is taken **from the token, never the request body**
+  (`shared/auth/actor.ts`): the PIN label, else `users.name`, else the email.
+  A body that claims a `countedByName` is ignored; a route test holds that.
+- `GET /stock-takes` now returns progress per take — lines, counted, the
+  distinct counters, last count time — in one grouped query, so the join list
+  costs one request.
+
+### Seeing each other's counts
+
+- The count screen re-reads the take every **15 s** and on window focus
+  (`useStockTake`). Each row's hint says `Saved by you · 14:02`,
+  `Saved by Sam · 14:05`, `Waiting to send` or `Not saved yet`, and a strip
+  above the list summarises `Saved counts: Sam (12) · You (9) · updated 14:05`.
+- What is on screen, in order of precedence: what I have typed and not saved →
+  what I saved offline and is still queued → what the server holds
+  (`features/pwa/shared-take.ts`). A poll therefore never overwrites a number
+  someone is part-way through entering.
+- After a save only the entries actually SENT are cleared (a snapshot taken at
+  save time) — anything typed while the request was in flight stays pending.
+
+### Two counts for one item: last writer wins, with a warning
+
+A line holds one counted quantity. When a save would replace a count someone
+ELSE saved with a different figure, the screen stops and lists them ("Sam
+counted 12 kg, you have 11 kg") with **Go back and check** as the default and
+**Replace with mine** as the deliberate choice. Correcting your own count does
+not ask. ⚠️ **Default — confirm with owners:** an item stored in two places
+(dry store AND the bar) counted by two people is not a conflict but two halves
+of one total. Summing was not built because it cannot be told apart from a
+genuine double count of the same shelf; if it is wanted, it needs a per-area
+count, not a guess.
+
+### Not changed
+
+Approval is unchanged: still one approver, still over the whole take. The MCP
+server's stock-take access is read-only (§F22).
+

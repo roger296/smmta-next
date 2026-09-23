@@ -40,6 +40,10 @@ export const stockTakes = pgTable(
     scopeRef: varchar('scope_ref', { length: 200 }),
     status: stockTakeStatusEnum('status').notNull().default('OPEN'),
     approvedAt: timestamp('approved_at', { withTimezone: true }),
+    /** Who opened the take, so a second counter joining it can see whose count
+     *  it is. Copied at open, like `countedByName` — see migration 0053. */
+    openedByUserId: varchar('opened_by_user_id', { length: 100 }),
+    openedByName: varchar('opened_by_name', { length: 120 }),
     ...auditTimestamps,
   },
   (t) => ({
@@ -65,6 +69,17 @@ export const stockTakeLines = pgTable(
     countIdempotencyKey: varchar('count_idempotency_key', { length: 200 }),
     photoRefs: jsonb('photo_refs'),
     countedAt: timestamp('counted_at', { withTimezone: true }),
+    /**
+     * Who saved this count (Sept 2026: two counters, one take, two iPads).
+     *
+     * The id is what a screen compares to decide "mine"; the name is what it
+     * shows. The name is a copy taken when the count was saved, not a live
+     * join, so a renamed or deleted PIN still leaves the count attributed.
+     * varchar, not uuid: a PIN token's id is `pin:<uuid>`. NULL on lines
+     * counted before migration 0053 — "unknown" rather than a guess.
+     */
+    countedByUserId: varchar('counted_by_user_id', { length: 100 }),
+    countedByName: varchar('counted_by_name', { length: 120 }),
     ...auditTimestamps,
   },
   (t) => ({

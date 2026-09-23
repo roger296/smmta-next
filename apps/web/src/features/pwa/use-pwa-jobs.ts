@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 import {
   OfflineQueue,
@@ -120,7 +120,15 @@ export function useRecordStockTakeCounts() {
         body: {
           counts: input.counts.map((c) => ({
             ...c,
-            countIdempotencyKey: `${input.stockTakeId}:${c.productId}`,
+            // One key per SAVE of a line, not per line. The server ignores a
+            // count whose key it has already recorded — that is what makes an
+            // offline replay safe, and the replay resends this same body, so
+            // it still carries the same key. The key used to be take+product
+            // alone, which made EVERY later save of a product look like a
+            // replay: once an item was counted, no correction ever landed, and
+            // the screen still said "Counts saved". With two counters on one
+            // take that also swallowed one person's correction of the other's.
+            countIdempotencyKey: `${input.stockTakeId}:${c.productId}:${crypto.randomUUID()}`,
           })),
         },
         enqueuedAt: Date.now(),
@@ -146,6 +154,58 @@ export function useReverseGoodsIn() {
         method: 'POST',
         body: { reason: reason ?? 'Undone from the venue screen' },
       }),
+  });
+}
+
+/** A take in the venue's "join a count" list (GET /stock-takes). */
+export interface OpenStockTake {
+  id: string;
+  scope: string;
+  createdAt: string;
+  openedByName: string | null;
+  lineCount: number;
+  countedCount: number;
+  counters: string[];
+  lastCountedAt: string | null;
+}
+
+/**
+ * The venue's open takes, so a second counter JOINS the count in progress
+ * instead of starting a parallel one nobody else can see.
+ */
+export function useOpenStockTakes(siteId: string | null | undefined, enabled = true) {
+  return useQuery<OpenStockTake[]>({
+    queryKey: ['stock-takes', 'open', siteId],
+    // Anything but a list reads as "none open": the start screen must always
+    // be able to start a count, whatever this request returns.
+    queryFn: async () => {
+      const res = await apiFetch<unknown>('/stock-takes', { searchParams: { siteId: siteId!, status: 'OPEN' } });
+      return Array.isArray(res) ? (res as OpenStockTake[]) : [];
+    },
+    enabled: Boolean(siteId) && enabled,
+  });
+}
+
+/** How often the count screen re-reads the take for other counters' saves. */
+export const SHARED_TAKE_POLL_MS = 15_000;
+
+/**
+ * One take with its lines, re-read every SHARED_TAKE_POLL_MS so each counter
+ * sees what the others have saved. A failed re-read keeps the last good copy
+ * on screen — the counter is still counting, and an empty sheet would be far
+ * worse than a slightly stale one.
+ */
+export function useStockTake<T>(takeId: string | null) {
+  return useQuery<T>({
+    queryKey: ['stock-take', takeId],
+    queryFn: () => apiFetch<T>(`/stock-takes/${takeId}`),
+    enabled: Boolean(takeId),
+    refetchInterval: SHARED_TAKE_POLL_MS,
+    refetchOnWindowFocus: true,
+    // Seeded from the open/join response; don't immediately re-fetch what we
+    // were just handed.
+    staleTime: 5_000,
+    retry: 1,
   });
 }
 

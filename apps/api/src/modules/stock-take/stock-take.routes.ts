@@ -2,7 +2,7 @@
  * Stock-takes API (P9, spec §A6).
  *
  *   POST /api/v1/stock-takes              — open a take (snapshots book stock)
- *   GET  /api/v1/stock-takes              — list
+ *   GET  /api/v1/stock-takes              — list, each take with its progress
  *   GET  /api/v1/stock-takes/:id          — take + lines
  *   POST /api/v1/stock-takes/:id/counts   — record counts (offline-tolerant)
  *   POST /api/v1/stock-takes/:id/approve  — true-up + post adjustment
@@ -15,9 +15,10 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { requireAuth } from '../../shared/middleware/auth.js';
+import { getAuthUser, requireAuth } from '../../shared/middleware/auth.js';
+import { actorOf } from '../../shared/auth/actor.js';
 import { requireBoundSite, requireRole } from '../../shared/middleware/require-role.js';
-import { StockTakeService } from './stock-take.service.js';
+import { StockTakeClosedError, StockTakeService } from './stock-take.service.js';
 
 const openSchema = z.object({
   siteId: z.string().uuid(),
@@ -64,7 +65,10 @@ export async function stockTakeRoutes(app: FastifyInstance) {
           .status(400)
           .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
       }
-      const data = await service.open(parsed.data);
+      const data = await service.open({
+        ...parsed.data,
+        openedBy: await actorOf(getAuthUser(request)),
+      });
       return reply.status(201).send({ success: true, data });
     },
   );
@@ -95,8 +99,19 @@ export async function stockTakeRoutes(app: FastifyInstance) {
           .status(400)
           .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
       }
-      const recorded = await service.recordCounts(id, parsed.data.counts);
-      return { success: true, data: { recorded } };
+      try {
+        const recorded = await service.recordCounts(
+          id,
+          parsed.data.counts,
+          await actorOf(getAuthUser(request)),
+        );
+        return { success: true, data: { recorded } };
+      } catch (err) {
+        if (err instanceof StockTakeClosedError) {
+          return reply.status(409).send({ success: false, error: err.message, status: err.status });
+        }
+        throw err;
+      }
     },
   );
 
