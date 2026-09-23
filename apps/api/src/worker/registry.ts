@@ -62,8 +62,35 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'order.dispatched': ['send-dispatch-email'],
 };
 
-export function handlersFor(eventType: string): HandlerQueue[] {
-  return EVENT_HANDLERS[eventType as DomainEventType] ?? [];
+/**
+ * Reactions added by extensions at start-up (shared/extensions/react.ts):
+ * eventType -> their own queue names. Kept apart from EVENT_HANDLERS so the
+ * core's routing stays data and an extension's stays the extension's.
+ */
+const extensionReactions = new Map<string, string[]>();
+const EXTENSION_QUEUE = /^[a-z][a-z0-9_]*-[a-z0-9-]{2,60}$/;
+
+export function registerReaction(eventType: DomainEventType, queue: string): void {
+  if (!EXTENSION_QUEUE.test(queue)) {
+    throw new Error(`Extension queue "${queue}" must be <extension key>-<name>, in lower case`);
+  }
+  if ((HANDLER_QUEUES as readonly string[]).includes(queue)) throw new Error(`"${queue}" is a core queue`);
+  const queues = extensionReactions.get(eventType) ?? [];
+  if (!queues.includes(queue)) extensionReactions.set(eventType, [...queues, queue]);
+}
+
+/** Every queue an extension has registered, for the worker to create and work. */
+export function extensionQueues(): string[] {
+  return [...new Set([...extensionReactions.values()].flat())];
+}
+
+/** For tests. */
+export function clearReactions(): void {
+  extensionReactions.clear();
+}
+
+export function handlersFor(eventType: string): string[] {
+  return [...(EVENT_HANDLERS[eventType as DomainEventType] ?? []), ...(extensionReactions.get(eventType) ?? [])];
 }
 
 // ---- Scheduled scanners (§12.3, pg-boss cron) ----

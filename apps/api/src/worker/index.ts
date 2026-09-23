@@ -16,6 +16,7 @@ import {
   HANDLER_QUEUES,
   SCHEDULED_JOBS,
   retryPolicyFor,
+  extensionQueues,
 } from './registry.js';
 import { installStubHandlers, workQueue } from './handlers.js';
 import { installFeatureHandlers } from './feature-handlers.js';
@@ -67,7 +68,7 @@ export interface StartWorkerOptions {
 export async function setupQueues(): Promise<void> {
   const boss = getBoss();
   await boss.createQueue(DEAD_LETTER_QUEUE);
-  for (const queue of HANDLER_QUEUES) {
+  for (const queue of [...HANDLER_QUEUES, ...extensionQueues()]) {
     const { retryLimit, retryDelay } = retryPolicyFor(queue);
     // 'short' policy = unique index on (name, singleton_key) while a job is
     // still in the 'created' state. This is what makes the dispatcher's
@@ -90,14 +91,16 @@ export async function startWorker(opts: StartWorkerOptions = {}): Promise<Worker
 
   boss.on('error', (err) => logger.error({ err }, 'pg-boss error'));
 
-  await setupQueues();
   // Real handlers first; stubs only fill the gaps for queues not yet implemented.
+  // Extensions register their reactions here, so their queues exist by the
+  // time setupQueues runs.
   installFeatureHandlers(logger);
   await installWorkerExtensions(logger);
   installStubHandlers(logger);
+  await setupQueues();
 
   // Wire a pg-boss worker for every handler + scheduled queue.
-  for (const queue of HANDLER_QUEUES) await workQueue(boss, queue, logger);
+  for (const queue of [...HANDLER_QUEUES, ...extensionQueues()]) await workQueue(boss, queue, logger);
   for (const job of SCHEDULED_JOBS) await workQueue(boss, job.name, logger);
   await workQueue(boss, DEAD_LETTER_QUEUE, logger.child({ dead_letter: true }));
 
