@@ -10,7 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
-import { mcpAuditLog, products, sites, stockLevels } from '../../db/schema/index.js';
+import { apiKeys, mcpAuditLog, products, sites, stockLevels } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { StockQueryService } from '../stock/stock-query.service.js';
 
@@ -42,6 +42,9 @@ beforeAll(async () => {
   app = await buildApp();
   await app.ready();
   const jwt = app.jwt.sign({ userId: 'u', companyId: COMPANY, email: 't@a.invalid', roles: ['admin'] });
+  // Key names are unique per company and nothing removes them, so a second run
+  // against the same database was refused with 409 and every test skipped.
+  await getDb().delete(apiKeys).where(and(eq(apiKeys.companyId, COMPANY), eq(apiKeys.name, 'mcp-test')));
   const issued = await app.inject({
     method: 'POST',
     url: '/api/v1/admin/api-keys',

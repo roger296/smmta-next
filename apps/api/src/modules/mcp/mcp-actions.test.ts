@@ -10,7 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
-import { mcpAuditLog, products, sites, stockLevels, stockMovements } from '../../db/schema/index.js';
+import { apiKeys, mcpAuditLog, products, sites, stockLevels, stockMovements } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 
 const COMPANY = getSingletonCompanyId();
@@ -21,11 +21,15 @@ let siteId: string;
 let productId: string;
 
 async function issueKey(jwt: string, scopes: string[]): Promise<string> {
+  const name = `k-${scopes.join('-')}`;
+  // Key names are unique per company and nothing removes them, so a second run
+  // against the same database was refused with 409 and every test skipped.
+  await getDb().delete(apiKeys).where(and(eq(apiKeys.companyId, COMPANY), eq(apiKeys.name, name)));
   const res = await app.inject({
     method: 'POST',
     url: '/api/v1/admin/api-keys',
     headers: { authorization: `Bearer ${jwt}` },
-    payload: { name: `k-${scopes.join('-')}`, scopes },
+    payload: { name, scopes },
   });
   return res.json().data.key as string;
 }
