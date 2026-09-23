@@ -3,14 +3,15 @@
  *
  * Covers: a write tool with the write scope + confirm performs exactly one
  * audited mutation; without confirm it returns a preview and changes nothing; a
- * read-only key is rejected; replaying the same action is idempotent.
+ * read-only key is rejected; replaying the same action is idempotent; and no
+ * tool, whatever the key, can open, count or approve a stock-take (§F22).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
-import { apiKeys, mcpAuditLog, products, sites, stockLevels, stockMovements } from '../../db/schema/index.js';
+import { apiKeys, mcpAuditLog, products, sites, stockLevels, stockMovements, stockTakes } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 
 const COMPANY = getSingletonCompanyId();
@@ -156,3 +157,25 @@ describe('scope', () => {
     expect(await movementCount()).toBe(0); // nothing mutated
   });
 });
+
+describe('stock-takes are read-only over MCP (§F22)', () => {
+  it('offers no tool that writes a stock-take, even to a write key', async () => {
+    const list = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: { authorization: `Bearer ${writeKey}` },
+      payload: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    });
+    const names = list.json().result.tools.map((t: { name: string }) => t.name) as string[];
+    expect(names.filter((n) => /stock_take/.test(n)).sort()).toEqual(['stock_take_detail', 'stock_takes']);
+    expect(names).not.toContain('start_stock_take');
+  });
+
+  it('start_stock_take is refused as unknown and opens nothing', async () => {
+    const res = await call(writeKey, 'start_stock_take', { site: siteId, confirm: true });
+    expect(res.json().error.message).toMatch(/Unknown tool/);
+    const takes = await getDb().select({ id: stockTakes.id }).from(stockTakes).where(eq(stockTakes.siteId, siteId));
+    expect(takes).toHaveLength(0);
+  });
+});
+

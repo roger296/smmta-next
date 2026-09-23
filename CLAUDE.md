@@ -201,6 +201,8 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   it is last-writer-wins, not a sum. ⚠️ The count idempotency key used to be
   `takeId:productId`, so a CORRECTION was dropped as a replay — it now carries a
   uuid per save. Counts sent to an approved take get **409**, not silence.
+  **MCP may READ stock-takes, never change them** (§F22): `start_stock_take`
+  is gone; `stock_takes` / `stock_take_detail` are the read tools.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and

@@ -14,6 +14,7 @@ import { SessionConsumptionService } from '../consumption/session-consumption.se
 import { BumbleBeeSessionClient } from '../consumption/bumblebee-sessions.js';
 import { ConsumptionReportService } from '../reports/consumption-report.service.js';
 import { ImageCaptureService } from '../images/image-capture.service.js';
+import { StockTakeService } from '../stock-take/stock-take.service.js';
 
 export interface McpToolContext {
   companyId: string;
@@ -165,6 +166,53 @@ export const MCP_TOOLS: McpTool[] = [
       const imageRef = typeof args.image_ref === 'string' ? args.image_ref : '';
       const reference = imageRef ? await new ImageCaptureService().getByRef(imageRef, ctx.companyId) : undefined;
       return { available: false, note: 'Count-from-image is not enabled in v1.', imageRef, reference: reference ?? null };
+    },
+  },
+  {
+    name: 'stock_takes',
+    description:
+      'Stock-takes, newest first, with progress: lines, how many counted, who has been counting, who opened it and when the last count was saved. Read-only. Optional site (id/slug/name) and status (OPEN | APPROVED).',
+    inputSchema: obj({ site: str('Site id, slug or name'), status: str('OPEN | APPROVED') }),
+    handler: async (args, ctx) => {
+      const siteId = args.site ? await resolveSiteId(args.site, ctx.companyId) : undefined;
+      // An unknown site must not fall through to "every site's takes".
+      if (args.site && !siteId) return { error: `Unknown site: ${String(args.site)}` };
+      return new StockTakeService().list({
+        siteId,
+        status: typeof args.status === 'string' && args.status ? args.status.toUpperCase() : undefined,
+        companyId: ctx.companyId,
+      });
+    },
+  },
+  {
+    name: 'stock_take_detail',
+    description:
+      'One stock-take line by line: book vs counted quantity, the variance, who counted each line and when, plus the lines that need a look before approval. Read-only.',
+    inputSchema: { ...obj({ stockTakeId: str('Stock-take id (from stock_takes)') }), required: ['stockTakeId'] },
+    handler: async (args, ctx) => {
+      const id = typeof args.stockTakeId === 'string' ? args.stockTakeId : '';
+      if (!UUID_RE.test(id)) return { error: 'stockTakeId must be a stock-take id' };
+      const service = new StockTakeService();
+      const found = await service.get(id, ctx.companyId);
+      if (!found) return { error: 'No stock-take with that id' };
+      const lines = found.lines.map((l) => ({
+        productId: l.productId,
+        productName: l.productName,
+        stockCode: l.stockCode,
+        stockUom: l.stockUom,
+        bookQty: l.bookQty,
+        countedQty: l.countedQty,
+        variance: l.variance,
+        countedByName: l.countedByName,
+        countedAt: l.countedAt,
+      }));
+      return {
+        take: found.take,
+        lineCount: lines.length,
+        countedCount: lines.filter((l) => l.countedQty != null).length,
+        lines,
+        warnings: await service.varianceWarnings(id),
+      };
     },
   },
   {

@@ -3,16 +3,18 @@
  *
  * Covers: discovery metadata; an unauthenticated /mcp call → 401 with the
  * RFC 9728 resource-metadata hint; tools/list; a tool returns the same data as
- * its service equivalent; every tool call writes one audit row.
+ * its service equivalent; every tool call writes one audit row; the read-only
+ * stock-take tools report progress and who counted each line.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
-import { apiKeys, mcpAuditLog, products, sites, stockLevels } from '../../db/schema/index.js';
+import { apiKeys, mcpAuditLog, products, sites, stockLevels, stockTakes } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { StockQueryService } from '../stock/stock-query.service.js';
+import { StockTakeService } from '../stock-take/stock-take.service.js';
 
 const COMPANY = getSingletonCompanyId();
 let app: FastifyInstance;
@@ -23,6 +25,9 @@ let productId: string;
 async function cleanup(): Promise<void> {
   const db = getDb();
   await db.delete(mcpAuditLog).where(eq(mcpAuditLog.companyId, COMPANY));
+  // stock_takes.site_id does not cascade; the take's lines cascade from it.
+  const site = await db.query.sites.findFirst({ where: eq(sites.slug, 'mcp-site') });
+  if (site) await db.delete(stockTakes).where(eq(stockTakes.siteId, site.id));
   // Deleting the product + site cascades their stock_levels (FK onDelete cascade).
   await db.delete(products).where(eq(products.slug, 'mcp-flour'));
   await db.delete(sites).where(eq(sites.slug, 'mcp-site'));
@@ -125,3 +130,51 @@ describe('tools', () => {
     expect(audit.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('stock-takes (read-only)', () => {
+  let takeId: string;
+
+  beforeAll(async () => {
+    const service = new StockTakeService();
+    const { take } = await service.open({
+      siteId,
+      scope: 'FULL',
+      companyId: COMPANY,
+      openedBy: { userId: 'pin:sam', name: 'Sam' },
+    });
+    takeId = take.id;
+    await service.recordCounts(takeId, [{ productId, countedQty: 4000 }], { userId: 'pin:alex', name: 'Alex' });
+  });
+
+  const textOf = (res: Awaited<ReturnType<typeof call>>) => JSON.parse(res.json().result.content[0].text);
+
+  it('stock_takes lists the site\'s takes with progress and counters', async () => {
+    const res = await call('tools/call', { name: 'stock_takes', arguments: { site: 'mcp-site', status: 'open' } });
+    expect(res.statusCode).toBe(200);
+    const takes = textOf(res) as Array<Record<string, unknown>>;
+    const mine = takes.find((t) => t.id === takeId)!;
+    expect(mine).toMatchObject({ openedByName: 'Sam', status: 'OPEN', countedCount: 1, counters: ['Alex'] });
+  });
+
+  it('stock_takes refuses an unknown site rather than listing every site', async () => {
+    const res = await call('tools/call', { name: 'stock_takes', arguments: { site: 'no-such-site' } });
+    expect(textOf(res)).toEqual({ error: 'Unknown site: no-such-site' });
+  });
+
+  it('stock_take_detail names who counted each line', async () => {
+    const res = await call('tools/call', { name: 'stock_take_detail', arguments: { stockTakeId: takeId } });
+    const detail = textOf(res);
+    expect(detail.take.id).toBe(takeId);
+    const line = (detail.lines as Array<Record<string, unknown>>).find((l) => l.productId === productId)!;
+    expect(line).toMatchObject({ productName: 'MCP Flour', countedByName: 'Alex', bookQty: '4200.000', countedQty: '4000.000' });
+    expect(Number(line.variance)).toBe(-200);
+  });
+
+  it('a read key reading a take changes nothing', async () => {
+    const before = await new StockTakeService().get(takeId, COMPANY);
+    await call('tools/call', { name: 'stock_take_detail', arguments: { stockTakeId: takeId } });
+    const after = await new StockTakeService().get(takeId, COMPANY);
+    expect(after).toEqual(before);
+  });
+});
+

@@ -376,6 +376,8 @@ packages bake the same cake.
 - **Action tools are a separate registry, gated by `mcp:write`.** The five write
   tools (`adjust_stock`, `set_reorder_level`, `start_stock_take`,
   `approve_reorder`, `create_purchase_order`) live in `action-tools.ts`, distinct
+  *(`start_stock_take` was removed in Sept 2026 — stock-takes are read-only over
+  MCP; see §F22)*
   from the read `MCP_TOOLS`. The dispatch requires `mcp:write` to call any of
   them; a read-only (`mcp:read`) key is rejected per-tool (not at auth, so the
   same key can do both). `mcpAuth` now accepts either mcp scope.
@@ -1349,4 +1351,28 @@ count, not a guess.
 
 Approval is unchanged: still one approver, still over the whole take. The MCP
 server's stock-take access is read-only (§F22).
+
+## §F22 — MCP may read stock-takes, never change them (Sept 2026)
+
+Owner instruction: *"The MCP server should only have read access to stock
+takes."*
+
+- **Removed:** the `start_stock_take` action tool (D13). It was the only
+  stock-take write on the MCP surface — there was never a count or approve
+  tool. A call to it now fails as `Unknown tool`, whatever the key's scope, and
+  a test holds that nothing is opened.
+- **Why not leave it behind `mcp:write` + confirm:** a stock-take is a person at
+  a shelf. A take opened remotely is one nobody is counting, and since §F21 the
+  venue screen offers every OPEN take to JOIN — a stray one sits at the top of
+  that list and splits the next real count across two takes. Approving writes
+  the variances to the ledger and to Xero, which is a head-office decision made
+  in the admin screen against the numbers, not from a chat.
+- **Added (read-only, `mcp:read`):** `stock_takes` — a site's takes with
+  progress, who opened each and who has been counting (the same
+  `StockTakeService.list` the join list uses; an unknown site is an error, not
+  every site's takes); and `stock_take_detail` — one take line by line, book vs
+  counted, the stored variance, who counted each line and when, plus the
+  approval warnings.
+- Anything that wants a stock-take changed goes through the PWA or the admin
+  screen, which is where the counter's identity comes from (§F21).
 

@@ -3,7 +3,12 @@
  *
  * Write actions Claude / Cowork can take, each wrapping an existing service so
  * the mutation lands in the same audit / idempotency tables as the REST + UI
- * paths (`stock_movements`, `reorder_proposals`, `stock_takes`, `gl_posting_log`).
+ * paths (`stock_movements`, `reorder_proposals`, `gl_posting_log`).
+ *
+ * Deliberately NOT here: anything that opens, counts or approves a stock-take.
+ * A count is a person standing at a shelf, and an approval writes the
+ * variances to the ledger; MCP may READ stock-takes (`stock_takes`,
+ * `stock_take_detail` in tools.ts) but never change one. See DECISIONS.md §F22.
  *
  * Two guards:
  *   1. **Scope** — only a key with `mcp:write` may call these (enforced in the
@@ -13,7 +18,6 @@
  * Every call is also written to `mcp_audit_log` by the dispatch.
  */
 import { StockLevelService } from '../stock/stock-level.service.js';
-import { StockTakeService } from '../stock-take/stock-take.service.js';
 import { ReorderService } from '../reorder/reorder.service.js';
 import { resolveSiteId, type McpToolContext } from './tools.js';
 
@@ -113,35 +117,6 @@ export const MCP_ACTION_TOOLS: McpActionTool[] = [
         companyId: ctx.companyId,
       });
       return { ok: true, productId: args.productId, siteId };
-    },
-  },
-  {
-    name: 'start_stock_take',
-    description: 'Open a stock-take at a site (snapshots book stock for the scope).',
-    inputSchema: obj(
-      {
-        site: str('Site id, slug or name'),
-        scope: str('FULL | CATEGORY | ZONE | ITEM | CYCLE (default FULL)'),
-        scopeRef: str('Category/product id for a scoped take'),
-      },
-      ['site'],
-    ),
-    preview: async (args, ctx) => ({
-      action: 'start_stock_take',
-      summary: `Open a ${asStr(args.scope) ?? 'FULL'} stock-take at site ${args.site}.`,
-      siteId: await resolveSiteId(args.site, ctx.companyId),
-      scope: asStr(args.scope) ?? 'FULL',
-    }),
-    execute: async (args, ctx) => {
-      const siteId = await resolveSiteId(args.site, ctx.companyId);
-      if (!siteId) throw new Error('Unknown site');
-      const { take, lines } = await new StockTakeService().open({
-        siteId,
-        scope: (asStr(args.scope) as 'FULL') ?? 'FULL',
-        scopeRef: asStr(args.scopeRef) ?? null,
-        companyId: ctx.companyId,
-      });
-      return { takeId: take.id, scope: take.scope, lineCount: lines.length };
     },
   },
   {
