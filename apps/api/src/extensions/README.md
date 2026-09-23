@@ -50,7 +50,10 @@ export default extension;
   emits `order.released` and makes the documents it was denied. `registerOrderHoldCheck` holds a
   new order as it is created, whatever route it came in by.
 - **Domain events** (`shared/events`). Emit your own inside your transactions; react to the
-  core's from `registerWorker`.
+  core's from `registerWorker` with `reactToEvent(eventType, '<key>-<name>', handler, logger)`
+  (`shared/extensions/react.ts`): your handler runs on its own queue with the core's exactly-once
+  and retry behaviour, and is given the event row. `order.lines_changed`, `order.released`,
+  `order.held`, `order.allocated` and `order.dispatched` are the ones most worth reacting to.
 - **Your own tables**, in your own migrations folder. Prefix table names with your key. Your
   migrations are tracked in their own table, so they never collide with the core's numbering.
 
