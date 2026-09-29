@@ -38,6 +38,7 @@ import { mcpRoutes } from './modules/mcp/mcp.routes.js';
 import { dropshipSupplierRoutes } from './modules/suppliers/supplier-dropship.routes.js';
 import { supplierOrdersRoutes } from './modules/suppliers/supplier-orders.routes.js';
 import { supplierSiteAccountRoutes } from './modules/suppliers/supplier-site-accounts.routes.js';
+import { buyingDataRoutes } from './modules/suppliers/buying-data.routes.js';
 import {
   storefrontReadRoutes,
   storefrontWriteRoutes,
@@ -187,6 +188,8 @@ export async function buildApp() {
 
   // Supplier ordering: each supplier's account, round and cut-off per venue.
   await app.register(supplierSiteAccountRoutes, { prefix: '/api/v1' });
+  // ...and what would stop an option being compared (the data-health page).
+  await app.register(buyingDataRoutes, { prefix: '/api/v1' });
 
   // Per-request requestId hook for storefront routes — binds an
   // X-Request-Id off the inbound headers (or mints one) and mirrors

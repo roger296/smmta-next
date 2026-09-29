@@ -1472,3 +1472,24 @@ yesterday's invoice, and a bad OCR read silently replaces a good price.
   the MCP tool it has today stops at 500 rows with no offset. Until then:
   re-capture, re-run.
 
+### Buying data health (`GET /buying-data/health`, admin page **Buying data**)
+
+What would stop ordering comparing like with like, each list biggest spend
+first (spend = what the invoice history shows under that code over a year —
+a sample, like the capture it comes from):
+
+- **Pack size missing** — the pack-size work list. Without a numeric
+  `supplier_pack_size` an option cannot be priced per stock unit, so it drops
+  out of any comparison. This is the plan's "top ~150 lines by spend": the page
+  IS the ranked list, so there is no separate spreadsheet to go stale.
+- **Suppliers not set up for every venue** — venues with no datable account.
+- **Price moves** over ±10% between the last two observations (decision D).
+- **Stale prices** over 60 days (decision C) and **no price at all**.
+- **Stocked, but nothing to buy it as** — reorder-point products first, since
+  they raise a suggestion with no supplier.
+
+`NOSKU` placeholders are excluded everywhere, as they are elsewhere. Every
+list returns its full count beside at most 300 rows, and the page says
+"Showing the first N of M": a list that silently stops reads as complete.
+Head office and venue managers can read it; it changes nothing.
+

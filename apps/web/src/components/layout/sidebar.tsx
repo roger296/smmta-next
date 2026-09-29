@@ -7,6 +7,7 @@ import {
   Package,
   Warehouse,
   Truck,
+  HeartPulse,
   Receipt,
   Settings,
   FolderTree,
@@ -62,6 +63,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Square mapping', to: '/square', icon: SquareIcon },
   { label: 'Stock', to: '/stock', icon: Warehouse },
   { label: 'Suppliers', to: '/suppliers', icon: Truck },
+  // What would stop ordering comparing like with like (supplier-ordering groundwork).
+  { label: 'Buying data', to: '/buying-data', icon: HeartPulse },
   { label: 'Purchase Orders', to: '/purchase-orders', icon: Receipt },
   { label: 'Supplier Invoices', to: '/supplier-invoices', icon: FileText },
   { label: 'Xero accounts', to: '/xero-accounts', icon: Banknote },

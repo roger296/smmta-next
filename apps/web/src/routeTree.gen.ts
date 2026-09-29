@@ -22,6 +22,7 @@ import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedReorderRouteImport } from './routes/_authed/reorder'
 import { Route as AuthedGalleryRouteImport } from './routes/_authed/gallery'
 import { Route as AuthedConsumptionRouteImport } from './routes/_authed/consumption'
+import { Route as AuthedBuyingDataRouteImport } from './routes/_authed/buying-data'
 import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppliers/index'
 import { Route as AuthedSupplierOrdersIndexRouteImport } from './routes/_authed/supplier-orders/index'
 import { Route as AuthedSupplierInvoicesIndexRouteImport } from './routes/_authed/supplier-invoices/index'
@@ -130,6 +131,11 @@ const AuthedGalleryRoute = AuthedGalleryRouteImport.update({
 const AuthedConsumptionRoute = AuthedConsumptionRouteImport.update({
   id: '/consumption',
   path: '/consumption',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedBuyingDataRoute = AuthedBuyingDataRouteImport.update({
+  id: '/buying-data',
+  path: '/buying-data',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedSuppliersIndexRoute = AuthedSuppliersIndexRouteImport.update({
@@ -375,6 +381,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
   '/test-manual': typeof TestManualRoute
+  '/buying-data': typeof AuthedBuyingDataRoute
   '/consumption': typeof AuthedConsumptionRoute
   '/gallery': typeof AuthedGalleryRoute
   '/reorder': typeof AuthedReorderRoute
@@ -434,6 +441,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
   '/test-manual': typeof TestManualRoute
+  '/buying-data': typeof AuthedBuyingDataRoute
   '/consumption': typeof AuthedConsumptionRoute
   '/gallery': typeof AuthedGalleryRoute
   '/reorder': typeof AuthedReorderRoute
@@ -495,6 +503,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/pin-login': typeof PinLoginRoute
   '/test-manual': typeof TestManualRoute
+  '/_authed/buying-data': typeof AuthedBuyingDataRoute
   '/_authed/consumption': typeof AuthedConsumptionRoute
   '/_authed/gallery': typeof AuthedGalleryRoute
   '/_authed/reorder': typeof AuthedReorderRoute
@@ -557,6 +566,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/pin-login'
     | '/test-manual'
+    | '/buying-data'
     | '/consumption'
     | '/gallery'
     | '/reorder'
@@ -616,6 +626,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/pin-login'
     | '/test-manual'
+    | '/buying-data'
     | '/consumption'
     | '/gallery'
     | '/reorder'
@@ -676,6 +687,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/pin-login'
     | '/test-manual'
+    | '/_authed/buying-data'
     | '/_authed/consumption'
     | '/_authed/gallery'
     | '/_authed/reorder'
@@ -831,6 +843,13 @@ declare module '@tanstack/react-router' {
       path: '/consumption'
       fullPath: '/consumption'
       preLoaderRoute: typeof AuthedConsumptionRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/buying-data': {
+      id: '/_authed/buying-data'
+      path: '/buying-data'
+      fullPath: '/buying-data'
+      preLoaderRoute: typeof AuthedBuyingDataRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/suppliers/': {
@@ -1159,6 +1178,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthedRouteRouteChildren {
+  AuthedBuyingDataRoute: typeof AuthedBuyingDataRoute
   AuthedConsumptionRoute: typeof AuthedConsumptionRoute
   AuthedGalleryRoute: typeof AuthedGalleryRoute
   AuthedReorderRoute: typeof AuthedReorderRoute
@@ -1209,6 +1229,7 @@ interface AuthedRouteRouteChildren {
 }
 
 const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
+  AuthedBuyingDataRoute: AuthedBuyingDataRoute,
   AuthedConsumptionRoute: AuthedConsumptionRoute,
   AuthedGalleryRoute: AuthedGalleryRoute,
   AuthedReorderRoute: AuthedReorderRoute,
