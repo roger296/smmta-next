@@ -105,8 +105,10 @@ rm /tmp/staff.txt
 ```
 
 Each PIN is checked against every active PIN, not just the new ones. Someone
-who already has a PIN is left alone, and extra venues are ADMIN grants that head
-office can see and revoke. An optional third field `site_manager` gives that
+who already has a PIN keeps it; add `--replace-existing` to give them a new one
+instead (same record, so their venues and history stay theirs, and the old PIN
+stops at once). Either way, any venue on the list that their PIN lacks is added.
+Extra venues are ADMIN grants that head office can see and revoke. An optional third field `site_manager` gives that
 person manager rights (approve a stock-take, reverse a goods-in).
 
 ## Step 2 🐳 — Purge the demo cakes

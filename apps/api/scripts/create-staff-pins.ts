@@ -3,6 +3,7 @@
  *
  *   npx tsx apps/api/scripts/create-staff-pins.ts /tmp/staff.txt           # dry run
  *   npx tsx apps/api/scripts/create-staff-pins.ts /tmp/staff.txt --apply
+ *   … --replace-existing   also give a NEW PIN to anyone listed who has one
  *
  * One person per line, `Name, Venue` — or several venues joined by `;`, the
  * first being the one they sign in to by default:
@@ -27,25 +28,28 @@
  *    PIN would sign in as whichever row Postgres returns first, and file their
  *    counts under someone else's name. A hash cannot be compared, so each
  *    candidate is VERIFIED against every active hash and redrawn on a match.
- *  - Idempotent by name. A person who already has an active PIN is left alone:
- *    re-running must never replace a PIN already handed over. To reissue one,
- *    deactivate the old row first.
+ *  - Idempotent by name. A person who already has an active PIN keeps it:
+ *    re-running must never replace a PIN already handed over by accident.
+ *    `--replace-existing` does it on purpose — a new PIN on the SAME row, so
+ *    their venues and history stay theirs and the old PIN stops at once.
+ *    Their missing venues are granted either way; their default venue is
+ *    never moved.
  *  - Extra venues are written to `device_pin_sites` as ADMIN grants, which is
  *    what head office already sees and can revoke (`GET /device-pins`).
  *  - The PIN is printed ONCE, on --apply. It is scrypt-hashed on the way in and
  *    cannot be read back; a dry run shows none, because a PIN that was never
  *    saved is a PIN someone might write down and hand out.
  */
-import "dotenv/config";
-import { randomInt } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { and, eq } from "drizzle-orm";
-import { closeDatabase, getDb } from "../src/config/database.js";
-import { devicePins, devicePinSites, sites } from "../src/db/schema/index.js";
-import { hashPassword, verifyPassword } from "../src/shared/auth/password.js";
-import { getSingletonCompanyId } from "../src/shared/auth/company.js";
+import 'dotenv/config';
+import { randomInt } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { and, eq } from 'drizzle-orm';
+import { closeDatabase, getDb } from '../src/config/database.js';
+import { devicePins, devicePinSites, sites } from '../src/db/schema/index.js';
+import { hashPassword, verifyPassword } from '../src/shared/auth/password.js';
+import { getSingletonCompanyId } from '../src/shared/auth/company.js';
 
-const ROLES = ["head_baker", "site_manager"] as const;
+const ROLES = ['head_baker', 'site_manager'] as const;
 type StaffRole = (typeof ROLES)[number];
 
 export interface StaffLine {
@@ -61,38 +65,28 @@ export function parseStaffList(text: string): StaffLine[] {
   const problems: string[] = [];
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = raw.trim();
-    if (!line || line.startsWith("#")) return;
-    const [name = "", venues = "", role = ""] = line
-      .split(",")
-      .map((s) => s.trim());
+    if (!line || line.startsWith('#')) return;
+    const [name = '', venues = '', role = ''] = line.split(',').map((s) => s.trim());
     const venueList = venues
-      .split(";")
+      .split(';')
       .map((v) => v.trim())
       .filter(Boolean);
-    const chosenRole = (role || "head_baker") as StaffRole;
+    const chosenRole = (role || 'head_baker') as StaffRole;
     if (!name) problems.push(`line ${i + 1}: no name`);
-    else if (name.length > 120)
-      problems.push(`line ${i + 1}: name is over 120 characters`);
-    if (venueList.length === 0)
-      problems.push(`line ${i + 1}: no venue for "${name}"`);
+    else if (name.length > 120) problems.push(`line ${i + 1}: name is over 120 characters`);
+    if (venueList.length === 0) problems.push(`line ${i + 1}: no venue for "${name}"`);
     if (!ROLES.includes(chosenRole)) {
-      problems.push(
-        `line ${i + 1}: role "${role}" is not one of ${ROLES.join(", ")}`,
-      );
+      problems.push(`line ${i + 1}: role "${role}" is not one of ${ROLES.join(', ')}`);
     }
     out.push({ line: i + 1, name, venues: venueList, role: chosenRole });
   });
   const seen = new Map<string, number>();
   for (const s of out) {
     const key = s.name.toLowerCase();
-    if (seen.has(key))
-      problems.push(
-        `line ${s.line}: "${s.name}" is also on line ${seen.get(key)}`,
-      );
+    if (seen.has(key)) problems.push(`line ${s.line}: "${s.name}" is also on line ${seen.get(key)}`);
     else seen.set(key, s.line);
   }
-  if (problems.length > 0)
-    throw new Error(`the staff list has problems:\n  ${problems.join("\n  ")}`);
+  if (problems.length > 0) throw new Error(`the staff list has problems:\n  ${problems.join('\n  ')}`);
   return out;
 }
 
@@ -106,14 +100,20 @@ export interface StaffPinResult {
   name: string;
   venues: string[];
   role: StaffRole;
-  status: "created" | "exists" | "would-create";
-  /** Only on a row this run created. */
+  status: 'created' | 'exists' | 'would-create' | 'replaced' | 'would-replace';
+  /** Only on a row this run created or re-PINned. */
   pin?: string;
+  /** An existing PIN: venues from the list it lacked — added on --apply. */
+  venuesToAdd?: string[];
+  /** Set when an existing PIN's default venue is not the list's first.
+   *  Reported, never changed: moving someone's home venue is not a
+   *  list-tidying job. */
+  note?: string;
 }
 
 export async function createStaffPins(
   staff: StaffLine[],
-  opts: { apply?: boolean; addedBy?: string } = {},
+  opts: { apply?: boolean; replaceExisting?: boolean; addedBy?: string } = {},
 ): Promise<StaffPinResult[]> {
   const companyId = getSingletonCompanyId();
   const db = getDb();
@@ -123,30 +123,33 @@ export async function createStaffPins(
   });
   const findSite = (v: string) => {
     const k = v.toLowerCase();
-    return siteRows.find(
-      (s) => s.name.toLowerCase() === k || s.slug.toLowerCase() === k,
-    );
+    return siteRows.find((s) => s.name.toLowerCase() === k || s.slug.toLowerCase() === k);
   };
   // Every venue checked before anything is written: a typo on line 9 must not
   // leave lines 1–8 created and the rest not.
-  const unknown = staff.flatMap((s) =>
-    s.venues.filter((v) => !findSite(v)).map((v) => `"${v}" (${s.name})`),
-  );
+  const unknown = staff.flatMap((s) => s.venues.filter((v) => !findSite(v)).map((v) => `"${v}" (${s.name})`));
   if (unknown.length > 0) {
     throw new Error(
-      `no venue called ${unknown.join(", ")}. Venues here: ${siteRows.map((s) => s.name).join(", ")}`,
+      `no venue called ${unknown.join(', ')}. Venues here: ${siteRows.map((s) => s.name).join(', ')}`,
     );
   }
 
   const active = await db.query.devicePins.findMany({
-    where: and(
-      eq(devicePins.companyId, companyId),
-      eq(devicePins.isActive, true),
-    ),
+    where: and(eq(devicePins.companyId, companyId), eq(devicePins.isActive, true)),
   });
-  const existingByName = new Set(
-    active.map((p) => p.label.trim().toLowerCase()),
-  );
+  const existingByName = new Map(active.map((p) => [p.label.trim().toLowerCase(), p]));
+  // Two active PINs under one name cannot be told apart: re-PINning "the"
+  // person would leave the other live, and granting venues to one leaves the
+  // other short. Refused before anything is written.
+  const ambiguous = staff
+    .map((s) => s.name)
+    .filter((n) => active.filter((p) => p.label.trim().toLowerCase() === n.toLowerCase()).length > 1);
+  if (ambiguous.length > 0) {
+    throw new Error(
+      `more than one active PIN is called ${ambiguous.map((n) => `"${n}"`).join(', ')} — ` +
+        'deactivate the spare one(s) first, so it is clear which PIN is theirs',
+    );
+  }
   const hashes = active.map((p) => p.pinHash);
   const drawn = new Set<string>();
 
@@ -166,7 +169,7 @@ export async function createStaffPins(
         return pin;
       }
     }
-    throw new Error("could not draw a PIN distinct from the active ones");
+    throw new Error('could not draw a PIN distinct from the active ones');
   }
 
   const results: StaffPinResult[] = [];
@@ -177,12 +180,70 @@ export async function createStaffPins(
       venues: venues.map((v) => v.name),
       role: person.role,
     };
-    if (existingByName.has(person.name.toLowerCase())) {
-      results.push({ ...base, status: "exists" });
+    const existing = existingByName.get(person.name.toLowerCase());
+    if (existing) {
+      // The PIN stays as it is, but the venues are checked: a person asked
+      // for at two venues and able to sign in at one would find out at the
+      // iPad of the other. Missing venues are GRANTED (additive, revocable);
+      // nothing is taken away and the default venue is never moved.
+      const granted = await db
+        .select({ siteId: devicePinSites.siteId })
+        .from(devicePinSites)
+        .where(eq(devicePinSites.devicePinId, existing.id));
+      const has = new Set([existing.siteId, ...granted.map((g) => g.siteId)]);
+      const missing = venues.filter((v) => !has.has(v.id));
+      if (opts.apply) {
+        for (const site of missing) {
+          await db
+            .insert(devicePinSites)
+            .values({
+              companyId,
+              devicePinId: existing.id,
+              siteId: site.id,
+              addedVia: 'ADMIN',
+              addedBy: opts.addedBy ?? 'create-staff-pins',
+            })
+            .onConflictDoNothing();
+        }
+      }
+      const home = siteRows.find((s) => s.id === existing.siteId);
+      // What it has NOW: the added venues only count once they were actually added.
+      const nowHas = siteRows.filter(
+        (s) => has.has(s.id) || (opts.apply && missing.some((m) => m.id === s.id)),
+      );
+      results.push({
+        ...base,
+        venues: [home, ...nowHas.filter((s) => s.id !== home?.id)].filter(Boolean).map((s) => s!.name),
+        status: 'exists' as StaffPinResult['status'],
+        venuesToAdd: missing.map((m) => m.name),
+        ...(home?.id !== venues[0]!.id
+          ? {
+              note: `signs in to ${home?.name ?? 'any venue'} by default, not ${venues[0]!.name} — left as it is`,
+            }
+          : {}),
+      });
+      if (opts.replaceExisting) {
+        const last = results[results.length - 1]!;
+        if (!opts.apply) {
+          last.status = 'would-replace';
+        } else {
+          // In place, not a new row: the venues granted to this PIN, and the
+          // `pin:<id>` everything they have filed is attributed to, stay theirs.
+          // The old PIN stops working at once; a token it already issued runs
+          // out within its 12 hours.
+          const pin = await distinctPin();
+          await db
+            .update(devicePins)
+            .set({ pinHash: await hashPassword(pin), updatedAt: new Date() })
+            .where(eq(devicePins.id, existing.id));
+          last.status = 'replaced';
+          last.pin = pin;
+        }
+      }
       continue;
     }
     if (!opts.apply) {
-      results.push({ ...base, status: "would-create" });
+      results.push({ ...base, status: 'would-create' });
       continue;
     }
 
@@ -204,62 +265,62 @@ export async function createStaffPins(
           companyId,
           devicePinId: row!.id,
           siteId: site.id,
-          addedVia: "ADMIN",
-          addedBy: opts.addedBy ?? "create-staff-pins",
+          addedVia: 'ADMIN',
+          addedBy: opts.addedBy ?? 'create-staff-pins',
         });
       }
     });
-    results.push({ ...base, status: "created", pin });
+    results.push({ ...base, status: 'created', pin });
   }
   return results;
 }
 
-const isCliEntry = process.argv[1]?.endsWith("create-staff-pins.ts") ?? false;
+const isCliEntry = process.argv[1]?.endsWith('create-staff-pins.ts') ?? false;
 
 if (isCliEntry) {
-  const apply = process.argv.includes("--apply");
-  const file = process.argv.slice(2).find((a) => !a.startsWith("--"));
+  const apply = process.argv.includes('--apply');
+  const file = process.argv.slice(2).find((a) => !a.startsWith('--'));
   Promise.resolve()
     .then(() => {
-      if (!file)
-        throw new Error("give the staff list file, e.g. /tmp/staff.txt");
-      return createStaffPins(parseStaffList(readFileSync(file, "utf8")), {
+      if (!file) throw new Error('give the staff list file, e.g. /tmp/staff.txt');
+      return createStaffPins(parseStaffList(readFileSync(file, 'utf8')), {
         apply,
+        replaceExisting: process.argv.includes('--replace-existing'),
       });
     })
     .then((results) => {
-      console.log(
-        `[create-staff-pins] ${apply ? "OK" : "DRY RUN — nothing written, no PINs issued"}`,
-      );
-      console.log("");
+      console.log(`[create-staff-pins] ${apply ? 'OK' : 'DRY RUN — nothing written, no PINs issued'}`);
+      console.log('');
       for (const r of results) {
+        const added = r.venuesToAdd?.length
+          ? `${apply ? 'added' : 'would add'} ${r.venuesToAdd.join(' + ')}`
+          : '';
+        const extra = added ? ` (${added})` : '';
         const state =
-          r.status === "exists"
-            ? "(already has a PIN — unchanged)"
-            : r.status === "created"
+          r.status === 'exists'
+            ? `(already has a PIN${added ? `; ${added}` : ' — unchanged'})`
+            : r.status === 'created'
               ? r.pin!
-              : "would create";
-        const role = r.role === "head_baker" ? "" : ` [${r.role}]`;
-        console.log(
-          `  ${r.name.padEnd(24)} ${state.padEnd(34)} ${r.venues.join(" + ")}${role}`,
-        );
+              : r.status === 'replaced'
+                ? `${r.pin!} NEW — old PIN stopped${extra}`
+                : r.status === 'would-replace'
+                  ? `would replace their PIN${extra}`
+                  : 'would create';
+        const role = r.role === 'head_baker' ? '' : ` [${r.role}]`;
+        console.log(`  ${r.name.padEnd(24)} ${state.padEnd(34)} ${r.venues.join(' + ')}${role}`);
+        if (r.note) console.log(`  ${''.padEnd(24)} ^ ${r.note}`);
       }
       if (results.some((r) => r.pin)) {
-        console.log("");
-        console.log(
-          "  ^ Copy these now — they are hashed and cannot be read back.",
-        );
-        console.log("    Then delete the list: rm " + file);
+        console.log('');
+        console.log('  ^ Copy these now — they are hashed and cannot be read back.');
+        console.log('    Then delete the list: rm ' + file);
       } else if (!apply) {
-        console.log("");
-        console.log("  Looks right? Run again with --apply to create them.");
+        console.log('');
+        console.log('  Looks right? Run again with --apply to create them.');
       }
     })
     .catch((err) => {
-      console.error(
-        "[create-staff-pins] FAILED:",
-        err instanceof Error ? err.message : err,
-      );
+      console.error('[create-staff-pins] FAILED:', err instanceof Error ? err.message : err);
       process.exitCode = 1;
     })
     .finally(() => closeDatabase());
