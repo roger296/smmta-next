@@ -12,7 +12,20 @@ import {
   needsPurchaseUnit,
   packStepLabel,
 } from '@/lib/pack';
-import { useReceiveGoodsIn, useReverseGoodsIn } from '@/features/pwa/use-pwa-jobs';
+import { useExpectedOrders, useReceiveGoodsIn, useReverseGoodsIn } from '@/features/pwa/use-pwa-jobs';
+import {
+  bookableLines,
+  describeOrderLine,
+  linesFromOrder,
+  orderLineFor,
+  overDeliveries,
+  stillToComeAfter,
+  type OrderContext,
+  type OrderLineRef,
+  type OverDelivered,
+} from '@/features/pwa/order-booking';
+import { apiFetch } from '@/lib/api-client';
+import type { ReceivingView } from '@/features/purchasing/use-purchasing';
 import { updateExpectedCost } from '@/features/products/update-cost';
 import type { Product } from '@/lib/api-types';
 import { PwaSyncPill } from '@/features/pwa/queue-status';
@@ -55,6 +68,15 @@ interface Line {
   unitCost: number;
   batchCode: string;
   useBy: string;
+  /** The order line this counts towards, when booking against an order. */
+  order?: OrderLineRef;
+}
+
+/** What is saved as a draft: the lines, and the order they are against. */
+interface Draft {
+  lines: Line[];
+  order: OrderContext | null;
+  deliveryNote: string;
 }
 
 /** Exported so the component tests can render the screen without a router. */
@@ -101,6 +123,11 @@ export function GoodsInScreen() {
   // silently reappearing.
   const [restored, setRestored] = React.useState<number | null>(null);
   const [lastBookedAt, setLastBookedAt] = React.useState<number | null>(null);
+  // Booking against an order (DECISIONS.md F24): the order picked, and the
+  // supplier's delivery-note number for this delivery.
+  const [order, setOrder] = React.useState<OrderContext | null>(null);
+  const [deliveryNote, setDeliveryNote] = React.useState('');
+  const [pickingOrder, setPickingOrder] = React.useState(false);
 
   // ── Draft persistence (A-5) ───────────────────────────────────────────
   // Keyed by site as well as screen: restoring another venue's delivery would
@@ -110,18 +137,55 @@ export function GoodsInScreen() {
   React.useEffect(() => {
     if (restoredRef.current || !selectedSiteId) return;
     restoredRef.current = true;
-    const draft = loadDraft<Line[]>(DRAFT_SCREEN, selectedSiteId);
-    if (draft?.value?.length) {
-      setLines(draft.value);
-      setRestored(draft.savedAt);
+    // A draft saved before orders were bookable is a bare list of lines.
+    const draft = loadDraft<Line[] | Draft>(DRAFT_SCREEN, selectedSiteId);
+    const saved: Draft | null = !draft?.value
+      ? null
+      : Array.isArray(draft.value)
+        ? { lines: draft.value, order: null, deliveryNote: '' }
+        : draft.value;
+    if (saved?.lines.length) {
+      setLines(saved.lines);
+      setOrder(saved.order);
+      setDeliveryNote(saved.deliveryNote);
+      setRestored(draft!.savedAt);
     }
   }, [selectedSiteId]);
 
   React.useEffect(() => {
     if (!selectedSiteId || !restoredRef.current) return;
     if (lines.length === 0) clearDraft(DRAFT_SCREEN, selectedSiteId);
-    else saveDraft(DRAFT_SCREEN, selectedSiteId, lines);
-  }, [lines, selectedSiteId]);
+    else saveDraft<Draft>(DRAFT_SCREEN, selectedSiteId, { lines, order, deliveryNote });
+  }, [lines, order, deliveryNote, selectedSiteId]);
+
+  /** Lay an order out for booking: every line still to come, at what is still
+   *  to come. Scanned lines already on screen are kept, and matched to the
+   *  order where they are on it. */
+  const startOrder = (picked: OrderContext) => {
+    setOrder(picked);
+    setDeliveryNote('');
+    setPickingOrder(false);
+    setError(null);
+    setLines((ls) => [
+      ...ls.map((l) => ({ ...l, order: orderLineFor(picked, l.product.id) })),
+      ...linesFromOrder(picked)
+        .filter((ol) => !ls.some((l) => l.product.id === ol.product.id))
+        .map((ol) => ({
+          ...ol,
+          unitCost: Number(ol.product.expectedNextCost) || 0,
+          batchCode: '',
+          useBy: '',
+        })),
+    ]);
+  };
+
+  const stopOrder = () => {
+    setOrder(null);
+    setDeliveryNote('');
+    // Lines stay (they are real stock that arrived), but no longer count
+    // against the order; ones still at 0 were only placeholders for it.
+    setLines((ls) => ls.filter((l) => l.qtyPurchase > 0).map(({ order: _o, ...l }) => l));
+  };
 
   const leaveScreen = () => {
     // Nothing uncommitted — just go.
@@ -153,7 +217,17 @@ export function GoodsInScreen() {
       return;
     }
     setError(null);
-    setLines((ls) => [...ls, { product: product!, qtyPurchase: 1, unitCost: Number(product!.expectedNextCost) || 0, batchCode: '', useBy: '' }]);
+    setLines((ls) => [
+      ...ls,
+      {
+        product: product!,
+        qtyPurchase: 1,
+        unitCost: Number(product!.expectedNextCost) || 0,
+        batchCode: '',
+        useBy: '',
+        order: orderLineFor(order, product!.id),
+      },
+    ]);
     setCode('');
   };
 
@@ -162,18 +236,31 @@ export function GoodsInScreen() {
   const removeLine = (i: number) => setLines((ls) => ls.filter((_, idx) => idx !== i));
 
   const submit = async () => {
-    if (!selectedSiteId || lines.length === 0) return;
+    // A line at 0 books nothing: against an order it is "didn't come", and it
+    // stays on the order for a later delivery.
+    const booking = bookableLines(lines);
+    if (!selectedSiteId || booking.length === 0) return;
     setConfirming(false);
     setError(null);
     let res;
     try {
       res = await receive.mutateAsync({
         siteId: selectedSiteId,
-        lines: lines.map((l) => ({
+        ...(order
+          ? {
+              purchaseOrderId: order.id,
+              poNumber: order.poNumber,
+              deliveryNoteNumber: deliveryNote.trim() || undefined,
+              // The confirmation listed every extra before this was tapped.
+              acceptOverDelivery: overDeliveries(lines, true).length > 0 ? true : undefined,
+            }
+          : {}),
+        lines: booking.map((l) => ({
           productId: l.product.id,
           qtyPurchase: l.qtyPurchase,
           unitCost: l.unitCost,
           ...(l.product.requireBatchNumber ? { batchCode: l.batchCode, useBy: l.useBy || null } : {}),
+          ...(l.order ? { purchaseOrderLineId: l.order.purchaseOrderLineId } : {}),
         })),
       });
     } catch (err) {
@@ -199,10 +286,12 @@ export function GoodsInScreen() {
     // cleared only when the user leaves the receipt.
     if (res.status === 'sent' && res.data?.receipt?.id) {
       setReceipt({
-        reference: res.data.receipt.reference ?? res.data.receipt.id.slice(0, 8),
+        reference: order
+          ? `${order.poNumber}${deliveryNote.trim() ? ` · note ${deliveryNote.trim()}` : ''}`
+          : (res.data.receipt.reference ?? res.data.receipt.id.slice(0, 8)),
         venue: selectedSite?.name ?? 'this venue',
         bookedAt: Date.now(),
-        lines: lines.map((l) => ({
+        lines: booking.map((l) => ({
           name: l.product.name,
           description: describePackLine(l.qtyPurchase, l.product),
           value: l.qtyPurchase * l.unitCost,
@@ -225,6 +314,8 @@ export function GoodsInScreen() {
       toast({ title: 'Saved offline — will sync' });
     }
     setLines([]);
+    setOrder(null);
+    setDeliveryNote('');
   };
 
   const doUndo = async () => {
@@ -254,6 +345,7 @@ export function GoodsInScreen() {
         unitCost: Number(product.expectedNextCost) || 0,
         batchCode: '',
         useBy: '',
+        order: orderLineFor(order, product.id),
       },
     ]);
     setCode('');
@@ -264,6 +356,8 @@ export function GoodsInScreen() {
   // A line with no purchase unit cannot produce a defensible stock figure, so
   // it blocks the whole booking rather than quietly booking "1 g" (C-1).
   const blockedLines = lines.filter((l) => needsPurchaseUnit(l.product));
+  const booking = bookableLines(lines);
+  const over = overDeliveries(lines, !!order);
 
   const qt = qtyTarget !== null ? lines[qtyTarget] : undefined;
   const dt = detailsTarget !== null ? lines[detailsTarget] : undefined;
@@ -299,7 +393,7 @@ export function GoodsInScreen() {
         venueBound={isBound}
         onBack={leaveScreen}
         right={<PwaSyncPill />}
-        stat={lines.length > 0 ? `${lines.length} line${lines.length === 1 ? '' : 's'} to book in` : undefined}
+        stat={booking.length > 0 ? `${booking.length} line${booking.length === 1 ? '' : 's'} to book in` : undefined}
       />
 
       <div className="toolbar">
@@ -318,6 +412,13 @@ export function GoodsInScreen() {
           autoCorrect="off"
         />
         <button className="chip on" onClick={() => void addByCode()} style={{ minWidth: 72 }}>+ Add</button>
+        <button
+          className={`chip${order ? ' on' : ''}`}
+          onClick={() => setPickingOrder(true)}
+          aria-label={order ? `Booking against ${order.poNumber} — change order` : 'Book in against an order'}
+        >
+          {order ? order.poNumber : 'Against an order'}
+        </button>
       </div>
 
       <div className="scroll">
@@ -329,6 +430,15 @@ export function GoodsInScreen() {
             Restored your unfinished delivery from {formatClock(restored)}.
             <button type="button" className="linklike" onClick={() => setRestored(null)}>
               Dismiss
+            </button>
+          </div>
+        )}
+        {order && (
+          <div className="notice" role="status" data-testid="order-banner">
+            Booking against <strong>{order.poNumber}</strong> · {order.supplierName}. Set anything that
+            didn&rsquo;t come to 0 — it stays on the order for a later delivery.
+            <button type="button" className="linklike" onClick={stopOrder}>
+              Not against an order
             </button>
           </div>
         )}
@@ -348,6 +458,17 @@ export function GoodsInScreen() {
               <div className={`status status-${status}`} aria-hidden="true">{status === 'warn' ? '!' : '●'}</div>
               <div className="meta">
                 <div className="name">{l.product.name}</div>
+                {order && (
+                  <div className="hint order-hint">
+                    {l.order ? describeOrderLine(l.order, l.product) : 'Not on this order'}
+                    {l.order && l.qtyPurchase === 0 && (
+                      <span className="badge" style={{ marginLeft: 6 }}>didn&rsquo;t come — stays on the order</span>
+                    )}
+                    {over.some((o) => o.name === l.product.name) && (
+                      <span className="badge warn" style={{ marginLeft: 6 }}>more than ordered</span>
+                    )}
+                  </div>
+                )}
                 <div className="hint">
                   {/* "4 × 25 kg sack = 100 kg" — quantity, pack, and the
                       resolved amount in a unit a person uses (C-1/C-2). */}
@@ -419,14 +540,14 @@ export function GoodsInScreen() {
       <ActionBar>
         <BigButton
           variant="ok"
-          disabled={lines.length === 0 || blockedLines.length > 0 || receive.isPending}
+          disabled={booking.length === 0 || blockedLines.length > 0 || receive.isPending}
           onClick={() => setConfirming(true)}
         >
           {receive.isPending
             ? 'Booking in…'
             : blockedLines.length > 0
               ? `${blockedLines.length} line${blockedLines.length === 1 ? '' : 's'} need a purchase unit`
-              : `Book in ${lines.length} line${lines.length === 1 ? '' : 's'}`}
+              : `Book in ${booking.length} line${booking.length === 1 ? '' : 's'}`}
         </BigButton>
       </ActionBar>
 
@@ -452,6 +573,8 @@ export function GoodsInScreen() {
           onDiscard={() => {
             setConfirmExit(false);
             setLines([]);
+            setOrder(null);
+            setDeliveryNote('');
             if (selectedSiteId) clearDraft(DRAFT_SCREEN, selectedSiteId);
             void navigate({ to: '/venue' });
           }}
@@ -462,9 +585,33 @@ export function GoodsInScreen() {
         <ConfirmBookingSheet
           venue={selectedSite?.name ?? 'No venue set'}
           venueBound={isBound}
-          lines={lines}
+          lines={booking}
+          order={
+            order
+              ? {
+                  poNumber: order.poNumber,
+                  deliveryNote,
+                  onDeliveryNote: setDeliveryNote,
+                  over,
+                  stillToCome: stillToComeAfter(order, lines),
+                }
+              : undefined
+          }
           onCancel={() => setConfirming(false)}
           onConfirm={() => void submit()}
+        />
+      )}
+
+      {pickingOrder && (
+        <OrderPickerSheet
+          siteId={selectedSiteId}
+          current={order?.id ?? null}
+          onClose={() => setPickingOrder(false)}
+          onPick={startOrder}
+          onError={(message) => {
+            setPickingOrder(false);
+            setError({ title: 'Could not open that order', message });
+          }}
         />
       )}
 
@@ -603,14 +750,23 @@ function DetailsSheet({
  * numbers the form happens to hold. Cancel returns with every entry intact.
  */
 export function ConfirmBookingSheet({
-  venue, venueBound, lines, onCancel, onConfirm,
+  venue, venueBound, lines, order, onCancel, onConfirm,
 }: {
   venue: string;
   venueBound: boolean;
   lines: Line[];
+  /** Booking against an order: its number, the delivery note, and what is extra. */
+  order?: {
+    poNumber: string;
+    deliveryNote: string;
+    onDeliveryNote: (v: string) => void;
+    over: OverDelivered[];
+    stillToCome: number;
+  };
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const extras = order?.over ?? [];
   return (
     <BottomSheet title="Book this delivery in?" onClose={onCancel}>
       <div className="confirm-venue">
@@ -622,6 +778,44 @@ export function ConfirmBookingSheet({
           </span>
         )}
       </div>
+
+      {order && (
+        <div className="confirm-order">
+          <div className="confirm-venue-label">Against order {order.poNumber}</div>
+          <label className="confirm-note">
+            Delivery note number
+            <input
+              className="search"
+              value={order.deliveryNote}
+              onChange={(e) => order.onDeliveryNote(e.target.value)}
+              placeholder="From the supplier's paperwork"
+              aria-label="Delivery note number"
+              autoCapitalize="characters"
+              autoCorrect="off"
+            />
+          </label>
+          <div className="confirm-still" role="status">
+            {order.stillToCome === 0
+              ? 'This completes the order.'
+              : `${order.stillToCome} line${order.stillToCome === 1 ? '' : 's'} will stay on the order for a later delivery.`}
+          </div>
+        </div>
+      )}
+
+      {extras.length > 0 && (
+        <div className="confirm-extras" role="alert" data-testid="over-delivery">
+          <strong>More than was ordered</strong>
+          {extras.map((o) => (
+            <div key={o.name}>
+              {o.name}:{' '}
+              {o.notOnOrder
+                ? `not on the order (${o.extra} ${o.unit})`
+                : `${o.extra} ${o.unit}${o.extra === 1 ? '' : 's'} extra`}
+            </div>
+          ))}
+          <span>Only confirm if it really arrived and you are keeping it.</span>
+        </div>
+      )}
 
       <div className="confirm-lines">
         <div className="confirm-count">
@@ -637,7 +831,80 @@ export function ConfirmBookingSheet({
 
       <div className="sheet-actions">
         <BigButton variant="ghost" onClick={onCancel}>Cancel</BigButton>
-        <BigButton variant="ok" onClick={onConfirm}>Confirm and book in</BigButton>
+        <BigButton variant="ok" onClick={onConfirm}>
+          {extras.length > 0 ? 'Confirm, including the extra' : 'Confirm and book in'}
+        </BigButton>
+      </div>
+    </BottomSheet>
+  );
+}
+
+/**
+ * The orders this venue is waiting on (DECISIONS.md F24). Picking one lays
+ * its lines out, each at what is still to come.
+ */
+export function OrderPickerSheet({
+  siteId, current, onClose, onPick, onError,
+}: {
+  siteId: string | null;
+  current: string | null;
+  onClose: () => void;
+  onPick: (order: OrderContext) => void;
+  onError: (message: string) => void;
+}) {
+  const { data, isLoading, isError } = useExpectedOrders(siteId, true);
+  const [opening, setOpening] = React.useState<string | null>(null);
+
+  const open = async (id: string) => {
+    setOpening(id);
+    try {
+      const view = await apiFetch<ReceivingView>(`/purchase-orders/${id}/receiving`);
+      onPick({
+        id: view.id,
+        poNumber: view.poNumber,
+        supplierName: view.supplier.name,
+        lines: view.lines.map((l) => ({
+          id: l.id,
+          product: l.product,
+          ordered: l.ordered,
+          received: l.received,
+          outstanding: l.outstanding,
+        })),
+      });
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'The order could not be loaded.');
+    } finally {
+      setOpening(null);
+    }
+  };
+
+  return (
+    <BottomSheet title="Which order is this delivery for?" onClose={onClose}>
+      {isLoading && <div className="empty">Looking for orders…</div>}
+      {isError && <div className="empty">Could not load this venue&rsquo;s orders. Check the connection.</div>}
+      {data && data.length === 0 && (
+        <div className="empty">No orders are waiting to be delivered here. Book it in without one.</div>
+      )}
+      <div className="order-list" data-testid="expected-orders">
+        {(data ?? []).map((o) => (
+          <button
+            key={o.id}
+            className={`order-pick${o.id === current ? ' on' : ''}`}
+            disabled={opening !== null}
+            onClick={() => void open(o.id)}
+          >
+            <span className="order-pick-number">{o.poNumber}</span>
+            <span className="order-pick-supplier">{o.supplierName}</span>
+            <span className="order-pick-meta">
+              {o.linesOutstanding} of {o.lines} line{o.lines === 1 ? '' : 's'} still to come
+              {o.expectedDeliveryDate ? ` · due ${new Date(`${o.expectedDeliveryDate}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
+            </span>
+            {opening === o.id && <span className="order-pick-meta">Opening…</span>}
+          </button>
+        ))}
+      </div>
+      <div className="sheet-actions">
+        <BigButton variant="ghost" onClick={onClose}>Cancel</BigButton>
       </div>
     </BottomSheet>
   );

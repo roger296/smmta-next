@@ -712,3 +712,24 @@ body.touch-layout-active { overflow: hidden; overscroll-behavior: none; }
 
 .touch-app .replace-list { margin: 0 0 4px; padding-left: 18px; font-size: 15px; }
 .touch-app .replace-list li { margin-bottom: 6px; }
+
+/* ── Goods in against an order (DECISIONS.md F24) ─────────────────────── */
+.touch-app .order-hint { color: var(--ink); font-weight: 500; }
+.touch-app .order-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.touch-app .order-pick {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  min-height: 64px; padding: 12px 14px; text-align: left;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--t-radius);
+  color: var(--ink); font-size: 15px;
+}
+.touch-app .order-pick.on { border-color: var(--ok); background: var(--ok-soft); }
+.touch-app .order-pick-number { font-weight: 700; font-size: 17px; }
+.touch-app .order-pick-meta { font-size: 13px; color: var(--muted); }
+.touch-app .confirm-order { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.touch-app .confirm-note { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 500; }
+.touch-app .confirm-still { font-size: 14px; color: var(--muted); }
+.touch-app .confirm-extras {
+  display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; padding: 12px;
+  background: var(--warn-soft); border: 1px solid var(--warn); border-radius: var(--t-radius);
+  font-size: 15px; color: var(--ink);
+}

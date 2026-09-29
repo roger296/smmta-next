@@ -170,6 +170,30 @@ system.
   **Stock by site** in the menu rather than booking it in again.
 - A line with an orange **!** dot is missing something — usually a batch code.
 
+#### When the delivery is for an order
+
+If head office raised an order for this delivery, book it in against the
+order — then the order knows what has come and what is still to come.
+
+1. Tap **Against an order** next to **+ Add**, and pick the order (it shows
+   the supplier and how many lines are still to come).
+2. Every line still to come appears, set to **what is still to come**. Change
+   each one to what actually arrived:
+   - **Didn't come at all?** Set it to **0**. It isn't booked, and it stays on
+     the order for the next delivery.
+   - **Only part came?** Set what arrived. The rest stays on the order.
+3. Anything else in the delivery can be scanned as normal. If it isn't on the
+   order it says **Not on this order**.
+4. Tap **Book in N lines**. Type the **delivery note number** from the
+   supplier's paperwork on the confirmation.
+5. **More than was ordered?** The confirmation lists it under **More than was
+   ordered** and the button reads **Confirm, including the extra**. Only
+   confirm if it really arrived and you are keeping it. If it was sent by
+   mistake, set the line to what you are keeping.
+
+The confirmation also says whether this completes the order or how many lines
+will stay on it for a later delivery.
+
 ### 5.2 End of bake — recording what a session used
 
 **Do this at the end of each baking session, while you can still see what's

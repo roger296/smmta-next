@@ -383,6 +383,29 @@ function TestManualPage() {
               code.
             </li>
           </ul>
+
+          <h4>When the delivery is for an order</h4>
+
+          <ol>
+            <li>
+              Tap <strong>Against an order</strong> next to <strong>+ Add</strong>, and pick the
+              order.
+            </li>
+            <li>
+              Every line still to come appears, set to what is still to come. Change each to what
+              actually arrived. <strong>Didn&rsquo;t come?</strong> Set it to 0 — it stays on the order
+              for the next delivery. <strong>Only part came?</strong> Set what arrived; the rest stays
+              on the order.
+            </li>
+            <li>
+              Tap <strong>Book in N lines</strong> and type the <strong>delivery note number</strong> on
+              the confirmation.
+            </li>
+            <li>
+              <strong>More than was ordered?</strong> The confirmation lists it and the button reads{' '}
+              <Ui>Confirm, including the extra</Ui>. Only confirm if you are keeping it.
+            </li>
+          </ol>
         </section>
 
         <section id="end-of-bake">

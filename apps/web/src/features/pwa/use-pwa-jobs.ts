@@ -43,6 +43,8 @@ export interface GoodsInLineDraft {
   unitCost?: number;
   batchCode?: string;
   useBy?: string | null;
+  /** The order line this counts towards, when booking against an order. */
+  purchaseOrderLineId?: string;
 }
 
 /** What `POST /goods-in` returns — enough for the receipt screen and Undo. */
@@ -70,7 +72,18 @@ export function useReceiveGoodsIn() {
   return useMutation<
     SubmitResult<GoodsInReceiptResult>,
     Error,
-    { siteId: string; reorderProposalId?: string; lines: GoodsInLineDraft[]; photoRefs?: unknown }
+    {
+      siteId: string;
+      reorderProposalId?: string;
+      /** Booking against an order (DECISIONS.md F24). */
+      purchaseOrderId?: string;
+      poNumber?: string;
+      deliveryNoteNumber?: string;
+      /** Confirmed on the sheet that listed the extras. */
+      acceptOverDelivery?: boolean;
+      lines: GoodsInLineDraft[];
+      photoRefs?: unknown;
+    }
   >({
     mutationFn: (input) => {
       const action: QueuedAction = {
@@ -80,16 +93,41 @@ export function useReceiveGoodsIn() {
         body: {
           siteId: input.siteId,
           reorderProposalId: input.reorderProposalId,
+          purchaseOrderId: input.purchaseOrderId,
+          deliveryNoteNumber: input.deliveryNoteNumber,
+          acceptOverDelivery: input.acceptOverDelivery,
           idempotencyKey: '', // filled below from the action key
           lines: input.lines,
           photoRefs: input.photoRefs,
         },
         enqueuedAt: Date.now(),
-        label: `Goods in — ${input.lines.length} line${input.lines.length === 1 ? '' : 's'}`,
+        label: `Goods in${input.poNumber ? ` — ${input.poNumber}` : ''} — ${input.lines.length} line${input.lines.length === 1 ? '' : 's'}`,
       };
       (action.body as { idempotencyKey: string }).idempotencyKey = action.idempotencyKey;
       return submitAndLog<GoodsInReceiptResult>(action, 'GOODS_IN');
     },
+  });
+}
+
+export interface ExpectedOrder {
+  id: string;
+  poNumber: string;
+  supplierName: string;
+  expectedDeliveryDate: string | null;
+  deliveryStatus: string;
+  lines: number;
+  linesOutstanding: number;
+}
+
+/** Orders this venue is still waiting on (DECISIONS.md F24). */
+export function useExpectedOrders(siteId: string | null | undefined, enabled: boolean) {
+  return useQuery<ExpectedOrder[]>({
+    queryKey: ['goods-in', 'expected', siteId],
+    queryFn: async () => {
+      const rows = await apiFetch<ExpectedOrder[]>('/goods-in/expected', { searchParams: { siteId: siteId! } });
+      return Array.isArray(rows) ? rows : [];
+    },
+    enabled: enabled && !!siteId,
   });
 }
 
