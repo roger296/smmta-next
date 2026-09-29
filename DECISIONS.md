@@ -1511,3 +1511,77 @@ shape Phase 1 and are recorded here so it does not start from a guess.
 | G | Head office raises and sends POs in the manual phase | Phase 1 |
 | H | A short delivery always asks before re-sourcing in Phase 1 | Phase 1 |
 
+## §F24 — Booking deliveries in against a purchase order (Sept 2026)
+
+Owner request: book in part of a purchase order — some lines and not others,
+or part of a line — with the rest left open for later; and make sure an
+over-delivery can be booked when necessary.
+
+### What was there, and why it was retired
+
+The inherited `POST /purchase-orders/:id/book-in` (`GRNService.bookIn`)
+could not do this for Big Bakes at all:
+
+- it wrote the inherited **warehouse `stock_items`** model, which nothing in
+  Auto-Stock reads — stock booked there never reached a venue's on-hand, a
+  count or a report — and it refused an order with no warehouse, which is
+  every order here;
+- it matched an order line by **product alone**, so an order with one product
+  on two lines always booked the first;
+- the admin book-in dialog read `quantityReceived` where the API sends
+  `qtyBookedIn`, so every line looked complete and the dialog offered nothing
+  to book; and an over-delivery threw inside the click handler, so the button
+  silently did nothing.
+
+It now answers **410** with where booking went. Existing GRNs stay readable.
+This is decision A of the supplier-ordering plan, taken for real: the
+inherited order tables are extended (`purchase_orders.site_id`), and
+goods-in is the only way stock comes in.
+
+### How it works now
+
+A delivery against an order is an ordinary goods-in receipt with
+`purchaseOrderId`, each line naming its `purchaseOrderLineId` (migration
+`0057`). So it books into the venue's stock ledger, posts its GRN, carries
+batches, and is undone by a reversing receipt — everything goods-in already
+does.
+
+- **Any subset, any part.** Lines not sent, and whatever of a line did not
+  arrive, stay outstanding. Each line's `qty_booked_in` and status
+  (PENDING → PARTIALLY_RECEIVED → FULLY_RECEIVED) and the order's status move
+  in the same transaction as the stock.
+- **Variance is against what was still to come**, not the original order:
+  the third delivery of a back-order is measured against the remainder. A
+  receipt is UNDER when anything on the order is still outstanding after it.
+- **Over-deliveries are allowed, but asked.** More than is outstanding on a
+  line — including an extra on a line already complete — or an item not on
+  the order at all, is refused with **409 `OVER_DELIVERY`** and the lines
+  (ordered / already received / booking now / over) unless the booking sends
+  `acceptOverDelivery: true`. An over-delivery is sometimes right (a supplier
+  rounding up to a case) and sometimes a mis-pick, and the person holding the
+  delivery note is the one who knows which. Accepted, the full quantity is
+  booked and the line flagged OVER; the line shows 0 outstanding, never
+  negative.
+- **Locked for the booking.** The order and its lines are `FOR UPDATE` for the
+  length of the transaction, so two iPads booking the last 6 of a line of 10
+  cannot both succeed: the second is refused as an over-delivery, naming what
+  the first already booked. The receipt row is inserted BEFORE the
+  over-delivery check, so a replay of a booking that completed a line returns
+  the original receipt rather than being refused as "over" by its own
+  quantity.
+- **The venue must match.** An order raised for a venue can only be booked
+  into that venue (409 naming it). An order with no venue — anything raised
+  before `0057` — can be booked into any.
+- **A closed order takes nothing more** (409). Closing is how "the rest is
+  never coming" is said; it already existed on the order page.
+- **Undo gives the quantities back**: the reversing receipt takes each line's
+  quantity off `qty_booked_in`, so what was received becomes outstanding
+  again. A closed order stays closed.
+- Quantities on an order line are in the product's **purchase unit** (sacks,
+  bags), the same unit goods-in takes.
+
+New reads: `GET /goods-in/expected?siteId=` (a venue's open orders, lines
+outstanding) and `GET /purchase-orders/:id/receiving` (one order, line by
+line: ordered / received / outstanding, and its receipts). Both refuse a PIN
+for another venue.
+

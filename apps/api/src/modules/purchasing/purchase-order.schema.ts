@@ -19,6 +19,8 @@ export const createPurchaseOrderSchema = z.object({
   contactId: z.string().uuid().optional(),
   addressId: z.string().uuid().optional(),
   deliveryWarehouseId: z.string().uuid().optional(),
+  /** The venue the order is for; what goods-in books it into. */
+  siteId: z.string().uuid().optional(),
   currencyCode: z.string().length(3).default('GBP'),
   deliveryCharge: z.coerce.number().min(0).default(0),
   vatTreatment: z.enum([
@@ -34,6 +36,7 @@ export const updatePurchaseOrderSchema = z.object({
   contactId: z.string().uuid().optional(),
   addressId: z.string().uuid().optional(),
   deliveryWarehouseId: z.string().uuid().optional(),
+  siteId: z.string().uuid().optional(),
   deliveryCharge: z.coerce.number().min(0).optional(),
   vatTreatment: z.enum([
     'STANDARD_VAT_20', 'REDUCED_VAT_5', 'ZERO_RATED',
@@ -49,25 +52,6 @@ export const poQuerySchema = paginationSchema.extend({
   deliveryStatus: z.enum(['PENDING', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'CANCELLED']).optional(),
   invoicedStatus: z.enum(['NOT_INVOICED', 'PARTIALLY_INVOICED', 'FULLY_INVOICED']).optional(),
   search: z.string().optional(),
-});
-
-// ── GRN Book-In ──
-
-export const grnLineSchema = z.object({
-  productId: z.string().uuid(),
-  quantityBookedIn: z.coerce.number().min(0.01),
-  serialNumbers: z.array(z.string()).optional(),
-  batchId: z.string().optional(),
-  locationIsle: z.string().max(50).optional(),
-  locationShelf: z.string().max(50).optional(),
-  locationBin: z.string().max(50).optional(),
-  valuePerUnit: z.coerce.number().min(0).optional(),
-});
-
-export const createGRNSchema = z.object({
-  supplierDeliveryNoteNo: z.string().max(100).optional(),
-  dateBookedIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  lines: z.array(grnLineSchema).min(1),
 });
 
 // ── Supplier Invoice ──
@@ -99,6 +83,5 @@ export const createSupplierCreditNoteSchema = z.object({
 });
 
 export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
-export type CreateGRNInput = z.infer<typeof createGRNSchema>;
 export type CreateSupplierInvoiceInput = z.infer<typeof createSupplierInvoiceSchema>;
 export type CreateSupplierCreditNoteInput = z.infer<typeof createSupplierCreditNoteSchema>;

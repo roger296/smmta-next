@@ -2,11 +2,11 @@ import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import { requireAuth, getAuthUser } from '../../shared/middleware/auth.js';
 import { PurchaseOrderService } from './purchase-order.service.js';
-import { GRNService, GRNValidationError } from './grn.service.js';
+import { GRNService } from './grn.service.js';
 import { SupplierInvoiceService, SupplierInvoiceError } from './supplier-invoice.service.js';
 import {
   createPurchaseOrderSchema, updatePurchaseOrderSchema, poQuerySchema,
-  createGRNSchema, createSupplierInvoiceSchema, createSupplierCreditNoteSchema,
+  createSupplierInvoiceSchema, createSupplierCreditNoteSchema,
 } from './purchase-order.schema.js';
 import { paginationSchema } from '../../shared/utils/pagination.js';
 
@@ -86,21 +86,19 @@ export async function purchasingRoutes(app: FastifyInstance) {
     return { success: true, data };
   });
 
-  // ✅ GL TRIGGER: Debit Stock (1150), Credit GRNI Accrual (2310/2330)
-  app.post('/purchase-orders/:id/book-in', async (request, reply) => {
-    const user = getAuthUser(request);
-    const { id } = request.params as { id: string };
-    try {
-      const input = createGRNSchema.parse(request.body);
-      const data = await grnService.bookIn(id, user.companyId, user.userId, input);
-      return reply.status(201).send({ success: true, data });
-    } catch (err) {
-      if (err instanceof GRNValidationError) {
-        return reply.status(400).send({ success: false, error: err.message });
-      }
-      throw err;
-    }
-  });
+  // Retired (Sept 2026, DECISIONS.md §F24). This booked into the inherited
+  // warehouse `stock_items` model, which nothing in Auto-Stock reads, needed a
+  // warehouse the venues do not have, matched order lines by product alone,
+  // and let a line be over-booked without anyone being asked. Deliveries
+  // against an order now go through goods-in, into the venue's stock ledger.
+  app.post('/purchase-orders/:id/book-in', async (_request, reply) =>
+    reply.status(410).send({
+      success: false,
+      error:
+        'Booking in against a purchase order now goes through goods-in: POST /api/v1/goods-in with ' +
+        'purchaseOrderId and a purchaseOrderLineId on each line (see GET /api/v1/purchase-orders/:id/receiving).',
+    }),
+  );
 
   // ═══════════════════════════════════════════════════════════════
   // SUPPLIER INVOICES (triggers GL: SUPPLIER_INVOICE)

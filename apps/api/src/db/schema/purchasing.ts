@@ -12,6 +12,7 @@ import {
 } from './common.js';
 import { products } from './products.js';
 import { warehouses } from './reference.js';
+import { sites } from './sites.js';
 
 // ============================================================
 // Suppliers
@@ -250,6 +251,9 @@ export const purchaseOrders = pgTable('purchase_orders', {
   contactId: uuid('contact_id').references(() => supplierContacts.id),
   addressId: uuid('address_id').references(() => supplierAddresses.id),
   deliveryWarehouseId: uuid('delivery_warehouse_id').references(() => warehouses.id),
+  /** The venue the order is for (migration 0057). Big Bakes receives into
+   *  sites, not warehouses; NULL on orders raised before it. */
+  siteId: uuid('site_id').references(() => sites.id),
   currencyCode: varchar('currency_code', { length: 3 }).notNull().default('GBP'),
   poNumber: varchar('po_number', { length: 100 }).notNull(),
   deliveryCharge: decimal('delivery_charge', { precision: 18, scale: 2 }).default('0'),
@@ -423,6 +427,7 @@ export const purchaseOrdersRelations = relations(purchaseOrders, ({ one, many })
   supplier: one(suppliers, { fields: [purchaseOrders.supplierId], references: [suppliers.id] }),
   contact: one(supplierContacts, { fields: [purchaseOrders.contactId], references: [supplierContacts.id] }),
   warehouse: one(warehouses, { fields: [purchaseOrders.deliveryWarehouseId], references: [warehouses.id] }),
+  site: one(sites, { fields: [purchaseOrders.siteId], references: [sites.id] }),
   lines: many(purchaseOrderLines),
   grns: many(goodsReceivedNotes),
   invoices: many(supplierInvoices),

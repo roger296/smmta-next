@@ -58,6 +58,7 @@ export class PurchaseOrderService {
         supplier: true,
         contact: true,
         warehouse: true,
+        site: true,
         lines: {
           where: isNull(purchaseOrderLines.deletedAt),
           with: { product: true },
@@ -101,6 +102,7 @@ export class PurchaseOrderService {
         contactId: input.contactId,
         addressId: input.addressId,
         deliveryWarehouseId: input.deliveryWarehouseId,
+        siteId: input.siteId,
         currencyCode: input.currencyCode,
         poNumber,
         deliveryCharge: input.deliveryCharge.toString(),

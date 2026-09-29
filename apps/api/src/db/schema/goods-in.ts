@@ -14,7 +14,7 @@ import { relations } from 'drizzle-orm';
 import { pk, companyId, auditTimestamps, goodsInVarianceEnum } from './common.js';
 import { products } from './products.js';
 import { sites } from './sites.js';
-import { suppliers } from './purchasing.js';
+import { purchaseOrderLines, purchaseOrders, suppliers } from './purchasing.js';
 import { reorderProposals } from './reorder.js';
 
 // ============================================================
@@ -35,6 +35,10 @@ export const goodsInReceipts = pgTable(
     supplierId: uuid('supplier_id').references(() => suppliers.id),
     reorderProposalId: uuid('reorder_proposal_id').references(() => reorderProposals.id),
     reference: varchar('reference', { length: 200 }),
+    /** The order this delivery was booked against (migration 0057). */
+    purchaseOrderId: uuid('purchase_order_id').references(() => purchaseOrders.id),
+    /** The supplier's own delivery-note number — what a claim quotes back. */
+    deliveryNoteNumber: varchar('delivery_note_number', { length: 100 }),
     idempotencyKey: varchar('idempotency_key', { length: 200 }).notNull().unique(),
     deliveryCharge: numeric('delivery_charge', { precision: 18, scale: 2 }).notNull().default('0'),
     totalStockValue: numeric('total_stock_value', { precision: 18, scale: 2 }).notNull().default('0'),
@@ -73,6 +77,9 @@ export const goodsInReceiptLines = pgTable(
     id: pk(),
     receiptId: uuid('receipt_id').notNull().references(() => goodsInReceipts.id, { onDelete: 'cascade' }),
     productId: uuid('product_id').notNull().references(() => products.id),
+    /** The order line this quantity counts towards. NULL for an item that
+     *  arrived but was not on the order (migration 0057). */
+    purchaseOrderLineId: uuid('purchase_order_line_id').references(() => purchaseOrderLines.id),
     qtyPurchase: numeric('qty_purchase', { precision: 18, scale: 3 }).notNull(),
     qtyStock: numeric('qty_stock', { precision: 18, scale: 3 }).notNull(),
     /** Cost per purchase unit (what we pay per bag/case). */

@@ -7,6 +7,15 @@
  * under variance), and posts a GRN to Xero. Idempotent on `idempotencyKey` — a
  * re-confirm returns the existing receipt and re-applies nothing.
  *
+ * Against a purchase order (Sept 2026): a receipt books what ACTUALLY arrived
+ * against the order's lines — some lines, part of a line, or more than was
+ * ordered — and whatever has not arrived stays outstanding for a later
+ * receipt. More than was ordered (or an item not on the order) is refused
+ * unless the booking says `acceptOverDelivery`: an over-delivery is sometimes
+ * right and sometimes a mis-pick, and the person holding the delivery note is
+ * the one who knows which. The order's lines are locked for the length of the
+ * booking, so two iPads booking the same order cannot both take the last 5.
+ *
  * The receipt, its lines, their stock movements and their batches are written
  * in ONE transaction: a failure part-way used to leave stock moved with no
  * receipt to explain it, or a receipt whose later lines never reached the
@@ -14,13 +23,16 @@
  * are idempotent and retryable, and neither should hold stock rows locked
  * while it talks to the outside world.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
   goodsInReceiptLines,
   goodsInReceipts,
   products,
+  purchaseOrderLines,
+  purchaseOrders,
   reorderProposals,
+  sites,
 } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import { glIdempotencyKey } from '../../shared/utils/idempotency.js';
@@ -32,6 +44,25 @@ import { ImageCaptureService } from '../images/image-capture.service.js';
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 const round4 = (n: number): number => Math.round(n * 10000) / 10000;
+const round3 = (n: number): number => Math.round(n * 1000) / 1000;
+/** Quantities are numeric(18,3) on the receipt and double precision on the
+ *  order: anything under half a thousandth is rounding, not a difference. */
+const EPSILON = 0.0005;
+
+type PoLine = typeof purchaseOrderLines.$inferSelect;
+type PoDeliveryStatus = 'PENDING' | 'PARTIALLY_RECEIVED' | 'FULLY_RECEIVED';
+
+/** A line's delivery status from what it has had against what was ordered. */
+export function lineDeliveryStatus(quantity: number, booked: number): PoDeliveryStatus {
+  if (booked + EPSILON >= quantity) return 'FULLY_RECEIVED';
+  return booked > EPSILON ? 'PARTIALLY_RECEIVED' : 'PENDING';
+}
+
+/** The order's status from its lines': received only when every line is. */
+export function orderDeliveryStatus(lines: Array<{ quantity: number; qtyBookedIn: number | null }>): PoDeliveryStatus {
+  if (lines.length > 0 && lines.every((l) => (l.qtyBookedIn ?? 0) + EPSILON >= l.quantity)) return 'FULLY_RECEIVED';
+  return lines.some((l) => (l.qtyBookedIn ?? 0) > EPSILON) ? 'PARTIALLY_RECEIVED' : 'PENDING';
+}
 
 export interface GoodsInLineInput {
   productId: string;
@@ -43,12 +74,22 @@ export interface GoodsInLineInput {
   batchCode?: string;
   /** Use-by (YYYY-MM-DD) for a perishable batch. */
   useBy?: string | null;
+  /** The order line this quantity counts towards. Omitted for an item that
+   *  arrived but is not on the order. */
+  purchaseOrderLineId?: string | null;
 }
 
 export interface GoodsInInput {
   siteId: string;
   supplierId?: string | null;
   reorderProposalId?: string | null;
+  /** The order this delivery is booked against. */
+  purchaseOrderId?: string | null;
+  /** The supplier's delivery-note number. */
+  deliveryNoteNumber?: string | null;
+  /** Book quantities beyond what is outstanding on the order (and items not
+   *  on it). Without this such a booking is refused with the list. */
+  acceptOverDelivery?: boolean;
   reference?: string;
   idempotencyKey: string;
   deliveryCharge?: number;
@@ -64,6 +105,45 @@ export interface GoodsInResult {
   receipt: GoodsInReceipt;
   lines: GoodsInReceiptLine[];
   alreadyExisted: boolean;
+}
+
+/** A booking against an order that cannot be made as sent — no such order, a
+ *  closed one, another venue's, or a line that is not on it. */
+export class GoodsInPurchaseOrderError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: 400 | 404 | 409 = 400,
+  ) {
+    super(message);
+    this.name = 'GoodsInPurchaseOrderError';
+  }
+}
+
+export interface OverDeliveredLine {
+  purchaseOrderLineId: string | null;
+  productId: string;
+  productName: string | null;
+  /** 0 for an item that is not on the order at all. */
+  ordered: number;
+  alreadyReceived: number;
+  receivingNow: number;
+  over: number;
+}
+
+/** More arrived than is outstanding, and the booking did not accept it. */
+export class OverDeliveryError extends Error {
+  constructor(readonly lines: OverDeliveredLine[]) {
+    super(
+      `More than was ordered: ${lines
+        .map((l) =>
+          l.ordered === 0
+            ? `${l.productName ?? 'an item'} is not on the order`
+            : `${l.productName ?? 'an item'} — ordered ${l.ordered}, already received ${l.alreadyReceived}, booking ${l.receivingNow}`,
+        )
+        .join('; ')}. Confirm the over-delivery to book it in.`,
+    );
+    this.name = 'OverDeliveryError';
+  }
 }
 
 /** A reversal that cannot be performed for a reason the caller should see. */
@@ -114,6 +194,8 @@ export class GoodsInService {
       requireBatchNumber: boolean;
       batchCode: string | null;
       useBy: string | null;
+      purchaseOrderLineId: string | null;
+      productName: string | null;
     }> = [];
     let totalStockValue = 0;
     let receiptVariance: 'NONE' | 'UNDER' | 'OVER' = 'NONE';
@@ -148,6 +230,8 @@ export class GoodsInService {
         requireBatchNumber: !!product?.requireBatchNumber,
         batchCode: line.batchCode ?? null,
         useBy: line.useBy ?? null,
+        purchaseOrderLineId: line.purchaseOrderLineId ?? null,
+        productName: product?.name ?? null,
       });
     }
     totalStockValue = round2(totalStockValue);
@@ -155,13 +239,58 @@ export class GoodsInService {
 
     // Receipt, lines, movements and batches: all or nothing.
     const receipt = await this.db.transaction(async (tx) => {
+      // ── Against an order: lock it and its lines for the whole booking ──
+      let po: typeof purchaseOrders.$inferSelect | null = null;
+      const poLines = new Map<string, PoLine>();
+      if (input.purchaseOrderId) {
+        [po] = await tx
+          .select()
+          .from(purchaseOrders)
+          .where(and(eq(purchaseOrders.id, input.purchaseOrderId), eq(purchaseOrders.companyId, companyId)))
+          .for('update');
+        if (!po || po.deletedAt) throw new GoodsInPurchaseOrderError('That purchase order does not exist.', 404);
+        if (po.deliveryStatus === 'CANCELLED') {
+          throw new GoodsInPurchaseOrderError(
+            `${po.poNumber} has been closed, so nothing more can be booked in against it.`,
+            409,
+          );
+        }
+        if (po.siteId && po.siteId !== input.siteId) {
+          const [forSite] = await tx.select({ name: sites.name }).from(sites).where(eq(sites.id, po.siteId));
+          throw new GoodsInPurchaseOrderError(
+            `${po.poNumber} is for ${forSite?.name ?? 'another venue'}, not the venue this delivery is being booked into.`,
+            409,
+          );
+        }
+        for (const l of await tx
+          .select()
+          .from(purchaseOrderLines)
+          .where(and(eq(purchaseOrderLines.purchaseOrderId, po.id), isNull(purchaseOrderLines.deletedAt)))
+          .for('update')) {
+          poLines.set(l.id, l);
+        }
+      }
+      for (const p of prepared) {
+        if (!p.purchaseOrderLineId) continue;
+        const poLine = poLines.get(p.purchaseOrderLineId);
+        if (!po) {
+          throw new GoodsInPurchaseOrderError('A line names an order line, but the booking names no order.');
+        }
+        if (!poLine) throw new GoodsInPurchaseOrderError(`A line is not on ${po.poNumber}.`);
+        if (poLine.productId !== p.productId) {
+          throw new GoodsInPurchaseOrderError(`A line on ${po.poNumber} is for a different product.`);
+        }
+      }
+
       const [created] = await tx
         .insert(goodsInReceipts)
         .values({
           companyId,
           siteId: input.siteId,
-          supplierId: input.supplierId ?? proposal?.supplierId ?? null,
+          supplierId: input.supplierId ?? po?.supplierId ?? proposal?.supplierId ?? null,
           reorderProposalId: input.reorderProposalId ?? null,
+          purchaseOrderId: po?.id ?? null,
+          deliveryNoteNumber: input.deliveryNoteNumber?.trim() || null,
           reference: input.reference ?? null,
           idempotencyKey: input.idempotencyKey,
           deliveryCharge: String(deliveryCharge),
@@ -175,6 +304,88 @@ export class GoodsInService {
         .onConflictDoNothing({ target: goodsInReceipts.idempotencyKey })
         .returning();
       if (!created) return null;
+
+      // ── Against an order: what is outstanding, and is this more? ──
+      // After the receipt insert on purpose: a replay racing its original
+      // must find the original's receipt (above), not be refused as "over"
+      // by the quantity the original just booked.
+      if (po) {
+        const receiving = new Map<string, number>();
+        for (const p of prepared) {
+          if (p.purchaseOrderLineId) {
+            receiving.set(p.purchaseOrderLineId, round3((receiving.get(p.purchaseOrderLineId) ?? 0) + p.qtyPurchase));
+          }
+        }
+        const over: OverDeliveredLine[] = [];
+        for (const [lineId, qty] of receiving) {
+          const l = poLines.get(lineId)!;
+          const already = l.qtyBookedIn ?? 0;
+          const outstanding = Math.max(0, round3(l.quantity - already));
+          if (qty > outstanding + EPSILON) {
+            over.push({
+              purchaseOrderLineId: lineId,
+              productId: l.productId,
+              productName: prepared.find((p) => p.purchaseOrderLineId === lineId)?.productName ?? null,
+              ordered: l.quantity,
+              alreadyReceived: already,
+              receivingNow: qty,
+              over: round3(qty - outstanding),
+            });
+          }
+        }
+        for (const p of prepared.filter((x) => !x.purchaseOrderLineId)) {
+          over.push({
+            purchaseOrderLineId: null,
+            productId: p.productId,
+            productName: p.productName,
+            ordered: 0,
+            alreadyReceived: 0,
+            receivingNow: p.qtyPurchase,
+            over: p.qtyPurchase,
+          });
+        }
+        if (over.length > 0 && !input.acceptOverDelivery) throw new OverDeliveryError(over);
+
+        // Variance against what was outstanding, not against the original
+        // order: the third delivery of a back-order is measured against
+        // what was still to come.
+        for (const p of prepared) {
+          if (!p.purchaseOrderLineId) {
+            p.lineVariance = 'OVER';
+            continue;
+          }
+          const l = poLines.get(p.purchaseOrderLineId)!;
+          const outstanding = Math.max(0, round3(l.quantity - (l.qtyBookedIn ?? 0)));
+          const qty = receiving.get(p.purchaseOrderLineId)!;
+          p.expectedQtyPurchase = outstanding;
+          p.lineVariance = qty > outstanding + EPSILON ? 'OVER' : qty + EPSILON < outstanding ? 'UNDER' : 'NONE';
+        }
+        const stillOutstanding = [...poLines.values()].some(
+          (l) => !receiving.has(l.id) && l.quantity - (l.qtyBookedIn ?? 0) > EPSILON,
+        );
+        const variance = prepared.some((p) => p.lineVariance === 'OVER')
+          ? 'OVER'
+          : prepared.some((p) => p.lineVariance === 'UNDER') || stillOutstanding
+            ? 'UNDER'
+            : 'NONE';
+        await tx.update(goodsInReceipts).set({ variance }).where(eq(goodsInReceipts.id, created.id));
+        created.variance = variance;
+
+        // What the order has now had, line by line, then the order itself.
+        for (const [lineId, qty] of receiving) {
+          const l = poLines.get(lineId)!;
+          const booked = round3((l.qtyBookedIn ?? 0) + qty);
+          l.qtyBookedIn = booked;
+          await tx
+            .update(purchaseOrderLines)
+            .set({ qtyBookedIn: booked, deliveryStatus: lineDeliveryStatus(l.quantity, booked), updatedAt: new Date() })
+            .where(eq(purchaseOrderLines.id, lineId));
+        }
+        await tx
+          .update(purchaseOrders)
+          .set({ deliveryStatus: orderDeliveryStatus([...poLines.values()]), updatedAt: new Date() })
+          .where(eq(purchaseOrders.id, po.id));
+      }
 
       for (const p of prepared) {
         const recordsLot = p.requireBatchNumber && !!p.batchCode;
@@ -191,6 +402,7 @@ export class GoodsInService {
             lineVariance: p.lineVariance,
             batchCode: recordsLot ? p.batchCode : null,
             useBy: recordsLot ? p.useBy : null,
+            purchaseOrderLineId: p.purchaseOrderLineId,
           })
           .returning({ id: goodsInReceiptLines.id });
         // GRN movement at the receiving site (in stock_uom). Keyed on the LINE,
@@ -244,8 +456,8 @@ export class GoodsInService {
     await getStockGLService().postGoodsReceivedNote(this.db, {
       companyId,
       grnId: input.idempotencyKey,
-      grnNumber: receipt.reference ?? receipt.id.slice(0, 8),
-      poNumber: input.reorderProposalId ?? input.reference ?? 'AUTO',
+      grnNumber: receipt.deliveryNoteNumber ?? receipt.reference ?? receipt.id.slice(0, 8),
+      poNumber: (await this.poNumber(receipt.purchaseOrderId)) ?? input.reorderProposalId ?? input.reference ?? 'AUTO',
       bookedInDate: new Date(),
       stockValue: totalStockValue,
       deliveryCharge,
@@ -333,12 +545,33 @@ export class GoodsInService {
     const deliveryCharge = round2(-Number(original.deliveryCharge ?? 0));
 
     const reversal = await this.db.transaction(async (tx) => {
+      // A receipt against an order gave that order its quantities; undoing it
+      // takes them back, so what was received becomes outstanding again.
+      const poLines = new Map<string, PoLine>();
+      let po: typeof purchaseOrders.$inferSelect | undefined;
+      if (original.purchaseOrderId) {
+        [po] = await tx
+          .select()
+          .from(purchaseOrders)
+          .where(eq(purchaseOrders.id, original.purchaseOrderId))
+          .for('update');
+        for (const l of await tx
+          .select()
+          .from(purchaseOrderLines)
+          .where(and(eq(purchaseOrderLines.purchaseOrderId, original.purchaseOrderId), isNull(purchaseOrderLines.deletedAt)))
+          .for('update')) {
+          poLines.set(l.id, l);
+        }
+      }
+
       const [created] = await tx
         .insert(goodsInReceipts)
         .values({
           companyId,
           siteId: original.siteId,
           supplierId: original.supplierId,
+          purchaseOrderId: original.purchaseOrderId,
+          deliveryNoteNumber: original.deliveryNoteNumber,
           // Deliberately NOT carried over: a reversal must not re-match the
           // proposal the original satisfied.
           reorderProposalId: null,
@@ -375,6 +608,7 @@ export class GoodsInService {
             lineVariance: 'NONE',
             batchCode: line.batchCode,
             useBy: line.useBy,
+            purchaseOrderLineId: line.purchaseOrderLineId,
           })
           .returning({ id: goodsInReceiptLines.id });
 
@@ -408,6 +642,31 @@ export class GoodsInService {
         }
       }
 
+      // Hand the quantities back to the order's lines.
+      const returned = new Map<string, number>();
+      for (const line of originalLines) {
+        if (line.purchaseOrderLineId) {
+          returned.set(line.purchaseOrderLineId, (returned.get(line.purchaseOrderLineId) ?? 0) + Number(line.qtyPurchase));
+        }
+      }
+      for (const [lineId, qty] of returned) {
+        const l = poLines.get(lineId);
+        if (!l) continue; // a line deleted from the order since: nothing to give back to
+        const booked = Math.max(0, round3((l.qtyBookedIn ?? 0) - qty));
+        l.qtyBookedIn = booked;
+        await tx
+          .update(purchaseOrderLines)
+          .set({ qtyBookedIn: booked, deliveryStatus: lineDeliveryStatus(l.quantity, booked), updatedAt: new Date() })
+          .where(eq(purchaseOrderLines.id, lineId));
+      }
+      // A closed order stays closed; any other goes back to what its lines say.
+      if (po && returned.size > 0 && po.deliveryStatus !== 'CANCELLED') {
+        await tx
+          .update(purchaseOrders)
+          .set({ deliveryStatus: orderDeliveryStatus([...poLines.values()]), updatedAt: new Date() })
+          .where(eq(purchaseOrders.id, po.id));
+      }
+
       // Mark the original as reversed. Its own figures are untouched — this is
       // a pointer, not an edit to what was booked.
       await tx
@@ -439,7 +698,7 @@ export class GoodsInService {
       companyId,
       grnId: reversalKey,
       grnNumber: reversal.reference ?? reversal.id.slice(0, 8),
-      poNumber: original.reference ?? 'REVERSAL',
+      poNumber: (await this.poNumber(original.purchaseOrderId)) ?? original.reference ?? 'REVERSAL',
       bookedInDate: new Date(),
       stockValue: totalStockValue,
       deliveryCharge,
@@ -452,6 +711,16 @@ export class GoodsInService {
       .from(goodsInReceiptLines)
       .where(eq(goodsInReceiptLines.receiptId, reversal.id));
     return { reversal, lines, alreadyExisted: false };
+  }
+
+  /** The order number for the GRN posting's reference, when there is one. */
+  private async poNumber(purchaseOrderId: string | null): Promise<string | null> {
+    if (!purchaseOrderId) return null;
+    const [row] = await this.db
+      .select({ poNumber: purchaseOrders.poNumber })
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.id, purchaseOrderId));
+    return row?.poNumber ?? null;
   }
 
   async get(id: string, companyId = getSingletonCompanyId()): Promise<GoodsInResult | null> {
