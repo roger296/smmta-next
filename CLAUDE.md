@@ -203,6 +203,21 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   uuid per save. Counts sent to an approved take get **409**, not silence.
   **MCP may READ stock-takes, never change them** (§F22): `start_stock_take`
   is gone; `stock_takes` / `stock_take_detail` are the read tools.
+- **Supplier ordering — Phase 0 groundwork** (`docs/plans/SUPPLIER_ORDERING_PLAN.md`;
+  `DECISIONS.md` §F23). Nothing places an order yet. Goods-in now commits
+  receipt, lines, movements and batches in ONE transaction; GRN movements are
+  keyed on the receipt LINE (two lines of one product both land); undo takes
+  the quantity back off the batch (migration `0054`). `supplier_site_accounts`
+  (`0055`) holds each supplier's account, delivery round or lead time, cut-off
+  and minimum per venue, edited on the supplier page's **Venues & delivery**
+  tab; `delivery-calendar.ts` is the only reader of what those columns mean
+  (site wall clock). `supplier_price_observations` (`0056`) is an append-only
+  price history, back-filled by `scripts/backfill-price-observations.ts`
+  (runbook step 15) and shown as **Last paid** on a product's Suppliers tab.
+  ⚠️ `cost_gbp` and the reorder engine are deliberately untouched, and goods-in
+  does not record prices yet (it has no supplier code and would echo
+  `expected_next_cost` back). **Buying data** (`/buying-data`) lists what
+  would stop a fair comparison, biggest spend first.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and

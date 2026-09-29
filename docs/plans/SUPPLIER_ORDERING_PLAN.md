@@ -1,7 +1,16 @@
 # Supplier ordering — plan
 
-*Drafted 29 Sept 2026. Status: proposal, nothing built. Decisions marked
-**DECIDE** need an owner's answer before the phase that depends on them.*
+*Drafted 29 Sept 2026. Decisions marked **DECIDE** need an owner's answer
+before the phase that depends on them; until then the recommendations in §10
+stand as defaults (`DECISIONS.md` §F23).*
+
+**Status (29 Sept 2026): Phase 0 groundwork built** — goods-in in one
+transaction, supplier accounts per venue with a delivery calendar, supplier
+price history back-filled from invoices, and the Buying data page. See
+`DECISIONS.md` §F23. Still to do in Phase 0 is data work, not code: fill in
+venue accounts for the top suppliers, and work the pack-size list on
+**Buying data** down. Supplier enquiry emails are drafted (§9). Phase 1 has not
+started.
 
 The goal is to raise purchase orders to suppliers from Auto-Stock, and to book
 in what actually arrives against them. We start with a process a person drives

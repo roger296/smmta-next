@@ -1493,3 +1493,21 @@ list returns its full count beside at most 300 rows, and the page says
 "Showing the first N of M": a list that silently stops reads as complete.
 Head office and venue managers can read it; it changes nothing.
 
+### Decisions A–H — defaults until the owners answer
+
+The plan's §10 decisions were not answered before the groundwork started, so
+the plan's recommendations stand as defaults — **default, confirm with
+owners**. Only C and D are in code so far (both single constants); the rest
+shape Phase 1 and are recorded here so it does not start from a guess.
+
+| | Default | Where it lives |
+|---|---|---|
+| A | Extend the inherited `purchase_orders` tables (site, not warehouse); retire the legacy book-in path | Phase 1 |
+| B | Order-by safety margin: 1 day before the run-out date, per site | Phase 1 |
+| C | A price is stale after 60 days | `STALE_PRICE_DAYS`, `price-observations.ts` |
+| D | Alert on a price move over ±10% | `PRICE_MOVE_ALERT`, `buying-data-health.service.ts` |
+| E | Equivalent substitutes: interchangeable groups, created by head office | Phase 1 |
+| F | Ask suppliers before choosing connectors vs a procurement platform | Supplier emails drafted 29 Sept |
+| G | Head office raises and sends POs in the manual phase | Phase 1 |
+| H | A short delivery always asks before re-sourcing in Phase 1 | Phase 1 |
+
