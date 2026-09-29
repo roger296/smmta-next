@@ -87,6 +87,28 @@ e.g. `HEAD_BAKER_PIN_LONDON_SOUTH=481920`.
 
 ✅ One PIN per site, all distinct, all recorded somewhere safe.
 
+### Named PINs for individual staff
+
+A site PIN files everything as "<Site> Head Baker". To give each person their
+own PIN (so My shift, stock-take counts and wastage carry their name), write the
+list to a file **in the container, not the repo** — the repo is public — one
+person per line, venues joined by `;` with the default venue first:
+
+```bash
+cat > /tmp/staff.txt <<'EOF'
+Eloise Frank, Birmingham
+Jonas Gottschalk, Manchester; Liverpool
+EOF
+npx tsx apps/api/scripts/create-staff-pins.ts /tmp/staff.txt           # dry run
+npx tsx apps/api/scripts/create-staff-pins.ts /tmp/staff.txt --apply   # prints the PINs, once
+rm /tmp/staff.txt
+```
+
+Each PIN is checked against every active PIN, not just the new ones. Someone
+who already has a PIN is left alone, and extra venues are ADMIN grants that head
+office can see and revoke. An optional third field `site_manager` gives that
+person manager rights (approve a stock-take, reverse a goods-in).
+
 ## Step 2 🐳 — Purge the demo cakes
 
 > **⚠️ ORDER MATTERS — this must happen BEFORE the recipe import.**
