@@ -55,6 +55,19 @@ export interface SupplierMappingRow {
   /** Other spellings of THIS code — "A 33891" for a canonical "33891". Not
    *  separate lines to buy; they exist so an invoice line still matches. */
   aliases: Array<{ aliasSku: string; source: string; lastSeenAt: string | null }>;
+  /** The newest price seen under this code — an invoice, a confirmation — or
+   *  null if none has been recorded. Per ONE of the supplier's unit. */
+  lastPrice?: LastPrice | null;
+}
+
+export interface LastPrice {
+  unitPrice: string;
+  currencyCode: string;
+  source: 'INVOICE' | 'PO_CONFIRMED' | 'GOODS_IN' | 'QUOTE_API' | 'CATALOGUE_FILE' | 'MANUAL';
+  observedAt: string;
+  documentRef: string | null;
+  ageDays: number;
+  stale: boolean;
 }
 
 export function useDropshipSuppliers() {

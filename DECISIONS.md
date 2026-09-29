@@ -1440,3 +1440,35 @@ day.
 - Blank money fields are NULL ("not known"), never 0: a £0.00 minimum order is
   a real answer.
 
+### Supplier price history (`supplier_price_observations`, migration `0056`)
+
+Every price seen for a buying option, append-only, with its source (INVOICE,
+PO_CONFIRMED, GOODS_IN, QUOTE_API, CATALOGUE_FILE, MANUAL), date, venue and
+document. `cost_gbp` is one undated number: a July import looks as current as
+yesterday's invoice, and a bad OCR read silently replaces a good price.
+
+- **`unit_price` is per one of the supplier's unit under that code** (a sack, a
+  case of 12), not per stock unit. Comparing across pack sizes is the Phase 1
+  ranking's job, and needs the numeric pack size.
+- **Back-filled from the invoice capture** (`scripts/backfill-price-
+  observations.ts`, dry run by default; runbook step 15). A line is priced
+  only when its code resolves to exactly ONE live buying option, canonical or
+  alias. A code on several purchasable lines (the open §F20 spelling groups)
+  is counted and skipped: which line a price belongs to is precisely the
+  question nobody has answered. The line total beats a disagreeing OCR unit
+  price, as in §F20, and the observation says so. Re-runnable on a
+  deterministic per-line key.
+- **Shown, not yet used.** The product's Suppliers tab shows **Last paid** per
+  code, red past 60 days (decision C, default — confirm with owners).
+  `cost_gbp` and the reorder engine are untouched: deriving the buying price
+  from the history changes what gets ordered, and that belongs with the Phase 1
+  ranking, where it is visible and can be overridden.
+- **Goods-in does not record prices yet** — on purpose. A receipt today carries
+  no supplier code, and when nobody types a cost it books `expected_next_cost`,
+  so recording it would feed our own guess back in as an observation. It starts
+  when deliveries are booked against a PO line, where the code and pack are
+  known.
+- **Staying current** needs BumbleBee to serve invoice lines as a paged feed;
+  the MCP tool it has today stops at 500 rows with no offset. Until then:
+  re-capture, re-run.
+

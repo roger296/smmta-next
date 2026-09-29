@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitAliases } from './supplier-mappings-tab';
+import { describeLastPrice, splitAliases } from './supplier-mappings-tab';
 
 describe('splitAliases', () => {
   it('splits on commas', () => {
@@ -26,3 +26,33 @@ describe('splitAliases', () => {
     expect(splitAliases('   ')).toEqual([]);
   });
 });
+
+describe('describeLastPrice', () => {
+  const base = {
+    unitPrice: '21.100000',
+    currencyCode: 'GBP',
+    source: 'INVOICE' as const,
+    observedAt: '2026-09-20T12:00:00.000Z',
+    documentRef: 'INV-9',
+    ageDays: 9,
+    stale: false,
+  };
+
+  it('says what was paid and where the figure came from', () => {
+    expect(describeLastPrice(base)).toEqual({ price: '£21.10', detail: 'invoice, 20 Sept 2026' });
+  });
+
+  it('says how old a stale price is', () => {
+    expect(describeLastPrice({ ...base, observedAt: '2026-05-01T12:00:00.000Z', ageDays: 151, stale: true }).detail).toBe(
+      'invoice, 1 May 2026 — 151 days old',
+    );
+  });
+
+  it('shows a Dallas price in dollars', () => {
+    expect(describeLastPrice({ ...base, currencyCode: 'USD', source: 'PO_CONFIRMED' })).toEqual({
+      price: '$21.10',
+      detail: 'order confirmation, 20 Sept 2026',
+    });
+  });
+});
+

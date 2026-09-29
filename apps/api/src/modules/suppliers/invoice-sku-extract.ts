@@ -24,6 +24,9 @@ export interface InvoiceLine {
   unit_price: number | null;
   line_total: number | null;
   confidence: number | null;
+  /** The venue the invoice was for, as BumbleBee names it ("London East"). */
+  location?: string | null;
+  currency?: string | null;
 }
 
 /**

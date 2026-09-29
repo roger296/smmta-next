@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import {
+  type LastPrice,
   useDropshipSuppliers,
   useProductSupplierMappings,
   useUpsertSupplierMappings,
@@ -46,6 +47,7 @@ interface RowState {
   aliases: string;
   lastKnownStock?: number | null;
   lastPolledAt?: string | null;
+  lastPrice?: LastPrice | null;
 }
 
 const isPriceValid = (s: string) => /^\d+(\.\d{1,2})?$/.test(s.trim());
@@ -58,6 +60,26 @@ export function splitAliases(raw: string): string[] {
     .map((a) => a.trim())
     .filter((a) => a.length > 0);
 }
+const SOURCE_LABEL: Record<LastPrice['source'], string> = {
+  INVOICE: 'invoice',
+  PO_CONFIRMED: 'order confirmation',
+  GOODS_IN: 'delivery',
+  QUOTE_API: 'supplier quote',
+  CATALOGUE_FILE: 'price list',
+  MANUAL: 'entered by hand',
+};
+
+/** "£21.10" and "invoice, 20 Sept 2026" — what was last actually paid under
+ *  this code, and where that figure came from. */
+export function describeLastPrice(p: LastPrice): { price: string; detail: string } {
+  const symbol = p.currencyCode === 'GBP' ? '£' : p.currencyCode === 'USD' ? '$' : `${p.currencyCode} `;
+  const date = new Date(p.observedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return {
+    price: `${symbol}${Number(p.unitPrice).toFixed(2)}`,
+    detail: `${SOURCE_LABEL[p.source]}, ${date}${p.stale ? ` — ${p.ageDays} days old` : ''}`,
+  };
+}
+
 const rowKey = (r: RowState) => `${r.supplierId}::${r.supplierSku.trim().toLowerCase()}`;
 
 export function SupplierMappingsTab({ productId }: { productId: string }) {
@@ -81,6 +103,7 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
           aliases: (m.aliases ?? []).map((a) => a.aliasSku).join(', '),
           lastKnownStock: m.lastKnownStock,
           lastPolledAt: m.lastPolledAt,
+          lastPrice: m.lastPrice ?? null,
         })),
       );
     }
@@ -206,6 +229,7 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
                 <th className="px-3 py-2 text-left font-medium">Their unit</th>
                 <th className="px-3 py-2 text-right font-medium">Pack size</th>
                 <th className="px-3 py-2 text-left font-medium">Cost (£)</th>
+                <th className="px-3 py-2 text-left font-medium">Last paid</th>
                 <th className="px-3 py-2 text-right font-medium">Priority</th>
                 <th className="px-3 py-2 text-right font-medium">Last stock</th>
                 <th className="px-3 py-2 text-center font-medium">Active</th>
@@ -216,7 +240,7 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={11}
                     className="px-3 py-4 text-center text-[var(--color-muted-foreground)]"
                   >
                     No suppliers linked to this product yet.
@@ -285,6 +309,9 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
                       className="w-24"
                     />
                   </td>
+                  <td className="px-3 py-2 text-xs">
+                    <LastPaid price={r.lastPrice ?? null} />
+                  </td>
                   <td className="px-3 py-2 text-right">
                     <Input
                       aria-label="Priority"
@@ -336,6 +363,18 @@ export function SupplierMappingsTab({ productId }: { productId: string }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/** Red when stale: a price that old should be checked before it is ordered on. */
+function LastPaid({ price }: { price: LastPrice | null }) {
+  if (!price) return <span className="text-[var(--color-muted-foreground)]">—</span>;
+  const d = describeLastPrice(price);
+  return (
+    <span className={price.stale ? 'text-[var(--color-destructive)]' : undefined}>
+      <span className="block text-sm font-medium">{d.price}</span>
+      {d.detail}
+    </span>
   );
 }
 

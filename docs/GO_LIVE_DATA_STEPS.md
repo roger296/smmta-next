@@ -449,6 +449,29 @@ cost error on every bake and a stock error on every count. A liquid not in the
 table is reported, never guessed. **Read the dry run's numbers against what the
 kitchen actually measures before applying.**
 
+## Step 15 🐳 — Back-fill what we have actually paid (supplier ordering)
+
+```bash
+cd /app/apps/api && npx tsx scripts/backfill-price-observations.ts           # dry run
+cd /app/apps/api && npx tsx scripts/backfill-price-observations.ts --apply
+```
+
+Reads the committed invoice capture
+(`/app/apps/api/data/invoice-skus/bumblebee-purchase-lines.json`) and records,
+for every line whose supplier code points at exactly ONE buying option, the
+price paid, the invoice, the date and the venue. The product page's
+**Suppliers** tab then shows it as **Last paid**, red when it is more than 60
+days old. Nothing else changes: `cost_gbp` and the reorder engine are left
+alone.
+
+It never guesses. A code on two buying options at once, a code nobody has
+mapped, and a supplier with no row are each counted and listed, not attributed
+— the unmapped list is the §F20 work list again, busiest first. Re-running is a
+no-op; after a fresh capture, it adds only the new lines.
+
+✅ `written:` roughly matches `priced to one option:`, and a second `--apply`
+reports `written: 0`.
+
 ---
 
 ## When you're done

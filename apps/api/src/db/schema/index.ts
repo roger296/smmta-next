@@ -27,3 +27,4 @@ export * from './bumblebee-sync.js';
 export * from './stock-batches.js';
 export * from './image-captures.js';
 export * from './supplier-site-accounts.js';
+export * from './supplier-price-observations.js';

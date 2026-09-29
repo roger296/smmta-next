@@ -13,7 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from '../../app.js';
 import { closeDatabase, getDb } from '../../config/database.js';
-import { products, supplierProducts, suppliers } from '../../db/schema/index.js';
+import { products, supplierPriceObservations, supplierProducts, suppliers } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 
 const COMPANY = getSingletonCompanyId();
@@ -208,3 +208,40 @@ describe('refusals', () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe('last price paid', () => {
+  it('each mapping carries the newest price seen under its code, or null', async () => {
+    await put([
+      { supplierId: brakesId, supplierSku: '33891', costGbp: '18.40' },
+      { supplierId: bookerId, supplierSku: 'BK-1', costGbp: null },
+    ]);
+    const db = getDb();
+    const brakesMapping = (
+      await db.select().from(supplierProducts).where(eq(supplierProducts.supplierId, brakesId))
+    )[0]!;
+    const obs = (invoice: string, date: string, price: string) => ({
+      companyId: COMPANY,
+      supplierProductId: brakesMapping.id,
+      supplierId: brakesId,
+      source: 'INVOICE' as const,
+      unitPrice: price,
+      observedAt: new Date(`${date}T12:00:00Z`),
+      documentRef: invoice,
+    });
+    await db.insert(supplierPriceObservations).values([obs('OLD', '2026-06-01', '18.40'), obs('NEW', '2026-09-20', '21.10')]);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/products/${productId}/supplier-mappings`,
+      headers: { authorization: `Bearer ${jwt}` },
+    });
+    const rows = res.json().data as Array<{ supplierSku: string; lastPrice: Record<string, unknown> | null }>;
+    expect(rows.find((r) => r.supplierSku === '33891')!.lastPrice).toMatchObject({
+      unitPrice: '21.100000',
+      source: 'INVOICE',
+      documentRef: 'NEW',
+    });
+    expect(rows.find((r) => r.supplierSku === 'BK-1')!.lastPrice).toBeNull();
+  });
+});
+

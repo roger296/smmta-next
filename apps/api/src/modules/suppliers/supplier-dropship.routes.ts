@@ -6,7 +6,8 @@
  *   POST /api/v1/suppliers-dropship/:id/test       — test connection
  *   POST /api/v1/suppliers-dropship/:id/poll-now   — trigger a one-off poll
  *   GET  /api/v1/suppliers-dropship/:id/poll-log   — paginated poll-log
- *   GET  /api/v1/products/:id/supplier-mappings    — per-product mappings
+ *   GET  /api/v1/products/:id/supplier-mappings    — per-product mappings, each
+ *                                                    with the last price seen
  *   PUT  /api/v1/products/:id/supplier-mappings    — bulk upsert
  *
  * The basic supplier CRUD lives at /api/v1/suppliers (existing PO
@@ -33,6 +34,7 @@ import { DropshipSupplierService } from './supplier-dropship.service.js';
 import { runSupplierPoll } from '../../workers/supplier-poll.worker.js';
 import { resolveConnector } from '../../integrations/suppliers/registry.js';
 import { aliasConflict, replaceAliases } from './supplier-sku-resolver.js';
+import { latestPrices } from './price-observations.js';
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 
@@ -210,6 +212,9 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
       if (list) list.push(a);
       else byMapping.set(a.supplierProductId, [a]);
     }
+    // What we last actually paid under each code, with its age — so a cost
+    // typed in July can be seen against an invoice from last week.
+    const lastPaid = await latestPrices(rows.map((r) => r.id));
     return reply.send({
       success: true,
       data: rows.map((r) => ({
@@ -219,6 +224,7 @@ export async function dropshipSupplierRoutes(app: FastifyInstance) {
           source: a.source,
           lastSeenAt: a.lastSeenAt,
         })),
+        lastPrice: lastPaid.get(r.id) ?? null,
       })),
     });
   });

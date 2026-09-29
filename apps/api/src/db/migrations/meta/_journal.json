@@ -393,6 +393,13 @@
       "when": 1789730000006,
       "tag": "0055_supplier_site_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1789730000007,
+      "tag": "0056_supplier_price_observations",
+      "breakpoints": true
     }
   ]
 }
