@@ -16,14 +16,16 @@ import {
 import { VAT_TREATMENTS, CURRENCIES } from '../_shared/vat-treatments';
 import { useSuppliersList } from '../suppliers/use-suppliers';
 import { useProductsList } from '../products/use-products';
-import { useWarehouses } from '../reference/use-reference';
+import { useSites } from '../sites/use-sites';
 import { formatMoney } from '@/lib/format';
 import { Plus, Trash2 } from 'lucide-react';
 import { MAX_PAGE_SIZE } from '@/lib/api-client';
 
 export const poFormSchema = z.object({
   supplierId: z.string().uuid('Select a supplier'),
-  deliveryWarehouseId: z.string().uuid().optional().or(z.literal('')),
+  // The venue is what goods-in books the order into, and what puts it on
+  // that venue's "expected" list — so an order is not raised without one.
+  siteId: z.string().uuid('Choose the venue it is for'),
   currencyCode: z.string().length(3).default('GBP'),
   deliveryCharge: z.coerce.number().min(0).default(0),
   exchangeRate: z.coerce.number().min(0.01).default(1),
@@ -63,7 +65,7 @@ export function POForm({ defaultValues, onSubmit, submitLabel = 'Create PO', onC
   const { data: suppliers } = useSuppliersList({ pageSize: 200 });
   // MAX_PAGE_SIZE, not 500 — above the cap the request 400s (defect D-1).
   const { data: products } = useProductsList({ pageSize: MAX_PAGE_SIZE });
-  const { data: warehouses } = useWarehouses();
+  const { data: sites } = useSites();
 
   const {
     register,
@@ -128,22 +130,22 @@ export function POForm({ defaultValues, onSubmit, submitLabel = 'Create PO', onC
             </SelectContent>
           </Select>
         </Field>
-        <Field id="po-warehouse" label="Delivery warehouse">
+        <Field id="po-site" label="Venue" required error={errors.siteId?.message}>
           <Select
-            value={watch('deliveryWarehouseId') ?? ''}
-            onValueChange={(v) =>
-              setValue('deliveryWarehouseId', v || undefined, { shouldValidate: true })
-            }
+            value={watch('siteId') ?? ''}
+            onValueChange={(v) => setValue('siteId', v, { shouldValidate: true })}
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Select warehouse" />
+            <SelectTrigger aria-label="Venue">
+              <SelectValue placeholder="Which venue is it for?" />
             </SelectTrigger>
             <SelectContent>
-              {warehouses?.map((w) => (
-                <SelectItem key={w.id} value={w.id}>
-                  {w.name}
-                </SelectItem>
-              ))}
+              {(sites ?? [])
+                .filter((site) => site.isActive)
+                .map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </Field>
@@ -198,7 +200,13 @@ export function POForm({ defaultValues, onSubmit, submitLabel = 'Create PO', onC
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-base font-medium">Line items</h3>
+          <div>
+            <h3 className="text-base font-medium">Line items</h3>
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              Quantities and prices are per the product&rsquo;s purchase unit (a sack, a case) — the
+              same unit the venue books in.
+            </p>
+          </div>
           <Button
             type="button"
             variant="outline"

@@ -1,122 +1,146 @@
+/**
+ * Booking in against an order from the admin page (DECISIONS.md F24): part of
+ * an order, part of a line, and an over-delivery only once someone ticks it.
+ */
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { BookInDialog, parseSerialNumbers } from './book-in-dialog';
-import type { PurchaseOrder } from '@/lib/api-types';
+import { BookInDialog, planBooking, type RowState } from './book-in-dialog';
+import type { ReceivingLine, ReceivingView } from './use-purchasing';
+import type { Product } from '@/lib/api-types';
 
-const po: PurchaseOrder = {
+const product = (id: string, name: string, purchaseUom: string) => ({ id, name, purchaseUom }) as unknown as Product;
+const line = (id: string, name: string, unit: string, ordered: number, received: number): ReceivingLine => ({
+  id,
+  product: product(`p-${id}`, name, unit),
+  ordered,
+  received,
+  outstanding: Math.max(0, ordered - received),
+  pricePerUnit: '18.00',
+  deliveryStatus: received === 0 ? 'PENDING' : received >= ordered ? 'FULLY_RECEIVED' : 'PARTIALLY_RECEIVED',
+});
+
+const VIEW: ReceivingView = {
   id: 'po-1',
-  companyId: 'co',
-  poNumber: 'PO-001',
-  supplierId: 'sup-1',
-  supplierName: 'Widgets Ltd',
-  deliveryWarehouseId: null,
-  currencyCode: 'GBP',
-  deliveryCharge: '0',
-  subtotal: '100',
-  taxAmount: '20',
-  total: '120',
-  vatTreatment: 'STANDARD_VAT_20',
-  exchangeRate: '1',
+  poNumber: 'PO-000123',
+  supplier: { id: 's-1', name: 'Brakes' },
+  site: { id: 'site-east', name: 'London East' },
+  deliveryStatus: 'PARTIALLY_RECEIVED',
   expectedDeliveryDate: null,
-  deliveryStatus: 'PENDING',
-  invoicedStatus: 'NOT_INVOICED',
-  trackingNumber: null,
-  createdAt: '',
-  updatedAt: '',
-  lines: [
-    {
-      id: 'line-1',
-      purchaseOrderId: 'po-1',
-      productId: 'prod-1',
-      productName: 'Widget A',
-      quantity: '10',
-      quantityReceived: '3',
-      quantityInvoiced: '0',
-      pricePerUnit: '5.00',
-      taxRate: '20',
-      lineTotal: '50.00',
-      expectedDeliveryDate: null,
-    },
-    {
-      id: 'line-2',
-      purchaseOrderId: 'po-1',
-      productId: 'prod-2',
-      productName: 'Widget B',
-      quantity: '5',
-      quantityReceived: '5',
-      quantityInvoiced: '0',
-      pricePerUnit: '10.00',
-      taxRate: '20',
-      lineTotal: '50.00',
-      expectedDeliveryDate: null,
-    },
-  ],
+  currencyCode: 'GBP',
+  lines: [line('l-flour', 'Plain flour', 'sack', 10, 4), line('l-sugar', 'Caster sugar', 'bag', 5, 0)],
+  receipts: [],
 };
 
-describe('parseSerialNumbers', () => {
-  it('splits comma-separated values', () => {
-    expect(parseSerialNumbers('SN-1,SN-2,SN-3')).toEqual(['SN-1', 'SN-2', 'SN-3']);
+describe('planBooking', () => {
+  const rows = (flour: string, sugar: string): RowState[] => [
+    { line: VIEW.lines[0]!, qty: flour, unitCost: '18' },
+    { line: VIEW.lines[1]!, qty: sugar, unitCost: '' },
+  ];
+
+  it('books only the lines with a quantity; the rest stay open', () => {
+    const plan = planBooking(rows('3', ''));
+    expect(plan.lines).toEqual([{ purchaseOrderLineId: 'l-flour', productId: 'p-l-flour', qtyPurchase: 3, unitCost: 18 }]);
+    expect(plan.over).toEqual([]);
+    expect(plan.leftOpen).toBe(2); // flour still 3 short, sugar untouched
   });
-  it('splits newline-separated values', () => {
-    expect(parseSerialNumbers('SN-1\nSN-2\nSN-3')).toEqual(['SN-1', 'SN-2', 'SN-3']);
+
+  it('everything still to come closes both lines', () => {
+    expect(planBooking(rows('6', '5')).leftOpen).toBe(0);
   });
-  it('handles mixed separators and whitespace', () => {
-    expect(parseSerialNumbers('  SN-1 , SN-2\n  SN-3  ')).toEqual(['SN-1', 'SN-2', 'SN-3']);
+
+  it('more than is still to come is an over-delivery, by how much', () => {
+    expect(planBooking(rows('8', '5')).over).toEqual([{ name: 'Plain flour', extra: 2, unit: 'sack' }]);
   });
-  it('filters empty entries', () => {
-    expect(parseSerialNumbers(',,SN-1,\n,')).toEqual(['SN-1']);
-  });
-  it('returns empty array for empty string', () => {
-    expect(parseSerialNumbers('')).toEqual([]);
+
+  it('refuses a quantity that is not a number of zero or more', () => {
+    expect(planBooking(rows('-1', 'abc')).invalid).toEqual(['Plain flour', 'Caster sugar']);
   });
 });
 
 describe('BookInDialog', () => {
-  it('only shows lines with outstanding > 0', () => {
-    render(
-      <BookInDialog open onOpenChange={() => {}} po={po} onConfirm={vi.fn()} />,
-    );
-    expect(screen.getByText('Widget A')).toBeInTheDocument();
-    // Widget B is fully received (5/5) — should not appear
-    expect(screen.queryByText('Widget B')).not.toBeInTheDocument();
+  const renderDialog = (onConfirm = vi.fn().mockResolvedValue(undefined), view: ReceivingView = VIEW) => {
+    render(<BookInDialog open onOpenChange={() => {}} view={view} sites={[]} onConfirm={onConfirm} />);
+    return onConfirm;
+  };
+
+  it('shows ordered, received so far and still to come for every line', () => {
+    renderDialog();
+    const flour = screen.getByTestId('book-line-l-flour');
+    expect(flour).toHaveTextContent('Plain flour');
+    expect(flour).toHaveTextContent('in sacks');
+    expect(flour.textContent).toMatch(/10\s*4\s*6/);
   });
 
-  it('shows "all lines received" when no open lines', () => {
-    const fullyReceivedPo: PurchaseOrder = {
-      ...po,
-      lines: [po.lines![1]!], // only the fully-received line
-    };
-    render(
-      <BookInDialog open onOpenChange={() => {}} po={fullyReceivedPo} onConfirm={vi.fn()} />,
-    );
-    expect(screen.getByText(/all lines on this po are fully received/i)).toBeInTheDocument();
-  });
-
-  it('blocks book-in when no quantities entered', async () => {
+  it('books part of the order and says what stays open', async () => {
     const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    render(
-      <BookInDialog open onOpenChange={() => {}} po={po} onConfirm={onConfirm} />,
-    );
-    await user.click(screen.getByRole('button', { name: /book in/i }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/enter a quantity/i);
-    expect(onConfirm).not.toHaveBeenCalled();
+    const onConfirm = renderDialog();
+    await user.type(screen.getByLabelText('Plain flour arrived now'), '2');
+    expect(screen.getByRole('status')).toHaveTextContent('1 line to book · 2 lines will stay open for a later delivery');
+    await user.type(screen.getByLabelText('Supplier delivery note number'), 'BR-55012');
+    await user.click(screen.getByRole('button', { name: 'Book in' }));
+    expect(onConfirm).toHaveBeenCalledWith({
+      siteId: 'site-east',
+      deliveryNoteNumber: 'BR-55012',
+      acceptOverDelivery: undefined,
+      lines: [{ purchaseOrderLineId: 'l-flour', productId: 'p-l-flour', qtyPurchase: 2, unitCost: 18 }],
+    });
   });
 
-  it('submits with valid quantity', async () => {
+  it('an over-delivery cannot be booked until someone ticks that it really arrived', async () => {
+    const user = userEvent.setup();
+    const onConfirm = renderDialog();
+    await user.type(screen.getByLabelText('Plain flour arrived now'), '8');
+    expect(screen.getByText('2 sacks more than is still to come')).toBeInTheDocument();
+    const book = screen.getByRole('button', { name: 'Book in' });
+    expect(book).toBeDisabled();
+
+    await user.click(screen.getByLabelText('Book in the extra'));
+    expect(book).toBeEnabled();
+    await user.click(book);
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ acceptOverDelivery: true }));
+  });
+
+  it('a late extra on a line already complete is shown as all extra', async () => {
+    const user = userEvent.setup();
+    renderDialog(undefined, { ...VIEW, lines: [line('l-sugar', 'Caster sugar', 'bag', 5, 5)] });
+    await user.type(screen.getByLabelText('Caster sugar arrived now'), '1');
+    expect(screen.getByText('Nothing is still to come — all 1 bag would be extra')).toBeInTheDocument();
+  });
+
+  it('"Fill in everything still to come" fills the outstanding quantities', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(screen.getByRole('button', { name: 'Fill in everything still to come' }));
+    expect(screen.getByLabelText('Plain flour arrived now')).toHaveValue(6);
+    expect(screen.getByLabelText('Caster sugar arrived now')).toHaveValue(5);
+  });
+
+  it('an order with no venue asks which venue it arrived at', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     render(
-      <BookInDialog open onOpenChange={() => {}} po={po} onConfirm={onConfirm} />,
+      <BookInDialog
+        open
+        onOpenChange={() => {}}
+        view={{ ...VIEW, site: null }}
+        sites={[{ id: 'site-south', name: 'London South' }]}
+        onConfirm={onConfirm}
+      />,
     );
-    const qtyInput = screen.getByLabelText(/line 1 quantity to book/i);
-    await user.type(qtyInput, '5');
-    await user.click(screen.getByRole('button', { name: /book in/i }));
-    await new Promise((r) => setTimeout(r, 100));
-    expect(onConfirm).toHaveBeenCalled();
-    const arg = onConfirm.mock.calls[0]![0];
-    expect(arg.lines[0].quantityBookedIn).toBe(5);
-    expect(arg.lines[0].productId).toBe('prod-1');
+    await user.type(screen.getByLabelText('Plain flour arrived now'), '1');
+    expect(screen.getByRole('button', { name: 'Book in' })).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText('Venue'), 'site-south');
+    await user.click(screen.getByRole('button', { name: 'Book in' }));
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ siteId: 'site-south' }));
+  });
+
+  it("a refusal is shown in the dialog, which keeps what was typed", async () => {
+    const user = userEvent.setup();
+    renderDialog(vi.fn().mockRejectedValue(new Error('PO-000123 has been closed')));
+    await user.type(screen.getByLabelText('Plain flour arrived now'), '2');
+    await user.click(screen.getByRole('button', { name: 'Book in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('has been closed');
+    expect(screen.getByLabelText('Plain flour arrived now')).toHaveValue(2);
   });
 });

@@ -5,6 +5,8 @@ import type {
   GRN,
   PODeliveryStatus,
   POInvoicedStatus,
+  POLine,
+  Product,
   PurchaseOrder,
   SupplierInvoice,
 } from '@/lib/api-types';
@@ -29,6 +31,8 @@ export interface CreatePOLineInput {
 
 export interface CreatePurchaseOrderInput {
   supplierId: string;
+  /** The venue the order is for — what it will be booked into. */
+  siteId?: string;
   deliveryWarehouseId?: string;
   currencyCode?: string;
   deliveryCharge?: number;
@@ -49,8 +53,67 @@ const base = createResourceHooks<
 });
 
 export const poKeys = base.keys;
-export const usePurchaseOrdersList = base.useList;
-export const usePurchaseOrder = base.useOne;
+
+type Raw = Record<string, unknown> & { id: string };
+const str = (v: unknown): string => (v == null ? '0' : String(v));
+
+/**
+ * The order as the screens use it, from the order as the API sends it.
+ *
+ * The inherited screens were written against field names the API never sent
+ * (`subtotal`, `total`, `supplierName`, a line's `productName` and
+ * `quantityReceived`), so totals, names and received quantities all came out
+ * blank — and the book-in dialog, reading "received" as nothing, treated
+ * every line as complete. The API's own names win here; the old ones are read
+ * as a fallback only.
+ */
+export function normalisePurchaseOrder(raw: Raw): PurchaseOrder {
+  const supplier = raw.supplier as { name?: string } | null | undefined;
+  const site = raw.site as { name?: string } | null | undefined;
+  const lines = (raw.lines as Raw[] | undefined)?.map((l): POLine => {
+    const product = l.product as Partial<Product> | null | undefined;
+    return {
+      ...(l as unknown as POLine),
+      productName: product?.name ?? (l.productName as string | undefined),
+      purchaseUom: product?.purchaseUom ?? null,
+      quantity: str(l.quantity),
+      quantityReceived: str(l.qtyBookedIn ?? l.quantityReceived),
+      quantityInvoiced: str(l.qtyInvoiced ?? l.quantityInvoiced),
+      taxRate: str(l.taxRate),
+    };
+  });
+  return {
+    ...(raw as unknown as PurchaseOrder),
+    supplierName: supplier?.name ?? (raw.supplierName as string | undefined),
+    siteId: (raw.siteId as string | null | undefined) ?? null,
+    siteName: site?.name ?? null,
+    subtotal: str(raw.lineTotal ?? raw.subtotal),
+    taxAmount: str(raw.taxTotal ?? raw.taxAmount),
+    total: str(raw.grandTotal ?? raw.total),
+    lines,
+  };
+}
+
+export function usePurchaseOrdersList(params: POListQuery = {}) {
+  return useQuery<PaginatedResult<PurchaseOrder>>({
+    queryKey: base.keys.list(params),
+    queryFn: async () => {
+      const res = await apiFetch<PaginatedResult<Raw>>('/purchase-orders', {
+        searchParams: params as Record<string, string | number | boolean | undefined>,
+      });
+      return { ...res, data: res.data.map(normalisePurchaseOrder) };
+    },
+  });
+}
+
+export function usePurchaseOrder(id: string | undefined) {
+  return useQuery<PurchaseOrder>({
+    queryKey: base.keys.detail(id ?? ''),
+    queryFn: async () => normalisePurchaseOrder(await apiFetch<Raw>(`/purchase-orders/${id}`)),
+    enabled: !!id,
+  });
+}
+
 export const useCreatePurchaseOrder = base.useCreate;
 export const useUpdatePurchaseOrder = base.useUpdate;
 export const useDeletePurchaseOrder = base.useDelete;
@@ -71,35 +134,79 @@ export function useClosePurchaseOrder() {
   });
 }
 
-export interface BookInLineInput {
-  productId: string;
-  quantityBookedIn: number;
-  valuePerUnit?: number;
-  serialNumbers?: string[];
+// ============================================================
+// Booking in against an order (goods-in; DECISIONS.md F24)
+// ============================================================
+
+export interface ReceivingLine {
+  id: string;
+  product: Product;
+  ordered: number;
+  received: number;
+  outstanding: number;
+  pricePerUnit: string;
+  deliveryStatus: PODeliveryStatus;
 }
 
-export function useBookInPurchaseOrder() {
+export interface ReceivingView {
+  id: string;
+  poNumber: string;
+  supplier: { id: string; name: string };
+  site: { id: string; name: string } | null;
+  deliveryStatus: PODeliveryStatus;
+  expectedDeliveryDate: string | null;
+  currencyCode: string;
+  lines: ReceivingLine[];
+  receipts: Array<{
+    id: string;
+    receivedAt: string;
+    deliveryNoteNumber: string | null;
+    reference: string | null;
+    totalStockValue: string;
+    variance: 'NONE' | 'UNDER' | 'OVER';
+    lines: number;
+    reversalOfReceiptId: string | null;
+    reversedAt: string | null;
+  }>;
+}
+
+/** One order laid out for booking: ordered / received / outstanding per line. */
+export function useReceivingView(purchaseOrderId: string | undefined) {
+  return useQuery<ReceivingView>({
+    queryKey: ['purchase-orders', 'receiving', purchaseOrderId],
+    queryFn: () => apiFetch<ReceivingView>(`/purchase-orders/${purchaseOrderId}/receiving`),
+    enabled: !!purchaseOrderId,
+  });
+}
+
+export interface BookAgainstOrderInput {
+  purchaseOrderId: string;
+  siteId: string;
+  deliveryNoteNumber?: string;
+  /** Required when anything is more than outstanding — the screen asks first. */
+  acceptOverDelivery?: boolean;
+  lines: Array<{
+    purchaseOrderLineId: string;
+    productId: string;
+    qtyPurchase: number;
+    unitCost?: number;
+    batchCode?: string;
+    useBy?: string | null;
+  }>;
+}
+
+/** Book a delivery in against an order, through goods-in (the venue's ledger). */
+export function useBookAgainstOrder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      purchaseOrderId,
-      input,
-    }: {
-      purchaseOrderId: string;
-      input: {
-        supplierDeliveryNoteNo?: string;
-        dateBookedIn?: string;
-        lines: BookInLineInput[];
-      };
-    }) =>
-      apiFetch<GRN>(`/purchase-orders/${purchaseOrderId}/book-in`, {
+    mutationFn: (input: BookAgainstOrderInput) =>
+      apiFetch<{ receipt: { id: string } }>('/goods-in', {
         method: 'POST',
-        body: input,
+        body: { ...input, idempotencyKey: `po-book-in:${crypto.randomUUID()}` },
       }),
-    onSuccess: (_data, { purchaseOrderId }) => {
-      qc.invalidateQueries({ queryKey: ['purchase-orders', 'detail', purchaseOrderId] });
-      qc.invalidateQueries({ queryKey: ['grns', 'po', purchaseOrderId] });
-      qc.invalidateQueries({ queryKey: ['purchase-orders', 'list'] });
+    onSuccess: (_d, { purchaseOrderId }) => {
+      qc.invalidateQueries({ queryKey: ['purchase-orders'] });
+      qc.invalidateQueries({ queryKey: ['purchase-orders', 'receiving', purchaseOrderId] });
     },
   });
 }

@@ -455,6 +455,8 @@ export interface POLine {
   purchaseOrderId: string;
   productId: string;
   productName?: string;
+  /** The product's purchase unit — what `quantity` is counted in. */
+  purchaseUom?: string | null;
   quantity: string;
   quantityReceived: string;
   quantityInvoiced: string;
@@ -470,6 +472,9 @@ export interface PurchaseOrder {
   poNumber: string;
   supplierId: string;
   supplierName?: string;
+  /** The venue the order is for; null on orders raised before venues. */
+  siteId?: string | null;
+  siteName?: string | null;
   deliveryWarehouseId: string | null;
   currencyCode: string;
   deliveryCharge: string;

@@ -8,12 +8,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import {
   DELIVERY_STATUSES,
-  useBookInPurchaseOrder,
+  useBookAgainstOrder,
   useClosePurchaseOrder,
   useCreateSupplierInvoiceFromPO,
   usePOGRNs,
   usePurchaseOrder,
+  useReceivingView,
 } from '@/features/purchasing/use-purchasing';
+import { useSites } from '@/features/sites/use-sites';
 import { BookInDialog } from '@/features/purchasing/book-in-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate, formatMoney } from '@/lib/format';
@@ -38,7 +40,9 @@ function PODetailPage() {
   const { toast } = useToast();
   const { data, isLoading, isError, error } = usePurchaseOrder(id);
   const { data: grns } = usePOGRNs(id);
-  const bookInMutation = useBookInPurchaseOrder();
+  const { data: receiving } = useReceivingView(id);
+  const { data: allSites } = useSites();
+  const bookInMutation = useBookAgainstOrder();
   const closeMutation = useClosePurchaseOrder();
   const invoiceMutation = useCreateSupplierInvoiceFromPO();
 
@@ -65,7 +69,9 @@ function PODetailPage() {
   }
 
   const statusMeta = DELIVERY_STATUSES.find((s) => s.value === data.deliveryStatus);
-  const canBookIn = data.deliveryStatus !== 'FULLY_RECEIVED' && data.deliveryStatus !== 'CANCELLED';
+  // A complete order can still take a late extra (an over-delivery), so
+  // only a CLOSED order hides booking in.
+  const canBookIn = data.deliveryStatus !== 'CANCELLED' && !!receiving;
   const canInvoice = data.invoicedStatus !== 'FULLY_INVOICED' && data.deliveryStatus !== 'CANCELLED';
   const canClose = data.deliveryStatus !== 'CANCELLED' && data.deliveryStatus !== 'FULLY_RECEIVED';
 
@@ -154,7 +160,9 @@ function PODetailPage() {
       <Tabs defaultValue="lines">
         <TabsList>
           <TabsTrigger value="lines">Lines ({data.lines?.length ?? 0})</TabsTrigger>
-          <TabsTrigger value="grns">GRNs ({grns?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="grns">
+            Deliveries ({(receiving?.receipts.length ?? 0) + (grns?.length ?? 0)})
+          </TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
         </TabsList>
         <TabsContent value="lines">
@@ -164,8 +172,9 @@ function PODetailPage() {
                 <thead className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
                   <tr>
                     <th className="px-4 py-2 text-left font-medium">Product</th>
-                    <th className="px-4 py-2 text-right font-medium">Qty</th>
+                    <th className="px-4 py-2 text-right font-medium">Ordered</th>
                     <th className="px-4 py-2 text-right font-medium">Received</th>
+                    <th className="px-4 py-2 text-right font-medium">Still to come</th>
                     <th className="px-4 py-2 text-right font-medium">Invoiced</th>
                     <th className="px-4 py-2 text-right font-medium">Unit cost</th>
                     <th className="px-4 py-2 text-right font-medium">Line total</th>
@@ -174,9 +183,17 @@ function PODetailPage() {
                 <tbody>
                   {(data.lines ?? []).map((line) => (
                     <tr key={line.id} className="border-b border-[var(--color-border)] last:border-b-0">
-                      <td className="px-4 py-2">{line.productName ?? line.productId.slice(0, 8)}</td>
+                      <td className="px-4 py-2">
+                        {line.productName ?? line.productId.slice(0, 8)}
+                        {line.purchaseUom && (
+                          <span className="block text-xs text-[var(--color-muted-foreground)]">in {line.purchaseUom}s</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-right">{line.quantity}</td>
                       <td className="px-4 py-2 text-right">{line.quantityReceived}</td>
+                      <td className="px-4 py-2 text-right font-medium">
+                        {Math.max(0, Math.round((Number(line.quantity) - Number(line.quantityReceived)) * 1000) / 1000)}
+                      </td>
                       <td className="px-4 py-2 text-right">{line.quantityInvoiced}</td>
                       <td className="px-4 py-2 text-right">
                         {formatMoney(line.pricePerUnit, data.currencyCode)}
@@ -192,25 +209,37 @@ function PODetailPage() {
           </Card>
         </TabsContent>
         <TabsContent value="grns">
-          {grns && grns.length > 0 ? (
+          {receiving && receiving.receipts.length > 0 ? (
             <Card>
               <CardContent className="p-0">
                 <table className="w-full text-sm">
                   <thead className="border-b border-[var(--color-border)] bg-[var(--color-muted)]">
                     <tr>
-                      <th className="px-4 py-2 text-left font-medium">GRN #</th>
-                      <th className="px-4 py-2 text-left font-medium">Date</th>
+                      <th className="px-4 py-2 text-left font-medium">Booked in</th>
                       <th className="px-4 py-2 text-left font-medium">Delivery note</th>
                       <th className="px-4 py-2 text-right font-medium">Lines</th>
+                      <th className="px-4 py-2 text-left font-medium">Against the order</th>
+                      <th className="px-4 py-2 text-right font-medium">Value</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {grns.map((grn) => (
-                      <tr key={grn.id} className="border-b border-[var(--color-border)] last:border-b-0">
-                        <td className="px-4 py-2">{grn.grnNumber}</td>
-                        <td className="px-4 py-2">{formatDate(grn.dateBookedIn)}</td>
-                        <td className="px-4 py-2">{grn.supplierDeliveryNoteNo ?? '—'}</td>
-                        <td className="px-4 py-2 text-right">{grn.lines?.length ?? 0}</td>
+                    {receiving.receipts.map((r) => (
+                      <tr key={r.id} className="border-b border-[var(--color-border)] last:border-b-0">
+                        <td className="px-4 py-2">{formatDate(r.receivedAt)}</td>
+                        <td className="px-4 py-2">{r.deliveryNoteNumber ?? '—'}</td>
+                        <td className="px-4 py-2 text-right">{r.lines}</td>
+                        <td className="px-4 py-2">
+                          {r.reversalOfReceiptId ? (
+                            <Badge variant="outline">Undo of an earlier booking</Badge>
+                          ) : r.reversedAt ? (
+                            <Badge variant="outline">Undone</Badge>
+                          ) : (
+                            <Badge variant={r.variance === 'OVER' ? 'destructive' : 'secondary'}>
+                              {r.variance === 'OVER' ? 'More than ordered' : r.variance === 'UNDER' ? 'Part delivery' : 'Complete'}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-right">{formatMoney(r.totalStockValue, data.currencyCode)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -218,7 +247,12 @@ function PODetailPage() {
               </CardContent>
             </Card>
           ) : (
-            <p className="text-sm text-[var(--color-muted-foreground)]">No GRNs yet.</p>
+            <p className="text-sm text-[var(--color-muted-foreground)]">Nothing booked in against this order yet.</p>
+          )}
+          {grns && grns.length > 0 && (
+            <p className="mt-3 text-xs text-[var(--color-muted-foreground)]">
+              Also on file from the old book-in: {grns.map((g) => g.grnNumber).join(', ')}.
+            </p>
           )}
         </TabsContent>
         <TabsContent value="details">
@@ -229,6 +263,10 @@ function PODetailPage() {
                   Supplier
                 </dt>
                 <dd>{data.supplierName ?? data.supplierId}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-[var(--color-muted-foreground)]">Venue</dt>
+                <dd>{data.siteName ?? 'Not set — chosen when booking in'}</dd>
               </div>
               <div>
                 <dt className="text-xs font-medium text-[var(--color-muted-foreground)]">
@@ -259,24 +297,22 @@ function PODetailPage() {
         </TabsContent>
       </Tabs>
 
-      <BookInDialog
-        open={bookInOpen}
-        onOpenChange={setBookInOpen}
-        po={data}
-        onConfirm={async (input) => {
-          try {
-            await bookInMutation.mutateAsync({ purchaseOrderId: data.id, input });
-            toast({ title: 'Goods received', description: `${input.lines.length} line(s) booked in` });
-          } catch (err) {
+      {receiving && (
+        <BookInDialog
+          open={bookInOpen}
+          onOpenChange={setBookInOpen}
+          view={receiving}
+          sites={(allSites ?? []).filter((s) => s.isActive)}
+          onConfirm={async (input) => {
+            // A refusal is shown in the dialog, which stays open with what was typed.
+            await bookInMutation.mutateAsync({ purchaseOrderId: data.id, ...input });
             toast({
-              variant: 'destructive',
-              title: 'Book-in failed',
-              description: err instanceof Error ? err.message : 'Unknown',
+              title: 'Booked in',
+              description: `${input.lines.length} line${input.lines.length === 1 ? '' : 's'} booked into stock`,
             });
-            throw err;
-          }
-        }}
-      />
+          }}
+        />
+      )}
       <SupplierInvoiceDialog
         open={invoiceOpen}
         onOpenChange={setInvoiceOpen}
@@ -299,7 +335,7 @@ function PODetailPage() {
         open={confirmClose}
         onOpenChange={setConfirmClose}
         title="Close this PO?"
-        description="Closing the PO prevents further receipts or invoices."
+        description="Closing says the rest is never coming: nothing more can be booked in against it, and anything still to come is dropped."
         confirmLabel="Close PO"
         onConfirm={async () => {
           try {
