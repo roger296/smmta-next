@@ -12,6 +12,7 @@ import {
   SupplierNotesTab,
 } from '@/features/suppliers/supplier-tabs';
 import { DropshipTab } from '@/features/suppliers-dropship/dropship-tab';
+import { SiteAccountsTab } from '@/features/supplier-accounts/site-accounts-tab';
 import {
   useSupplier,
   useUpdateSupplier,
@@ -88,6 +89,7 @@ function SupplierDetailPage() {
           <TabsTrigger value="notes">
             Notes {supplier.notes ? `(${supplier.notes.length})` : ''}
           </TabsTrigger>
+          <TabsTrigger value="venues">Venues &amp; delivery</TabsTrigger>
           <TabsTrigger value="dropship">Drop-ship</TabsTrigger>
         </TabsList>
         <TabsContent value="general">
@@ -140,6 +142,9 @@ function SupplierDetailPage() {
         </TabsContent>
         <TabsContent value="notes">
           <SupplierNotesTab supplier={supplier} />
+        </TabsContent>
+        <TabsContent value="venues">
+          <SiteAccountsTab supplierId={supplier.id} />
         </TabsContent>
         <TabsContent value="dropship">
           <DropshipTab supplierId={supplier.id} />

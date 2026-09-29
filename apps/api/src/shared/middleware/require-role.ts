@@ -55,8 +55,9 @@ export function requireRole(allowed: readonly Role[]) {
 function describeRoles(roles: readonly string[]): string {
   const pretty = roles.map((r) => r.replace(/_/g, ' '));
   if (pretty.length === 0) return '';
-  if (pretty.length === 1) return `a ${pretty[0]}`;
-  return `a ${pretty.slice(0, -1).join(', ')} or ${pretty[pretty.length - 1]}`;
+  const article = /^[aeiou]/i.test(pretty[0]!) ? 'an' : 'a';
+  if (pretty.length === 1) return `${article} ${pretty[0]}`;
+  return `${article} ${pretty.slice(0, -1).join(', ')} or ${pretty[pretty.length - 1]}`;
 }
 
 /**

@@ -1409,3 +1409,34 @@ first. Three faults, each with a test that fails on the old code:
 A replay of the same booking from two devices at once now waits on the unique
 key and returns the first receipt, rather than failing on the constraint.
 
+### Supplier accounts per venue (`supplier_site_accounts`, migration `0055`)
+
+One row per (supplier, venue): account number, electronic location ID (a
+Booker EDI location, a GLN), the delivery **round** or **lead time**, the
+cut-off, minimum order, delivery charge and free-delivery threshold, and a
+per-venue order email or ordering website. Edited on the supplier page's
+**Venues & delivery** tab; writes are head office (`admin`) only, because a
+wrong cut-off silently makes every order for that venue "arrive" on the wrong
+day.
+
+- **Per venue, not per supplier.** Brakes, Booker and LWC each know a venue by
+  its own account, deliver from its own depot on its own days, and hold it to
+  its own cut-off. A supplier-wide `lead_time_days` (which nothing read) could
+  not say any of that.
+- **Round or lead time, one or the other.** A round is `delivery_days` +
+  `cutoff_time` + `cutoff_days_before` (Brakes: Tue/Thu, 16:00 the day
+  before). A lead time is working days after the order, with an order after
+  the cut-off counting from the next working day (a web shop). An account with
+  neither cannot be dated, and says so on screen.
+- **`delivery-calendar.ts` is the only reader of what those columns mean.**
+  Times are the SITE's wall clock (Dallas is not London), and it is pure — now
+  and the time zone are arguments — so each case is a test. Bank holidays are
+  not modelled: the supplier moves a round that falls on one, and its
+  confirmation carries the real date.
+- **No order channel column yet.** The supplier's existing `order_channel`
+  (EMAIL_PO / API_CONNECTOR) stays the one setting; Phase 1 widens it to the
+  plan's EMAIL / PORTAL / API / EDI rather than adding a second, per-venue
+  channel nobody has asked for.
+- Blank money fields are NULL ("not known"), never 0: a £0.00 minimum order is
+  a real answer.
+
