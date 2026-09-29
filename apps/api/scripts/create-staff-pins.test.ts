@@ -192,6 +192,52 @@ describe('createStaffPins', () => {
     expect(grants).toHaveLength(1);
   });
 
+  it('--replace-existing resets the venues to the list: default moved, strays removed', async () => {
+    // As found live: set up during testing at one venue, works at others.
+    const db = getDb();
+    const bySlug = async (slug: string) => (await db.query.sites.findFirst({ where: eq(sites.slug, slug) }))!;
+    const [east, south, brum] = [
+      await bySlug('london-east'),
+      await bySlug('london-south'),
+      await bySlug('birmingham'),
+    ];
+    const [pre] = await db
+      .insert(devicePins)
+      .values({
+        companyId: getSingletonCompanyId(),
+        label: 'Test Baker Two',
+        siteId: east.id,
+        pinHash: await hashPassword('314159'),
+        roles: ['site_manager'],
+      })
+      .returning();
+    await db
+      .insert(devicePinSites)
+      .values({
+        companyId: getSingletonCompanyId(),
+        devicePinId: pre!.id,
+        siteId: brum.id,
+        addedVia: 'SELF',
+      });
+
+    const list = () => parseStaffList('Test Baker Two, London South; London East');
+    const dry = await createStaffPins(list(), { replaceExisting: true });
+    expect(dry[0]!.note).toMatch(/would be reset to the list \(was London East \+ Birmingham\)/);
+    expect(dry[0]!.note).toMatch(/Role left as site_manager/);
+    expect((await db.query.devicePins.findFirst({ where: eq(devicePins.id, pre!.id) }))!.siteId).toBe(
+      east.id,
+    );
+
+    const [re] = await createStaffPins(list(), { apply: true, replaceExisting: true });
+    expect(re).toMatchObject({ status: 'replaced', venues: ['London South', 'London East'] });
+    const after = await db.query.devicePins.findFirst({ where: eq(devicePins.id, pre!.id) });
+    expect(after!.siteId).toBe(south.id);
+    expect(after!.roles).toEqual(['site_manager']);
+    expect(await verifyPassword(re!.pin!, after!.pinHash)).toBe(true);
+    const grants = await db.select().from(devicePinSites).where(eq(devicePinSites.devicePinId, pre!.id));
+    expect(grants.map((g) => g.siteId)).toEqual([east.id]);
+  });
+
   it('refuses a name that two active PINs share, writing nothing', async () => {
     const db = getDb();
     for (const pin of ['271828', '161803']) {

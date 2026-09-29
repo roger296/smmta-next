@@ -30,10 +30,10 @@
  *    candidate is VERIFIED against every active hash and redrawn on a match.
  *  - Idempotent by name. A person who already has an active PIN keeps it:
  *    re-running must never replace a PIN already handed over by accident.
- *    `--replace-existing` does it on purpose — a new PIN on the SAME row, so
- *    their venues and history stay theirs and the old PIN stops at once.
- *    Their missing venues are granted either way; their default venue is
- *    never moved.
+ *    Without a flag their missing venues are granted and nothing else moves.
+ *    `--replace-existing` re-sets them up on purpose: a new PIN on the SAME
+ *    row (so their history stays theirs; the old PIN stops at once), and
+ *    their venues set exactly to the list, its first venue the default.
  *  - Extra venues are written to `device_pin_sites` as ADMIN grants, which is
  *    what head office already sees and can revoke (`GET /device-pins`).
  *  - The PIN is printed ONCE, on --apply. It is scrypt-hashed on the way in and
@@ -43,7 +43,7 @@
 import 'dotenv/config';
 import { randomInt } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, notInArray } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../src/config/database.js';
 import { devicePins, devicePinSites, sites } from '../src/db/schema/index.js';
 import { hashPassword, verifyPassword } from '../src/shared/auth/password.js';
@@ -182,15 +182,81 @@ export async function createStaffPins(
     };
     const existing = existingByName.get(person.name.toLowerCase());
     if (existing) {
-      // The PIN stays as it is, but the venues are checked: a person asked
-      // for at two venues and able to sign in at one would find out at the
-      // iPad of the other. Missing venues are GRANTED (additive, revocable);
-      // nothing is taken away and the default venue is never moved.
       const granted = await db
         .select({ siteId: devicePinSites.siteId })
         .from(devicePinSites)
         .where(eq(devicePinSites.devicePinId, existing.id));
       const has = new Set([existing.siteId, ...granted.map((g) => g.siteId)]);
+      const home = siteRows.find((s) => s.id === existing.siteId);
+      const hadNames = [home, ...siteRows.filter((s) => has.has(s.id) && s.id !== home?.id)]
+        .filter(Boolean)
+        .map((s) => s!.name);
+      const roleNote =
+        existing.roles.join(',') !== person.role
+          ? ` Role left as ${existing.roles.join(' + ')} (the list says ${person.role}).`
+          : '';
+
+      if (opts.replaceExisting) {
+        // A RE-SET-UP: new PIN, and the venues become exactly the list's —
+        // its first as the default, anything not on it removed. Found live:
+        // people set up during testing at London East who work elsewhere,
+        // whose PIN would otherwise keep offering (and defaulting to) the
+        // wrong venue. Same row, not a new one, so the `pin:<id>` their
+        // filings are attributed to stays theirs. Roles are not touched.
+        const same = hadNames.length === base.venues.length && hadNames.every((n, i) => n === base.venues[i]);
+        const venueNote = same
+          ? ''
+          : `venues ${opts.apply ? 'reset' : 'would be reset'} to the list (was ${hadNames.join(' + ') || 'none'})`;
+        if (!opts.apply) {
+          results.push({
+            ...base,
+            status: 'would-replace',
+            ...(venueNote || roleNote ? { note: (venueNote + roleNote).trim() } : {}),
+          });
+          continue;
+        }
+        const pin = await distinctPin();
+        const [listHome, ...extras] = venues;
+        await db.transaction(async (tx) => {
+          await tx
+            .update(devicePins)
+            .set({ pinHash: await hashPassword(pin), siteId: listHome!.id, updatedAt: new Date() })
+            .where(eq(devicePins.id, existing.id));
+          const keep = extras.map((e) => e.id);
+          await tx
+            .delete(devicePinSites)
+            .where(
+              keep.length > 0
+                ? and(eq(devicePinSites.devicePinId, existing.id), notInArray(devicePinSites.siteId, keep))
+                : eq(devicePinSites.devicePinId, existing.id),
+            );
+          for (const site of extras) {
+            await tx
+              .insert(devicePinSites)
+              .values({
+                companyId,
+                devicePinId: existing.id,
+                siteId: site.id,
+                addedVia: 'ADMIN',
+                addedBy: opts.addedBy ?? 'create-staff-pins',
+              })
+              .onConflictDoNothing();
+          }
+        });
+        results.push({
+          ...base,
+          status: 'replaced',
+          pin,
+          ...(venueNote || roleNote ? { note: (venueNote + roleNote).trim() } : {}),
+        });
+        continue;
+      }
+
+      // Without --replace-existing the PIN stays as it is, but the venues are
+      // checked: a person asked for at two venues and able to sign in at one
+      // would find out at the iPad of the other. Missing venues are GRANTED
+      // (additive, revocable); nothing is taken away and the default venue is
+      // never moved.
       const missing = venues.filter((v) => !has.has(v.id));
       if (opts.apply) {
         for (const site of missing) {
@@ -206,7 +272,6 @@ export async function createStaffPins(
             .onConflictDoNothing();
         }
       }
-      const home = siteRows.find((s) => s.id === existing.siteId);
       // What it has NOW: the added venues only count once they were actually added.
       const nowHas = siteRows.filter(
         (s) => has.has(s.id) || (opts.apply && missing.some((m) => m.id === s.id)),
@@ -214,32 +279,14 @@ export async function createStaffPins(
       results.push({
         ...base,
         venues: [home, ...nowHas.filter((s) => s.id !== home?.id)].filter(Boolean).map((s) => s!.name),
-        status: 'exists' as StaffPinResult['status'],
+        status: 'exists',
         venuesToAdd: missing.map((m) => m.name),
         ...(home?.id !== venues[0]!.id
           ? {
-              note: `signs in to ${home?.name ?? 'any venue'} by default, not ${venues[0]!.name} — left as it is`,
+              note: `signs in to ${home?.name ?? 'any venue'} by default, not ${venues[0]!.name} — left as it is (--replace-existing resets it)`,
             }
           : {}),
       });
-      if (opts.replaceExisting) {
-        const last = results[results.length - 1]!;
-        if (!opts.apply) {
-          last.status = 'would-replace';
-        } else {
-          // In place, not a new row: the venues granted to this PIN, and the
-          // `pin:<id>` everything they have filed is attributed to, stay theirs.
-          // The old PIN stops working at once; a token it already issued runs
-          // out within its 12 hours.
-          const pin = await distinctPin();
-          await db
-            .update(devicePins)
-            .set({ pinHash: await hashPassword(pin), updatedAt: new Date() })
-            .where(eq(devicePins.id, existing.id));
-          last.status = 'replaced';
-          last.pin = pin;
-        }
-      }
       continue;
     }
     if (!opts.apply) {

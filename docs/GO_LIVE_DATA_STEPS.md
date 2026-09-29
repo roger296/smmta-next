@@ -105,9 +105,10 @@ rm /tmp/staff.txt
 ```
 
 Each PIN is checked against every active PIN, not just the new ones. Someone
-who already has a PIN keeps it; add `--replace-existing` to give them a new one
-instead (same record, so their venues and history stay theirs, and the old PIN
-stops at once). Either way, any venue on the list that their PIN lacks is added.
+who already has a PIN keeps it, and any venue on the list that their PIN lacks
+is added. `--replace-existing` sets them up again instead: a new PIN on the same
+record, so their history stays theirs and the old PIN stops at once. Their venues
+are then set exactly to the list, with its first venue as their default.
 Extra venues are ADMIN grants that head office can see and revoke. An optional third field `site_manager` gives that
 person manager rights (approve a stock-take, reverse a goods-in).
 
