@@ -62,7 +62,7 @@ managers.**
 
 | Supplier | Stock spend, last 12 months | Electronic ordering, as far as we can tell | Cut-off |
 |---|---|---|---|
-| Brakes | £95.3k (370 invoices) | Web and app (mybrakes) with account prices and substitution emails. **No public API.** Platforms such as Apicbase integrate with it. Customer EDI would have to be requested. | Per account; amend up to cut-off |
+| Brakes | £95.3k (370 invoices) | Web and app (mybrakes) with account prices and substitution emails. **Customer-side electronic ordering exists** (owner-confirmed, 29 Sept): Brakes is an EDI trading partner, and has ordering integrations with Apicbase and Crunchtime that place orders straight into Brakes' system. It also has a product-data API (allergens). **No self-serve public API** — access is by onboarding (§9.1). | Per account; amend up to cut-off |
 | Amazon (Business) | £38.5k (**1,261 invoices**) | **A real public Ordering API** (JSON, OAuth), plus Product Search and Reconciliation APIs, UK supported. Needs Amazon's approval. | n/a |
 | Twist Ingredients | £28.8k | Not researched yet | ? |
 | LWC Drinks | £28.1k | Ordering portal with live pricing. No API found. | Per depot, around 4pm for next day |
@@ -522,14 +522,17 @@ Each phase ends with something the venues or head office use.
   go through the system for three weeks. Every delivery is booked against its
   PO. Overrides and discrepancies are reviewed.
 
-**Phase 2 — the first connector (about 2–3 weeks each, once access is granted)**
-- **Amazon Business Ordering API.** It is the only confirmed public API. With
-  1,261 invoices a year it is the highest *order count*, so it saves the most
-  keying, even though it is second by spend.
+**Phase 2 — the first connectors (about 2–3 weeks each, once access is granted)**
+- **Brakes EDI — the priority.** Brakes is about a quarter of stock spend, and
+  customer-side EDI is confirmed (§9.1). Its order response and substitution
+  messages also do the most for goods-in, because Brakes deliveries have the
+  most lines. Build time depends on Brakes' onboarding and test cycle, not
+  our code; start the conversation now.
+- **Amazon Business Ordering API**, in parallel. It is the only self-serve
+  public API. With 1,261 invoices a year it is the highest *order count*, so
+  it saves the most keying.
 - **Booker EDI**, if Booker grants it. Customer EDI with per-venue location IDs
   is proven elsewhere (Kobas).
-- **Brakes**, if the account manager offers customer EDI or an integration
-  partner.
 - **Confirmation-email reading** (§6.3), as the fallback for suppliers without
   either.
 
@@ -546,8 +549,8 @@ conversations will move Phase 2 more than any build work.
 
 ## 9. Questions to put to suppliers now
 
-For each of Brakes, Booker (+Makro), LWC, Culpitt, Twist Ingredients and JM
-Posner, ask the account manager:
+For each of Booker (+Makro), LWC, Culpitt, Twist Ingredients and JM
+Posner (and Brakes, alongside §9.1), ask the account manager:
 
 1. Can a customer place orders electronically from its own stock system: API,
    EDI (which standard?), a procurement platform, or order-file upload?
@@ -560,7 +563,32 @@ Posner, ask the account manager:
 5. How are substitutions communicated, and can we opt out of them per item?
 6. Is there a case/outer barcode (GTIN) on the price list?
 
-For Amazon Business: request developer access for the Ordering, Product Search
+### 9.1 Brakes — specific questions
+
+Brakes supports EDI and integrates with ordering platforms, so the questions
+are about onboarding, not whether it's possible:
+
+1. Will Brakes onboard **our own system** as an EDI customer, or only through a
+   listed platform (Apicbase, Crunchtime, a procurement platform)?
+2. **Which standard and transport?** EANCOM/EDIFACT, Tradacoms, cXML or
+   Brakes' own XML/JSON; direct AS2/SFTP, or through a VAN such as TrueCommerce.
+   Is there a specification document and a **test environment**?
+3. Which messages: order, **order response** (confirmed lines, substitutions,
+   delivery date), **advance delivery note**, invoice and credit note, and a
+   price/catalogue file?
+4. How is each venue identified: account number or GLN? Are cut-off and
+   delivery days per account?
+5. Can the **allergens/product-data API** be used for our catalogue? This
+   would keep ingredient allergens in step with what Brakes actually ships,
+   including substitutes. It is not needed for ordering, but it is useful.
+
+⚠️ Much of the "Brakes EDI" material online is written for **manufacturers
+selling to Brakes**, not customers buying from it. Make sure the answer is
+about the customer side.
+
+### 9.2 Amazon Business
+
+Request developer access for the Ordering, Product Search
 and Reconciliation APIs (the approval form is on the Amazon Business developer
 docs).
 
@@ -571,6 +599,9 @@ platform?**
 - **Joining one would mean:** one integration instead of six, but a
   subscription cost. The platform would also become part of the ordering
   path.
+- **What we now know:** Brakes' ordering integrations are with platforms
+  (Apicbase, Crunchtime). So the platform route definitely works for Brakes.
+  The direct route depends on Brakes agreeing to onboard us (§9.1 q1).
 - **Recommendation:** ask the suppliers first. If Brakes and Booker both
   answer "only through a platform", price the platform against the build.
 
