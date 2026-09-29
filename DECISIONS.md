@@ -1376,3 +1376,36 @@ takes."*
 - Anything that wants a stock-take changed goes through the PWA or the admin
   screen, which is where the counter's identity comes from (§F21).
 
+## §F23 — Supplier-ordering groundwork (Sept 2026)
+
+Phase 0 of `docs/plans/SUPPLIER_ORDERING_PLAN.md`: the pieces the manual
+ordering process needs before any purchase order exists. Nothing here places
+an order.
+
+### Goods-in is one transaction
+
+Purchase orders will be booked in against, so a receipt has to be trustworthy
+first. Three faults, each with a test that fails on the old code:
+
+- **Not atomic.** The receipt, then each line, then each movement were separate
+  writes. A failure on line 3 left lines 1–2 in stock with a receipt that only
+  half described them, and the idempotency key already spent, so a retry
+  returned the broken receipt as "already booked". Receipt, lines, movements
+  and batches now commit together. The Xero GRN posting and photo capture run
+  after the commit: both are idempotent and retryable, and neither should hold
+  stock rows locked while it talks to the outside world.
+- **Two lines of one product lost the second.** The GRN movement was keyed
+  `receiptId:productId`, and the ledger is idempotent on its key, so a second
+  line of the same product (two lots; soon, two pack sizes of one item) was
+  dropped as a duplicate while the receipt still listed it. The key is now the
+  receipt LINE. Existing movements keep their old keys; nothing re-reads them.
+- **Undo left the batch standing.** A reversal reversed the movement but not
+  the lot, because the line never recorded which lot it went into. Lines now
+  carry `batch_code` / `use_by` (migration `0054`), and a reversal takes the
+  quantity back off that lot. What has already been used stays used: the lot
+  stops at empty rather than going negative. Lines booked before `0054` have no
+  lot recorded and their reversal leaves batches alone, as before.
+
+A replay of the same booking from two devices at once now waits on the unique
+key and returns the first receipt, rather than failing on the constraint.
+

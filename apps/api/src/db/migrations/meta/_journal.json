@@ -379,6 +379,13 @@
       "when": 1789730000004,
       "tag": "0053_stock_take_counted_by",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1789730000005,
+      "tag": "0054_goods_in_line_batch",
+      "breakpoints": true
     }
   ]
 }

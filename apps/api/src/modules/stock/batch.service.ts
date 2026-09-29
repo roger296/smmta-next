@@ -11,6 +11,10 @@ import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { products, stockBatches } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
+import type { Tx } from './stock-level.service.js';
+
+/** The pool, or a transaction the caller already holds. */
+type Executor = ReturnType<typeof getDb> | Tx;
 
 export type StockBatch = typeof stockBatches.$inferSelect;
 
@@ -58,10 +62,11 @@ export class BatchService {
   }
 
   /** Create (or top up) a batch. Idempotent-ish: an existing code at the same
-   *  product/site adds to its remaining + original. */
-  async receive(input: ReceiveBatchInput): Promise<StockBatch> {
+   *  product/site adds to its remaining + original. Pass `db` to run inside a
+   *  transaction the caller holds (goods-in books the lot with its receipt). */
+  async receive(input: ReceiveBatchInput, db: Executor = this.db): Promise<StockBatch> {
     const companyId = input.companyId ?? getSingletonCompanyId();
-    const existing = await this.db.query.stockBatches.findFirst({
+    const existing = await db.query.stockBatches.findFirst({
       where: and(
         eq(stockBatches.companyId, companyId),
         eq(stockBatches.productId, input.productId),
@@ -70,7 +75,7 @@ export class BatchService {
       ),
     });
     if (existing) {
-      const [row] = await this.db
+      const [row] = await db
         .update(stockBatches)
         .set({
           originalQty: String(round3(Number(existing.originalQty) + input.qty)),
@@ -82,7 +87,7 @@ export class BatchService {
         .returning();
       return row!;
     }
-    const [row] = await this.db
+    const [row] = await db
       .insert(stockBatches)
       .values({
         companyId,
@@ -97,6 +102,44 @@ export class BatchService {
       })
       .returning();
     return row!;
+  }
+
+  /**
+   * Take a reversed receipt's quantity back off the lot it was booked into.
+   *
+   * Both `original_qty` and `qty_remaining` come down: the lot is recorded as
+   * never having received it. `qty_remaining` stops at zero — if some of the
+   * lot has already been used, what was used stays used, and the shortfall is
+   * returned so the caller can say so rather than inventing negative stock in
+   * a lot. A lot that is not there (deleted, or a line booked before its code
+   * was recorded) is a no-op.
+   */
+  async reverseReceipt(
+    input: { productId: string; siteId: string; batchCode: string; qty: number; companyId?: string },
+    db: Executor = this.db,
+  ): Promise<{ reversed: number; alreadyUsed: number } | null> {
+    const companyId = input.companyId ?? getSingletonCompanyId();
+    const lot = await db.query.stockBatches.findFirst({
+      where: and(
+        eq(stockBatches.companyId, companyId),
+        eq(stockBatches.productId, input.productId),
+        eq(stockBatches.siteId, input.siteId),
+        eq(stockBatches.batchCode, input.batchCode),
+      ),
+    });
+    if (!lot) return null;
+    const qty = round3(input.qty);
+    const remaining = Number(lot.qtyRemaining);
+    const reversed = round3(Math.min(qty, remaining));
+    await db
+      .update(stockBatches)
+      .set({
+        originalQty: String(round3(Math.max(0, Number(lot.originalQty) - qty))),
+        qtyRemaining: String(round3(remaining - reversed)),
+        updatedAt: new Date(),
+      })
+      .where(eq(stockBatches.id, lot.id));
+    return { reversed, alreadyUsed: round3(qty - reversed) };
   }
 
   /**

@@ -4,7 +4,10 @@
  * Covers: a full receipt updates on-hand in stock_uom (purchase→stock
  * conversion); a partial receipt leaves the matched proposal short (UNDER,
  * remaining correct); an over-receipt flags OVER; the GRN posts once to Xero
- * (dry-run) and a re-confirm with the same key is a no-op.
+ * (dry-run) and a re-confirm with the same key is a no-op. Also: the booking
+ * is all-or-nothing, two lines of one product both reach the ledger, a
+ * replayed booking racing itself books once, and undo takes the quantity back
+ * off the batch it went into.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
@@ -16,9 +19,11 @@ import {
   products,
   reorderProposals,
   sites,
+  stockBatches,
   stockMovements,
   stockLevels,
 } from '../../db/schema/index.js';
+import { BatchService } from '../stock/batch.service.js';
 import { StockLevelService } from '../stock/stock-level.service.js';
 import { GoodsInService } from './goods-in.service.js';
 
@@ -29,6 +34,7 @@ let siteId: string;
 let flourId: string;
 let sackId: string;
 let perGramId: string;
+let lottedId: string;
 
 async function clearTx(): Promise<void> {
   const db = getDb();
@@ -44,6 +50,7 @@ async function clearTx(): Promise<void> {
   await db.delete(stockMovements).where(eq(stockMovements.companyId, COMPANY));
   await db.delete(stockLevels).where(eq(stockLevels.companyId, COMPANY));
   await db.delete(reorderProposals).where(eq(reorderProposals.companyId, COMPANY));
+  await db.delete(stockBatches).where(eq(stockBatches.companyId, COMPANY));
 }
 
 beforeAll(async () => {
@@ -96,6 +103,20 @@ beforeAll(async () => {
     })
     .returning();
   perGramId = perGram!.id;
+  const [lotted] = await db
+    .insert(products)
+    .values({
+      companyId: COMPANY,
+      name: 'GI Cream',
+      slug: 'gi-cream',
+      itemKind: 'INGREDIENT',
+      stockUom: 'ml',
+      purchaseUom: 'tub',
+      purchaseToStockFactor: '1000', // 1 tub = 1 litre
+      requireBatchNumber: true,
+    })
+    .returning();
+  lottedId = lotted!.id;
   const [s] = await db
     .insert(sites)
     .values({ companyId: COMPANY, slug: 'gi-site', name: 'GI Site', canonicalName: 'GI Site' })
@@ -341,3 +362,124 @@ describe('GoodsInService.reverse', () => {
     expect(res).toBeNull();
   });
 });
+
+// ── Supplier-ordering groundwork: the booking is one transaction ────────────
+describe('GoodsInService.receive — integrity', () => {
+  it('books BOTH lines when one product arrives on two lines', async () => {
+    // Two lots of one product (or, later, two pack sizes of one item). Keying
+    // the movement on the product used to make the ledger drop the second.
+    await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-twice',
+      lines: [
+        { productId: lottedId, qtyPurchase: 2, unitCost: 3, batchCode: 'LOT-A' },
+        { productId: lottedId, qtyPurchase: 3, unitCost: 3, batchCode: 'LOT-B' },
+      ],
+      companyId: COMPANY,
+    });
+    expect(Number(await levels.getOnHand(lottedId, siteId, COMPANY))).toBe(5000);
+    expect(Number(await levels.recomputeOnHand(lottedId, siteId, COMPANY))).toBe(5000);
+  });
+
+  it('is all-or-nothing: a line that cannot be booked leaves no receipt and no stock', async () => {
+    await expect(
+      svc.receive({
+        siteId,
+        idempotencyKey: 'gi-half',
+        lines: [
+          { productId: flourId, qtyPurchase: 4, unitCost: 2 },
+          // No such product: the line insert fails its foreign key.
+          { productId: '00000000-0000-4000-8000-00000000dead', qtyPurchase: 1, unitCost: 1 },
+        ],
+        companyId: COMPANY,
+      }),
+    ).rejects.toThrow();
+
+    const receipts = await getDb()
+      .select({ id: goodsInReceipts.id })
+      .from(goodsInReceipts)
+      .where(eq(goodsInReceipts.idempotencyKey, 'gi-half'));
+    expect(receipts).toHaveLength(0);
+    expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(0);
+    // And the same key can be retried once the line is fixed.
+    const retry = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-half',
+      lines: [{ productId: flourId, qtyPurchase: 4, unitCost: 2 }],
+      companyId: COMPANY,
+    });
+    expect(retry.alreadyExisted).toBe(false);
+    expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(4000);
+  });
+
+  it('books once when the same queued booking is replayed from two devices at once', async () => {
+    const input = {
+      siteId,
+      idempotencyKey: 'gi-race',
+      lines: [{ productId: flourId, qtyPurchase: 2, unitCost: 2 }],
+      companyId: COMPANY,
+    };
+    const [a, b] = await Promise.all([svc.receive(input), svc.receive(input)]);
+    expect(a.receipt.id).toBe(b.receipt.id);
+    expect([a.alreadyExisted, b.alreadyExisted].sort()).toEqual([false, true]);
+    expect(Number(await levels.getOnHand(flourId, siteId, COMPANY))).toBe(2000);
+  });
+});
+
+describe('GoodsInService.reverse — batches', () => {
+  const lot = async (code: string) =>
+    getDb().query.stockBatches.findFirst({
+      where: (b, { and, eq: e }) => and(e(b.companyId, COMPANY), e(b.productId, lottedId), e(b.batchCode, code)),
+    });
+
+  it('records the lot on the receipt line', async () => {
+    const booked = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-lot-line',
+      lines: [{ productId: lottedId, qtyPurchase: 2, unitCost: 3, batchCode: 'LOT-1', useBy: '2026-10-10' }],
+      companyId: COMPANY,
+    });
+    expect(booked.lines[0]).toMatchObject({ batchCode: 'LOT-1', useBy: '2026-10-10' });
+  });
+
+  it('undo takes the quantity back off the lot it went into', async () => {
+    // Another delivery of the same lot code is already on the shelf.
+    await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-lot-first',
+      lines: [{ productId: lottedId, qtyPurchase: 1, unitCost: 3, batchCode: 'LOT-2' }],
+      companyId: COMPANY,
+    });
+    const booked = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-lot-undo',
+      lines: [{ productId: lottedId, qtyPurchase: 2, unitCost: 3, batchCode: 'LOT-2' }],
+      companyId: COMPANY,
+    });
+    expect(Number((await lot('LOT-2'))!.qtyRemaining)).toBe(3000);
+
+    await svc.reverse({ receiptId: booked.receipt.id, companyId: COMPANY });
+
+    const after = await lot('LOT-2');
+    expect(Number(after!.qtyRemaining)).toBe(1000);
+    expect(Number(after!.originalQty)).toBe(1000);
+    expect(Number(await levels.getOnHand(lottedId, siteId, COMPANY))).toBe(1000);
+  });
+
+  it('what was already used stays used: the lot stops at empty, not below', async () => {
+    const booked = await svc.receive({
+      siteId,
+      idempotencyKey: 'gi-lot-used',
+      lines: [{ productId: lottedId, qtyPurchase: 2, unitCost: 3, batchCode: 'LOT-3' }],
+      companyId: COMPANY,
+    });
+    await new BatchService().decrementFEFO({ productId: lottedId, siteId, qty: 1500, companyId: COMPANY });
+
+    await svc.reverse({ receiptId: booked.receipt.id, companyId: COMPANY });
+
+    const after = await lot('LOT-3');
+    expect(Number(after!.qtyRemaining)).toBe(0);
+    expect(Number(after!.originalQty)).toBe(0);
+  });
+});
+

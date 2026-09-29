@@ -16,7 +16,7 @@ import { stockLevels, stockMovements } from '../../db/schema/index.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 
 // The transaction handle drizzle hands to `db.transaction(async (tx) => …)`.
-type Tx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
+export type Tx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
 
 export type StockMovementType =
   | 'GRN'
@@ -77,6 +77,19 @@ export class StockLevelService {
       }
     }
     return result;
+  }
+
+  /**
+   * Apply a movement inside the CALLER's transaction, so it commits or rolls
+   * back with the document that caused it (a goods-in receipt and its lines).
+   *
+   * Deliberately does NOT run the reorder check `applyMovement` does after a
+   * sale or consumption: that has to see committed stock, and a caller holding
+   * a transaction open has not committed yet. Only use this for movement types
+   * that never trigger a reorder (GRN), or evaluate after your own commit.
+   */
+  async applyMovementInTx(tx: Tx, input: MovementInput): Promise<ApplyResult> {
+    return this.applyInTx(tx, input);
   }
 
   /** The core apply, parameterised by a transaction so a transfer can run both

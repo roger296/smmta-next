@@ -5,6 +5,7 @@ import {
   numeric,
   text,
   timestamp,
+  date,
   jsonb,
   uniqueIndex,
   index,
@@ -80,6 +81,10 @@ export const goodsInReceiptLines = pgTable(
     /** Expected (ordered) purchase qty, when matched to a proposal. */
     expectedQtyPurchase: numeric('expected_qty_purchase', { precision: 18, scale: 3 }),
     lineVariance: goodsInVarianceEnum('line_variance').notNull().default('NONE'),
+    /** The lot this line was booked into, so a reversal can take it back off
+     *  that lot. NULL for untracked products and for lines booked before 0054. */
+    batchCode: varchar('batch_code', { length: 100 }),
+    useBy: date('use_by'),
     text: text('note'),
     ...auditTimestamps,
   },

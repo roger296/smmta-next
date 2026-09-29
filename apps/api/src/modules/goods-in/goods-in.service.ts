@@ -6,6 +6,13 @@
  * at the receiving site, optionally matches a reorder proposal (partial / over /
  * under variance), and posts a GRN to Xero. Idempotent on `idempotencyKey` — a
  * re-confirm returns the existing receipt and re-applies nothing.
+ *
+ * The receipt, its lines, their stock movements and their batches are written
+ * in ONE transaction: a failure part-way used to leave stock moved with no
+ * receipt to explain it, or a receipt whose later lines never reached the
+ * ledger. The Xero posting and the photo capture run after the commit — both
+ * are idempotent and retryable, and neither should hold stock rows locked
+ * while it talks to the outside world.
  */
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
@@ -95,7 +102,19 @@ export class GoodsInService {
       : null;
 
     // Resolve per-line conversion + variance.
-    const prepared = [];
+    const prepared: Array<{
+      productId: string;
+      qtyPurchase: number;
+      qtyStock: number;
+      unitCost: number;
+      unitCostPerStock: number;
+      lineValue: number;
+      expectedQtyPurchase: number | null;
+      lineVariance: 'NONE' | 'UNDER' | 'OVER';
+      requireBatchNumber: boolean;
+      batchCode: string | null;
+      useBy: string | null;
+    }> = [];
     let totalStockValue = 0;
     let receiptVariance: 'NONE' | 'UNDER' | 'OVER' = 'NONE';
     for (const line of input.lines) {
@@ -134,68 +153,98 @@ export class GoodsInService {
     totalStockValue = round2(totalStockValue);
     const deliveryCharge = round2(input.deliveryCharge ?? 0);
 
-    // Create the receipt + lines.
-    const [receipt] = await this.db
-      .insert(goodsInReceipts)
-      .values({
-        companyId,
-        siteId: input.siteId,
-        supplierId: input.supplierId ?? proposal?.supplierId ?? null,
-        reorderProposalId: input.reorderProposalId ?? null,
-        reference: input.reference ?? null,
-        idempotencyKey: input.idempotencyKey,
-        deliveryCharge: String(deliveryCharge),
-        totalStockValue: String(totalStockValue),
-        variance: receiptVariance,
-        photoRefs: (input.photoRefs as Record<string, unknown> | undefined) ?? null,
-        glReference: glIdempotencyKey('GRN', input.idempotencyKey),
-      })
-      .returning();
+    // Receipt, lines, movements and batches: all or nothing.
+    const receipt = await this.db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(goodsInReceipts)
+        .values({
+          companyId,
+          siteId: input.siteId,
+          supplierId: input.supplierId ?? proposal?.supplierId ?? null,
+          reorderProposalId: input.reorderProposalId ?? null,
+          reference: input.reference ?? null,
+          idempotencyKey: input.idempotencyKey,
+          deliveryCharge: String(deliveryCharge),
+          totalStockValue: String(totalStockValue),
+          variance: receiptVariance,
+          photoRefs: (input.photoRefs as Record<string, unknown> | undefined) ?? null,
+          glReference: glIdempotencyKey('GRN', input.idempotencyKey),
+        })
+        // Two devices replaying the same queued booking at once: the second
+        // waits on the unique key, then finds the first's receipt below.
+        .onConflictDoNothing({ target: goodsInReceipts.idempotencyKey })
+        .returning();
+      if (!created) return null;
 
-    for (const p of prepared) {
-      await this.db.insert(goodsInReceiptLines).values({
-        receiptId: receipt!.id,
-        productId: p.productId,
-        qtyPurchase: String(p.qtyPurchase),
-        qtyStock: String(p.qtyStock),
-        unitCost: String(p.unitCost),
-        lineValue: String(p.lineValue),
-        expectedQtyPurchase: p.expectedQtyPurchase != null ? String(p.expectedQtyPurchase) : null,
-        lineVariance: p.lineVariance,
-      });
-      // GRN movement at the receiving site (in stock_uom).
-      await this.levels.applyMovement({
-        productId: p.productId,
-        siteId: input.siteId,
-        qtyDelta: p.qtyStock,
-        movementType: 'GRN',
-        sourceSystem: 'goods-in',
-        sourceKey: `${receipt!.id}:${p.productId}`,
-        contentHash: 'grn',
-        unitCost: p.unitCostPerStock,
-        currencyCode,
-        companyId,
-      });
-      // Batch-tracked items: record the lot (FEFO-decremented on consumption).
-      if (p.requireBatchNumber && p.batchCode) {
-        await this.batches.receive({
+      for (const p of prepared) {
+        const recordsLot = p.requireBatchNumber && !!p.batchCode;
+        const [line] = await tx
+          .insert(goodsInReceiptLines)
+          .values({
+            receiptId: created.id,
+            productId: p.productId,
+            qtyPurchase: String(p.qtyPurchase),
+            qtyStock: String(p.qtyStock),
+            unitCost: String(p.unitCost),
+            lineValue: String(p.lineValue),
+            expectedQtyPurchase: p.expectedQtyPurchase != null ? String(p.expectedQtyPurchase) : null,
+            lineVariance: p.lineVariance,
+            batchCode: recordsLot ? p.batchCode : null,
+            useBy: recordsLot ? p.useBy : null,
+          })
+          .returning({ id: goodsInReceiptLines.id });
+        // GRN movement at the receiving site (in stock_uom). Keyed on the LINE,
+        // not the product: two lines of one product (two lots, or two pack
+        // sizes of one item) are two deliveries, and keying on the product made
+        // the ledger drop the second as a duplicate.
+        await this.levels.applyMovementInTx(tx, {
           productId: p.productId,
           siteId: input.siteId,
-          batchCode: p.batchCode,
-          qty: p.qtyStock,
-          useBy: p.useBy,
+          qtyDelta: p.qtyStock,
+          movementType: 'GRN',
+          sourceSystem: 'goods-in',
+          sourceKey: `${created.id}:${line!.id}`,
+          contentHash: 'grn',
           unitCost: p.unitCostPerStock,
           currencyCode,
           companyId,
         });
+        // Batch-tracked items: record the lot (FEFO-decremented on consumption).
+        if (recordsLot) {
+          await this.batches.receive(
+            {
+              productId: p.productId,
+              siteId: input.siteId,
+              batchCode: p.batchCode!,
+              qty: p.qtyStock,
+              useBy: p.useBy,
+              unitCost: p.unitCostPerStock,
+              currencyCode,
+              companyId,
+            },
+            tx,
+          );
+        }
       }
+      return created;
+    });
+
+    if (!receipt) {
+      const winner = await this.db.query.goodsInReceipts.findFirst({
+        where: eq(goodsInReceipts.idempotencyKey, input.idempotencyKey),
+      });
+      const lines = await this.db
+        .select()
+        .from(goodsInReceiptLines)
+        .where(eq(goodsInReceiptLines.receiptId, winner!.id));
+      return { receipt: winner!, lines, alreadyExisted: true };
     }
 
     // Post the GRN to Xero (idempotent on the receipt key), in the site's currency.
     await getStockGLService().postGoodsReceivedNote(this.db, {
       companyId,
       grnId: input.idempotencyKey,
-      grnNumber: receipt!.reference ?? receipt!.id.slice(0, 8),
+      grnNumber: receipt.reference ?? receipt.id.slice(0, 8),
       poNumber: input.reorderProposalId ?? input.reference ?? 'AUTO',
       bookedInDate: new Date(),
       stockValue: totalStockValue,
@@ -212,7 +261,7 @@ export class GoodsInService {
           photoRefs: input.photoRefs,
           siteId: input.siteId,
           source: 'GOODS_IN',
-          sourceRef: receipt!.id,
+          sourceRef: receipt.id,
           companyId,
         });
       } catch {
@@ -223,8 +272,8 @@ export class GoodsInService {
     const lines = await this.db
       .select()
       .from(goodsInReceiptLines)
-      .where(eq(goodsInReceiptLines.receiptId, receipt!.id));
-    return { receipt: receipt!, lines, alreadyExisted: false };
+      .where(eq(goodsInReceiptLines.receiptId, receipt.id));
+    return { receipt, lines, alreadyExisted: false };
   }
 
   /**
@@ -283,75 +332,113 @@ export class GoodsInService {
     const totalStockValue = round2(-Number(original.totalStockValue ?? 0));
     const deliveryCharge = round2(-Number(original.deliveryCharge ?? 0));
 
-    const [reversal] = await this.db
-      .insert(goodsInReceipts)
-      .values({
-        companyId,
-        siteId: original.siteId,
-        supplierId: original.supplierId,
-        // Deliberately NOT carried over: a reversal must not re-match the
-        // proposal the original satisfied.
-        reorderProposalId: null,
-        reference: `REVERSAL of ${original.reference ?? original.id.slice(0, 8)}`,
-        idempotencyKey: reversalKey,
-        deliveryCharge: String(deliveryCharge),
-        totalStockValue: String(totalStockValue),
-        variance: 'NONE',
-        glReference: glIdempotencyKey('GRN', reversalKey),
-        reversalOfReceiptId: original.id,
-        reversedByUserId: input.userId ?? null,
-        reversalReason: input.reason ?? null,
-      })
-      .returning();
+    const reversal = await this.db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(goodsInReceipts)
+        .values({
+          companyId,
+          siteId: original.siteId,
+          supplierId: original.supplierId,
+          // Deliberately NOT carried over: a reversal must not re-match the
+          // proposal the original satisfied.
+          reorderProposalId: null,
+          reference: `REVERSAL of ${original.reference ?? original.id.slice(0, 8)}`,
+          idempotencyKey: reversalKey,
+          deliveryCharge: String(deliveryCharge),
+          totalStockValue: String(totalStockValue),
+          variance: 'NONE',
+          glReference: glIdempotencyKey('GRN', reversalKey),
+          reversalOfReceiptId: original.id,
+          reversedByUserId: input.userId ?? null,
+          reversalReason: input.reason ?? null,
+        })
+        // A double-tapped Undo racing itself: the loser finds the winner below.
+        .onConflictDoNothing({ target: goodsInReceipts.idempotencyKey })
+        .returning();
+      if (!created) return null;
 
-    for (const line of originalLines) {
-      const qtyPurchase = -Number(line.qtyPurchase);
-      const qtyStock = -Number(line.qtyStock);
-      const unitCost = Number(line.unitCost);
-      const factor = qtyStock === 0 ? 1 : Number(line.qtyStock) / Number(line.qtyPurchase || 1);
+      for (const line of originalLines) {
+        const qtyPurchase = -Number(line.qtyPurchase);
+        const qtyStock = -Number(line.qtyStock);
+        const unitCost = Number(line.unitCost);
+        const factor = qtyStock === 0 ? 1 : Number(line.qtyStock) / Number(line.qtyPurchase || 1);
 
-      await this.db.insert(goodsInReceiptLines).values({
-        receiptId: reversal!.id,
-        productId: line.productId,
-        qtyPurchase: String(qtyPurchase),
-        qtyStock: String(qtyStock),
-        unitCost: String(unitCost),
-        lineValue: String(round2(-Number(line.lineValue))),
-        lineVariance: 'NONE',
+        const [mirror] = await tx
+          .insert(goodsInReceiptLines)
+          .values({
+            receiptId: created.id,
+            productId: line.productId,
+            qtyPurchase: String(qtyPurchase),
+            qtyStock: String(qtyStock),
+            unitCost: String(unitCost),
+            lineValue: String(round2(-Number(line.lineValue))),
+            lineVariance: 'NONE',
+            batchCode: line.batchCode,
+            useBy: line.useBy,
+          })
+          .returning({ id: goodsInReceiptLines.id });
+
+        await this.levels.applyMovementInTx(tx, {
+          productId: line.productId,
+          siteId: original.siteId,
+          qtyDelta: qtyStock,
+          movementType: 'GRN',
+          sourceSystem: 'goods-in',
+          sourceKey: `${created.id}:${mirror!.id}`,
+          contentHash: 'grn-reversal',
+          unitCost: round4(unitCost / (factor || 1)),
+          currencyCode,
+          companyId,
+        });
+
+        // Take the quantity back off the lot it went into. Whatever of it has
+        // already been used stays used (the ledger movement above still
+        // reverses the full amount; the lot just cannot go below empty).
+        if (line.batchCode) {
+          await this.batches.reverseReceipt(
+            {
+              productId: line.productId,
+              siteId: original.siteId,
+              batchCode: line.batchCode,
+              qty: Number(line.qtyStock),
+              companyId,
+            },
+            tx,
+          );
+        }
+      }
+
+      // Mark the original as reversed. Its own figures are untouched — this is
+      // a pointer, not an edit to what was booked.
+      await tx
+        .update(goodsInReceipts)
+        .set({
+          reversedByReceiptId: created.id,
+          reversedAt: new Date(),
+          reversedByUserId: input.userId ?? null,
+          reversalReason: input.reason ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(goodsInReceipts.id, original.id));
+      return created;
+    });
+
+    if (!reversal) {
+      const winner = await this.db.query.goodsInReceipts.findFirst({
+        where: eq(goodsInReceipts.idempotencyKey, reversalKey),
       });
-
-      await this.levels.applyMovement({
-        productId: line.productId,
-        siteId: original.siteId,
-        qtyDelta: qtyStock,
-        movementType: 'GRN',
-        sourceSystem: 'goods-in',
-        sourceKey: `${reversal!.id}:${line.productId}`,
-        contentHash: 'grn-reversal',
-        unitCost: round4(unitCost / (factor || 1)),
-        currencyCode,
-        companyId,
-      });
+      const lines = await this.db
+        .select()
+        .from(goodsInReceiptLines)
+        .where(eq(goodsInReceiptLines.receiptId, winner!.id));
+      return { reversal: winner!, lines, alreadyExisted: true };
     }
-
-    // Mark the original as reversed. Its own figures are untouched — this is a
-    // pointer, not an edit to what was booked.
-    await this.db
-      .update(goodsInReceipts)
-      .set({
-        reversedByReceiptId: reversal!.id,
-        reversedAt: new Date(),
-        reversedByUserId: input.userId ?? null,
-        reversalReason: input.reason ?? null,
-        updatedAt: new Date(),
-      })
-      .where(eq(goodsInReceipts.id, original.id));
 
     // One mirroring GL posting, idempotent on the reversal's own key.
     await getStockGLService().postGoodsReceivedNote(this.db, {
       companyId,
       grnId: reversalKey,
-      grnNumber: reversal!.reference ?? reversal!.id.slice(0, 8),
+      grnNumber: reversal.reference ?? reversal.id.slice(0, 8),
       poNumber: original.reference ?? 'REVERSAL',
       bookedInDate: new Date(),
       stockValue: totalStockValue,
@@ -363,8 +450,8 @@ export class GoodsInService {
     const lines = await this.db
       .select()
       .from(goodsInReceiptLines)
-      .where(eq(goodsInReceiptLines.receiptId, reversal!.id));
-    return { reversal: reversal!, lines, alreadyExisted: false };
+      .where(eq(goodsInReceiptLines.receiptId, reversal.id));
+    return { reversal, lines, alreadyExisted: false };
   }
 
   async get(id: string, companyId = getSingletonCompanyId()): Promise<GoodsInResult | null> {

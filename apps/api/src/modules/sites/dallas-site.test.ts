@@ -106,8 +106,12 @@ describe('Dallas GRN + USD valuation', () => {
     });
 
     // The GRN stock movement is in USD.
+    // GRN movements are keyed on the receipt LINE (two lines of one product
+    // are two deliveries), so find the line first.
+    const receipt = (await goodsIn.list({ siteId: dallasId, companyId: COMPANY }))[0]!;
+    const line = (await goodsIn.get(receipt.id, COMPANY))!.lines.find((l) => l.productId === butterId)!;
     const move = await getDb().query.stockMovements.findFirst({
-      where: eq(stockMovements.sourceKey, `${(await goodsIn.list({ siteId: dallasId, companyId: COMPANY }))[0]!.id}:${butterId}`),
+      where: eq(stockMovements.sourceKey, `${receipt.id}:${line.id}`),
     });
     expect(move!.currencyCode).toBe('USD');
     expect(Number(move!.qtyDelta)).toBe(32); // 2 lb × 16
