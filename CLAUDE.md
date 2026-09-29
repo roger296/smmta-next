@@ -218,6 +218,19 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   does not record prices yet (it has no supplier code and would echo
   `expected_next_cost` back). **Buying data** (`/buying-data`) lists what
   would stop a fair comparison, biggest spend first.
+- **Deliveries are booked in against purchase orders through goods-in**
+  (migration `0057`; `DECISIONS.md` §F24). Any subset of lines, any part of a
+  line; the rest stays outstanding. More than is outstanding, or an item not
+  on the order, is refused with **409 `OVER_DELIVERY`** unless the booking
+  sends `acceptOverDelivery` — the iPad confirmation and the admin dialog both
+  list the extra and make confirming it the acceptance. The order is locked
+  `FOR UPDATE` for the booking; the receipt row goes in BEFORE the over check
+  so a replay returns its original instead of being refused as "over". Orders
+  have a venue (`purchase_orders.site_id`) and only book into it. ⚠️ The
+  inherited `POST /purchase-orders/:id/book-in` is **retired (410)**: it wrote
+  the warehouse `stock_items` model nothing here reads. ⚠️ The inherited PO
+  screens read field names the API never sent; `normalisePurchaseOrder()` in
+  `features/purchasing/use-purchasing.ts` is where the API's shape is read.
 - **A PIN may be granted extra venues** (`device_pin_sites`; migration `0049`),
   added self-service from `/pwa/my-venues`, logged and revocable by head
   office. The token's venues are signed at login; `canAccessSite` and
