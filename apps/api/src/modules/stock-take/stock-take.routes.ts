@@ -81,7 +81,9 @@ export async function stockTakeRoutes(app: FastifyInstance) {
 
   app.get('/stock-takes/:id', async (request, reply) => {
     const { id } = idParamSchema.parse(request.params);
-    const data = await service.get(id);
+    // topUp: the count screen is how an open take reaches a counter, so this
+    // is where a product added since it opened joins the sheet.
+    const data = await service.get(id, undefined, { topUp: true });
     if (!data) return reply.status(404).send({ success: false, error: 'Stock-take not found' });
     // Warnings travel with the take so the count screen can show them BEFORE
     // someone approves a write-off (defect D-2).

@@ -5,8 +5,8 @@
  * approval trues up on-hand and posts one adjustment (idempotent on re-approve);
  * a partial-scope (ITEM) take only touches the in-scope product.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 import { closeDatabase, getDb } from '../../config/database.js';
 import {
   glPostingLog,
@@ -124,6 +124,90 @@ describe('open', () => {
 
     expect(lines).toHaveLength(rows.length);
     expect(lines.every((l) => l.productName !== undefined)).toBe(true);
+  });
+});
+
+describe('the sheet is the catalogue, not the stock_levels table (Manchester, 30 Sept)', () => {
+  // COCK-SUMM-CRUM was created after stock_levels had been seeded, so no site
+  // had a row for it and it was on nobody's count sheet.
+  let createdIds: string[] = [];
+  async function product(name: string, extra: Partial<typeof products.$inferInsert> = {}) {
+    const [p] = await getDb()
+      .insert(products)
+      .values({ companyId: COMPANY, name, slug: name.toLowerCase().replace(/\W+/g, '-'), stockUom: 'bottle', ...extra })
+      .returning();
+    createdIds.push(p!.id);
+    return p!.id;
+  }
+  afterEach(async () => {
+    const db = getDb();
+    await clear();
+    for (const id of createdIds) await db.delete(products).where(eq(products.id, id));
+    createdIds = [];
+  });
+
+  it('a stocked product the site has never held is on the sheet, with a book figure of 0', async () => {
+    const crumble = await product('ST Summer Crumble Mix');
+    await setLevel(flourId, 5000);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    const line = lines.find((l) => l.productId === crumble);
+    expect(line).toBeDefined();
+    expect(Number(line!.bookQty)).toBe(0);
+    // Sugar has no level row here either, and is on the sheet too.
+    expect(lines.map((l) => l.productId).sort()).toEqual([flourId, sugarId, crumble].sort());
+  });
+
+  it('a deleted product is not on the sheet, even with a level row', async () => {
+    const gone = await product('ST Gone', { deletedAt: new Date() });
+    await setLevel(gone, 3);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    expect(lines.some((l) => l.productId === gone)).toBe(false);
+  });
+
+  it('a non-stocked product is left off — unless the site still holds some of it', async () => {
+    const notStocked = await product('ST Not Stocked', { isStocked: false });
+    const stillHeld = await product('ST Still Held', { isStocked: false });
+    await setLevel(stillHeld, 2);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    expect(lines.some((l) => l.productId === notStocked)).toBe(false);
+    expect(Number(lines.find((l) => l.productId === stillHeld)!.bookQty)).toBe(2);
+  });
+
+  it("an OPEN take picks up a product added after it opened, on the count screen's read", async () => {
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    const late = await product('ST Added Later');
+
+    // A plain read (what MCP uses) changes nothing.
+    const plain = await svc.get(take.id, COMPANY);
+    expect(plain!.lines.some((l) => l.productId === late)).toBe(false);
+
+    const topped = await svc.get(take.id, COMPANY, { topUp: true });
+    const line = topped!.lines.find((l) => l.productId === late);
+    expect(line).toBeDefined();
+    expect(Number(line!.bookQty)).toBe(0);
+    // Idempotent: a second refresh adds nothing more.
+    const again = await svc.get(take.id, COMPANY, { topUp: true });
+    expect(again!.lines).toHaveLength(topped!.lines.length);
+  });
+
+  it('an approved take is never topped up', async () => {
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.approve(take.id, COMPANY);
+    const late = await product('ST Too Late');
+    const read = await svc.get(take.id, COMPANY, { topUp: true });
+    expect(read!.lines.some((l) => l.productId === late)).toBe(false);
+  });
+
+  it('counting a never-held product and approving creates its stock level at the site', async () => {
+    const crumble = await product('ST Summer Crumble Mix');
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.recordCount({ stockTakeId: take.id, productId: crumble, countedQty: 3, countIdempotencyKey: 'k-crumble' });
+    await svc.approve(take.id, COMPANY);
+    const [level] = await getDb()
+      .select()
+      .from(stockLevels)
+      .where(and(eq(stockLevels.productId, crumble), eq(stockLevels.siteId, siteId)));
+    expect(Number(level!.onHand)).toBe(3);
   });
 });
 
@@ -318,7 +402,7 @@ describe('who counted what', () => {
   it('an uncounted line has no counter', async () => {
     await setLevel(flourId, 5000);
     const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY, openedBy: sam });
-    const line = (await svc.get(take.id, COMPANY))!.lines[0]!;
+    const line = (await svc.get(take.id, COMPANY))!.lines.find((l) => l.productId === flourId)!;
     expect(line.countedByName).toBeNull();
     expect(line.countedByUserId).toBeNull();
   });
@@ -334,7 +418,7 @@ describe('who counted what', () => {
     await expect(
       svc.recordCounts(take.id, [{ productId: flourId, countedQty: 1 }], alex),
     ).rejects.toBeInstanceOf(StockTakeClosedError);
-    const line = (await svc.get(take.id, COMPANY))!.lines[0]!;
+    const line = (await svc.get(take.id, COMPANY))!.lines.find((l) => l.productId === flourId)!;
     expect(Number(line.countedQty)).toBe(4900);
     expect(line.countedByName).toBe('Sam');
   });
@@ -361,7 +445,8 @@ describe('list: progress for joining a take', () => {
     await setLevel(flourId, 5000);
     await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
     const [row] = await svc.list({ siteId, status: 'OPEN', companyId: COMPANY });
-    expect(row!.lineCount).toBe(1);
+    // Sugar has no level at the site but is stocked, so it is on the sheet too.
+    expect(row!.lineCount).toBe(2);
     expect(row!.countedCount).toBe(0);
     expect(row!.counters).toEqual([]);
     expect(row!.lastCountedAt).toBeNull();
@@ -387,11 +472,11 @@ describe('idempotency keys: replays vs corrections', () => {
     const first = `${take.id}:${flourId}:save-1`;
     await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4900, countIdempotencyKey: first }]);
     await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 1, countIdempotencyKey: first }]);
-    let line = (await svc.get(take.id, COMPANY))!.lines[0]!;
+    let line = (await svc.get(take.id, COMPANY))!.lines.find((l) => l.productId === flourId)!;
     expect(Number(line.countedQty)).toBe(4900);
 
     await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4950, countIdempotencyKey: `${take.id}:${flourId}:save-2` }]);
-    line = (await svc.get(take.id, COMPANY))!.lines[0]!;
+    line = (await svc.get(take.id, COMPANY))!.lines.find((l) => l.productId === flourId)!;
     expect(Number(line.countedQty)).toBe(4950);
   });
 });

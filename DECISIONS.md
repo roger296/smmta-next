@@ -1585,3 +1585,31 @@ outstanding) and `GET /purchase-orders/:id/receiving` (one order, line by
 line: ordered / received / outstanding, and its receipts). Both refuse a PIN
 for another venue.
 
+
+## §F25 — A count sheet lists the catalogue, not the stock_levels table (Sept 2026)
+
+**Reported (Manchester, 30 Sept 2026):** products set up on the Products page
+were missing from the stock-take, e.g. COCK-SUMM-CRUM (Summer Crumble
+Cocktail Mix).
+
+**Cause:** `StockTakeService.open` selected its lines from `stock_levels` at
+the site. A site only has a level row for a product once something has
+happened to it there, or a script made one. `seed-reorder-levels.ts` made a
+row for every product that existed when it ran; roughly 110 products created
+from 17 Sept onwards had none, so they were on no venue's sheet. An item
+nobody has booked in yet is exactly the one a count must be able to find.
+
+**Now:** the sheet is every live (`deleted_at IS NULL`), stocked product in
+scope, LEFT JOINed to the site's level, with a book figure of 0 where there is
+no row. A non-stocked product still appears while the site holds a non-zero
+quantity of it, so stock is never left uncountable. Deleted products no longer
+appear. Counting and approving a never-held product creates its level through
+the normal true-up movement.
+
+**Open takes are topped up** when the count screen reads them
+(`GET /stock-takes/:id`, re-read every 15 s), so a product created after a take
+opened, or skipped by the old rule, joins the sheet without anyone
+abandoning a half-finished count. Its book figure is the site's level at that
+moment. Top-up is opt-in on `StockTakeService.get`. The MCP
+`stock_take_detail` tool does not ask for it, so MCP reads still change nothing
+(§F22). Approved takes are never topped up.

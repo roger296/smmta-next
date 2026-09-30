@@ -7,7 +7,7 @@
  * and posts ONE stock adjustment to Xero, then marks the take APPROVED.
  * `approve` is idempotent — re-approving an APPROVED take re-applies nothing.
  */
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import {
   itemCategories,
@@ -123,18 +123,12 @@ export class StockTakeService {
   }): Promise<{ take: StockTake; lines: StockTakeLineWithProduct[] }> {
     const companyId = input.companyId ?? getSingletonCompanyId();
 
-    const where = [eq(stockLevels.companyId, companyId), eq(stockLevels.siteId, input.siteId)];
-    if (input.scope === 'CATEGORY' && input.scopeRef) {
-      where.push(eq(products.categoryId, input.scopeRef));
-    } else if (input.scope === 'ITEM' && input.scopeRef) {
-      where.push(eq(products.id, input.scopeRef));
-    }
-    // FULL / CYCLE / ZONE count everything at the site (no zone data in v1).
-    const inScope = await this.db
-      .select({ productId: stockLevels.productId, onHand: stockLevels.onHand })
-      .from(stockLevels)
-      .innerJoin(products, eq(products.id, stockLevels.productId))
-      .where(and(...where));
+    const inScope = await this.inScopeProducts({
+      companyId,
+      siteId: input.siteId,
+      scope: input.scope,
+      scopeRef: input.scopeRef ?? null,
+    });
 
     const [take] = await this.db
       .insert(stockTakes)
@@ -151,13 +145,97 @@ export class StockTakeService {
     for (const row of inScope) {
       await this.db
         .insert(stockTakeLines)
-        .values({ stockTakeId: take!.id, productId: row.productId, bookQty: row.onHand });
+        .values({ stockTakeId: take!.id, productId: row.productId, bookQty: row.bookQty });
     }
     // Re-read through the join so the caller gets the identity in one round
     // trip. A LEFT join, not an inner one: a line whose product was later
     // deleted must still come back (with nulls) rather than vanishing from the
     // count sheet or throwing.
     return { take: take!, lines: await this.linesWithProduct(take!.id) };
+  }
+
+  /**
+   * What belongs on a count sheet at this site: every LIVE, STOCKED product in
+   * scope, with its book figure there — or 0 where the site has never held it.
+   *
+   * ⚠️ Driven from `products`, NOT from `stock_levels`. It used to select from
+   * `stock_levels` alone, and a site only gets a level row once something has
+   * happened to a product there (a delivery, a true-up) or a seeding script
+   * made one. `seed-reorder-levels.ts` made one for every product that existed
+   * when it ran; every product added afterwards (~110 from 17 Sept on, e.g.
+   * COCK-SUMM-CRUM) was simply absent from every venue's sheet — reported at
+   * Manchester, 30 Sept 2026. An item nobody has booked in is exactly the one
+   * a count must be able to find, so the sheet starts from the catalogue.
+   *
+   * Also: deleted products no longer appear (a soft-deleted product with a
+   * level row used to), and a non-stocked product still appears while its
+   * site holds a non-zero quantity of it, so stock is never left uncountable.
+   */
+  private async inScopeProducts(input: {
+    companyId: string;
+    siteId: string;
+    scope: StockTakeScope;
+    scopeRef: string | null;
+  }): Promise<Array<{ productId: string; bookQty: string }>> {
+    const where = [
+      eq(products.companyId, input.companyId),
+      isNull(products.deletedAt),
+      or(eq(products.isStocked, true), ne(sql`coalesce(${stockLevels.onHand}, 0)`, 0)),
+    ];
+    if (input.scope === 'CATEGORY' && input.scopeRef) {
+      where.push(eq(products.categoryId, input.scopeRef));
+    } else if (input.scope === 'ITEM' && input.scopeRef) {
+      where.push(eq(products.id, input.scopeRef));
+    }
+    // FULL / CYCLE / ZONE count everything at the site (no zone data in v1).
+    return this.db
+      .select({
+        productId: products.id,
+        bookQty: sql<string>`coalesce(${stockLevels.onHand}, 0)::text`,
+      })
+      .from(products)
+      .leftJoin(
+        stockLevels,
+        and(
+          eq(stockLevels.productId, products.id),
+          eq(stockLevels.siteId, input.siteId),
+          eq(stockLevels.companyId, input.companyId),
+        ),
+      )
+      .where(and(...where));
+  }
+
+  /**
+   * Add to an OPEN take any in-scope product it is missing — a product created
+   * after the take opened, or one the old `stock_levels`-driven open skipped.
+   * Book figure is the site's level NOW (0 if it has never held the item).
+   * Idempotent: `stock_take_lines` is unique on (take, product).
+   *
+   * Run on the count screen's read of an open take, so a count already under
+   * way picks the item up on its next refresh (the screen re-reads every
+   * 15 s) rather than someone having to abandon a half-finished sheet.
+   */
+  private async topUpOpenTake(take: StockTake): Promise<void> {
+    if (take.status !== 'OPEN') return;
+    const [inScope, onSheet] = await Promise.all([
+      this.inScopeProducts({
+        companyId: take.companyId,
+        siteId: take.siteId,
+        scope: take.scope as StockTakeScope,
+        scopeRef: take.scopeRef,
+      }),
+      this.db
+        .select({ productId: stockTakeLines.productId })
+        .from(stockTakeLines)
+        .where(eq(stockTakeLines.stockTakeId, take.id)),
+    ]);
+    const have = new Set(onSheet.map((l) => l.productId));
+    const missing = inScope.filter((p) => !have.has(p.productId));
+    if (missing.length === 0) return;
+    await this.db
+      .insert(stockTakeLines)
+      .values(missing.map((m) => ({ stockTakeId: take.id, productId: m.productId, bookQty: m.bookQty })))
+      .onConflictDoNothing();
   }
 
   /** Record a single count. Offline-idempotent on `countIdempotencyKey`. */
@@ -321,14 +399,22 @@ export class StockTakeService {
     }));
   }
 
+  /**
+   * `topUp` adds any in-scope product an OPEN take is missing before reading
+   * it (see topUpOpenTake). Opt-in, and only the count screen's own read asks
+   * for it: the MCP tools may READ stock-takes but never change them (§F22),
+   * and a read that quietly writes lines would break that.
+   */
   async get(
     id: string,
     companyId = getSingletonCompanyId(),
+    opts: { topUp?: boolean } = {},
   ): Promise<{ take: StockTake; lines: StockTakeLineWithProduct[] } | null> {
     const take = await this.db.query.stockTakes.findFirst({
       where: and(eq(stockTakes.id, id), eq(stockTakes.companyId, companyId)),
     });
     if (!take) return null;
+    if (opts.topUp) await this.topUpOpenTake(take);
     return { take, lines: await this.linesWithProduct(id) };
   }
 

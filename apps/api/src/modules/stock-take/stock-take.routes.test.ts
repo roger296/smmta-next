@@ -143,7 +143,15 @@ describe('two counters sharing one take', () => {
     const [row] = res.json().data;
     expect(row.id).toBe(takeId);
     expect(row.openedByName).toBe('Sam');
-    expect(row.lineCount).toBe(2);
+    // Every live, stocked product in the company is on the sheet (not only the
+    // two with a stock level here), and this suite shares the singleton
+    // company with every other test's products — so compare with the take.
+    const lines = await getDb()
+      .select({ id: stockTakeLines.id })
+      .from(stockTakeLines)
+      .where(eq(stockTakeLines.stockTakeId, takeId));
+    expect(row.lineCount).toBe(lines.length);
+    expect(row.lineCount).toBeGreaterThanOrEqual(2);
     expect(row.countedCount).toBe(0);
   });
 
