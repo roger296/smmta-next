@@ -367,7 +367,7 @@ if (isCliEntry) {
       console.log(`  merged  : ${r.merged.length}`);
       console.log(`  refused : ${r.refused.length}\n`);
       if (r.merged.length > 0) {
-        console.log('  ── would merge ──');
+        console.log(apply ? '  ── merged ──' : '  ── would merge ──');
         for (const m of r.merged) {
           console.log(
             `  ${m.name}\n     keep ${m.keep}  <-  retire ${m.retire}  ` +
