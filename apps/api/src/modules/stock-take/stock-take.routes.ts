@@ -18,7 +18,11 @@ import { z } from 'zod';
 import { getAuthUser, requireAuth } from '../../shared/middleware/auth.js';
 import { actorOf } from '../../shared/auth/actor.js';
 import { requireBoundSite, requireRole } from '../../shared/middleware/require-role.js';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../../config/database.js';
+import { sites } from '../../db/schema/index.js';
 import { StockTakeClosedError, StockTakeService } from './stock-take.service.js';
+import { stockTakeCsv, stockTakeCsvFilename } from './stock-take-export.js';
 
 const openSchema = z.object({
   siteId: z.string().uuid(),
@@ -43,6 +47,8 @@ const idParamSchema = z.object({ id: z.string().uuid() });
 const listQuerySchema = z.object({
   siteId: z.string().uuid().optional(),
   status: z.enum(['OPEN', 'APPROVED', 'CANCELLED']).optional(),
+  /** Newest first; the start screen's "Recent counts" asks for a handful. */
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 const service = new StockTakeService();
@@ -77,6 +83,22 @@ export async function stockTakeRoutes(app: FastifyInstance) {
     const q = listQuerySchema.parse(request.query);
     const data = await service.list(q);
     return { success: true, data };
+  });
+
+  // ── GET /stock-takes/:id/export.csv ───────────────────────────
+  // One count as a spreadsheet, open or approved (see stock-take-export.ts).
+  // A plain read — no top-up — so a download never changes the take.
+  app.get('/stock-takes/:id/export.csv', async (request, reply) => {
+    const { id } = idParamSchema.parse(request.params);
+    const data = await service.get(id);
+    if (!data) return reply.status(404).send({ success: false, error: 'Stock-take not found' });
+    const site = await getDb().query.sites.findFirst({ where: eq(sites.id, data.take.siteId) });
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${stockTakeCsvFilename(data.take, site?.name ?? null)}"`)
+      .header('Cache-Control', 'no-store')
+      // BOM so Excel on Windows opens it as UTF-8 (same as the products export).
+      .send(`\uFEFF${stockTakeCsv(data.lines)}`);
   });
 
   app.get('/stock-takes/:id', async (request, reply) => {

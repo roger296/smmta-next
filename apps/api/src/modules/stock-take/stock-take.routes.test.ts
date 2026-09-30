@@ -226,4 +226,48 @@ describe('two counters sharing one take', () => {
     expect(late.statusCode).toBe(409);
     expect(late.json().error).toMatch(/already been approved/);
   });
+
+  // Asked on 30 Sept: once a count was approved there was nowhere to see what
+  // had been counted. The start screen now lists recent counts of any status.
+  it('the approved count is still listed — by status, and in the recent list', async () => {
+    const approved = await app.inject({
+      method: 'GET',
+      url: `/api/v1/stock-takes?siteId=${siteId}&status=APPROVED`,
+      headers: auth(sam),
+    });
+    expect(approved.json().data.map((t: { id: string }) => t.id)).toContain(takeId);
+    const recent = await app.inject({
+      method: 'GET',
+      url: `/api/v1/stock-takes?siteId=${siteId}&limit=1`,
+      headers: auth(sam),
+    });
+    expect(recent.json().data).toHaveLength(1);
+    expect(recent.json().data[0]).toMatchObject({ id: takeId, status: 'APPROVED', countedCount: 2 });
+  });
+
+  it('downloads the count as a spreadsheet: book, counted, variance, who', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/stock-takes/${takeId}/export.csv`,
+      headers: auth(sam),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/csv/);
+    expect(res.headers['content-disposition']).toMatch(/stock-take-stmu-venue-\d{4}-\d{2}-\d{2}\.csv/);
+    const rows = res.body.replace(/^\uFEFF/, '').trim().split('\r\n');
+    expect(rows[0]).toBe('Section,Stock code,Product,Unit,Book,Counted,Variance,Counted by,Counted at');
+    const flour = rows.find((r) => r.includes('STMU Flour'))!;
+    const sugar = rows.find((r) => r.includes('STMU Sugar'))!;
+    expect(flour).toMatch(/,kg,10,10,0,Sam,\d{2}\/\d{2}\/\d{4}/);
+    expect(sugar).toMatch(/,kg,4,4,0,Morgan Manager,/);
+  });
+
+  it('a download of a take that does not exist is a 404', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/stock-takes/00000000-0000-4000-8000-000000000000/export.csv',
+      headers: auth(sam),
+    });
+    expect(res.statusCode).toBe(404);
+  });
 });

@@ -388,7 +388,7 @@ const FRACTIONS: Array<{ label: string; value: number }> = [
  *  optional ½-unlock revealing ¼ ½ ¾ for part-units. `onSet(q)` marks it counted
  *  (0 is a real count). When not counted the value shows "—". */
 export function CountRow({
-  name, instruction, hint, counted, qty, onSet, onType, status, badge, fractions = true,
+  name, instruction, hint, counted, qty, onSet, onType, status, badge, fractions = true, readOnly = false,
 }: {
   name: React.ReactNode;
   /**
@@ -407,6 +407,8 @@ export function CountRow({
   status?: 'done' | 'todo' | 'warn';
   badge?: React.ReactNode;
   fractions?: boolean;
+  /** A finished (approved) count: the number, and no way to change it. */
+  readOnly?: boolean;
 }) {
   const [fracOpen, setFracOpen] = React.useState(false);
   const dot = status ?? (counted ? 'done' : 'todo');
@@ -424,6 +426,13 @@ export function CountRow({
         {instruction != null && <div className="count-instruction">{instruction}</div>}
         {hint != null && <div className="hint">{hint}</div>}
       </div>
+      {readOnly ? (
+        <div className="qty-controls">
+          <span className={`qty-value${counted ? '' : ' todo'}`} aria-label="Counted quantity">
+            {counted ? qty : '—'}
+          </span>
+        </div>
+      ) : (
       <div className="qty-controls">
         <button className="step" aria-label="Decrease" onClick={() => onSet(Math.max(0, (counted ? qty : 0) - 1))}>
           −
@@ -455,6 +464,7 @@ export function CountRow({
           </button>
         ))}
       </div>
+      )}
     </div>
   );
 }

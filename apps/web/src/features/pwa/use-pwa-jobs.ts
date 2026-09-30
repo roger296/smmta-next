@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, apiFetchBlob, triggerBlobDownload } from '@/lib/api-client';
 import {
   OfflineQueue,
   LocalStorageQueueStorage,
@@ -205,6 +205,43 @@ export interface OpenStockTake {
   countedCount: number;
   counters: string[];
   lastCountedAt: string | null;
+  /** OPEN, APPROVED or CANCELLED. The open list only ever holds OPEN. */
+  status?: string;
+  approvedAt?: string | null;
+}
+
+/**
+ * The venue's recent counts that are FINISHED — approved or cancelled — newest
+ * first. Asked for on 30 Sept 2026: once a count was approved nothing showed
+ * what had been counted, and the start screen only ever listed open ones.
+ * Open counts are left out here because the start screen already offers them
+ * to join, just above.
+ */
+export function useRecentStockTakes(siteId: string | null | undefined, enabled = true) {
+  return useQuery<OpenStockTake[]>({
+    queryKey: ['stock-takes', 'recent', siteId],
+    queryFn: async () => {
+      const res = await apiFetch<unknown>('/stock-takes', { searchParams: { siteId: siteId!, limit: '12' } });
+      return Array.isArray(res) ? (res as OpenStockTake[]).filter((t) => t.status === 'APPROVED' || t.status === 'CANCELLED') : [];
+    },
+    enabled: Boolean(siteId) && enabled,
+  });
+}
+
+/** Fallback when the response carries no Content-Disposition filename. */
+export function fallbackStockTakeFilename(now = new Date()): string {
+  return `stock-take-${now.toISOString().slice(0, 10)}.csv`;
+}
+
+/** One count as a spreadsheet (book, counted, variance, who, when). A
+ *  mutation, not a query: it is an action, and a cached copy would be stale. */
+export function useStockTakeDownload() {
+  return useMutation<void, Error, string>({
+    mutationFn: async (takeId) => {
+      const { blob, filename } = await apiFetchBlob(`/stock-takes/${takeId}/export.csv`);
+      triggerBlobDownload(blob, filename ?? fallbackStockTakeFilename());
+    },
+  });
 }
 
 /**

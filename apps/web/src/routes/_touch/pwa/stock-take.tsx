@@ -20,12 +20,15 @@ import {
   useRecordStockTakeCounts,
   useApproveStockTake,
   useStockTake,
+  useRecentStockTakes,
+  useStockTakeDownload,
   type OpenStockTake,
 } from '@/features/pwa/use-pwa-jobs';
 import {
   attribution,
   clockTime,
   conflicts,
+  dayAndTime,
   countersOn,
   rowCount,
   settleQueued,
@@ -86,7 +89,15 @@ interface TakeLine {
 }
 
 interface TakeData {
-  take: { id: string; scope?: string; openedByName?: string | null };
+  take: {
+    id: string;
+    scope?: string;
+    openedByName?: string | null;
+    /** OPEN while it takes counts; APPROVED/CANCELLED is read-only. */
+    status?: string;
+    approvedAt?: string | null;
+    createdAt?: string;
+  };
   lines: TakeLine[];
 }
 
@@ -200,7 +211,7 @@ export function StockTakeScreen() {
   const [pending, setPending] = React.useState<CountMap>({});
   const [queued, setQueued] = React.useState<CountMap>({});
   const [search, setSearch] = React.useState('');
-  const [filter, setFilter] = React.useState<'all' | 'todo'>('all');
+  const [filter, setFilter] = React.useState<'all' | 'todo' | 'done'>('all');
   // Which category sections this device has folded away. Read once from the
   // device rather than on every render, and written back on every change.
   const [collapsed, setCollapsed] = React.useState<string[]>(() => loadCollapsed());
@@ -219,6 +230,20 @@ export function StockTakeScreen() {
   // The venue's open takes, so a second counter joins rather than starting a
   // parallel count nobody else can see. Only fetched on the start screen.
   const openTakes = useOpenStockTakes(selectedSiteId, !takeId);
+  // Finished counts, so what was counted can still be looked at once a count
+  // is approved (asked for 30 Sept 2026 — it used to vanish from every screen).
+  const recentTakes = useRecentStockTakes(selectedSiteId, !takeId);
+  const download = useStockTakeDownload();
+  const downloadTake = async (id: string) => {
+    try {
+      await download.mutateAsync(id);
+    } catch (err) {
+      setError({
+        title: 'Could not download the count',
+        message: err instanceof Error ? err.message : 'The download failed. Try again.',
+      });
+    }
+  };
   // The take itself, re-read on a timer so each counter sees the others' saves.
   const takeQuery = useStockTake<TakeData>(takeId);
   const lines = React.useMemo(() => takeQuery.data?.lines ?? [], [takeQuery.data]);
@@ -236,6 +261,7 @@ export function StockTakeScreen() {
     setSearch('');
     setFilter('all');
     void queryClient.invalidateQueries({ queryKey: ['stock-takes', 'open'] });
+    void queryClient.invalidateQueries({ queryKey: ['stock-takes', 'recent'] });
   };
 
   const startCount = async () => {
@@ -432,6 +458,37 @@ export function StockTakeScreen() {
             >
               {open.isPending ? 'Opening…' : inProgress.length > 0 ? 'Start a new count' : 'Start count'}
             </BigButton>
+            {(recentTakes.data ?? []).length > 0 && (
+              <div className="field" data-testid="recent-takes" style={{ marginTop: 28 }}>
+                {/* Approved counts are finished and read-only, but what was
+                    counted, by whom and when must still be findable. */}
+                <label>Recent counts</label>
+                {(recentTakes.data ?? []).map((t) => (
+                  <div key={t.id} className="join-take">
+                    <div className="join-take-meta">
+                      <strong>{SCOPE_LABEL[t.scope] ?? 'Count'}</strong>
+                      {' · '}
+                      {t.status === 'APPROVED' ? 'approved' : 'cancelled'}{' '}
+                      {dayAndTime(t.status === 'APPROVED' ? (t.approvedAt ?? t.createdAt) : t.createdAt)}
+                      <div className="join-take-progress">
+                        {t.countedCount} of {t.lineCount} counted
+                        {t.counters.length > 0 ? ` by ${t.counters.join(', ')}` : ''}
+                      </div>
+                    </div>
+                    <BigButton variant="outline" onClick={() => joinTake(t)}>
+                      View
+                    </BigButton>
+                    <BigButton
+                      variant="ghost"
+                      disabled={download.isPending}
+                      onClick={() => void downloadTake(t.id)}
+                    >
+                      Download
+                    </BigButton>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </TouchScreen>
@@ -447,8 +504,12 @@ export function StockTakeScreen() {
   const visible = lines.filter((l) => {
     if (!matchesSearch(l, productMap?.get(l.productId), search)) return false;
     if (filter === 'todo' && rowOf(l).counted) return false;
+    if (filter === 'done' && !rowOf(l).counted) return false;
     return true;
   });
+  // An approved (or cancelled) count is a record, not a job: shown, never edited.
+  const takeStatus = takeQuery.data?.take.status;
+  const readOnly = takeStatus !== undefined && takeStatus !== 'OPEN';
   // Sections are built from the FILTERED list, so search and "Not counted"
   // narrow what is on screen; their progress counts are the section's own.
   const sections = groupByCategory(visible, (l) => rowOf(l).counted);
@@ -465,7 +526,10 @@ export function StockTakeScreen() {
         title="Stock-take"
         venue={selectedSite?.name ?? null}
         venueBound={isBound}
-        sub={takeScope === 'FULL' ? 'Full' : takeScope === 'CYCLE' ? 'Cycle' : 'Category'}
+        sub={
+          (takeScope === 'FULL' ? 'Full' : takeScope === 'CYCLE' ? 'Cycle' : 'Category') +
+          (readOnly ? (takeStatus === 'APPROVED' ? ' · approved' : ' · cancelled') : '')
+        }
         onBack={() => {
           // Uncommitted counts are the ones a Back tap would lose.
           if (pendingCount > 0) setConfirmExit(true);
@@ -477,7 +541,11 @@ export function StockTakeScreen() {
       />
       <TouchToolbar search={search} onSearch={setSearch} placeholder="Search items…">
         <TouchChip on={filter === 'all'} onClick={() => setFilter('all')}>All</TouchChip>
+        <TouchChip on={filter === 'done'} onClick={() => setFilter('done')}>Counted</TouchChip>
         <TouchChip on={filter === 'todo'} onClick={() => setFilter('todo')}>Not counted</TouchChip>
+        <TouchChip on={false} onClick={() => void downloadTake(takeId)}>
+          {download.isPending ? 'Downloading…' : 'Download'}
+        </TouchChip>
         {/* One tap back to the whole sheet. Without it, un-hiding four
             sections is four taps and the counter has to remember which. */}
         {anyCollapsed && (
@@ -489,6 +557,8 @@ export function StockTakeScreen() {
 
       {/* Who else is on this count, and how fresh this screen's copy is. */}
       <div className="shared-take-note" data-testid="shared-take-note">
+        {readOnly &&
+          `${takeStatus === 'APPROVED' ? `Approved ${dayAndTime(takeQuery.data?.take.approvedAt)}` : 'Cancelled'} — read only. `}
         {counters.length > 0
           ? `Saved counts: ${counters.map((c) => `${c.name} (${c.lines})`).join(' · ')}`
           : 'No counts saved yet.'}
@@ -560,6 +630,10 @@ export function StockTakeScreen() {
               hint={
                 <>
                   {l.stockCode}
+                  {/* A finished count may show the book figure: the reason
+                      for hiding it (not telling a counter the answer) has
+                      passed. */}
+                  {readOnly && <span style={{ marginLeft: 6 }}>· book {book} {uom}</span>}
                   {/* If a count IS bucketed, say so on the row — a counter
                       should see what happened to their number here, not
                       discover it later on the variance report. */}
@@ -582,6 +656,7 @@ export function StockTakeScreen() {
               }
               onSet={(newQty) => setCount(l.productId, newQty)}
               onType={() => setTypeTarget(l.productId)}
+              readOnly={readOnly}
             />
           );
         })}
@@ -590,6 +665,16 @@ export function StockTakeScreen() {
         })}
       </div>
 
+      {readOnly ? (
+        <ActionBar>
+          <BigButton variant="outline" onClick={leaveTake}>
+            Back to counts
+          </BigButton>
+          <BigButton variant="solid" disabled={download.isPending} onClick={() => void downloadTake(takeId)}>
+            {download.isPending ? 'Downloading…' : 'Download spreadsheet'}
+          </BigButton>
+        </ActionBar>
+      ) : (
       <ActionBar>
         <BigButton variant="outline" disabled={record.isPending || pendingCount === 0} onClick={() => void submitCounts()}>
           {record.isPending ? 'Saving…' : pendingCount > 0 ? `Save counts (${pendingCount})` : 'Save counts'}
@@ -600,6 +685,7 @@ export function StockTakeScreen() {
           </BigButton>
         )}
       </ActionBar>
+      )}
 
       {confirmExit && (
         <DiscardGuardSheet

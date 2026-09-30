@@ -74,6 +74,16 @@ export function clockTime(iso: string | null | undefined): string {
   return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+/** "Wed 30 Sep, 14:05" — for a count that is not today's, the time alone
+ *  does not say which count it was. */
+export function dayAndTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  return `${day}, ${clockTime(iso)}`;
+}
+
 /** The line under the item name that says whose number this is. */
 export function attribution(row: RowCount): string | null {
   switch (row.source) {

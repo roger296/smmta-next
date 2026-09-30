@@ -454,7 +454,7 @@ export class StockTakeService {
    * whole page, not one per take.
    */
   async list(
-    filter: { siteId?: string; status?: string; companyId?: string } = {},
+    filter: { siteId?: string; status?: string; companyId?: string; limit?: number } = {},
   ): Promise<StockTakeWithProgress[]> {
     const companyId = filter.companyId ?? getSingletonCompanyId();
     const where = [eq(stockTakes.companyId, companyId)];
@@ -463,6 +463,7 @@ export class StockTakeService {
     const takes = await this.db.query.stockTakes.findMany({
       where: and(...where),
       orderBy: (s, { desc }) => [desc(s.createdAt)],
+      ...(filter.limit ? { limit: filter.limit } : {}),
     });
     if (takes.length === 0) return [];
 
