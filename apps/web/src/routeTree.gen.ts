@@ -27,6 +27,7 @@ import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppl
 import { Route as AuthedSupplierOrdersIndexRouteImport } from './routes/_authed/supplier-orders/index'
 import { Route as AuthedSupplierInvoicesIndexRouteImport } from './routes/_authed/supplier-invoices/index'
 import { Route as AuthedStockIndexRouteImport } from './routes/_authed/stock/index'
+import { Route as AuthedStockTakesIndexRouteImport } from './routes/_authed/stock-takes/index'
 import { Route as AuthedSitesIndexRouteImport } from './routes/_authed/sites/index'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedRecipesIndexRouteImport } from './routes/_authed/recipes/index'
@@ -53,6 +54,7 @@ import { Route as AuthedStockReportRouteImport } from './routes/_authed/stock/re
 import { Route as AuthedStockReorderRouteImport } from './routes/_authed/stock/reorder'
 import { Route as AuthedStockBySiteRouteImport } from './routes/_authed/stock/by-site'
 import { Route as AuthedStockAdjustRouteImport } from './routes/_authed/stock/adjust'
+import { Route as AuthedStockTakesIdRouteImport } from './routes/_authed/stock-takes/$id'
 import { Route as AuthedRecipesIdRouteImport } from './routes/_authed/recipes/$id'
 import { Route as AuthedPurchaseOrdersNewRouteImport } from './routes/_authed/purchase-orders/new'
 import { Route as AuthedPurchaseOrdersIdRouteImport } from './routes/_authed/purchase-orders/$id'
@@ -158,6 +160,11 @@ const AuthedSupplierInvoicesIndexRoute =
 const AuthedStockIndexRoute = AuthedStockIndexRouteImport.update({
   id: '/stock/',
   path: '/stock/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedStockTakesIndexRoute = AuthedStockTakesIndexRouteImport.update({
+  id: '/stock-takes/',
+  path: '/stock-takes/',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedSitesIndexRoute = AuthedSitesIndexRouteImport.update({
@@ -293,6 +300,11 @@ const AuthedStockAdjustRoute = AuthedStockAdjustRouteImport.update({
   path: '/stock/adjust',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedStockTakesIdRoute = AuthedStockTakesIdRouteImport.update({
+  id: '/stock-takes/$id',
+  path: '/stock-takes/$id',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
 const AuthedRecipesIdRoute = AuthedRecipesIdRouteImport.update({
   id: '/recipes/$id',
   path: '/recipes/$id',
@@ -405,6 +417,7 @@ export interface FileRoutesByFullPath {
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
   '/recipes/$id': typeof AuthedRecipesIdRoute
+  '/stock-takes/$id': typeof AuthedStockTakesIdRoute
   '/stock/adjust': typeof AuthedStockAdjustRoute
   '/stock/by-site': typeof AuthedStockBySiteRoute
   '/stock/reorder': typeof AuthedStockReorderRoute
@@ -431,6 +444,7 @@ export interface FileRoutesByFullPath {
   '/recipes/': typeof AuthedRecipesIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/sites/': typeof AuthedSitesIndexRoute
+  '/stock-takes/': typeof AuthedStockTakesIndexRoute
   '/stock/': typeof AuthedStockIndexRoute
   '/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
@@ -465,6 +479,7 @@ export interface FileRoutesByTo {
   '/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
   '/recipes/$id': typeof AuthedRecipesIdRoute
+  '/stock-takes/$id': typeof AuthedStockTakesIdRoute
   '/stock/adjust': typeof AuthedStockAdjustRoute
   '/stock/by-site': typeof AuthedStockBySiteRoute
   '/stock/reorder': typeof AuthedStockReorderRoute
@@ -491,6 +506,7 @@ export interface FileRoutesByTo {
   '/recipes': typeof AuthedRecipesIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/sites': typeof AuthedSitesIndexRoute
+  '/stock-takes': typeof AuthedStockTakesIndexRoute
   '/stock': typeof AuthedStockIndexRoute
   '/supplier-invoices': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders': typeof AuthedSupplierOrdersIndexRoute
@@ -528,6 +544,7 @@ export interface FileRoutesById {
   '/_authed/purchase-orders/$id': typeof AuthedPurchaseOrdersIdRoute
   '/_authed/purchase-orders/new': typeof AuthedPurchaseOrdersNewRoute
   '/_authed/recipes/$id': typeof AuthedRecipesIdRoute
+  '/_authed/stock-takes/$id': typeof AuthedStockTakesIdRoute
   '/_authed/stock/adjust': typeof AuthedStockAdjustRoute
   '/_authed/stock/by-site': typeof AuthedStockBySiteRoute
   '/_authed/stock/reorder': typeof AuthedStockReorderRoute
@@ -554,6 +571,7 @@ export interface FileRoutesById {
   '/_authed/recipes/': typeof AuthedRecipesIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/sites/': typeof AuthedSitesIndexRoute
+  '/_authed/stock-takes/': typeof AuthedStockTakesIndexRoute
   '/_authed/stock/': typeof AuthedStockIndexRoute
   '/_authed/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/_authed/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
@@ -590,6 +608,7 @@ export interface FileRouteTypes {
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
     | '/recipes/$id'
+    | '/stock-takes/$id'
     | '/stock/adjust'
     | '/stock/by-site'
     | '/stock/reorder'
@@ -616,6 +635,7 @@ export interface FileRouteTypes {
     | '/recipes/'
     | '/settings/'
     | '/sites/'
+    | '/stock-takes/'
     | '/stock/'
     | '/supplier-invoices/'
     | '/supplier-orders/'
@@ -650,6 +670,7 @@ export interface FileRouteTypes {
     | '/purchase-orders/$id'
     | '/purchase-orders/new'
     | '/recipes/$id'
+    | '/stock-takes/$id'
     | '/stock/adjust'
     | '/stock/by-site'
     | '/stock/reorder'
@@ -676,6 +697,7 @@ export interface FileRouteTypes {
     | '/recipes'
     | '/settings'
     | '/sites'
+    | '/stock-takes'
     | '/stock'
     | '/supplier-invoices'
     | '/supplier-orders'
@@ -712,6 +734,7 @@ export interface FileRouteTypes {
     | '/_authed/purchase-orders/$id'
     | '/_authed/purchase-orders/new'
     | '/_authed/recipes/$id'
+    | '/_authed/stock-takes/$id'
     | '/_authed/stock/adjust'
     | '/_authed/stock/by-site'
     | '/_authed/stock/reorder'
@@ -738,6 +761,7 @@ export interface FileRouteTypes {
     | '/_authed/recipes/'
     | '/_authed/settings/'
     | '/_authed/sites/'
+    | '/_authed/stock-takes/'
     | '/_authed/stock/'
     | '/_authed/supplier-invoices/'
     | '/_authed/supplier-orders/'
@@ -878,6 +902,13 @@ declare module '@tanstack/react-router' {
       path: '/stock'
       fullPath: '/stock/'
       preLoaderRoute: typeof AuthedStockIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/stock-takes/': {
+      id: '/_authed/stock-takes/'
+      path: '/stock-takes'
+      fullPath: '/stock-takes/'
+      preLoaderRoute: typeof AuthedStockTakesIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/sites/': {
@@ -1062,6 +1093,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedStockAdjustRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/stock-takes/$id': {
+      id: '/_authed/stock-takes/$id'
+      path: '/stock-takes/$id'
+      fullPath: '/stock-takes/$id'
+      preLoaderRoute: typeof AuthedStockTakesIdRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
     '/_authed/recipes/$id': {
       id: '/_authed/recipes/$id'
       path: '/recipes/$id'
@@ -1202,6 +1240,7 @@ interface AuthedRouteRouteChildren {
   AuthedPurchaseOrdersIdRoute: typeof AuthedPurchaseOrdersIdRoute
   AuthedPurchaseOrdersNewRoute: typeof AuthedPurchaseOrdersNewRoute
   AuthedRecipesIdRoute: typeof AuthedRecipesIdRoute
+  AuthedStockTakesIdRoute: typeof AuthedStockTakesIdRoute
   AuthedStockAdjustRoute: typeof AuthedStockAdjustRoute
   AuthedStockBySiteRoute: typeof AuthedStockBySiteRoute
   AuthedStockReorderRoute: typeof AuthedStockReorderRoute
@@ -1222,6 +1261,7 @@ interface AuthedRouteRouteChildren {
   AuthedRecipesIndexRoute: typeof AuthedRecipesIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedSitesIndexRoute: typeof AuthedSitesIndexRoute
+  AuthedStockTakesIndexRoute: typeof AuthedStockTakesIndexRoute
   AuthedStockIndexRoute: typeof AuthedStockIndexRoute
   AuthedSupplierInvoicesIndexRoute: typeof AuthedSupplierInvoicesIndexRoute
   AuthedSupplierOrdersIndexRoute: typeof AuthedSupplierOrdersIndexRoute
@@ -1253,6 +1293,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedPurchaseOrdersIdRoute: AuthedPurchaseOrdersIdRoute,
   AuthedPurchaseOrdersNewRoute: AuthedPurchaseOrdersNewRoute,
   AuthedRecipesIdRoute: AuthedRecipesIdRoute,
+  AuthedStockTakesIdRoute: AuthedStockTakesIdRoute,
   AuthedStockAdjustRoute: AuthedStockAdjustRoute,
   AuthedStockBySiteRoute: AuthedStockBySiteRoute,
   AuthedStockReorderRoute: AuthedStockReorderRoute,
@@ -1273,6 +1314,7 @@ const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedRecipesIndexRoute: AuthedRecipesIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
   AuthedSitesIndexRoute: AuthedSitesIndexRoute,
+  AuthedStockTakesIndexRoute: AuthedStockTakesIndexRoute,
   AuthedStockIndexRoute: AuthedStockIndexRoute,
   AuthedSupplierInvoicesIndexRoute: AuthedSupplierInvoicesIndexRoute,
   AuthedSupplierOrdersIndexRoute: AuthedSupplierOrdersIndexRoute,

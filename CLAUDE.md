@@ -203,6 +203,18 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   uuid per save. Counts sent to an approved take get **409**, not silence.
   **MCP may READ stock-takes, never change them** (§F22): `start_stock_take`
   is gone; `stock_takes` / `stock_take_detail` are the read tools.
+- **Stock-take results page + one open count per venue** (Oct 2026;
+  `DECISIONS.md` §F25–§F26). The admin website's **Stock-take results**
+  (`/stock-takes`) lists every venue's counts (filter by venue, status and
+  London dates), opens one line by line, and downloads one count
+  (`GET /stock-takes/:id/export.csv`) or every counted line of the filtered set
+  (`GET /stock-takes/export.csv`). ⚠️ A venue may have only ONE open count:
+  `open()` refuses with 409 `COUNT_IN_PROGRESS` under a per-venue advisory lock,
+  and the iPad joins the running one. The first fortnight produced 49 sheets and
+  0 approvals, with each venue's count split in two. Managers can **Cancel** an
+  open count, which keeps it as a record and never applies it;
+  `scripts/cancel-empty-stock-takes.ts` clears the empty ones.
+  `scripts/report-stock-takes.ts` is the terminal version of the results page.
 - **Supplier ordering — Phase 0 groundwork** (`docs/plans/SUPPLIER_ORDERING_PLAN.md`;
   `DECISIONS.md` §F23). Nothing places an order yet. Goods-in now commits
   receipt, lines, movements and batches in ONE transaction; GRN movements are

@@ -56,6 +56,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Reorder suggestions', to: '/reorder', icon: ShoppingBag },
   { label: 'Goods in', to: '/pwa/goods-in', icon: PackagePlus },
   { label: 'Stock-take', to: '/pwa/stock-take', icon: ClipboardCheck },
+  // Every venue's counts, viewable and downloadable (Oct 2026).
+  { label: 'Stock-take results', to: '/stock-takes', icon: ClipboardList },
   { label: 'End-of-session', to: '/pwa/consumption', icon: ChefHat },
   { label: 'Recipes', to: '/recipes', icon: BookOpen },
   { label: 'Consumption', to: '/consumption', icon: ClipboardList },
