@@ -1613,3 +1613,31 @@ abandoning a half-finished count. Its book figure is the site's level at that
 moment. Top-up is opt-in on `StockTakeService.get`. The MCP
 `stock_take_detail` tool does not ask for it, so MCP reads still change nothing
 (§F22). Approved takes are never topped up.
+
+## §F26 — One open count per venue; cancelling a count (Oct 2026)
+
+**Found (report 20 Sept – 4 Oct 2026):** 49 counts opened, none approved, 37
+with nothing counted. Every venue's count was split across sheets:
+Birmingham's two counters opened sheets at 10:45 and 10:46 and each counted
+into their own, and Manchester was counted on 30 Sept and again on 2 Oct.
+The start screen offered to join a running count but still let anyone start
+another.
+
+**Now:** a venue has at most one OPEN count. `StockTakeService.open` takes a
+per-venue transaction-scoped advisory lock, refuses with `CountInProgressError`
+(409 `COUNT_IN_PROGRESS`, the running take(s) in `details.openTakes`) when one
+is open, and inserts the sheet's lines in batches inside the same
+transaction. Checking first and inserting afterwards without a lock is exactly
+the race that gave Birmingham two sheets a minute apart. The rule covers every
+scope: a category count alongside a full one splits the count just the same.
+The iPad start screen offers only Join while a count is running, and a Start
+that loses the race joins the winner.
+
+**Cancel:** `POST /stock-takes/:id/cancel` (site_manager+) sets an OPEN count
+to CANCELLED. Its lines and counts are kept as a record, but it takes no more
+counts and is never applied. An approved count cannot be cancelled (409),
+because its figures are already in the levels.
+`scripts/cancel-empty-stock-takes.ts` (dry run by default) cancels the OPEN
+counts with nothing counted that are older than `--min-age-hours` (default 12),
+so a count opened a minute ago is not swept away. A sheet with counts on it is
+never cancelled by the script; that is a manager's decision.

@@ -120,6 +120,7 @@ afterAll(async () => {
 
 describe('two counters sharing one take', () => {
   let takeId: string;
+  let secondTakeId: string;
 
   it('Sam opens a count, and it records Sam as the opener', async () => {
     const res = await app.inject({
@@ -260,6 +261,71 @@ describe('two counters sharing one take', () => {
     const sugar = rows.find((r) => r.includes('STMU Sugar'))!;
     expect(flour).toMatch(/,kg,10,10,0,Sam,\d{2}\/\d{2}\/\d{4}/);
     expect(sugar).toMatch(/,kg,4,4,0,Morgan Manager,/);
+  });
+
+  it('a second count at the venue is refused with 409, carrying the one to join', async () => {
+    // The approved count above no longer blocks: Sam starts the next one.
+    const first = await app.inject({
+      method: 'POST',
+      url: '/api/v1/stock-takes',
+      headers: auth(sam),
+      payload: { siteId, scope: 'FULL' },
+    });
+    expect(first.statusCode).toBe(201);
+    secondTakeId = first.json().data.take.id;
+
+    const again = await app.inject({
+      method: 'POST',
+      url: '/api/v1/stock-takes',
+      headers: auth(alex),
+      payload: { siteId, scope: 'FULL' },
+    });
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toMatchObject({ code: 'COUNT_IN_PROGRESS' });
+    expect(again.json().details.openTakes.map((t: { id: string }) => t.id)).toEqual([secondTakeId]);
+  });
+
+  it('only a manager can cancel an open count; an approved one cannot be cancelled', async () => {
+    const byBaker = await app.inject({
+      method: 'POST',
+      url: `/api/v1/stock-takes/${secondTakeId}/cancel`,
+      headers: auth(sam),
+    });
+    expect(byBaker.statusCode).toBe(403);
+    const byManager = await app.inject({
+      method: 'POST',
+      url: `/api/v1/stock-takes/${secondTakeId}/cancel`,
+      headers: auth(manager),
+    });
+    expect(byManager.statusCode).toBe(200);
+    expect(byManager.json().data.status).toBe('CANCELLED');
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/api/v1/stock-takes/${takeId}/cancel`,
+      headers: auth(manager),
+    });
+    expect(approved.statusCode).toBe(409);
+    expect(approved.json().error).toMatch(/approved/);
+  });
+
+  it('downloads every counted line of the matching counts as one spreadsheet', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/stock-takes/export.csv?siteId=${siteId}&from=${today}&to=${today}`,
+      headers: auth(manager),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-disposition']).toMatch(
+      new RegExp(`stock-takes-stmu-venue-${today}-to-${today}\\.csv`),
+    );
+    const rows = res.body.replace(/^\uFEFF/, '').trim().split('\r\n');
+    expect(rows[0]).toBe(
+      'Venue,Sheet opened,Status,Section,Stock code,Product,Unit,Book,Counted,Variance,Counted by,Counted at,Take id',
+    );
+    // The approved count's two lines; the cancelled one had nothing counted.
+    expect(rows.slice(1)).toHaveLength(2);
+    expect(rows.find((r) => r.includes('STMU Flour'))).toMatch(/^STMU Venue,.*,APPROVED,.*,kg,10,10,0,Sam,/);
   });
 
   it('a download of a take that does not exist is a 404', async () => {

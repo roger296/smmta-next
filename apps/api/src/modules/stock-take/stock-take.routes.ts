@@ -21,8 +21,13 @@ import { requireBoundSite, requireRole } from '../../shared/middleware/require-r
 import { eq } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { sites } from '../../db/schema/index.js';
-import { StockTakeClosedError, StockTakeService } from './stock-take.service.js';
-import { stockTakeCsv, stockTakeCsvFilename } from './stock-take-export.js';
+import {
+  CountInProgressError,
+  StockTakeClosedError,
+  StockTakeNotCancellableError,
+  StockTakeService,
+} from './stock-take.service.js';
+import { stockTakeCsv, stockTakeCsvFilename, stockTakesRangeCsv } from './stock-take-export.js';
 
 const openSchema = z.object({
   siteId: z.string().uuid(),
@@ -49,6 +54,9 @@ const listQuerySchema = z.object({
   status: z.enum(['OPEN', 'APPROVED', 'CANCELLED']).optional(),
   /** Newest first; the start screen's "Recent counts" asks for a handful. */
   limit: z.coerce.number().int().min(1).max(100).optional(),
+  /** London calendar days, inclusive (YYYY-MM-DD): opened or approved inside. */
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 const service = new StockTakeService();
@@ -71,11 +79,25 @@ export async function stockTakeRoutes(app: FastifyInstance) {
           .status(400)
           .send({ success: false, error: 'Invalid request body', issues: parsed.error.issues });
       }
-      const data = await service.open({
-        ...parsed.data,
-        openedBy: await actorOf(getAuthUser(request)),
-      });
-      return reply.status(201).send({ success: true, data });
+      try {
+        const data = await service.open({
+          ...parsed.data,
+          openedBy: await actorOf(getAuthUser(request)),
+        });
+        return reply.status(201).send({ success: true, data });
+      } catch (err) {
+        // The running count travels with the refusal (in `details`, which the
+        // web client passes through) so the screen can join it in one step.
+        if (err instanceof CountInProgressError) {
+          return reply.status(409).send({
+            success: false,
+            code: 'COUNT_IN_PROGRESS',
+            error: err.message,
+            details: { openTakes: err.openTakes },
+          });
+        }
+        throw err;
+      }
     },
   );
 
@@ -84,6 +106,50 @@ export async function stockTakeRoutes(app: FastifyInstance) {
     const data = await service.list(q);
     return { success: true, data };
   });
+
+  // ── GET /stock-takes/export.csv ───────────────────────────────
+  // Every counted line of every take matching the results page's filters
+  // (venue, status, date range), one spreadsheet. Static path, so Fastify
+  // matches it ahead of /stock-takes/:id.
+  app.get('/stock-takes/export.csv', async (request, reply) => {
+    const q = listQuerySchema.parse(request.query);
+    const takes = await service.list(q);
+    const siteRows = await getDb().select({ id: sites.id, name: sites.name }).from(sites);
+    const siteName = new Map(siteRows.map((s) => [s.id, s.name]));
+    const withLines = [];
+    for (const take of takes) {
+      withLines.push({ take, siteName: siteName.get(take.siteId) ?? '', lines: await service.linesWithProduct(take.id) });
+    }
+    const venue = q.siteId ? (siteName.get(q.siteId) ?? 'venue') : 'all-venues';
+    const slug = venue.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const span = q.from || q.to ? `${q.from ?? 'start'}-to-${q.to ?? 'today'}` : 'all';
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="stock-takes-${slug}-${span}.csv"`)
+      .header('Cache-Control', 'no-store')
+      .send(`\uFEFF${stockTakesRangeCsv(withLines)}`);
+  });
+
+  // ── POST /stock-takes/:id/cancel ──────────────────────────────
+  // Set an open count aside unapplied (managers). Clears the empty sheets
+  // left by people starting a count instead of joining one.
+  app.post(
+    '/stock-takes/:id/cancel',
+    { preHandler: [requireRole(['site_manager'])] },
+    async (request, reply) => {
+      const { id } = idParamSchema.parse(request.params);
+      try {
+        const take = await service.cancel(id);
+        if (!take) return reply.status(404).send({ success: false, error: 'Stock-take not found' });
+        return { success: true, data: take };
+      } catch (err) {
+        if (err instanceof StockTakeNotCancellableError) {
+          return reply.status(409).send({ success: false, error: err.message });
+        }
+        throw err;
+      }
+    },
+  );
 
   // ── GET /stock-takes/:id/export.csv ───────────────────────────
   // One count as a spreadsheet, open or approved (see stock-take-export.ts).

@@ -9,30 +9,9 @@
  */
 import { toCsv } from '../../shared/utils/csv.js';
 import type { StockTake, StockTakeLineWithProduct } from './stock-take.service.js';
+import { londonStamp } from './stock-take-dates.js';
 
 const UNCATEGORISED = 'Uncategorised';
-
-/** Wall-clock time at the venue. An ISO timestamp in UTC would read an hour
- *  out for half the year to anyone checking "did Sam count this at 10?". */
-function londonTime(d: Date | string | null): string {
-  if (!d) return '';
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Europe/London',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    })
-      .formatToParts(new Date(d))
-      .map((p) => [p.type, p.value]),
-  );
-  // "30/09/2026 15:47" — assembled, because en-GB puts a comma after the date
-  // and a comma forces the cell into quotes for no benefit.
-  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
-}
 
 const num = (v: string | null): number | '' => (v == null ? '' : Number(v));
 
@@ -62,7 +41,7 @@ export function stockTakeCsv(lines: readonly StockTakeLineWithProduct[]): string
       // of minus the book figure.
       { header: 'Variance', value: (l) => (l.countedQty == null ? '' : num(l.variance)) },
       { header: 'Counted by', value: (l) => l.countedByName },
-      { header: 'Counted at', value: (l) => londonTime(l.countedAt) },
+      { header: 'Counted at', value: (l) => londonStamp(l.countedAt) },
     ],
     sorted as Row[],
   );
@@ -72,4 +51,43 @@ export function stockTakeCsvFilename(take: StockTake, siteName: string | null): 
   const venue = (siteName ?? 'venue').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const day = new Date(take.createdAt).toISOString().slice(0, 10);
   return `stock-take-${venue}-${day}.csv`;
+}
+
+/**
+ * Every COUNTED line of several takes, one CSV — "Download all" on the
+ * results page for a venue and date range. Uncounted lines are left out: a
+ * full sheet is ~640 lines and most of a partial count is blank, so including
+ * them buries the answer. Each row names its venue and sheet, because a venue
+ * that split its count across sheets has the same product on more than one.
+ */
+export function stockTakesRangeCsv(
+  takes: ReadonlyArray<{ take: StockTake; siteName: string; lines: readonly StockTakeLineWithProduct[] }>,
+): string {
+  type RangeRow = Record<string, unknown> & {
+    take: StockTake;
+    siteName: string;
+    line: StockTakeLineWithProduct;
+  };
+  const rows: RangeRow[] = [];
+  for (const t of takes) {
+    for (const line of t.lines) if (line.countedQty != null) rows.push({ take: t.take, siteName: t.siteName, line });
+  }
+  return toCsv<RangeRow>(
+    [
+      { header: 'Venue', value: (r) => r.siteName },
+      { header: 'Sheet opened', value: (r) => londonStamp(r.take.createdAt) },
+      { header: 'Status', value: (r) => r.take.status },
+      { header: 'Section', value: (r) => r.line.itemCategoryName ?? UNCATEGORISED },
+      { header: 'Stock code', value: (r) => r.line.stockCode },
+      { header: 'Product', value: (r) => r.line.productName },
+      { header: 'Unit', value: (r) => r.line.stockUom },
+      { header: 'Book', value: (r) => num(r.line.bookQty) },
+      { header: 'Counted', value: (r) => num(r.line.countedQty) },
+      { header: 'Variance', value: (r) => num(r.line.variance) },
+      { header: 'Counted by', value: (r) => r.line.countedByName },
+      { header: 'Counted at', value: (r) => londonStamp(r.line.countedAt) },
+      { header: 'Take id', value: (r) => r.take.id },
+    ],
+    rows,
+  );
 }

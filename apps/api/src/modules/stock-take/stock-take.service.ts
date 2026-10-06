@@ -7,7 +7,8 @@
  * and posts ONE stock adjustment to Xero, then marks the take APPROVED.
  * `approve` is idempotent — re-approving an APPROVED take re-applies nothing.
  */
-import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
+import { inRange } from './stock-take-dates.js';
 import { getDb } from '../../config/database.js';
 import {
   itemCategories,
@@ -109,6 +110,37 @@ export class StockTakeClosedError extends Error {
   }
 }
 
+/**
+ * Opening a count while the venue already has one OPEN (Oct 2026).
+ *
+ * Between 20 Sept and 4 Oct the venues opened 49 counts and approved none: 37
+ * were empty, and the rest split one venue's count across several sheets —
+ * Birmingham's two counters opened two at 10:45 and 10:46 and each counted
+ * into their own, so neither sheet was a count of the venue. The start screen
+ * offered to join; it did not insist. A venue now has at most one open count,
+ * and the screen joins the one that is running.
+ */
+export class CountInProgressError extends Error {
+  constructor(public readonly openTakes: StockTake[]) {
+    super(
+      'A count is already running at this venue — join it rather than starting another, so everyone counts onto one sheet.',
+    );
+    this.name = 'CountInProgressError';
+  }
+}
+
+/** Cancelling a count that can no longer be cancelled (approved, or gone). */
+export class StockTakeNotCancellableError extends Error {
+  constructor(public readonly status: string) {
+    super(
+      status === 'APPROVED'
+        ? 'This count has been approved — its figures are in the stock levels, so it cannot be cancelled.'
+        : `This count is already ${status.toLowerCase()}.`,
+    );
+    this.name = 'StockTakeNotCancellableError';
+  }
+}
+
 export class StockTakeService {
   private db = getDb();
   private levels = new StockLevelService();
@@ -130,28 +162,51 @@ export class StockTakeService {
       scopeRef: input.scopeRef ?? null,
     });
 
-    const [take] = await this.db
-      .insert(stockTakes)
-      .values({
-        companyId,
-        siteId: input.siteId,
-        scope: input.scope,
-        scopeRef: input.scopeRef ?? null,
-        openedByUserId: input.openedBy?.userId ?? null,
-        openedByName: input.openedBy?.name ?? null,
-      })
-      .returning();
+    // One open count per venue, enforced under a per-venue transaction lock:
+    // checking first and inserting after, unlocked, is exactly how two iPads
+    // pressing Start a second apart each got a sheet of their own.
+    const take = await this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'stock-take-open:' + input.siteId}))`);
+      const running = await tx
+        .select()
+        .from(stockTakes)
+        .where(
+          and(
+            eq(stockTakes.companyId, companyId),
+            eq(stockTakes.siteId, input.siteId),
+            eq(stockTakes.status, 'OPEN'),
+          ),
+        )
+        .orderBy(desc(stockTakes.createdAt));
+      if (running.length > 0) throw new CountInProgressError(running);
 
-    for (const row of inScope) {
-      await this.db
-        .insert(stockTakeLines)
-        .values({ stockTakeId: take!.id, productId: row.productId, bookQty: row.bookQty });
-    }
+      const [created] = await tx
+        .insert(stockTakes)
+        .values({
+          companyId,
+          siteId: input.siteId,
+          scope: input.scope,
+          scopeRef: input.scopeRef ?? null,
+          openedByUserId: input.openedBy?.userId ?? null,
+          openedByName: input.openedBy?.name ?? null,
+        })
+        .returning();
+      // In batches rather than one statement per line: a full sheet is ~640.
+      for (let i = 0; i < inScope.length; i += 500) {
+        await tx.insert(stockTakeLines).values(
+          inScope
+            .slice(i, i + 500)
+            .map((row) => ({ stockTakeId: created!.id, productId: row.productId, bookQty: row.bookQty })),
+        );
+      }
+      return created!;
+    });
+
     // Re-read through the join so the caller gets the identity in one round
     // trip. A LEFT join, not an inner one: a line whose product was later
     // deleted must still come back (with nulls) rather than vanishing from the
     // count sheet or throwing.
-    return { take: take!, lines: await this.linesWithProduct(take!.id) };
+    return { take, lines: await this.linesWithProduct(take.id) };
   }
 
   /**
@@ -236,6 +291,27 @@ export class StockTakeService {
       .insert(stockTakeLines)
       .values(missing.map((m) => ({ stockTakeId: take.id, productId: m.productId, bookQty: m.bookQty })))
       .onConflictDoNothing();
+  }
+
+  /**
+   * Set an OPEN count aside without applying it. Its lines and counts are kept
+   * — a cancelled count is still a record of what somebody counted — but it
+   * no longer blocks a new count at the venue and can never be approved.
+   * For clearing away the empty sheets left by people starting a new count
+   * instead of joining one, and for a sheet a manager has decided not to use.
+   */
+  async cancel(stockTakeId: string, companyId = getSingletonCompanyId()): Promise<StockTake | null> {
+    const take = await this.db.query.stockTakes.findFirst({
+      where: and(eq(stockTakes.id, stockTakeId), eq(stockTakes.companyId, companyId)),
+    });
+    if (!take) return null;
+    if (take.status !== 'OPEN') throw new StockTakeNotCancellableError(take.status);
+    const [updated] = await this.db
+      .update(stockTakes)
+      .set({ status: 'CANCELLED', updatedAt: new Date() })
+      .where(and(eq(stockTakes.id, stockTakeId), eq(stockTakes.status, 'OPEN')))
+      .returning();
+    return updated ?? null;
   }
 
   /** Record a single count. Offline-idempotent on `countIdempotencyKey`. */
@@ -454,17 +530,32 @@ export class StockTakeService {
    * whole page, not one per take.
    */
   async list(
-    filter: { siteId?: string; status?: string; companyId?: string; limit?: number } = {},
+    filter: {
+      siteId?: string;
+      status?: string;
+      companyId?: string;
+      limit?: number;
+      /** London calendar days, inclusive: a take opened or approved inside. */
+      from?: string;
+      to?: string;
+    } = {},
   ): Promise<StockTakeWithProgress[]> {
     const companyId = filter.companyId ?? getSingletonCompanyId();
     const where = [eq(stockTakes.companyId, companyId)];
     if (filter.siteId) where.push(eq(stockTakes.siteId, filter.siteId));
     if (filter.status) where.push(eq(stockTakes.status, filter.status as never));
-    const takes = await this.db.query.stockTakes.findMany({
+    const dated = Boolean(filter.from || filter.to);
+    const found = await this.db.query.stockTakes.findMany({
       where: and(...where),
       orderBy: (s, { desc }) => [desc(s.createdAt)],
-      ...(filter.limit ? { limit: filter.limit } : {}),
+      // The date window is applied on London days below, so a limit can only
+      // be pushed down to SQL when there is no window.
+      ...(filter.limit && !dated ? { limit: filter.limit } : {}),
     });
+    let takes = dated
+      ? found.filter((t) => inRange(t, filter.from ?? '0000-01-01', filter.to ?? '9999-12-31'))
+      : found;
+    if (filter.limit && dated) takes = takes.slice(0, filter.limit);
     if (takes.length === 0) return [];
 
     const progress = await this.db

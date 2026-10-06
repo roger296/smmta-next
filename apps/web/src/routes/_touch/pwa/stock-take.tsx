@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, MAX_PAGE_SIZE, type PaginatedResult } from '@/lib/api-client';
+import { ApiError, apiFetch, MAX_PAGE_SIZE, type PaginatedResult } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteContext } from '@/features/sites/site-context';
 import { useRoles } from '@/features/auth/use-roles';
@@ -99,6 +99,13 @@ interface TakeData {
     createdAt?: string;
   };
   lines: TakeLine[];
+}
+
+/** The running count a 409 COUNT_IN_PROGRESS refusal carries, if this is one. */
+export function runningTakeFrom(err: unknown): OpenStockTake | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const takes = (err.details as { openTakes?: OpenStockTake[] } | undefined)?.openTakes;
+  return Array.isArray(takes) && takes.length > 0 ? takes[0]! : null;
 }
 
 const SCOPE_LABEL: Record<string, string> = { FULL: 'Full count', CYCLE: 'Cycle count', CATEGORY: 'Category count' };
@@ -271,6 +278,15 @@ export function StockTakeScreen() {
     try {
       res = await open.mutateAsync({ siteId: selectedSiteId, scope });
     } catch (err) {
+      // A venue has one open count at a time (Oct 2026). If another iPad
+      // started one a moment ago, join it — that is what the counter wanted.
+      const running = runningTakeFrom(err);
+      if (running) {
+        void queryClient.invalidateQueries({ queryKey: ['stock-takes', 'open'] });
+        toast({ title: 'A count was already running here — you have joined it.' });
+        joinTake(running);
+        return;
+      }
       setError({
         title: 'Could not open a stock-take',
         message: err instanceof Error ? err.message : 'The request failed. Try again.',
@@ -432,11 +448,16 @@ export function StockTakeScreen() {
                 ))}
               </div>
             )}
-            <p className="lede">
-              {inProgress.length > 0
-                ? 'Or start a separate count:'
-                : 'Count stock against the book figure. Variance is trued up on approval.'}
-            </p>
+            {inProgress.length > 0 ? (
+              // One open count per venue (Oct 2026): a second sheet split every
+              // venue's count in two, so there is no "start another" here.
+              <p className="lede" data-testid="one-count-note">
+                Only one count can run at a venue at a time, so everyone counts onto the same sheet. If
+                this count should not be running, a manager can cancel it from the Stock-takes page.
+              </p>
+            ) : (
+              <>
+            <p className="lede">Count stock against the book figure. Variance is trued up on approval.</p>
             <div className="field">
               <label>What are you counting?</label>
               <div className="tile-grid">
@@ -452,12 +473,14 @@ export function StockTakeScreen() {
               </div>
             </div>
             <BigButton
-              variant={inProgress.length > 0 ? 'outline' : 'solid'}
+              variant="solid"
               disabled={!selectedSiteId || open.isPending}
               onClick={() => void startCount()}
             >
-              {open.isPending ? 'Opening…' : inProgress.length > 0 ? 'Start a new count' : 'Start count'}
+              {open.isPending ? 'Opening…' : 'Start count'}
             </BigButton>
+              </>
+            )}
             {(recentTakes.data ?? []).length > 0 && (
               <div className="field" data-testid="recent-takes" style={{ marginTop: 28 }}>
                 {/* Approved counts are finished and read-only, but what was

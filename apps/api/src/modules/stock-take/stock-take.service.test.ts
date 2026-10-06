@@ -19,7 +19,12 @@ import {
   stockTakes,
 } from '../../db/schema/index.js';
 import { StockLevelService } from '../stock/stock-level.service.js';
-import { StockTakeClosedError, StockTakeService } from './stock-take.service.js';
+import {
+  CountInProgressError,
+  StockTakeClosedError,
+  StockTakeNotCancellableError,
+  StockTakeService,
+} from './stock-take.service.js';
 
 const COMPANY = 'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3';
 const svc = new StockTakeService();
@@ -478,5 +483,96 @@ describe('idempotency keys: replays vs corrections', () => {
     await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4950, countIdempotencyKey: `${take.id}:${flourId}:save-2` }]);
     line = (await svc.get(take.id, COMPANY))!.lines.find((l) => l.productId === flourId)!;
     expect(Number(line.countedQty)).toBe(4950);
+  });
+});
+
+describe('one open count per venue (Oct 2026)', () => {
+  // 20 Sept – 4 Oct: 49 counts opened, none approved, 37 empty, and each
+  // venue's count split across sheets — Birmingham's two counters opened two
+  // a minute apart and each counted into their own.
+  it('refuses a second count while one is open, naming the one to join', async () => {
+    const { take: first } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    const err = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CountInProgressError);
+    expect((err as CountInProgressError).openTakes.map((t) => t.id)).toEqual([first.id]);
+    // A category count would split the venue's count just the same.
+    await expect(svc.open({ siteId, scope: 'CATEGORY', companyId: COMPANY })).rejects.toBeInstanceOf(
+      CountInProgressError,
+    );
+  });
+
+  it('two iPads pressing Start at the same moment get ONE count between them', async () => {
+    const results = await Promise.allSettled([
+      svc.open({ siteId, scope: 'FULL', companyId: COMPANY }),
+      svc.open({ siteId, scope: 'FULL', companyId: COMPANY }),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(rejected.reason).toBeInstanceOf(CountInProgressError);
+    const open = await svc.list({ siteId, status: 'OPEN', companyId: COMPANY });
+    expect(open).toHaveLength(1);
+  });
+
+  it('once the open count is approved or cancelled, a new one can start', async () => {
+    const { take: a } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.approve(a.id, COMPANY);
+    const { take: b } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.cancel(b.id, COMPANY);
+    await expect(svc.open({ siteId, scope: 'FULL', companyId: COMPANY })).resolves.toBeDefined();
+  });
+
+  it('the sheet still lists every in-scope product (lines are now inserted in batches)', async () => {
+    await setLevel(flourId, 5000);
+    const { lines } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    expect(lines.map((l) => l.productId).sort()).toEqual([flourId, sugarId].sort());
+    expect(Number(lines.find((l) => l.productId === flourId)!.bookQty)).toBe(5000);
+  });
+});
+
+describe('cancel', () => {
+  it('sets an open count aside: kept as a record, never applied, takes no more counts', async () => {
+    await setLevel(flourId, 5000);
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.recordCounts(take.id, [{ productId: flourId, countedQty: 4000 }]);
+    const cancelled = await svc.cancel(take.id, COMPANY);
+    expect(cancelled!.status).toBe('CANCELLED');
+
+    const kept = await svc.get(take.id, COMPANY);
+    expect(Number(kept!.lines.find((l) => l.productId === flourId)!.countedQty)).toBe(4000);
+    await expect(svc.recordCounts(take.id, [{ productId: flourId, countedQty: 1 }])).rejects.toBeInstanceOf(
+      StockTakeClosedError,
+    );
+    // Approving a cancelled count does nothing: the level is untouched.
+    await svc.approve(take.id, COMPANY);
+    const [level] = await getDb().select().from(stockLevels).where(eq(stockLevels.productId, flourId));
+    expect(Number(level!.onHand)).toBe(5000);
+  });
+
+  it('an approved count cannot be cancelled — its figures are already in the levels', async () => {
+    const { take } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.approve(take.id, COMPANY);
+    await expect(svc.cancel(take.id, COMPANY)).rejects.toBeInstanceOf(StockTakeNotCancellableError);
+  });
+
+  it('a count that does not exist is null', async () => {
+    expect(await svc.cancel('00000000-0000-4000-8000-000000000000', COMPANY)).toBeNull();
+  });
+});
+
+describe('list: date window (London days)', () => {
+  it('keeps takes opened or approved inside the window', async () => {
+    const { take: a } = await svc.open({ siteId, scope: 'FULL', companyId: COMPANY });
+    await svc.approve(a.id, COMPANY);
+    const db = getDb();
+    // Opened 25 Sept, approved 1 Oct (summer time: 23:30 UTC on 30 Sept is 1 Oct in London).
+    await db
+      .update(stockTakes)
+      .set({ createdAt: new Date('2026-09-25T09:00:00Z'), approvedAt: new Date('2026-09-30T23:30:00Z') })
+      .where(eq(stockTakes.id, a.id));
+    const ids = async (from: string, to: string) =>
+      (await svc.list({ siteId, companyId: COMPANY, from, to })).map((t) => t.id);
+    expect(await ids('2026-09-25', '2026-09-25')).toEqual([a.id]);
+    expect(await ids('2026-10-01', '2026-10-01')).toEqual([a.id]);
+    expect(await ids('2026-09-26', '2026-09-30')).toEqual([]);
   });
 });

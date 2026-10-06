@@ -125,8 +125,33 @@ describe('joining the count in progress', () => {
     const open = await screen.findByTestId('open-takes');
     expect(open).toHaveTextContent(/Full count · started \d\d:\d\d by Sam/);
     expect(open).toHaveTextContent('2 of 3 counted by Me, Sam');
-    // Starting a separate count is still possible, but no longer the default.
-    expect(screen.getByRole('button', { name: /start a new count/i })).toBeInTheDocument();
+    // One open count per venue (Oct 2026): no second sheet can be started.
+    expect(screen.queryByRole('button', { name: /start/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('one-count-note')).toHaveTextContent('Only one count can run at a venue at a time');
+  });
+
+  it('if another iPad started a count a moment ago, Start joins that one instead', async () => {
+    const user = userEvent.setup();
+    // The list was empty when this screen loaded; the server refuses the new
+    // count with the one that is now running.
+    server.use(
+      http.get(`${API}/stock-takes`, () => HttpResponse.json({ success: true, data: [] })),
+      http.post(`${API}/stock-takes`, () =>
+        HttpResponse.json(
+          {
+            success: false,
+            code: 'COUNT_IN_PROGRESS',
+            error: 'A count is already running at this venue',
+            details: { openTakes: [OPEN_TAKE] },
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderScreen();
+    await user.click(await screen.findByRole('button', { name: /^start count$/i }));
+    expect(await screen.findByText('Flour')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('joining shows every saved count, including the ones this iPad never saw typed', async () => {

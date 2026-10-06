@@ -292,6 +292,15 @@ describe('D — counting and number entry', () => {
     expect(mine!.productName).toBe('FB Icing sugar');
     expect(mine!.stockCode).toBe('FB-ICING');
     expect(mine!.stockUom).toBe('g');
+
+    // A venue has one open count at a time (Oct 2026), and E-4 below opens its
+    // own at this venue — so set this one aside rather than leave it running.
+    const cancelled = await app.inject({
+      method: 'POST',
+      url: `/api/v1/stock-takes/${opened.json().data.take.id}/cancel`,
+      headers: auth(adminToken),
+    });
+    expect(cancelled.statusCode).toBe(200);
   });
 
   it('D-2: counts silently rounded to the nearest 100 stock units (4 kg → 0)', async () => {
