@@ -1,6 +1,6 @@
 # Email system — handover
 
-For Roger. This document covers what was built, what is still open, and the steps from sandbox to live mail.
+For Roger. This document covers what was built, what is still open, and the steps from deploy to live mail, testing on real mail to your own test addresses first.
 
 ## 1. What was built
 
@@ -82,26 +82,35 @@ The full entries are in [BLOCKERS.md](BLOCKERS.md).
 | # | What | What you need to do |
 | --- | --- | --- |
 | B1 | The SendGrid exports were not in the repo, so the real imports were never run. | Export the four lists, put them in `imports/sendgrid/` on the server (never in git), and run them as in step 4 below. |
-| B2 | There was no SendGrid key, so the build never sent through real SendGrid sandbox mode. | Do the sandbox test send in step 5 below. |
+| B2 | There was no SendGrid key, so the build never sent a real message through SendGrid. | The first real test send in step 4 below covers it. |
 | B3 | Trade prices are not applied in add-to-basket links. | Decide how trade pricing should reach the storefront, and whether `customer_product_prices` are ex-VAT or inc-VAT. |
 
 Also check before go-live: the Bouncer endpoints follow Bouncer's v1.1 documentation but were only tested against stand-in responses. One real check is in step 6 below.
 
 ## 4. Production go-live steps
 
+Testing happens on **real mail sent only to test addresses**, not in SendGrid's sandbox. That is `EMAIL_SEND_MODE=allowlist`: every email is really delivered, but only to the addresses in `EMAIL_TEST_ALLOWLIST`; mail for anyone else is dropped and logged as `not_in_allowlist`.
+
+> **While you test, real customers get nothing from the new system.** Back-in-stock notices now go through it, so a customer whose item comes back in stock during the test is not emailed: the send is dropped and the request closes. Keep the test stage to a day or two, and do it at a quiet time for restocks.
+
 Work through these in order and tick each one off.
 
-- [ ] **Merge and deploy.** Merge the branch, tag the release and deploy. The API runs migrations 0043–0050 when it starts; they only add tables and columns.
 - [ ] **Set the environment in Coolify** for both the api and worker services:
-  - `EMAIL_SEND_MODE=sandbox`
-  - `EMAIL_TEST_ALLOWLIST=roger@etailsupport.com`
+  - `EMAIL_SEND_MODE=allowlist`
+  - `EMAIL_TEST_ALLOWLIST` — your test addresses, comma-separated, e.g. `roger@etailsupport.com,test@cleverdeals.net`. Use mailboxes you can read, ideally one Gmail and one Outlook, so you see how both treat the mail.
   - `EMAIL_TOKEN_SECRET` — run `openssl rand -base64 32`
   - `SENDGRID_API_KEY` — a new key scoped to Mail Send and Suppressions (read)
   - `SENDGRID_WEBHOOK_PUBLIC_KEY` (or the existing `SENDGRID_WEBHOOK_VERIFICATION_KEY`)
   - `BOUNCER_API_KEY`
   - `STOREFRONT_BASE_URL` — the shop origin the emails should link to
   - `EMAIL_ALERT_EMAIL`
-  - Redeploy the api, worker and both storefronts.
+- [ ] **Deploy.** Redeploy the api, worker, web and both storefronts from `main`. The API runs migrations 0043–0050 when it starts; they only add tables and columns. Check:
+  - the api logs show the migrations applied and no errors;
+  - `https://admin.cleverdeals.net/messaging` loads, with a red banner reading "Allowlist mode: only the test addresses receive mail".
+  - Then tag the release (`git tag -a vX.Y.Z <merge commit>` and push it).
+- [ ] **Check SendGrid's settings:**
+  - Tracking: Click on, Open on, Subscription Tracking **off**.
+  - Event Webhook: add `https://admin.cleverdeals.net/api/webhooks/sendgrid` with Signed Event Webhook on and all events selected. If the account is shared with Beagle, add it as a second endpoint and leave Beagle's alone.
 - [ ] **Backfill contacts** from inside the api container:
   `npx tsx scripts/email/backfill-contacts.ts`
   Record the counts it prints in BUILD_LOG.
@@ -110,21 +119,21 @@ Work through these in order and tick each one off.
   Live run, using the dry-run id it printed:
   `… --live --dry-run-id <id>`
   The admin's **Messaging → Imports** page does the same.
-- [ ] **Check SendGrid's settings:**
-  - Tracking: Click on, Open on, Subscription Tracking **off**.
-  - Event Webhook: add `https://admin.cleverdeals.net/api/webhooks/sendgrid` with Signed Event Webhook on and all events selected. If the account is shared with Beagle, add it as a second endpoint and leave Beagle's alone.
-  - Send one test from a campaign (**Messaging → Campaigns → Send test**). **Messaging → Deliverability** should then show a recent "Last webhook event".
+- [ ] **Give your test addresses marketing consent**, so marketing emails can reach them: sign each one up with the newsletter form in the shop footer (this also tests the form), or add it under **Messaging → Contacts → Record consent**.
+- [ ] **First real send.** Make a small campaign to your test addresses (**Messaging → Campaigns → New campaign**) and use **Send test**. Check:
+  - it arrives, in the inbox rather than spam, with the From name, links and footer right;
+  - **Messaging → Deliverability** shows a recent "Last webhook event" (SendGrid is reporting back);
+  - clicking a link in it shows as a click on the campaign report a few minutes later.
+- [ ] **Unsubscribe and re-subscribe.** In Gmail, use Gmail's own Unsubscribe button on that email: the address should show as transactional-only in **Messaging → Contacts**. Then re-subscribe from the preferences link in the email.
+- [ ] **Back in stock.** Put a test address on a "notify me" for an out-of-stock product, book stock in, and check the email arrives with a working add-to-basket button.
+- [ ] **The weekly digest.** Wait for Wednesday's draft (or ask Claude to make one now with `email_create_campaign`, kind `weekly_digest`). Look at its three previews under **Messaging → Campaigns**; on Thursday it reaches only your test addresses.
 - [ ] **Check Bouncer** by forcing one real check from a contact page (**Re-verify**).
 - [ ] **Create an MCP key for Claude** with the `email:mcp` scope (see MCP.md). Give it nothing else.
-- [ ] **Try allowlist mode.** Set `EMAIL_SEND_MODE=allowlist`.
-  - Let Wednesday's digest draft generate, look at its preview, and receive it on Thursday.
-  - Use Gmail's own Unsubscribe button on it. You should become transactional-only.
-  - Re-subscribe from the preferences page.
 - [ ] **Register `cleverdeals.net` in Google Postmaster Tools.**
-- [ ] **Run in parallel for two weekly cycles**, still in allowlist mode, alongside the old SendGrid campaigns. Compare bounce and complaint rates on the Deliverability page with SendGrid's own stats.
-- [ ] **Go live.** Set `EMAIL_SEND_MODE=live`.
+- [ ] **Go live.** Set `EMAIL_SEND_MODE=live` in Coolify (api and worker) and redeploy.
+  - Mail sent while testing to people outside the allowlist was dropped, not saved: nobody gets a backlog of old emails when you switch.
   - Switch on the automations you want (**Messaging → Automations**). Replenishment, abandoned basket and welcome are the high-value ones.
-  - Cancel SendGrid Marketing Campaigns the following week.
+  - Watch the first week's digest on **Messaging → Deliverability** against SendGrid's own stats. Once it looks right, cancel SendGrid Marketing Campaigns.
   - Delete the SendGrid Marketing Contacts 30 days later. Keep the export files: they are your consent evidence, and copies are in the `email-evidence` volume.
 
 ## 5. What to watch in the first month
@@ -156,7 +165,7 @@ Each request below names the MCP tools Claude would use. MCP.md has the argument
 2. "Write the PETG paragraph for this week" — `email_write_weekly_content`.
 3. "Who in PETG hasn't ordered in 90 days?" — `email_preview_segment`.
 4. "Draft a win-back to them" — `email_create_campaign`.
-5. "Send me a test" — `email_send_test` (allowlist only).
+5. "Send me a test" — `email_send_test` (only to the addresses in `EMAIL_TEST_ALLOWLIST`).
 6. "Schedule it for Thursday 10:00" — `email_schedule_campaign`. Above 50 people it waits for your approval.
 7. "Why did last Thursday's digest get four unsubscribes?" — `email_get_campaign_report`, then `email_list_contacts`.
 8. "Import this list as a dry run and show me the conflicts" — `email_import_csv`.
