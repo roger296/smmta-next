@@ -59,6 +59,9 @@ export const DOMAIN_EVENT_TYPES = [
   'draft.rejected',
   'message.sent',
   'message.failed',
+  // Email system: a contact was created from something a person did
+  // (checkout, a form, a request) and should be address-verified.
+  'email.contact_created',
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -73,7 +76,8 @@ export type AggregateType =
   | 'prospective'
   | 'subscription'
   | 'draft'
-  | 'consent';
+  | 'consent'
+  | 'email_contact';
 
 export interface EmitDomainEventInput {
   eventType: DomainEventType;

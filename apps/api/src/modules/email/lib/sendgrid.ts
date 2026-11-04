@@ -1,0 +1,155 @@
+/**
+ * The only code in the email system that talks to SendGrid's Mail Send API
+ * (spec § Sending pipeline). `buildPayload` is pure, so the exact JSON can be
+ * tested; `SendGridTransport` posts it.
+ *
+ *  - custom_args come back on every webhook event: send_id, campaign_id,
+ *    contact_id, class, kind.
+ *  - categories: the two-way split (transactional / marketing) plus the class
+ *    and kind, so SendGrid's own stats separate them.
+ *  - List-Unsubscribe headers on marketing only.
+ *  - click + open tracking on, subscription tracking OFF: this system owns
+ *    unsubscribes.
+ *  - sandbox mode on unless EMAIL_SEND_MODE is allowlist or live.
+ */
+import type { EmailClass } from '../../../db/schema/index.js';
+import { getEnv } from '../../../config/env.js';
+import { broadCategory } from './gate.js';
+import type { SendMode } from './config.js';
+
+export interface OutgoingEmail {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  sendId: string;
+  campaignId: string | null;
+  contactId: string;
+  class: EmailClass;
+  kind: string;
+  /** Extra headers (List-Unsubscribe for marketing). */
+  headers?: Record<string, string>;
+  fromName: string;
+  fromAddress: string;
+  replyTo: string;
+}
+
+export function buildPayload(msg: OutgoingEmail, mode: SendMode): Record<string, unknown> {
+  return {
+    personalizations: [
+      {
+        to: [{ email: msg.to }],
+        custom_args: {
+          send_id: msg.sendId,
+          campaign_id: msg.campaignId ?? '',
+          contact_id: msg.contactId,
+          class: msg.class,
+          kind: msg.kind,
+        },
+      },
+    ],
+    from: { email: msg.fromAddress, name: msg.fromName },
+    reply_to: { email: msg.replyTo },
+    subject: msg.subject,
+    content: [
+      { type: 'text/plain', value: msg.text },
+      { type: 'text/html', value: msg.html },
+    ],
+    categories: [...new Set([broadCategory(msg.class), msg.class, msg.kind])].map((c) => c.slice(0, 255)),
+    ...(msg.headers && Object.keys(msg.headers).length ? { headers: msg.headers } : {}),
+    tracking_settings: {
+      click_tracking: { enable: true, enable_text: false },
+      open_tracking: { enable: true },
+      subscription_tracking: { enable: false },
+    },
+    mail_settings: { sandbox_mode: { enable: mode === 'sandbox' } },
+  };
+}
+
+export class SendGridError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    /** 429 and 5xx (and network failures) are worth retrying. */
+    public readonly retryable: boolean,
+    public readonly body: string,
+  ) {
+    super(message);
+  }
+}
+
+export interface EmailTransport {
+  send(payload: Record<string, unknown>): Promise<{ messageId: string }>;
+}
+
+export class SendGridTransport implements EmailTransport {
+  constructor(
+    private readonly apiKey = getEnv().SENDGRID_API_KEY,
+    private readonly url = 'https://api.sendgrid.com/v3/mail/send',
+  ) {}
+
+  async send(payload: Record<string, unknown>): Promise<{ messageId: string }> {
+    if (!this.apiKey) {
+      // A sandboxed message is never delivered, so with no key (a dev or test
+      // machine) accept it locally rather than fail; a real send needs the key.
+      const sandboxed = (payload.mail_settings as { sandbox_mode?: { enable?: boolean } } | undefined)?.sandbox_mode?.enable;
+      if (sandboxed) return { messageId: `sandbox-local-${Date.now().toString(36)}` };
+      throw new SendGridError('SENDGRID_API_KEY is not set', 0, false, '');
+    }
+    let res: Response;
+    try {
+      res = await fetch(this.url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch (err) {
+      throw new SendGridError(`SendGrid unreachable: ${err instanceof Error ? err.name : 'error'}`, 0, true, '');
+    }
+    if (res.status === 200 || res.status === 202) {
+      // Sandbox mode returns 200 with no message id.
+      return { messageId: res.headers.get('x-message-id') ?? `sandbox-${Date.now().toString(36)}` };
+    }
+    const body = (await res.text().catch(() => '')).slice(0, 2000);
+    throw new SendGridError(`SendGrid ${res.status}`, res.status, res.status === 429 || res.status >= 500, body);
+  }
+}
+
+// ---- Suppression lists (read only; the nightly reconciliation) ----
+
+export type SuppressionKind = 'bounces' | 'spam_reports' | 'invalid_emails' | 'unsubscribes' | 'group_unsubscribes';
+
+/** Reads SendGrid's suppression lists. A port so tests need no network. */
+export interface SuppressionSource {
+  list(kind: SuppressionKind, since: Date): Promise<string[]>;
+}
+
+export class SendGridSuppressionSource implements SuppressionSource {
+  constructor(private readonly apiKey = getEnv().SENDGRID_API_KEY) {}
+
+  async list(kind: SuppressionKind, since: Date): Promise<string[]> {
+    if (!this.apiKey) return [];
+    const path =
+      kind === 'group_unsubscribes'
+        ? '/v3/asm/suppressions'
+        : `/v3/suppression/${kind === 'unsubscribes' ? 'unsubscribes' : kind}`;
+    const out: string[] = [];
+    for (let offset = 0; offset < 50_000; offset += 500) {
+      const qs = kind === 'group_unsubscribes' ? '' : `?start_time=${Math.floor(since.getTime() / 1000)}&limit=500&offset=${offset}`;
+      const res = await fetch(`https://api.sendgrid.com${path}${qs}`, {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) throw new Error(`SendGrid ${path} ${res.status}`);
+      const rows = (await res.json()) as Array<{ email?: string; created?: number; created_at?: number }>;
+      for (const r of rows) {
+        const created = r.created ?? r.created_at;
+        if (r.email && (kind !== 'group_unsubscribes' || !created || created * 1000 >= since.getTime())) out.push(r.email);
+      }
+      if (kind === 'group_unsubscribes' || rows.length < 500) break;
+    }
+    return out;
+  }
+}
+

@@ -13,6 +13,7 @@
  * now so the outbox path is exercised end-to-end.
  */
 import type { DomainEventType } from '../shared/events/types.js';
+import { EMAIL_SCHEDULED_JOBS } from '../modules/email/jobs/schedule.js';
 
 // ---- Event-driven handler queues (§12.3 "Event-driven handlers") ----
 export const HANDLER_QUEUES = [
@@ -28,6 +29,10 @@ export const HANDLER_QUEUES = [
   'create-pick-note',
   'send-dispatch-email',
   'create-supplier-orders',
+  // Email system: verify a new contact's address with Bouncer.
+  'email-verify',
+  // Email system: attribute an order to an email click; interests, last order.
+  'email-order-placed',
 ] as const;
 
 export type HandlerQueue = (typeof HANDLER_QUEUES)[number];
@@ -49,9 +54,9 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'consent.revoked': ['cancel-user-drafts'],
   // A paid storefront order gets a shipping label (Smooth Parcel) and a pick
   // note for its warehouse lines, and a supplier order for its drop-ship lines.
-  'order.paid': ['create-shipping-label', 'create-pick-note', 'create-supplier-orders'],
+  'order.paid': ['create-shipping-label', 'create-pick-note', 'create-supplier-orders', 'email-order-placed'],
   // Every other new order gets a pick note, and a changed order a fresh one.
-  'order.created': ['create-pick-note'],
+  'order.created': ['create-pick-note', 'email-order-placed'],
   'order.lines_changed': ['create-pick-note'],
   // A fully allocated order gets a label too, when SHIPPING_LABEL_ON_ALLOCATION
   // is on (the handler checks). A label is never bought twice.
@@ -60,6 +65,8 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'order.released': ['create-pick-note', 'create-shipping-label'],
   // A shipped order tells the customer, with the courier and tracking number.
   'order.dispatched': ['send-dispatch-email'],
+  // Email system (modules/email).
+  'email.contact_created': ['email-verify'],
 };
 
 /**
@@ -100,6 +107,8 @@ export interface ScheduledJob {
   name: string;
   cron: string;
   description: string;
+  /** IANA time zone the cron is read in; UTC when absent. */
+  tz?: string;
 }
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [
@@ -114,6 +123,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: 'expired-draft-sweep', cron: '10 * * * *', description: 'Hourly: expire stale drafts (§17.7)' },
   { name: 'google-feed-build', cron: '40 2 * * *', description: 'Nightly: Google Merchant Centre product feeds' },
   { name: 'google-feed-stock-build', cron: '15 * * * *', description: 'Hourly: Merchant Centre price + availability feeds' },
+  // Email system (modules/email/jobs/schedule.ts).
+  ...EMAIL_SCHEDULED_JOBS,
 ];
 
 // ---- Retry / dead-letter policy (§12.3) ----
@@ -132,6 +143,8 @@ export const RETRY_POLICY: Record<string, { retryLimit: number; retryDelay: numb
   // Local inserts only, idempotent per (order, supplier); the supplier API is
   // called later by the placer loop, which has its own retry policy.
   'create-supplier-orders': { retryLimit: 5, retryDelay: 30 },
+  // Bouncer: 3 retries, a minute apart and growing (pg-boss backs off).
+  'email-verify': { retryLimit: 3, retryDelay: 60 },
 };
 
 export const DEFAULT_RETRY = { retryLimit: 3, retryDelay: 15 } as const;

@@ -1,0 +1,1 @@
+{"email":"good@example.com","status":"deliverable","reason":"accepted_email","domain":{"name":"example.com","acceptAll":"no","disposable":"no","free":"no"},"account":{"role":"no","disabled":"no","fullMailbox":"no"},"dns":{"type":"MX","record":"mx.example.com"},"provider":"google.com","score":100,"toxic":"unknown","toxicity":0}

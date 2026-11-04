@@ -1,0 +1,164 @@
+# Email system — handover
+
+For Roger. This document covers what was built, what is still open, and the steps from sandbox to live mail.
+
+## 1. What was built
+
+Every email the store sends now goes through one module (`apps/api/src/modules/email`). It has one gate (`canSend`: consent, deliverability, gap, window and pause), one sender (a rate-limited worker job that calls SendGrid) and one event log (`email_sends`, `email_events`).
+
+The module covers:
+
+- consent, kept separate from deliverability
+- one-click unsubscribe and a preferences page on the shop's own domain
+- back-in-stock notices on the shared pipeline
+- importing the SendGrid exports
+- Bouncer address checks
+- the signed SendGrid webhook
+- React Email templates with tracked links and add-to-basket links
+- the weekly digest and new-product alerts
+- manual campaigns with A/B subjects and revenue reports
+- 25 MCP tools for Claude
+- the admin's **Messaging** section
+- seven automations
+- consent capture at checkout and a newsletter signup in both shops
+
+**Nothing sends for real yet.** `EMAIL_SEND_MODE` is unset in the compose files, so the sender refuses to run until you set it.
+
+| Section | Commit | Tests added |
+| --- | --- | --- |
+| 0 Discovery and test harness | `261f5e9` | 5 |
+| 1 Schema, consent log, gate | `457bcfa` | 130 (60-cell gate matrix, transitions, trigger, backfill) |
+| 2 Unsubscribe and preferences pages | `6f63ee5` | 21 (incl. Chromium at 375 px, JS off) |
+| 3 Back in stock through the gate | `b924029` | 8 (existing 19 unchanged) |
+| 4 CSV importer | `62a5abe` | 15 |
+| 5 Bouncer verification | `73ecc51` | 15 |
+| 6 Sender, SendGrid client, webhook | `1095f9c` | 32 |
+| 7 Templates and rendering | `92c10c5` | 142 |
+| 8 Weekly digest, new-product roll-up | `db39892` | 6 |
+| 9 Campaigns, A/B, reports | `5376ae9` | 6 |
+| 10 MCP tools | `b02c883` | 6 |
+| 11 Admin UI | `7259396` | 5 API + 2 Playwright |
+| 12 Automations, storefront consent | `259760f` | 10 API + 41 storefront |
+| 13 Verification pass | `1f36576` | e2e + 20,000-contact load check |
+
+Test counts at the end:
+
+- **API:** 1,420 tests, all passing, run twice in a row on the same database.
+- **Admin web app:** 141 unit tests passing, plus 2 Playwright tests.
+- **Clothes Shop:** 226 tests passing.
+- **Filament Store:** 282 passing. The other 6 are in `lib/checkout.test.ts` and fail the same way without this work (a Mollie webhook-URL check in this environment).
+
+Full detail is in [BUILD_LOG.md](BUILD_LOG.md); the specification is [SPEC.md](SPEC.md); the MCP tools are in [MCP.md](MCP.md).
+
+## 2. Decisions taken outside Part B
+
+These are the ones that matter most. Every section's full list is in BUILD_LOG.md.
+
+- **Branch.** The work is on `claude/inspiring-feynman-e88jdq`, not `feature/email-marketing`, because this session had to use that branch.
+- **Four email classes.** The schema has `order_required`, `requested_service`, `service` and `marketing`, matching the spec's class table. SendGrid categories still split mail into transactional and marketing.
+  - Back in stock is `requested_service`.
+  - Pre-order ETA changes and shipping are `order_required`.
+  - Post-purchase tips and review requests are `service`.
+- **Interests are keyed on materials, not category ids.** Keys look like `material:pla`, worked out from product and range names, because filament products have no material category. Clothes categories still work as `category:<id>`.
+- **Unsubscribe links live on the shop's domain.** The storefronts pass `/email/*` through to the API. The send-mode setting decides what actually happens:
+  - Unset: the sender refuses to run. This is the default.
+  - `sandbox`: SendGrid accepts mail and delivers nothing.
+  - `allowlist`: only the test addresses receive mail.
+  - `live`: mail goes to everyone the gate allows.
+- **There was no MCP server, so one was built** at `POST /api/mcp`. It needs an API key with the `email:mcp` scope. Only a key that also has `email:approve` (yours) can approve campaigns through MCP. Claude's keys never get that scope, so for Claude approval stays in the admin.
+- **Every automation starts switched off.** When one is switched on, it only acts on moments from the last few days. Turning on win-back will not mail everyone who lapsed months ago.
+- **Not moved onto the new pipeline yet.**
+  - Pre-order and subscription-renewal notices. The existing notification agent still sends them, and moving them now would mail customers twice.
+  - The shops' own order emails. These are order-required mail, which the gate always allows anyway.
+  - Both are listed in [IDEAS.md](IDEAS.md).
+- **Ticking the checkout box sets marketing on; leaving it unticked sets transactional-only**, as the runbook says. A subscriber who leaves the box unticked on a later order is therefore unsubscribed. It may be worth changing (IDEAS.md).
+- **Add-to-basket links use the shop price, not trade prices** (B3 below).
+- **Each distinct email is rendered once and filled in per recipient.** This was done for speed: 50 sends now take about 0.6 s.
+
+## 3. Blockers
+
+The full entries are in [BLOCKERS.md](BLOCKERS.md).
+
+| # | What | What you need to do |
+| --- | --- | --- |
+| B1 | The SendGrid exports were not in the repo, so the real imports were never run. | Export the four lists, put them in `imports/sendgrid/` on the server (never in git), and run them as in step 4 below. |
+| B2 | There was no SendGrid key, so the build never sent through real SendGrid sandbox mode. | Do the sandbox test send in step 5 below. |
+| B3 | Trade prices are not applied in add-to-basket links. | Decide how trade pricing should reach the storefront, and whether `customer_product_prices` are ex-VAT or inc-VAT. |
+
+Also check before go-live: the Bouncer endpoints follow Bouncer's v1.1 documentation but were only tested against stand-in responses. One real check is in step 6 below.
+
+## 4. Production go-live steps
+
+Work through these in order and tick each one off.
+
+- [ ] **Merge and deploy.** Merge the branch, tag the release and deploy. The API runs migrations 0043–0050 when it starts; they only add tables and columns.
+- [ ] **Set the environment in Coolify** for both the api and worker services:
+  - `EMAIL_SEND_MODE=sandbox`
+  - `EMAIL_TEST_ALLOWLIST=roger@etailsupport.com`
+  - `EMAIL_TOKEN_SECRET` — run `openssl rand -base64 32`
+  - `SENDGRID_API_KEY` — a new key scoped to Mail Send and Suppressions (read)
+  - `SENDGRID_WEBHOOK_PUBLIC_KEY` (or the existing `SENDGRID_WEBHOOK_VERIFICATION_KEY`)
+  - `BOUNCER_API_KEY`
+  - `STOREFRONT_BASE_URL` — the shop origin the emails should link to
+  - `EMAIL_ALERT_EMAIL`
+  - Redeploy the api, worker and both storefronts.
+- [ ] **Backfill contacts** from inside the api container:
+  `npx tsx scripts/email/backfill-contacts.ts`
+  Record the counts it prints in BUILD_LOG.
+- [ ] **Import the SendGrid exports.** For each list, run a dry run first, read the report, then run it live. Order: bounces, then spam reports, then unsubscribes, then contacts. Dry run:
+  `npx tsx scripts/email/import.ts --type bounces --file /path/bounces.csv`
+  Live run, using the dry-run id it printed:
+  `… --live --dry-run-id <id>`
+  The admin's **Messaging → Imports** page does the same.
+- [ ] **Check SendGrid's settings:**
+  - Tracking: Click on, Open on, Subscription Tracking **off**.
+  - Event Webhook: add `https://admin.cleverdeals.net/api/webhooks/sendgrid` with Signed Event Webhook on and all events selected. If the account is shared with Beagle, add it as a second endpoint and leave Beagle's alone.
+  - Send one test from a campaign (**Messaging → Campaigns → Send test**). **Messaging → Deliverability** should then show a recent "Last webhook event".
+- [ ] **Check Bouncer** by forcing one real check from a contact page (**Re-verify**).
+- [ ] **Create an MCP key for Claude** with the `email:mcp` scope (see MCP.md). Give it nothing else.
+- [ ] **Try allowlist mode.** Set `EMAIL_SEND_MODE=allowlist`.
+  - Let Wednesday's digest draft generate, look at its preview, and receive it on Thursday.
+  - Use Gmail's own Unsubscribe button on it. You should become transactional-only.
+  - Re-subscribe from the preferences page.
+- [ ] **Register `cleverdeals.net` in Google Postmaster Tools.**
+- [ ] **Run in parallel for two weekly cycles**, still in allowlist mode, alongside the old SendGrid campaigns. Compare bounce and complaint rates on the Deliverability page with SendGrid's own stats.
+- [ ] **Go live.** Set `EMAIL_SEND_MODE=live`.
+  - Switch on the automations you want (**Messaging → Automations**). Replenishment, abandoned basket and welcome are the high-value ones.
+  - Cancel SendGrid Marketing Campaigns the following week.
+  - Delete the SendGrid Marketing Contacts 30 days later. Keep the export files: they are your consent evidence, and copies are in the `email-evidence` volume.
+
+## 5. What to watch in the first month
+
+- **Complaint rate:** target under 0.1%. Marketing pauses itself at 0.2%.
+- **Bounce rate:** target under 2%. Marketing pauses itself at 3%.
+- **Unsubscribes per campaign:** shown on each campaign report.
+- **Revenue per 1,000 sent**, per campaign and per automation. This is the number to compare things on; open rates are unreliable.
+- **Auto-pause.** If marketing pauses itself, you get an email, an alert shows on the Deliverability page and the red banner shows on every Messaging page. Fix the cause, then press **Resume marketing**, or ask Claude to use `email_resume_marketing`. Order and requested mail keep going while marketing is paused.
+
+## 6. Content you should write
+
+- **Printing tips per material.** The `email_material_content` table holds short neutral placeholders that the post-purchase emails use. Edit them; each row has a `needs_review` flag.
+- **Weekly featured paragraphs and deals.** Add them under **Messaging → Campaigns**, or have Claude write them with `email_write_weekly_content`. The digest only includes a featured paragraph when it also has real news for that person.
+- **Trade copy.** Trade contacts see a trade price only when one is supplied; nothing supplies one yet (B3).
+
+## 7. DNS and SendGrid checks the code does not do
+
+- **SPF.** Simplify the record to `v=spf1 include:_spf.google.com include:sendgrid.net ~all`. The `dnssmarthost` include and the `+a` / `+mx` entries are dead weight (SPEC.md § Deliverability).
+- **Link branding.** In SendGrid, under Settings → Sender Authentication → Link Branding, confirm it is set up and verified, and check the return-path CNAME (`em….cleverdeals.net`) on the same page.
+- **DMARC failures.** Treat a DKIM failure report from PowerDMARC as a reason to stop sending.
+- **Daily check.** The Deliverability page shows a daily check of the SPF, DKIM and DMARC records.
+
+## 8. Operating it through Claude
+
+Each request below names the MCP tools Claude would use. MCP.md has the arguments.
+
+1. "Show me this week's digest and three previews" — `email_get_campaign_report {status: "scheduled"}`, then `email_render_preview`.
+2. "Write the PETG paragraph for this week" — `email_write_weekly_content`.
+3. "Who in PETG hasn't ordered in 90 days?" — `email_preview_segment`.
+4. "Draft a win-back to them" — `email_create_campaign`.
+5. "Send me a test" — `email_send_test` (allowlist only).
+6. "Schedule it for Thursday 10:00" — `email_schedule_campaign`. Above 50 people it waits for your approval.
+7. "Why did last Thursday's digest get four unsubscribes?" — `email_get_campaign_report`, then `email_list_contacts`.
+8. "Import this list as a dry run and show me the conflicts" — `email_import_csv`.
+9. "This customer phoned to say never email them" — `email_set_marketing_status` with `confirm: true`.
+10. "Pause marketing until I say otherwise" — `email_pause_marketing`.

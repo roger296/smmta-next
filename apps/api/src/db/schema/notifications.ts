@@ -27,9 +27,11 @@ import {
   uniqueIndex,
   uuid,
   varchar,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { auditTimestamps, companyId, pk } from './common.js';
 import { products } from './products.js';
+import { emailContacts, emailSends } from './email.js';
 
 export const stockNotifications = pgTable(
   'stock_notifications',
@@ -51,6 +53,14 @@ export const stockNotifications = pgTable(
      *  per (productId, email); fulfilled rows are unconstrained so a
      *  customer can re-enrol after a future stock-out. */
     fulfilledAt: timestamp('fulfilled_at', { withTimezone: true }),
+    /** The requester's email contact (email system). */
+    contactId: uuid('contact_id').references((): AnyPgColumn => emailContacts.id, { onDelete: 'set null' }),
+    /** The email_sends row that carried this request's notice; several
+     *  requests share one when a contact's items are rolled up. */
+    emailSendId: uuid('email_send_id').references((): AnyPgColumn => emailSends.id, { onDelete: 'set null' }),
+    /** Why a request closed without a send (`expired` after 180 days).
+     *  Closed rows are soft-deleted so the customer can re-enrol. */
+    closeReason: varchar('close_reason', { length: 32 }),
     ...auditTimestamps,
   },
   (t) => ({

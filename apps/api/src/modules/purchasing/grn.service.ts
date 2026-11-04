@@ -10,7 +10,7 @@ import { PurchaseOrderService } from './purchase-order.service.js';
 import type { CreateGRNInput } from './purchase-order.schema.js';
 import { roundMoney } from '../../shared/utils/currency.js';
 import { NotifyMeService, type NotifyMeSender } from '../storefront/notify-me.service.js';
-import { HttpNotifyMeSender } from '../storefront/notify-me.sender.js';
+import { GateNotifyMeSender } from '../email/services/back-in-stock.service.js';
 import { SerialNumberError, serialsForIncomingStock } from '../products/serial-numbers.js';
 
 /**
@@ -33,7 +33,9 @@ export class GRNService {
   private poService = new PurchaseOrderService();
   private notifyMe = new NotifyMeService();
   /** Override in tests to swap out the HTTP sender. */
-  public notifyMeSender: NotifyMeSender = new HttpNotifyMeSender();
+  // Back-in-stock emails go through the email system's gate and sender
+  // (modules/email); this used to post to the storefront's email route.
+  public notifyMeSender: NotifyMeSender = new GateNotifyMeSender();
 
   // ── List GRNs for a PO ──
 

@@ -174,6 +174,40 @@ const envSchema = z.object({
   // A supplier's delivery-method code lives on its supplier record
   // (`delivery_method_code`, admin Drop-ship tab), not here.
 
+  // Email system (docs/email/SPEC.md). Every store email goes through one gate
+  // (modules/email). EMAIL_SEND_MODE decides what the sender does:
+  //   sandbox   — SendGrid validates the message and delivers nothing;
+  //   allowlist — real sends, but only to EMAIL_TEST_ALLOWLIST;
+  //   live      — real sends to everyone the gate allows. Set by a person only.
+  // Left unset, the sender refuses to run at all, so nothing goes out until
+  // someone has chosen a mode.
+  EMAIL_SEND_MODE: z.enum(['sandbox', 'allowlist', 'live']).optional(),
+  /** Comma-separated addresses that `allowlist` mode and test sends may reach. */
+  EMAIL_TEST_ALLOWLIST: z.string().default(''),
+  EMAIL_FROM_ADDRESS: z.string().default('sales@cleverdeals.net'),
+  EMAIL_FROM_NAME: z.string().default('CleverDeals'),
+  EMAIL_REPLY_TO: z.string().default('sales@cleverdeals.net'),
+  /** Mailbox named in the mailto: half of List-Unsubscribe. */
+  EMAIL_UNSUBSCRIBE_MAILTO: z.string().default('unsubscribe@cleverdeals.net'),
+  /** Signs add-to-cart deep links. 32+ random bytes. Empty falls back to
+   *  UNSUBSCRIBE_SECRET so a deployment without it still works. */
+  EMAIL_TOKEN_SECRET: z.string().default(''),
+  /** The SendGrid Signed Event Webhook key under the name the email runbook
+   *  uses. SENDGRID_WEBHOOK_VERIFICATION_KEY wins when both are set. */
+  SENDGRID_WEBHOOK_PUBLIC_KEY: z.string().default(''),
+  /** Bouncer address verification. Empty = verification is skipped. */
+  BOUNCER_API_KEY: z.string().default(''),
+  BOUNCER_API_BASE_URL: z.string().default('https://api.usebouncer.com/v1.1'),
+  /** Public origin of the shop the emails link to; the unsubscribe and
+   *  preferences pages are served on it (the storefront proxies /email/*). */
+  STOREFRONT_BASE_URL: z.string().default('https://filament.cleverdeals.net'),
+  ADMIN_BASE_URL: z.string().default('https://admin.cleverdeals.net'),
+  /** Where copies of imported contact lists are kept as consent evidence.
+   *  PRIVATE (personal data): a mounted volume nothing serves publicly. */
+  EMAIL_EVIDENCE_DIR: z.string().default('./var/email-evidence'),
+  /** Who is emailed when marketing pauses itself. Empty = SUPPLIER_ORDER_ALERT_EMAIL. */
+  EMAIL_ALERT_EMAIL: z.string().default(''),
+
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications
   // triggered by a GRN). Empty string disables the call (the queue

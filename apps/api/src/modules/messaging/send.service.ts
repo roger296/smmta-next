@@ -13,6 +13,9 @@ import { emitDomainEvent } from '../../shared/events/emit.js';
 import { getSendGrid } from '../../integrations/sendgrid/sendgrid.js';
 import { SuppressionService } from './suppression.service.js';
 import { unsubscribeUrl } from './unsubscribe.js';
+import { ContactsService } from '../email/services/contacts.service.js';
+import { canSend } from '../email/lib/gate.js';
+import { getEmailSettings } from '../email/services/settings.service.js';
 
 export type SendOutcome =
   | { sent: true; messageId: string }
@@ -91,6 +94,21 @@ export class SendService {
 
     // Suppression — even if it was added AFTER approval.
     if (await this.suppression.isSuppressed(user.email)) return this.park(draftId, 'suppressed');
+
+    // The email system's gate has the last word on marketing: an address that
+    // unsubscribed, bounced or complained there is never mailed from here.
+    if (draft.category === 'marketing') {
+      const contact = await new ContactsService().getByEmail(user.email);
+      if (contact) {
+        const verdict = canSend(contact, {
+          class: 'marketing',
+          kind: 'agent_draft',
+          now: new Date(nowMs),
+          settings: await getEmailSettings(),
+        });
+        if (!verdict.ok) return this.park(draftId, `email_gate:${verdict.reason}`);
+      }
+    }
 
     if (draft.category === 'marketing') {
       if (!(await this.currentMarketingConsent(draft.userId))) return this.park(draftId, 'no_consent');

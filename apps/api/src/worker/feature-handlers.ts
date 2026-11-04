@@ -31,8 +31,10 @@ import {
 } from '../modules/catalogue/google-feed.service.js';
 import { getEnv } from '../config/env.js';
 import { getSingletonCompanyId } from '../shared/auth/company.js';
+import { installEmailHandlers } from '../modules/email/jobs/handlers.js';
 
 export function installFeatureHandlers(logger: Logger): void {
+  installEmailHandlers(logger);
   const interest = new InterestFlagService();
   const preorders = new PreorderService();
   const compose = new ComposeService();

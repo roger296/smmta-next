@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteRouteImport } from './routes/_authed/route'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
+import { Route as AuthedMessagingRouteRouteImport } from './routes/_authed/messaging/route'
 import { Route as AuthedSuppliersIndexRouteImport } from './routes/_authed/suppliers/index'
 import { Route as AuthedSupplierOrdersIndexRouteImport } from './routes/_authed/supplier-orders/index'
 import { Route as AuthedSupplierInvoicesIndexRouteImport } from './routes/_authed/supplier-invoices/index'
@@ -24,6 +25,7 @@ import { Route as AuthedProductsIndexRouteImport } from './routes/_authed/produc
 import { Route as AuthedProductGroupsIndexRouteImport } from './routes/_authed/product-groups/index'
 import { Route as AuthedOutboxIndexRouteImport } from './routes/_authed/outbox/index'
 import { Route as AuthedOrdersIndexRouteImport } from './routes/_authed/orders/index'
+import { Route as AuthedMessagingIndexRouteImport } from './routes/_authed/messaging/index'
 import { Route as AuthedInvoicesIndexRouteImport } from './routes/_authed/invoices/index'
 import { Route as AuthedIntegrationsIndexRouteImport } from './routes/_authed/integrations/index'
 import { Route as AuthedInboundIndexRouteImport } from './routes/_authed/inbound/index'
@@ -55,7 +57,16 @@ import { Route as AuthedIntegrationsCsvRouteImport } from './routes/_authed/inte
 import { Route as AuthedIntegrationsBulkRouteImport } from './routes/_authed/integrations/bulk'
 import { Route as AuthedCustomersNewRouteImport } from './routes/_authed/customers/new'
 import { Route as AuthedCustomersIdRouteImport } from './routes/_authed/customers/$id'
+import { Route as AuthedMessagingTemplatesIndexRouteImport } from './routes/_authed/messaging/templates/index'
+import { Route as AuthedMessagingSettingsIndexRouteImport } from './routes/_authed/messaging/settings/index'
+import { Route as AuthedMessagingImportsIndexRouteImport } from './routes/_authed/messaging/imports/index'
+import { Route as AuthedMessagingDeliverabilityIndexRouteImport } from './routes/_authed/messaging/deliverability/index'
+import { Route as AuthedMessagingContactsIndexRouteImport } from './routes/_authed/messaging/contacts/index'
+import { Route as AuthedMessagingCampaignsIndexRouteImport } from './routes/_authed/messaging/campaigns/index'
+import { Route as AuthedMessagingAutomationsIndexRouteImport } from './routes/_authed/messaging/automations/index'
 import { Route as AuthedXExtPageRouteImport } from './routes/_authed/x/$ext.$page'
+import { Route as AuthedMessagingContactsIdRouteImport } from './routes/_authed/messaging/contacts/$id'
+import { Route as AuthedMessagingCampaignsIdRouteImport } from './routes/_authed/messaging/campaigns/$id'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -69,6 +80,11 @@ const AuthedRouteRoute = AuthedRouteRouteImport.update({
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedMessagingRouteRoute = AuthedMessagingRouteRouteImport.update({
+  id: '/messaging',
+  path: '/messaging',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
 const AuthedSuppliersIndexRoute = AuthedSuppliersIndexRouteImport.update({
@@ -135,6 +151,11 @@ const AuthedOrdersIndexRoute = AuthedOrdersIndexRouteImport.update({
   id: '/orders/',
   path: '/orders/',
   getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedMessagingIndexRoute = AuthedMessagingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthedMessagingRouteRoute,
 } as any)
 const AuthedInvoicesIndexRoute = AuthedInvoicesIndexRouteImport.update({
   id: '/invoices/',
@@ -293,15 +314,70 @@ const AuthedCustomersIdRoute = AuthedCustomersIdRouteImport.update({
   path: '/customers/$id',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedMessagingTemplatesIndexRoute =
+  AuthedMessagingTemplatesIndexRouteImport.update({
+    id: '/templates/',
+    path: '/templates/',
+    getParentRoute: () => AuthedMessagingRouteRoute,
+  } as any)
+const AuthedMessagingSettingsIndexRoute =
+  AuthedMessagingSettingsIndexRouteImport.update({
+    id: '/settings/',
+    path: '/settings/',
+    getParentRoute: () => AuthedMessagingRouteRoute,
+  } as any)
+const AuthedMessagingImportsIndexRoute =
+  AuthedMessagingImportsIndexRouteImport.update({
+    id: '/imports/',
+    path: '/imports/',
+    getParentRoute: () => AuthedMessagingRouteRoute,
+  } as any)
+const AuthedMessagingDeliverabilityIndexRoute =
+  AuthedMessagingDeliverabilityIndexRouteImport.update({
+    id: '/deliverability/',
+    path: '/deliverability/',
+    getParentRoute: () => AuthedMessagingRouteRoute,
+  } as any)
+const AuthedMessagingContactsIndexRoute =
+  AuthedMessagingContactsIndexRouteImport.update({
+    id: '/contacts/',
+    path: '/contacts/',
+    getParentRoute: () => AuthedMessagingRouteRoute,
+  } as any)
+const AuthedMessagingCampaignsIndexRoute =
+  AuthedMessagingCampaignsIndexRouteImport.update({
+    id: '/campaigns/',
+    path: '/campaigns/',
+    getParentRoute: () => AuthedMessagingRouteRoute,
+  } as any)
+const AuthedMessagingAutomationsIndexRoute =
+  AuthedMessagingAutomationsIndexRouteImport.update({
+    id: '/automations/',
+    path: '/automations/',
+    getParentRoute: () => AuthedMessagingRouteRoute,
+  } as any)
 const AuthedXExtPageRoute = AuthedXExtPageRouteImport.update({
   id: '/x/$ext/$page',
   path: '/x/$ext/$page',
   getParentRoute: () => AuthedRouteRoute,
 } as any)
+const AuthedMessagingContactsIdRoute =
+  AuthedMessagingContactsIdRouteImport.update({
+    id: '/contacts/$id',
+    path: '/contacts/$id',
+    getParentRoute: () => AuthedMessagingRouteRoute,
+  } as any)
+const AuthedMessagingCampaignsIdRoute =
+  AuthedMessagingCampaignsIdRouteImport.update({
+    id: '/campaigns/$id',
+    path: '/campaigns/$id',
+    getParentRoute: () => AuthedMessagingRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
+  '/messaging': typeof AuthedMessagingRouteRouteWithChildren
   '/customers/$id': typeof AuthedCustomersIdRoute
   '/customers/new': typeof AuthedCustomersNewRoute
   '/integrations/bulk': typeof AuthedIntegrationsBulkRoute
@@ -333,6 +409,7 @@ export interface FileRoutesByFullPath {
   '/inbound/': typeof AuthedInboundIndexRoute
   '/integrations/': typeof AuthedIntegrationsIndexRoute
   '/invoices/': typeof AuthedInvoicesIndexRoute
+  '/messaging/': typeof AuthedMessagingIndexRoute
   '/orders/': typeof AuthedOrdersIndexRoute
   '/outbox/': typeof AuthedOutboxIndexRoute
   '/product-groups/': typeof AuthedProductGroupsIndexRoute
@@ -345,7 +422,16 @@ export interface FileRoutesByFullPath {
   '/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
   '/suppliers/': typeof AuthedSuppliersIndexRoute
+  '/messaging/campaigns/$id': typeof AuthedMessagingCampaignsIdRoute
+  '/messaging/contacts/$id': typeof AuthedMessagingContactsIdRoute
   '/x/$ext/$page': typeof AuthedXExtPageRoute
+  '/messaging/automations/': typeof AuthedMessagingAutomationsIndexRoute
+  '/messaging/campaigns/': typeof AuthedMessagingCampaignsIndexRoute
+  '/messaging/contacts/': typeof AuthedMessagingContactsIndexRoute
+  '/messaging/deliverability/': typeof AuthedMessagingDeliverabilityIndexRoute
+  '/messaging/imports/': typeof AuthedMessagingImportsIndexRoute
+  '/messaging/settings/': typeof AuthedMessagingSettingsIndexRoute
+  '/messaging/templates/': typeof AuthedMessagingTemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -381,6 +467,7 @@ export interface FileRoutesByTo {
   '/inbound': typeof AuthedInboundIndexRoute
   '/integrations': typeof AuthedIntegrationsIndexRoute
   '/invoices': typeof AuthedInvoicesIndexRoute
+  '/messaging': typeof AuthedMessagingIndexRoute
   '/orders': typeof AuthedOrdersIndexRoute
   '/outbox': typeof AuthedOutboxIndexRoute
   '/product-groups': typeof AuthedProductGroupsIndexRoute
@@ -393,12 +480,22 @@ export interface FileRoutesByTo {
   '/supplier-invoices': typeof AuthedSupplierInvoicesIndexRoute
   '/supplier-orders': typeof AuthedSupplierOrdersIndexRoute
   '/suppliers': typeof AuthedSuppliersIndexRoute
+  '/messaging/campaigns/$id': typeof AuthedMessagingCampaignsIdRoute
+  '/messaging/contacts/$id': typeof AuthedMessagingContactsIdRoute
   '/x/$ext/$page': typeof AuthedXExtPageRoute
+  '/messaging/automations': typeof AuthedMessagingAutomationsIndexRoute
+  '/messaging/campaigns': typeof AuthedMessagingCampaignsIndexRoute
+  '/messaging/contacts': typeof AuthedMessagingContactsIndexRoute
+  '/messaging/deliverability': typeof AuthedMessagingDeliverabilityIndexRoute
+  '/messaging/imports': typeof AuthedMessagingImportsIndexRoute
+  '/messaging/settings': typeof AuthedMessagingSettingsIndexRoute
+  '/messaging/templates': typeof AuthedMessagingTemplatesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authed': typeof AuthedRouteRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authed/messaging': typeof AuthedMessagingRouteRouteWithChildren
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/customers/$id': typeof AuthedCustomersIdRoute
   '/_authed/customers/new': typeof AuthedCustomersNewRoute
@@ -431,6 +528,7 @@ export interface FileRoutesById {
   '/_authed/inbound/': typeof AuthedInboundIndexRoute
   '/_authed/integrations/': typeof AuthedIntegrationsIndexRoute
   '/_authed/invoices/': typeof AuthedInvoicesIndexRoute
+  '/_authed/messaging/': typeof AuthedMessagingIndexRoute
   '/_authed/orders/': typeof AuthedOrdersIndexRoute
   '/_authed/outbox/': typeof AuthedOutboxIndexRoute
   '/_authed/product-groups/': typeof AuthedProductGroupsIndexRoute
@@ -443,13 +541,23 @@ export interface FileRoutesById {
   '/_authed/supplier-invoices/': typeof AuthedSupplierInvoicesIndexRoute
   '/_authed/supplier-orders/': typeof AuthedSupplierOrdersIndexRoute
   '/_authed/suppliers/': typeof AuthedSuppliersIndexRoute
+  '/_authed/messaging/campaigns/$id': typeof AuthedMessagingCampaignsIdRoute
+  '/_authed/messaging/contacts/$id': typeof AuthedMessagingContactsIdRoute
   '/_authed/x/$ext/$page': typeof AuthedXExtPageRoute
+  '/_authed/messaging/automations/': typeof AuthedMessagingAutomationsIndexRoute
+  '/_authed/messaging/campaigns/': typeof AuthedMessagingCampaignsIndexRoute
+  '/_authed/messaging/contacts/': typeof AuthedMessagingContactsIndexRoute
+  '/_authed/messaging/deliverability/': typeof AuthedMessagingDeliverabilityIndexRoute
+  '/_authed/messaging/imports/': typeof AuthedMessagingImportsIndexRoute
+  '/_authed/messaging/settings/': typeof AuthedMessagingSettingsIndexRoute
+  '/_authed/messaging/templates/': typeof AuthedMessagingTemplatesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
+    | '/messaging'
     | '/customers/$id'
     | '/customers/new'
     | '/integrations/bulk'
@@ -481,6 +589,7 @@ export interface FileRouteTypes {
     | '/inbound/'
     | '/integrations/'
     | '/invoices/'
+    | '/messaging/'
     | '/orders/'
     | '/outbox/'
     | '/product-groups/'
@@ -493,7 +602,16 @@ export interface FileRouteTypes {
     | '/supplier-invoices/'
     | '/supplier-orders/'
     | '/suppliers/'
+    | '/messaging/campaigns/$id'
+    | '/messaging/contacts/$id'
     | '/x/$ext/$page'
+    | '/messaging/automations/'
+    | '/messaging/campaigns/'
+    | '/messaging/contacts/'
+    | '/messaging/deliverability/'
+    | '/messaging/imports/'
+    | '/messaging/settings/'
+    | '/messaging/templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -529,6 +647,7 @@ export interface FileRouteTypes {
     | '/inbound'
     | '/integrations'
     | '/invoices'
+    | '/messaging'
     | '/orders'
     | '/outbox'
     | '/product-groups'
@@ -541,11 +660,21 @@ export interface FileRouteTypes {
     | '/supplier-invoices'
     | '/supplier-orders'
     | '/suppliers'
+    | '/messaging/campaigns/$id'
+    | '/messaging/contacts/$id'
     | '/x/$ext/$page'
+    | '/messaging/automations'
+    | '/messaging/campaigns'
+    | '/messaging/contacts'
+    | '/messaging/deliverability'
+    | '/messaging/imports'
+    | '/messaging/settings'
+    | '/messaging/templates'
   id:
     | '__root__'
     | '/_authed'
     | '/login'
+    | '/_authed/messaging'
     | '/_authed/'
     | '/_authed/customers/$id'
     | '/_authed/customers/new'
@@ -578,6 +707,7 @@ export interface FileRouteTypes {
     | '/_authed/inbound/'
     | '/_authed/integrations/'
     | '/_authed/invoices/'
+    | '/_authed/messaging/'
     | '/_authed/orders/'
     | '/_authed/outbox/'
     | '/_authed/product-groups/'
@@ -590,7 +720,16 @@ export interface FileRouteTypes {
     | '/_authed/supplier-invoices/'
     | '/_authed/supplier-orders/'
     | '/_authed/suppliers/'
+    | '/_authed/messaging/campaigns/$id'
+    | '/_authed/messaging/contacts/$id'
     | '/_authed/x/$ext/$page'
+    | '/_authed/messaging/automations/'
+    | '/_authed/messaging/campaigns/'
+    | '/_authed/messaging/contacts/'
+    | '/_authed/messaging/deliverability/'
+    | '/_authed/messaging/imports/'
+    | '/_authed/messaging/settings/'
+    | '/_authed/messaging/templates/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -619,6 +758,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthedIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/messaging': {
+      id: '/_authed/messaging'
+      path: '/messaging'
+      fullPath: '/messaging'
+      preLoaderRoute: typeof AuthedMessagingRouteRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
     '/_authed/suppliers/': {
@@ -704,6 +850,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/orders/'
       preLoaderRoute: typeof AuthedOrdersIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/messaging/': {
+      id: '/_authed/messaging/'
+      path: '/'
+      fullPath: '/messaging/'
+      preLoaderRoute: typeof AuthedMessagingIndexRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
     }
     '/_authed/invoices/': {
       id: '/_authed/invoices/'
@@ -922,6 +1075,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCustomersIdRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/messaging/templates/': {
+      id: '/_authed/messaging/templates/'
+      path: '/templates'
+      fullPath: '/messaging/templates/'
+      preLoaderRoute: typeof AuthedMessagingTemplatesIndexRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
+    }
+    '/_authed/messaging/settings/': {
+      id: '/_authed/messaging/settings/'
+      path: '/settings'
+      fullPath: '/messaging/settings/'
+      preLoaderRoute: typeof AuthedMessagingSettingsIndexRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
+    }
+    '/_authed/messaging/imports/': {
+      id: '/_authed/messaging/imports/'
+      path: '/imports'
+      fullPath: '/messaging/imports/'
+      preLoaderRoute: typeof AuthedMessagingImportsIndexRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
+    }
+    '/_authed/messaging/deliverability/': {
+      id: '/_authed/messaging/deliverability/'
+      path: '/deliverability'
+      fullPath: '/messaging/deliverability/'
+      preLoaderRoute: typeof AuthedMessagingDeliverabilityIndexRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
+    }
+    '/_authed/messaging/contacts/': {
+      id: '/_authed/messaging/contacts/'
+      path: '/contacts'
+      fullPath: '/messaging/contacts/'
+      preLoaderRoute: typeof AuthedMessagingContactsIndexRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
+    }
+    '/_authed/messaging/campaigns/': {
+      id: '/_authed/messaging/campaigns/'
+      path: '/campaigns'
+      fullPath: '/messaging/campaigns/'
+      preLoaderRoute: typeof AuthedMessagingCampaignsIndexRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
+    }
+    '/_authed/messaging/automations/': {
+      id: '/_authed/messaging/automations/'
+      path: '/automations'
+      fullPath: '/messaging/automations/'
+      preLoaderRoute: typeof AuthedMessagingAutomationsIndexRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
+    }
     '/_authed/x/$ext/$page': {
       id: '/_authed/x/$ext/$page'
       path: '/x/$ext/$page'
@@ -929,10 +1131,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedXExtPageRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/messaging/contacts/$id': {
+      id: '/_authed/messaging/contacts/$id'
+      path: '/contacts/$id'
+      fullPath: '/messaging/contacts/$id'
+      preLoaderRoute: typeof AuthedMessagingContactsIdRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
+    }
+    '/_authed/messaging/campaigns/$id': {
+      id: '/_authed/messaging/campaigns/$id'
+      path: '/campaigns/$id'
+      fullPath: '/messaging/campaigns/$id'
+      preLoaderRoute: typeof AuthedMessagingCampaignsIdRouteImport
+      parentRoute: typeof AuthedMessagingRouteRoute
+    }
   }
 }
 
+interface AuthedMessagingRouteRouteChildren {
+  AuthedMessagingIndexRoute: typeof AuthedMessagingIndexRoute
+  AuthedMessagingCampaignsIdRoute: typeof AuthedMessagingCampaignsIdRoute
+  AuthedMessagingContactsIdRoute: typeof AuthedMessagingContactsIdRoute
+  AuthedMessagingAutomationsIndexRoute: typeof AuthedMessagingAutomationsIndexRoute
+  AuthedMessagingCampaignsIndexRoute: typeof AuthedMessagingCampaignsIndexRoute
+  AuthedMessagingContactsIndexRoute: typeof AuthedMessagingContactsIndexRoute
+  AuthedMessagingDeliverabilityIndexRoute: typeof AuthedMessagingDeliverabilityIndexRoute
+  AuthedMessagingImportsIndexRoute: typeof AuthedMessagingImportsIndexRoute
+  AuthedMessagingSettingsIndexRoute: typeof AuthedMessagingSettingsIndexRoute
+  AuthedMessagingTemplatesIndexRoute: typeof AuthedMessagingTemplatesIndexRoute
+}
+
+const AuthedMessagingRouteRouteChildren: AuthedMessagingRouteRouteChildren = {
+  AuthedMessagingIndexRoute: AuthedMessagingIndexRoute,
+  AuthedMessagingCampaignsIdRoute: AuthedMessagingCampaignsIdRoute,
+  AuthedMessagingContactsIdRoute: AuthedMessagingContactsIdRoute,
+  AuthedMessagingAutomationsIndexRoute: AuthedMessagingAutomationsIndexRoute,
+  AuthedMessagingCampaignsIndexRoute: AuthedMessagingCampaignsIndexRoute,
+  AuthedMessagingContactsIndexRoute: AuthedMessagingContactsIndexRoute,
+  AuthedMessagingDeliverabilityIndexRoute:
+    AuthedMessagingDeliverabilityIndexRoute,
+  AuthedMessagingImportsIndexRoute: AuthedMessagingImportsIndexRoute,
+  AuthedMessagingSettingsIndexRoute: AuthedMessagingSettingsIndexRoute,
+  AuthedMessagingTemplatesIndexRoute: AuthedMessagingTemplatesIndexRoute,
+}
+
+const AuthedMessagingRouteRouteWithChildren =
+  AuthedMessagingRouteRoute._addFileChildren(AuthedMessagingRouteRouteChildren)
+
 interface AuthedRouteRouteChildren {
+  AuthedMessagingRouteRoute: typeof AuthedMessagingRouteRouteWithChildren
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedCustomersIdRoute: typeof AuthedCustomersIdRoute
   AuthedCustomersNewRoute: typeof AuthedCustomersNewRoute
@@ -981,6 +1228,7 @@ interface AuthedRouteRouteChildren {
 }
 
 const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
+  AuthedMessagingRouteRoute: AuthedMessagingRouteRouteWithChildren,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedCustomersIdRoute: AuthedCustomersIdRoute,
   AuthedCustomersNewRoute: AuthedCustomersNewRoute,

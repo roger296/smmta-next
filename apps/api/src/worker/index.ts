@@ -106,7 +106,7 @@ export async function startWorker(opts: StartWorkerOptions = {}): Promise<Worker
 
   // Register the cron schedule for each scanner.
   for (const job of SCHEDULED_JOBS) {
-    await boss.schedule(job.name, job.cron);
+    await boss.schedule(job.name, job.cron, undefined, job.tz ? { tz: job.tz } : undefined);
   }
 
   const loop: DispatchLoopHandle = runDispatchLoop(boss, {

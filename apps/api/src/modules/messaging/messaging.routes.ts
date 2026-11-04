@@ -1,7 +1,9 @@
 /**
  * SendGrid event webhook + one-click unsubscribe (SPEC §4.6, §12.3).
  *  - /webhooks/sendgrid: signature-verified; bounces/complaints/unsubscribes
- *    upsert the suppression list (+ consent revocation).
+ *    upsert the suppression list (+ consent revocation), and every event goes
+ *    to the email system's event log (docs/email). Mounted at
+ *    /api/v1/webhooks/sendgrid and /api/webhooks/sendgrid.
  *  - /unsubscribe: signed link → revoke general_marketing consent + suppress.
  *
  * Auth: SendGrid's Signed Event Webhook. SendGrid signs `timestamp + rawBody`
@@ -17,10 +19,13 @@ import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getDb } from '../../config/database.js';
-import { getEnv } from '../../config/env.js';
 import { storefrontUsers } from '../../db/schema/index.js';
 import { SuppressionService, type SuppressionReason } from './suppression.service.js';
 import { verifyUnsubscribe } from './unsubscribe.js';
+import { webhookVerificationKey } from '../email/lib/config.js';
+import { EventsService, type SendGridEvent } from '../email/services/events.service.js';
+
+const emailEvents = new EventsService();
 
 const suppression = new SuppressionService();
 
@@ -32,7 +37,9 @@ function verifySignature(
   signature: string | undefined,
   timestamp: string | undefined,
 ): boolean {
-  const key = getEnv().SENDGRID_WEBHOOK_VERIFICATION_KEY;
+  // Either name of the key (the email system's runbook calls it
+  // SENDGRID_WEBHOOK_PUBLIC_KEY).
+  const key = webhookVerificationKey();
   if (!key || !signature || !timestamp) return false;
   const pem = `-----BEGIN PUBLIC KEY-----\n${key}\n-----END PUBLIC KEY-----\n`;
   try {
@@ -79,7 +86,7 @@ export async function sendgridWebhookRoutes(app: FastifyInstance) {
       return reply.status(400).send({ success: false, error: 'invalid json' });
     }
     const events = z
-      .array(z.object({ email: z.string().email(), event: z.string() }))
+      .array(z.object({ email: z.string().email(), event: z.string() }).passthrough())
       .safeParse(payload);
     if (!events.success) return reply.status(400).send({ success: false, error: 'bad payload' });
 
@@ -92,6 +99,9 @@ export async function sendgridWebhookRoutes(app: FastifyInstance) {
         }
       }
     }
+    // The email system's event log: send status, deliverability, consent and
+    // interests (modules/email/services/events.service.ts).
+    await emailEvents.ingest(events.data as SendGridEvent[]);
     return reply.status(200).send({ success: true });
   });
 }

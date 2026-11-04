@@ -30,6 +30,11 @@ import {
   storefrontWriteRoutes,
 } from './modules/storefront/storefront.routes.js';
 import { notifyMeRoutes } from './modules/storefront/notify-me.routes.js';
+import { emailPublicRoutes } from './modules/email/public/public.routes.js';
+import { emailCartLinkRoutes } from './modules/email/public/cart-link.routes.js';
+import { emailMcpRoutes } from './modules/email/mcp/server.js';
+import { emailAdminRoutes } from './modules/email/admin/email-admin.routes.js';
+import { storefrontEmailRoutes } from './modules/email/public/storefront-email.routes.js';
 import { registerStorefrontRequestId } from './modules/storefront/log.js';
 import { identityRoutes } from './modules/identity/identity.routes.js';
 import { inboundRoutes } from './modules/inbound/inbound.routes.js';
@@ -203,7 +208,22 @@ export async function buildApp() {
   // Email pipeline (Prompt 9): SendGrid event webhook + one-click unsubscribe.
   await app.register(outboxRoutes, { prefix: '/api/v1' });
   await app.register(sendgridWebhookRoutes, { prefix: '/api/v1' });
+  // The email runbook's address for the same webhook (one handler, one check).
+  await app.register(sendgridWebhookRoutes, { prefix: '/api' });
   await app.register(unsubscribeRoutes, { prefix: '/api/v1' });
+  // Email system: public unsubscribe / preferences pages (no login; the token
+  // is the key). At /email/* for the storefront's proxy, and /api/email/* so
+  // they also work through the admin host.
+  await app.register(emailPublicRoutes);
+  await app.register(emailPublicRoutes, { prefix: '/api' });
+  // Signed add-to-cart links in emails, resolved for the storefront.
+  await app.register(emailCartLinkRoutes, { prefix: '/api/v1' });
+  // The admin's MCP server (email tools): POST /api/mcp, key scope email:mcp.
+  await app.register(emailMcpRoutes, { prefix: '/api' });
+  // Admin Messaging section (JWT).
+  await app.register(emailAdminRoutes, { prefix: '/api/v1' });
+  // Storefront → email system: checkout consent, newsletter signup, baskets.
+  await app.register(storefrontEmailRoutes, { prefix: '/api/v1' });
 
   // Approval queue (Prompt 10): owner's inbox — approve/edit/reject, groups,
   // graduation, escalations. JWT-gated.

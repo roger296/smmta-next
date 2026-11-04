@@ -302,6 +302,62 @@
       "when": 1790005394031,
       "tag": "0042_stock_item_scanned",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793795509821,
+      "tag": "0043_email_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793796364276,
+      "tag": "0044_email_back_in_stock",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793797061579,
+      "tag": "0045_email_links_set_null",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793797218231,
+      "tag": "0046_email_sending",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793798521046,
+      "tag": "0047_email_campaigns",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793798940462,
+      "tag": "0048_email_report_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793799307928,
+      "tag": "0049_email_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793809172001,
+      "tag": "0050_email_automations",
+      "breakpoints": true
     }
   ]
 }

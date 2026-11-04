@@ -87,9 +87,22 @@ services:
       # that nothing serves publicly. The API reads them for authenticated
       # download; the worker writes them, so both mount it.
       LABELS_DIR: /app/labels
+      # Email system (docs/email). EMAIL_SEND_MODE is deliberately not given a
+      # default here: set it in Coolify (sandbox until go-live).
+      EMAIL_SEND_MODE: ${EMAIL_SEND_MODE:-}
+      EMAIL_TEST_ALLOWLIST: ${EMAIL_TEST_ALLOWLIST:-}
+      EMAIL_TOKEN_SECRET: ${EMAIL_TOKEN_SECRET:-}
+      SENDGRID_WEBHOOK_PUBLIC_KEY: ${SENDGRID_WEBHOOK_PUBLIC_KEY:-}
+      BOUNCER_API_KEY: ${BOUNCER_API_KEY:-}
+      STOREFRONT_BASE_URL: ${STOREFRONT_BASE_URL:-https://filament.cleverdeals.net}
+      ADMIN_BASE_URL: ${ADMIN_BASE_URL:-https://admin.cleverdeals.net}
+      # Copies of imported contact lists: consent evidence, personal data.
+      # Its own private volume; never served.
+      EMAIL_EVIDENCE_DIR: /app/email-evidence
     volumes:
       - uploads:/app/uploads
       - shipping-labels:/app/labels
+      - email-evidence:/app/email-evidence
     expose:
       - '3000'
     healthcheck:
@@ -136,9 +149,17 @@ services:
       SHIPPING_LABEL_ON_ALLOCATION: ${SHIPPING_LABEL_ON_ALLOCATION:-false}
       SMOOTH_PARCEL_DEFAULT_WEIGHT_KG: ${SMOOTH_PARCEL_DEFAULT_WEIGHT_KG:-1.3}
       LABELS_DIR: /app/labels
+      # Email system: the worker runs the sender, so it needs the mode too.
+      EMAIL_SEND_MODE: ${EMAIL_SEND_MODE:-}
+      EMAIL_TEST_ALLOWLIST: ${EMAIL_TEST_ALLOWLIST:-}
+      EMAIL_TOKEN_SECRET: ${EMAIL_TOKEN_SECRET:-}
+      BOUNCER_API_KEY: ${BOUNCER_API_KEY:-}
+      STOREFRONT_BASE_URL: ${STOREFRONT_BASE_URL:-https://filament.cleverdeals.net}
+      EMAIL_EVIDENCE_DIR: /app/email-evidence
     volumes:
       - uploads:/app/uploads
       - shipping-labels:/app/labels
+      - email-evidence:/app/email-evidence
     expose:
       - '3100'
 
@@ -170,3 +191,5 @@ volumes:
   # Shipping label PDFs. PRIVATE: customer names and addresses. Never serve this
   # directory; back it up alongside the database.
   shipping-labels:
+  # Imported contact lists kept as consent evidence. PRIVATE: personal data.
+  email-evidence:

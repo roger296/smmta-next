@@ -74,6 +74,16 @@ Future ecosystem integrations are expected to follow the same shape: an outbound
 - Items missing an image, price or link, or whose Ralawise image licence has expired, are left out and counted by reason. `google_product_category` is deliberately not sent (Google assigns it); our taxonomy goes in `product_type`.
 - Plan and operational detail: `docs/GOOGLE-MERCHANT-CENTRE-PLAN.md`.
 
+### Email system (Messaging)
+
+- Every store email goes through `apps/api/src/modules/email`: one gate (`lib/gate.ts` `canSend`, the spec's class table as data), one sender (worker job `email-send`, token-bucket rate limit, `lib/sendgrid.ts` is the only SendGrid mail code), one event log (`email_sends`, `email_events`, fed by the signed webhook at `/api/v1/webhooks/sendgrid` and `/api/webhooks/sendgrid`). Spec, runbook, build log, blockers and handover: `docs/email/`.
+- **`EMAIL_SEND_MODE`**: unset = the sender refuses to run; `sandbox` = SendGrid delivers nothing; `allowlist` = only `EMAIL_TEST_ALLOWLIST`; `live` = real. Only a person sets `live`.
+- Consent lives on `email_contacts.marketing_status` (`all` / `transactional_only` / `never`) and only changes through `ContactsService.setMarketingStatus`, which writes an `email_consent_events` row first — a DB trigger refuses anything else. Deliverability is a separate field.
+- Four classes: `order_required` (always goes), `requested_service` and `service` (not to `never` or bad addresses), `marketing` (only `all`, plus gap / window / pause / unengaged rules).
+- Unsubscribe and preferences pages are rendered by the API at `/email/*` and passed through by both storefronts. Emails link to `STOREFRONT_BASE_URL`.
+- Admin: **Messaging** (`/messaging`). Claude: MCP server at `POST /api/mcp` (key scope `email:mcp`; `email:approve` for a person's key), tools in `docs/email/MCP.md`.
+- Automations all ship OFF; turn them on in Messaging → Automations.
+
 ### Conversational search
 
 - The Clothes Shop header carries a natural-language search bar that submits to `/shop/search?q=...`. The API's `/storefront/search` endpoint parses the customer query through Claude Haiku into a structured `ParsedQuery` (category slug + filters + keywords + confidence), then feeds the structured form into the same `CategoryService.listCategoryProducts` that backs `/shop/c/...`. If the LLM call fails, the day's budget is exceeded, or `ANTHROPIC_API_KEY` isn't set, the service falls through to a plain keyword search across product names — the customer always gets something.

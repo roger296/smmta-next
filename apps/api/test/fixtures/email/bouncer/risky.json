@@ -1,0 +1,1 @@
+{"email":"catchall@example.com","status":"risky","reason":"low_deliverability","domain":{"name":"example.com","acceptAll":"yes","disposable":"no","free":"no"},"account":{"role":"no","disabled":"no","fullMailbox":"no"},"dns":{"type":"MX","record":"mx.example.com"},"provider":"","score":50,"toxic":"unknown","toxicity":0}

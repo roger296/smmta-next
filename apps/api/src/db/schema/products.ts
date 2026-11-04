@@ -72,6 +72,9 @@ export const products = pgTable(
     seoDescription: varchar('seo_description', { length: 160 }),
     seoKeywords: jsonb('seo_keywords').$type<string[]>(),
     isPublished: boolean('is_published').notNull().default(false),
+    /** A headline product (a new material, a big-name brand): its new-product
+     *  alert may skip the 7-day marketing gap once (docs/email). */
+    hero: boolean('hero').notNull().default(false),
     sortOrderInGroup: integer('sort_order_in_group').notNull().default(0),
     /** Free-form per-vertical attributes. Filament Store uses
      *  `{ colour }`; Clothes Shop uses `{ size, colour }`. The

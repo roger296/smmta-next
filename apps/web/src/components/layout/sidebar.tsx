@@ -25,6 +25,7 @@ import {
   CreditCard,
   ClipboardList,
   Puzzle,
+  Mail,
 } from 'lucide-react';
 
 interface NavItem {
@@ -39,6 +40,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
   { label: 'Digest', to: '/digest', icon: Newspaper },
+  { label: 'Messaging', to: '/messaging', icon: Mail },
   { label: 'Email outbox', to: '/outbox', icon: Send },
   { label: 'Approvals', to: '/approval', icon: Inbox },
   { label: 'Agents', to: '/agents', icon: Bot },
