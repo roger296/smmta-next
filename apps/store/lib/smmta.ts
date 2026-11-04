@@ -541,3 +541,66 @@ export async function resolveEmailCartLink(token: string): Promise<{ productId: 
     0,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Email marketing — consent, newsletter signup, basket capture
+// ---------------------------------------------------------------------------
+
+export interface EmailConsentInput {
+  email: string;
+  /** true = marketing consent; false = transactional email only. */
+  granted: boolean;
+  form: 'checkout' | 'signup_form';
+  /** The exact words the shopper saw next to the tick box. */
+  wording?: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+/** POST /storefront/email/consent — record the checkout marketing tick box. */
+export async function recordEmailConsent(
+  input: EmailConsentInput,
+  opts?: MutationOptions,
+): Promise<{ ok: true }> {
+  const { status, rawBody } = await smmtaPost<{ ok: true }>('storefront/email/consent', input, opts);
+  if (status === 200 || status === 201) return { ok: true };
+  throw new SmmtaApiError(`email consent failed (${status})`, status, rawBody);
+}
+
+export interface EmailSubscribeInput {
+  email: string;
+  /** Interest keys, e.g. `material:pla`. Empty for no stated interests. */
+  interests: string[];
+  wording?: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+/** POST /storefront/email/subscribe — newsletter signup (active opt-in). */
+export async function subscribeEmail(
+  input: EmailSubscribeInput,
+  opts?: MutationOptions,
+): Promise<{ ok: true }> {
+  const { status, rawBody } = await smmtaPost<{ ok: true }>('storefront/email/subscribe', input, opts);
+  if (status === 200 || status === 201) return { ok: true };
+  throw new SmmtaApiError(`email subscribe failed (${status})`, status, rawBody);
+}
+
+export interface EmailCartInput {
+  cartId: string;
+  /** Channel slug, e.g. `filament-store`. */
+  channel: string;
+  email: string;
+  lines: Array<{ productId: string; quantity: number; priceGbp?: string | null }>;
+}
+
+/** POST /storefront/email/cart — the basket and the shopper's address at
+ *  checkout start, so an abandoned basket can be followed up by email. */
+export async function reportEmailCart(
+  input: EmailCartInput,
+  opts?: MutationOptions,
+): Promise<{ ok: true }> {
+  const { status, rawBody } = await smmtaPost<{ ok: true }>('storefront/email/cart', input, opts);
+  if (status === 200 || status === 201) return { ok: true };
+  throw new SmmtaApiError(`email cart failed (${status})`, status, rawBody);
+}

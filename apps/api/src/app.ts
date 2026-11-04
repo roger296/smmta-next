@@ -34,6 +34,7 @@ import { emailPublicRoutes } from './modules/email/public/public.routes.js';
 import { emailCartLinkRoutes } from './modules/email/public/cart-link.routes.js';
 import { emailMcpRoutes } from './modules/email/mcp/server.js';
 import { emailAdminRoutes } from './modules/email/admin/email-admin.routes.js';
+import { storefrontEmailRoutes } from './modules/email/public/storefront-email.routes.js';
 import { registerStorefrontRequestId } from './modules/storefront/log.js';
 import { identityRoutes } from './modules/identity/identity.routes.js';
 import { inboundRoutes } from './modules/inbound/inbound.routes.js';
@@ -221,6 +222,8 @@ export async function buildApp() {
   await app.register(emailMcpRoutes, { prefix: '/api' });
   // Admin Messaging section (JWT).
   await app.register(emailAdminRoutes, { prefix: '/api/v1' });
+  // Storefront → email system: checkout consent, newsletter signup, baskets.
+  await app.register(storefrontEmailRoutes, { prefix: '/api/v1' });
 
   // Approval queue (Prompt 10): owner's inbox — approve/edit/reject, groups,
   // graduation, escalations. JWT-gated.

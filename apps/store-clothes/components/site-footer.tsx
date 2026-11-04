@@ -18,6 +18,7 @@
  */
 import Link from 'next/link';
 import { CookieSettingsButton } from '@/components/cookie-settings-button';
+import { NewsletterSignup } from '@/components/newsletter-signup';
 import { listCategories } from '@/lib/smmta';
 import { LEGAL } from '@/lib/legal';
 
@@ -124,15 +125,19 @@ export async function SiteFooter() {
           </ul>
         </section>
 
-        <section aria-labelledby="footer-about" className="md:col-span-2">
-          <h2
-            id="footer-about"
-            className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--brand-ink)]"
-          >
-            About
-          </h2>
-          <p className="max-w-md leading-relaxed">{ABOUT_BLURB}</p>
-        </section>
+        <div className="min-w-0 space-y-10 md:col-span-2">
+          <section aria-labelledby="footer-about">
+            <h2
+              id="footer-about"
+              className="mb-4 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--brand-ink)]"
+            >
+              About
+            </h2>
+            <p className="max-w-md leading-relaxed">{ABOUT_BLURB}</p>
+          </section>
+
+          <NewsletterSignup />
+        </div>
       </div>
 
       {/* Companies Act 2006 s.82 requires the registered name, number and

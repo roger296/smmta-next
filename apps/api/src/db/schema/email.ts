@@ -408,3 +408,46 @@ export const emailAudit = pgTable(
     createdIdx: index('email_audit_created_idx').on(t.createdAt),
   }),
 );
+
+/** Baskets the storefront tells us about once it has the shopper's address
+ *  (checkout start), for abandoned-basket emails. The storefront owns the
+ *  basket itself; this is its last known contents. */
+export const emailCarts = pgTable(
+  'email_carts',
+  {
+    id: pk(),
+    companyId: companyId(),
+    /** The storefront's cart id (opaque here) and which storefront. */
+    externalCartId: varchar('external_cart_id', { length: 100 }).notNull(),
+    channel: varchar('channel', { length: 64 }).notNull().default('storefront'),
+    contactId: uuid('contact_id')
+      .notNull()
+      .references(() => emailContacts.id),
+    lines: jsonb('lines').$type<Array<{ productId: string; quantity: number; priceGbp?: string | null }>>().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    orderedAt: timestamp('ordered_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    cartUnq: uniqueIndex('email_carts_external_unq').on(t.channel, t.externalCartId),
+    contactIdx: index('email_carts_contact_idx').on(t.contactId),
+  }),
+);
+
+/** Printing tips per material for post-purchase emails. Seeded with short
+ *  neutral placeholders that Roger should edit (`needs_review`). */
+export const emailMaterialContent = pgTable('email_material_content', {
+  key: varchar('key', { length: 80 }).primaryKey(),
+  companyId: companyId(),
+  markdown: text('markdown').notNull(),
+  needsReview: boolean('needs_review').notNull().default(true),
+  updatedBy: text('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Each product's price as last seen by the price-drop automation. */
+export const emailPriceSnapshots = pgTable('email_price_snapshots', {
+  productId: uuid('product_id').primaryKey(),
+  priceGbp: varchar('price_gbp', { length: 20 }).notNull(),
+  seenAt: timestamp('seen_at', { withTimezone: true }).notNull().defaultNow(),
+});

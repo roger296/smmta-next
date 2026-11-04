@@ -18,6 +18,7 @@ import { CampaignsService } from '../services/campaigns.service.js';
 import { DigestService, reached } from '../services/digest.service.js';
 import '../services/ab.service.js';
 import { checkDns } from '../services/dns.service.js';
+import { runAutomations } from '../services/automations.service.js';
 
 export function installEmailHandlers(logger: Logger): void {
   const log = logger.child({ module: 'email' });
@@ -115,6 +116,12 @@ export function installEmailHandlers(logger: Logger): void {
     const checks = await checkDns();
     const failing = checks.filter((c) => !c.ok).map((c) => c.record);
     if (failing.length) log.warn({ failing }, 'email DNS check: records missing');
+  });
+
+  setHandler('email-automations', async () => {
+    const runs = await runAutomations();
+    const busy = runs.filter((r) => r.candidates > 0);
+    if (busy.length) log.info({ runs: busy }, 'automations ran');
   });
 
   setHandler('email-close-stale-bis', async () => {

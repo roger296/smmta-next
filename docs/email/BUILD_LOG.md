@@ -206,3 +206,23 @@ Decisions taken:
 - Playwright's Chromium path is configurable (`PLAYWRIGHT_CHROMIUM_EXECUTABLE`), defaulting to the bundled one.
 Tests: 5 API admin-route integration, 2 Playwright e2e; web unit 141 green; API suite 1408 green; web `tsc -b` clean
 Commit: (this commit)
+
+## Section 12 — Automations and storefront consent — DONE 2026-11-05T05:40:00Z
+Built:
+- `modules/email/services/automations.service.ts`: one module per automation (`replenishment`, `abandoned_cart`, `welcome`, `post_purchase`, `winback`, `subscription`, `price_drop`), each `evaluate(now) → candidates` with step-encoded idempotency keys, run by the `email-automations` job every 15 minutes through `enqueueSend` (so every send passes the gate). Win-back re-verifies dormant addresses with Bouncer first and skips the dead ones. An order ends the contact's basket sequences (`markCartsOrdered`, from attribution).
+- Migration `0050_email_automations.sql`: `email_carts` (baskets the storefront reports at checkout start), `email_material_content` (seeded with short neutral printing tips per material, `needs_review = true` for Roger), `email_price_snapshots` (the price-drop automation's memory; nothing in the platform emits price changes).
+- API for the storefronts (`storefront:write`): `POST /storefront/email/consent`, `/storefront/email/subscribe`, `/storefront/email/cart` (`modules/email/public/storefront-email.routes.ts`).
+- Storefronts (`apps/store`, `apps/store-clothes`): an unticked checkout box ("Email me about new filament and offers. You can unsubscribe at any time." / "…new arrivals and offers…") sent as `marketingOptIn`; at checkout start the consent and the basket go to the API fire-and-forget (`lib/email-capture.ts`, never fails checkout); a footer newsletter signup (`components/newsletter-signup.tsx`, active opt-in, material interests on the filament shop) posting to `/api/email/subscribe`.
+- Service templates refuse offer blocks at render time.
+Candidate counts (count-only run, every automation switched on): empty dev database `smmta_next` — all 0; populated test database — replenishment 0, abandoned_cart 0, welcome 12, post_purchase 0, winback 0, subscription 0, price_drop 49 (the snapshot table was filled on the earlier run, so recently re-priced fixtures count).
+Decisions taken:
+- Every automation ships switched OFF (Part B leaves the defaults open; some reach many people at once). Discounts stay off.
+- A step is only due within a short catch-up window after its moment (3 days; 1 day for baskets), so switching an automation on does not mail people whose moment passed months ago.
+- Replenishment reminds about the latest order of each material per contact; the contact's median reorder interval replaces the per-material default once there are two orders of that material.
+- The abandoned basket comes from the storefront at checkout start (the API cannot see storefront carts); the checkout already captured the email before payment, so no new blur-capture endpoint was needed (Part B #10).
+- Unticked at checkout records `transactional_only`, as the runbook says — so an existing subscriber who leaves it unticked on a later order is downgraded. Worth revisiting if that proves unwelcome (IDEAS).
+- Not built as automations: pre-order ETA/shipping and subscription renewal notices, which the existing notification agent already sends (two systems would mail customers twice); the trade digest is the weekly digest showing trade prices; the monthly trade campaign is not created (content would be empty).
+- Delivery date for post-purchase = the order's delivery date, else shipped date + 2 days.
+- Storefront Playwright at 375 px was not run (the storefront e2e needs the full stack); the newsletter form is checked by server-rendered component tests and built to stack on mobile. The 6 failing tests in `apps/store/lib/checkout.test.ts` fail identically without these changes in this environment (a Mollie webhook-URL check) and are not caused by this build.
+Tests: 10 API integration (each automation at its offsets, idempotency, orders ending sequences, service vs marketing reach, win-back re-verification, offer refusal, consent endpoints); storefront 21 (store) + 20 (store-clothes) new tests; API suite 1418 green; store-clothes 226/226; store 282 pass + 6 pre-existing failures
+Commit: (this commit)

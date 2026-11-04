@@ -8,6 +8,7 @@
  * this colour" message — never as a stack trace (Prompt 10 acceptance).
  */
 import * as React from 'react';
+import { CHECKOUT_MARKETING_LABEL } from '@/lib/email-copy';
 
 interface ApiSuccess {
   checkoutId: string;
@@ -43,6 +44,8 @@ const initial = {
     country: 'GB',
   },
   termsAccepted: false,
+  // Marketing consent must be an active choice: never pre-ticked.
+  marketingOptIn: false,
 };
 
 export function CheckoutForm() {
@@ -98,6 +101,7 @@ export function CheckoutForm() {
               }
             : undefined,
           termsAccepted: true,
+          marketingOptIn: state.marketingOptIn,
         }),
       });
       if (res.ok) {
@@ -221,6 +225,16 @@ export function CheckoutForm() {
           order summary.
         </p>
       </fieldset>
+
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="marketingOptIn"
+          checked={state.marketingOptIn}
+          onChange={(e) => set('marketingOptIn', e.target.checked)}
+        />
+        <span>{CHECKOUT_MARKETING_LABEL}</span>
+      </label>
 
       <label className="flex items-start gap-2 text-sm">
         <input

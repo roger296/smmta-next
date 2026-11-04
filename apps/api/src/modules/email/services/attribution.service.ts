@@ -23,6 +23,7 @@ import { interestKeysForProduct } from '../lib/interests.js';
 import { isValidEmail, normaliseEmail } from '../lib/normalise.js';
 import { ContactsService } from './contacts.service.js';
 import { getEmailSettings } from './settings.service.js';
+import { markCartsOrdered } from './automations.service.js';
 
 const DAY_MS = 86_400_000;
 
@@ -89,6 +90,8 @@ export class AttributionService {
       }
       await this.contacts.addInterest(contactId!, keys, settings.interest_decay.order_points, orderedAt, undefined, tx);
     });
+    // An order ends the contact's abandoned-basket sequences.
+    await markCartsOrdered(contactId, orderedAt);
     return { status: 'processed', attributedSendId: click?.id ?? null };
   }
 }

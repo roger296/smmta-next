@@ -8,11 +8,16 @@
  *   404  no cart cookie / empty cart
  *   409  INSUFFICIENT_STOCK (with productId + available)
  *   500  EMPTY_CART or PAYMENT_CREATE_FAILED
+ *
+ * Once the body validates, the marketing tick box and the basket are sent
+ * to SMMTA for email (consent record + abandoned-basket capture). That is
+ * fire-and-forget: it is not awaited and never fails the checkout.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { readCartIdFromCookie } from '@/lib/cookies';
 import { startCheckout } from '@/lib/checkout';
+import { captureCheckoutEmail, clientIp } from '@/lib/email-capture';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,6 +44,8 @@ const bodySchema = z.object({
   termsAccepted: z.literal(true, {
     errorMap: () => ({ message: 'Terms and conditions must be accepted' }),
   }),
+  /** The "email me about…" tick box. Absent or false = transactional only. */
+  marketingOptIn: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -55,6 +62,14 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  void captureCheckoutEmail({
+    cartId,
+    email: parsed.data.customer.email,
+    marketingOptIn: parsed.data.marketingOptIn,
+    ip: clientIp(request.headers),
+    userAgent: request.headers.get('user-agent') ?? undefined,
+  });
 
   const result = await startCheckout({
     cartId,

@@ -18,5 +18,6 @@ export const EMAIL_SCHEDULED_JOBS: ScheduledJob[] = [
   { name: 'email-decay-interests', cron: '5 3 * * *', tz: 'Europe/London', description: 'Nightly: decay interest scores (half-life 180 days)' },
   { name: 'email-prune-events', cron: '40 4 * * 0', tz: 'Europe/London', description: 'Weekly: delete webhook events older than 13 months' },
   { name: 'email-dns-check', cron: '50 5 * * *', tz: 'Europe/London', description: 'Daily: SPF, DKIM and DMARC records for the sending domain' },
+  { name: 'email-automations', cron: '*/15 * * * *', description: 'Every 15 min: switched-on automations queue whatever is due' },
   { name: 'email-close-stale-bis', cron: '35 3 * * *', tz: 'Europe/London', description: 'Nightly: close back-in-stock requests older than 180 days' },
 ];

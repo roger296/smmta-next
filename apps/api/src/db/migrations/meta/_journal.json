@@ -351,6 +351,13 @@
       "when": 1793799307928,
       "tag": "0049_email_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793809172001,
+      "tag": "0050_email_automations",
+      "breakpoints": true
     }
   ]
 }

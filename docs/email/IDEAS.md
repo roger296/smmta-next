@@ -11,3 +11,5 @@ is half-done in the code unless the entry says so.
 - **Webhook processing in a queue.** Events are applied inline; if SendGrid batches grow large enough to approach its timeout, store them and apply them in an `email-events` worker job.
 - **Show the `?link=expired` / `?link=unavailable` note on the basket page.** `/cart/add` lands a stale email link on the basket with that query parameter; the basket page does not yet show a message for it.
 - **Trade prices in emails and deep links** (BLOCKERS B3).
+- **Checkout tick box and existing subscribers.** Unticked records `transactional_only` (runbook), so a subscriber who leaves the box unticked on a later order is unsubscribed. Consider showing the box only to people not already subscribed, or treating unticked as "no change" for them.
+- **Pre-order and subscription notices on the new pipeline.** The existing notification agent still sends these; move them across (templates `preorder_eta`, `preorder_shipping`, `subscription_renewal` exist) and retire the old path in one change.

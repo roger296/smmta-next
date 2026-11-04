@@ -23,7 +23,7 @@ import {
 import type { Contact } from '../services/contacts.service.js';
 import type { EmailSend } from '../services/sends.service.js';
 import { preferencesUrl, unsubscribeUrl } from '../lib/headers.js';
-import { renderBlock, type Block } from './blocks.js';
+import { OFFER_BLOCKS, renderBlock, type Block } from './blocks.js';
 import { Layout } from './layout.js';
 import { storeUrl, trackLink, type LinkContext } from './links.js';
 import { fillSubject, getTemplate, TEMPLATES, type TemplateData } from './registry.js';
@@ -82,6 +82,12 @@ export async function renderTemplate(input: RenderInput): Promise<RenderedEmail>
     (campaign?.content?.length ? campaign.content : null) ??
     def.blocks?.(input.data) ??
     [];
+
+  // Service mail carries no offers (spec § Sales-maximising improvements).
+  if (cls === 'service') {
+    const offer = blocks.find((b) => OFFER_BLOCKS.includes(b.type));
+    if (offer) throw new Error(`a ${offer.type} block is an offer and cannot go in service mail`);
+  }
 
   const subject = fillSubject(input.data.subject ?? (campaign?.subject || def.subject(input.data)), input.firstName ?? null);
   const preheader = input.data.preheader ?? campaign?.preheader ?? def.preheader?.(input.data) ?? null;
