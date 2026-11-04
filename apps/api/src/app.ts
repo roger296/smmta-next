@@ -32,6 +32,7 @@ import {
 import { notifyMeRoutes } from './modules/storefront/notify-me.routes.js';
 import { emailPublicRoutes } from './modules/email/public/public.routes.js';
 import { emailCartLinkRoutes } from './modules/email/public/cart-link.routes.js';
+import { emailMcpRoutes } from './modules/email/mcp/server.js';
 import { registerStorefrontRequestId } from './modules/storefront/log.js';
 import { identityRoutes } from './modules/identity/identity.routes.js';
 import { inboundRoutes } from './modules/inbound/inbound.routes.js';
@@ -215,6 +216,8 @@ export async function buildApp() {
   await app.register(emailPublicRoutes, { prefix: '/api' });
   // Signed add-to-cart links in emails, resolved for the storefront.
   await app.register(emailCartLinkRoutes, { prefix: '/api/v1' });
+  // The admin's MCP server (email tools): POST /api/mcp, key scope email:mcp.
+  await app.register(emailMcpRoutes, { prefix: '/api' });
 
   // Approval queue (Prompt 10): owner's inbox — approve/edit/reject, groups,
   // graduation, escalations. JWT-gated.

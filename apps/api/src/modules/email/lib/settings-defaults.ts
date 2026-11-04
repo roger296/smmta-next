@@ -52,6 +52,20 @@ export const EMAIL_SETTING_DEFAULTS = {
   event_retention_months: 13,
   attribution_window_days: 5,
   ab_test: { share: 0.2, decide_after_hours: 2, min_audience: 200 },
+  /** Automations (spec § Sales-maximising improvements). Every one starts
+   *  OFF: switching one on is a decision, and some (win-back) would reach
+   *  many people at once. Discounts are off everywhere (Part B #5). */
+  automations: {
+    replenishment: { enabled: false, discount_allowed: false, discount_code: '', follow_up_days: 10, at_fraction: 0.85 },
+    abandoned_cart: { enabled: false, discount_allowed: false, discount_code: '', step_hours: '1,24,72' },
+    welcome: { enabled: false, discount_allowed: false, discount_code: '', step_days: '0,3,10' },
+    post_purchase: { enabled: false, discount_allowed: false, discount_code: '', tips_days: 7, review_days: 14 },
+    winback: { enabled: false, discount_allowed: false, discount_code: '', first_days: 120, second_days: 240 },
+    preorder: { enabled: false, discount_allowed: false, discount_code: '' },
+    subscription: { enabled: false, discount_allowed: false, discount_code: '', renewal_days: 3, add_days: 7 },
+    price_drop: { enabled: false, discount_allowed: false, discount_code: '', drop_fraction: 0.1, low_stock: 5 },
+    trade: { enabled: false, discount_allowed: false, discount_code: '' },
+  } as Record<string, { enabled: boolean; discount_allowed: boolean; discount_code: string; [k: string]: unknown }>,
   /** Shown in the From header; the address itself is EMAIL_FROM_ADDRESS. */
   from_name: 'CleverDeals',
   reply_to: 'sales@cleverdeals.net',

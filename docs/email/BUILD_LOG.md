@@ -172,3 +172,20 @@ Decisions taken:
 - Report timing measured on 50,000 sends: the existing `(campaign_id, status)` index already keeps `campaignReport` well under 500 ms; the indexes above serve attribution joins, automation and deliverability reports.
 Tests: 3 A/B (1,000 → 100/100/800 with B winning; tie → A; 150 → A only), 3 reports (hand-worked fixture literals; 50,000 sends < 500 ms; timeline order); API suite 1397 green
 Commit: (this commit)
+
+## Section 10 — MCP tools — DONE 2026-11-05T01:10:00Z
+Built:
+- An MCP server for the admin (none existed): `@modelcontextprotocol/sdk` 1.32.1, stateless Streamable HTTP at `POST /api/mcp` (`modules/email/mcp/server.ts`), authenticated by an API key with scope `email:mcp`; GET/DELETE answer 405.
+- 25 tools in `modules/email/mcp/tools.ts`: the spec's set plus `email_update_campaign`, `email_pause_campaign`, `email_resume_campaign` and `email_write_weekly_content`. Descriptions state the guard rails.
+- `modules/email/services/operator.service.ts`: the operations the MCP tools and the admin share (contact list/detail, consent recording, weekly content, test sends, pause/resume, deliverability summary, automations), and `audit()` → new `email_audit` table (migration `0049_email_audit.sql`), addresses masked.
+- `automations` setting (every automation OFF by default, discounts off) so the automation tools have something to read and switch.
+- `docs/email/MCP.md`; a test fails if its tool table and the registry differ.
+- Campaign reports exclude test sends.
+Decisions taken:
+- Approval through MCP: the runbook's fallback ("approval is UI-only") is kept for ordinary keys, and the server's existing mechanism — API-key scopes — marks a person's key: a key with `email:approve` is recorded as `mcp:<prefix>` and may approve. Claude's keys never get that scope.
+- Every MCP call is audited with actor `claude` (or `mcp:<prefix>`), success or failure.
+- `email_import_csv` takes the CSV as text (saved under the evidence directory by its hash) or a path inside `imports/`; nothing outside `imports/` can be read.
+- Test sends are rows of the campaign with kind `test` and `not_before` far in the future (the sender never picks them up); in sandbox or unset mode they go to SendGrid with sandbox on.
+- Settings that are objects merge over their defaults, so a later default (a new automation) always has a value.
+Tests: 6 (tool list vs MCP.md; descriptions; every tool called through a real MCP client with shape checks, schema refusal and audit rows; 51-contact Claude campaign → pending_approval → approved by an email:approve key; HTTP auth 401/403; initialize + tools/list over HTTP); API suite 1403 green
+Commit: (this commit)

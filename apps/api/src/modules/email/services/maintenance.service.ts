@@ -15,7 +15,7 @@ import { and, gte, isNotNull, lt, sql } from 'drizzle-orm';
 import { getDb } from '../../../config/database.js';
 import { getEnv } from '../../../config/env.js';
 import { getSingletonCompanyId } from '../../../shared/auth/company.js';
-import { emailAlerts, emailEvents, emailSends, type EmailClass } from '../../../db/schema/index.js';
+import { emailAlerts, emailEvents, emailSends, emailSettings, type EmailClass } from '../../../db/schema/index.js';
 import { getSendGrid } from '../../../integrations/sendgrid/sendgrid.js';
 import { normaliseEmail } from '../lib/normalise.js';
 import { ContactsService } from './contacts.service.js';
@@ -108,6 +108,11 @@ export class MaintenanceService {
         if (changed) result.applied++;
       }
     }
+    // Shown on the Deliverability page: when the safety net last ran.
+    await getDb()
+      .insert(emailSettings)
+      .values({ key: 'status_last_reconcile', value: { ...result }, updatedBy: 'system' })
+      .onConflictDoUpdate({ target: emailSettings.key, set: { value: { ...result }, updatedAt: now } });
     return result;
   }
 

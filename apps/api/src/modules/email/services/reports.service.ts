@@ -3,6 +3,8 @@
  * aggregate — no per-row loops — so a campaign of 50,000 sends reports in
  * well under half a second (see reports.service.test.ts).
  *
+ * Test sends (kind `test`) never count towards a campaign's figures.
+ *
  * Revenue leads: a campaign is judged on attributed orders and revenue per
  * 1,000 sent, not opens (Apple Mail opens everything).
  */
@@ -61,9 +63,9 @@ export class ReportsService {
 
   async campaignReport(campaignId: string): Promise<CampaignReport> {
     const db = this.db;
-    const [counts] = (await db.execute(sql`select ${countsSql} from email_sends where campaign_id = ${campaignId}`)).rows as unknown as SendCounts[];
+    const [counts] = (await db.execute(sql`select ${countsSql} from email_sends where campaign_id = ${campaignId} and kind <> 'test'`)).rows as unknown as SendCounts[];
     const dropped = (
-      await db.execute(sql`select coalesce(drop_reason, 'unknown') as reason, count(*)::int as n from email_sends where campaign_id = ${campaignId} and status = 'dropped' group by 1`)
+      await db.execute(sql`select coalesce(drop_reason, 'unknown') as reason, count(*)::int as n from email_sends where campaign_id = ${campaignId} and kind <> 'test' and status = 'dropped' group by 1`)
     ).rows as Array<{ reason: string; n: number }>;
     const links = (
       await db.execute(sql`
@@ -76,7 +78,7 @@ export class ReportsService {
       await db.execute(sql`
         select count(distinct e.contact_id)::int as n
         from email_consent_events e
-        join email_sends s on s.contact_id = e.contact_id and s.campaign_id = ${campaignId} and s.sent_at is not null
+        join email_sends s on s.contact_id = e.contact_id and s.campaign_id = ${campaignId} and s.kind <> 'test' and s.sent_at is not null
         where e.to_status = 'transactional_only' and e.from_status = 'all'
           and e.created_at between s.sent_at and s.sent_at + interval '7 days'`)
     ).rows as Array<{ n: number }>;

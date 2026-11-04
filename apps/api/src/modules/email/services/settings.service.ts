@@ -14,6 +14,17 @@ import {
 
 export class SettingsValidationError extends Error {}
 
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** A stored object setting over its default, so a key added to the defaults
+ *  later still has a value (two levels deep, for automations). */
+function mergeDefault(def: unknown, stored: unknown): unknown {
+  if (!isObj(def) || !isObj(stored)) return stored;
+  const out: Record<string, unknown> = { ...def };
+  for (const [k, v] of Object.entries(stored)) out[k] = isObj(def[k]) && isObj(v) ? { ...(def[k] as object), ...v } : v;
+  return out;
+}
+
 export async function getEmailSettings(): Promise<EmailSettings> {
   const db = getDb();
   const rows = await db.select().from(emailSettings);
@@ -21,7 +32,7 @@ export async function getEmailSettings(): Promise<EmailSettings> {
   const present = new Set<string>();
   for (const r of rows) {
     if (r.key in settings) {
-      settings[r.key] = r.value;
+      settings[r.key] = mergeDefault(settings[r.key], r.value);
       present.add(r.key);
     }
   }
@@ -64,6 +75,19 @@ export function validateSetting(key: string, value: unknown): void {
     if (typeof dv === 'string' && /time|start|end/.test(k) && !/^\d{2}:\d{2}$/.test(v[k] as string)) {
       fail(`${k} must be HH:MM`);
     }
+  }
+  if (key === 'automations') {
+    for (const [name, cfg] of Object.entries(v)) {
+      const defCfg = (def as Record<string, Record<string, unknown>>)[name];
+      if (!defCfg) fail(`unknown automation ${name}`);
+      if (typeof cfg !== 'object' || cfg === null) fail(`${name} must be an object`);
+      for (const [k, dv] of Object.entries(defCfg!)) {
+        const val = (cfg as Record<string, unknown>)[k];
+        if (typeof val !== typeof dv) fail(`${name}.${k} must be ${typeof dv}`);
+        if (typeof dv === 'number' && (!Number.isFinite(val as number) || (val as number) < 0)) fail(`${name}.${k} must be ≥ 0`);
+      }
+    }
+    return;
   }
   if (key !== 'replenishment_days') {
     for (const k of Object.keys(v)) if (!(k in (def as object))) fail(`unknown field ${k}`);

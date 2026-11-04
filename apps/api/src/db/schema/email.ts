@@ -388,3 +388,23 @@ export const emailWeeklyContent = pgTable(
     weekIdx: index('email_weekly_content_week_idx').on(t.weekStart, t.kind),
   }),
 );
+
+/** Every MCP tool call and admin action on the email system: who, what
+ *  (addresses masked), and the outcome. */
+export const emailAudit = pgTable(
+  'email_audit',
+  {
+    id: pk(),
+    companyId: companyId(),
+    tool: varchar('tool', { length: 80 }).notNull(),
+    /** `claude`, `mcp:<key prefix>`, or an admin user id. */
+    actor: text('actor').notNull(),
+    args: jsonb('args').$type<Record<string, unknown>>(),
+    ok: boolean('ok').notNull(),
+    summary: text('summary'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    createdIdx: index('email_audit_created_idx').on(t.createdAt),
+  }),
+);
