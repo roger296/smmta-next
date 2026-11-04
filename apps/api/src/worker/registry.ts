@@ -31,6 +31,8 @@ export const HANDLER_QUEUES = [
   'create-supplier-orders',
   // Email system: verify a new contact's address with Bouncer.
   'email-verify',
+  // Email system: attribute an order to an email click; interests, last order.
+  'email-order-placed',
 ] as const;
 
 export type HandlerQueue = (typeof HANDLER_QUEUES)[number];
@@ -52,9 +54,9 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'consent.revoked': ['cancel-user-drafts'],
   // A paid storefront order gets a shipping label (Smooth Parcel) and a pick
   // note for its warehouse lines, and a supplier order for its drop-ship lines.
-  'order.paid': ['create-shipping-label', 'create-pick-note', 'create-supplier-orders'],
+  'order.paid': ['create-shipping-label', 'create-pick-note', 'create-supplier-orders', 'email-order-placed'],
   // Every other new order gets a pick note, and a changed order a fresh one.
-  'order.created': ['create-pick-note'],
+  'order.created': ['create-pick-note', 'email-order-placed'],
   'order.lines_changed': ['create-pick-note'],
   // A fully allocated order gets a label too, when SHIPPING_LABEL_ON_ALLOCATION
   // is on (the handler checks). A label is never bought twice.

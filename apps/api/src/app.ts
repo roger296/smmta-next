@@ -204,6 +204,8 @@ export async function buildApp() {
   // Email pipeline (Prompt 9): SendGrid event webhook + one-click unsubscribe.
   await app.register(outboxRoutes, { prefix: '/api/v1' });
   await app.register(sendgridWebhookRoutes, { prefix: '/api/v1' });
+  // The email runbook's address for the same webhook (one handler, one check).
+  await app.register(sendgridWebhookRoutes, { prefix: '/api' });
   await app.register(unsubscribeRoutes, { prefix: '/api/v1' });
   // Email system: public unsubscribe / preferences pages (no login; the token
   // is the key). At /email/* for the storefront's proxy, and /api/email/* so

@@ -205,6 +205,8 @@ const envSchema = z.object({
   /** Where copies of imported contact lists are kept as consent evidence.
    *  PRIVATE (personal data): a mounted volume nothing serves publicly. */
   EMAIL_EVIDENCE_DIR: z.string().default('./var/email-evidence'),
+  /** Who is emailed when marketing pauses itself. Empty = SUPPLIER_ORDER_ALERT_EMAIL. */
+  EMAIL_ALERT_EMAIL: z.string().default(''),
 
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications

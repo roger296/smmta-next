@@ -70,6 +70,12 @@ export const customerOrders = pgTable('customer_orders', {
   factoryOrderNumber: varchar('factory_order_number', { length: 100 }),
   isProblemOrder: boolean('is_problem_order').notNull().default(false),
   problemType: varchar('problem_type', { length: 50 }),
+  /** Email attribution (docs/email): the most recent email the customer
+   *  clicked within 5 days before the order, and its campaign. Set once, by
+   *  the worker, when the email system has seen the order. */
+  emailSendId: uuid('email_send_id'),
+  emailCampaignId: uuid('email_campaign_id'),
+  emailProcessedAt: timestamp('email_processed_at', { withTimezone: true }),
   oldId: oldId(),
   ...auditTimestamps,
 });

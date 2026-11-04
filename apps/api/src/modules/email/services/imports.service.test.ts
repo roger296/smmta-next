@@ -173,7 +173,7 @@ describe('ImportsService', () => {
     const dry = await svc.run({ filePath: p, listType: 'unsubscribes', dryRun: true, actor: 't' });
     writeFileSync(p, `email\n${uniqueEmail('imp-changed')}\n`);
     await expect(svc.run({ filePath: p, listType: 'unsubscribes', dryRun: false, dryRunId: dry.importId, actor: 't' })).rejects.toMatchObject({ code: 'dry_run_mismatch' });
-    const other = file('y.csv', readFileSync(p));
+    const other = file('y.csv', readFileSync(p, 'utf8'));
     const dry2 = await svc.run({ filePath: other, listType: 'unsubscribes', dryRun: true, actor: 't' });
     await expect(svc.run({ filePath: other, listType: 'bounces', dryRun: false, dryRunId: dry2.importId, actor: 't' })).rejects.toMatchObject({ code: 'dry_run_mismatch' });
   });

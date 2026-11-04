@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { inArray, like } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
+import { resetEnvForTests } from '../../config/env.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
 import {
   customerOrders,
@@ -145,6 +146,18 @@ export async function withSettings(patch: Partial<Record<EmailSettingKey, unknow
   return async () => {
     await db.delete(emailSettings).where(inArray(emailSettings.key, keys));
     if (before.length) await db.insert(emailSettings).values(before);
+  };
+}
+
+/** Sets EMAIL_TEST_ALLOWLIST for one test; returns the undo. */
+export function setEnvAllowlist(list: string): () => void {
+  const before = process.env.EMAIL_TEST_ALLOWLIST;
+  process.env.EMAIL_TEST_ALLOWLIST = list;
+  resetEnvForTests();
+  return () => {
+    if (before === undefined) delete process.env.EMAIL_TEST_ALLOWLIST;
+    else process.env.EMAIL_TEST_ALLOWLIST = before;
+    resetEnvForTests();
   };
 }
 

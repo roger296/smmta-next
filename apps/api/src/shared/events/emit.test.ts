@@ -85,8 +85,9 @@ describe('handler registry', () => {
     expect(handlersFor('stock.replenished')).toEqual(['back-in-stock-fanout']);
     expect(handlersFor('order.dispatched')).toEqual(['send-dispatch-email']);
     expect(handlersFor('order.refunded')).toEqual([]);
-    expect(handlersFor('order.paid')).toEqual(['create-shipping-label', 'create-pick-note', 'create-supplier-orders']);
-    expect(handlersFor('order.created')).toEqual(['create-pick-note']);
+    expect(handlersFor('order.paid')).toEqual(['create-shipping-label', 'create-pick-note', 'create-supplier-orders', 'email-order-placed']);
+    expect(handlersFor('order.created')).toEqual(['create-pick-note', 'email-order-placed']);
+    expect(handlersFor('email.contact_created')).toEqual(['email-verify']);
     expect(handlersFor('order.lines_changed')).toEqual(['create-pick-note']);
     expect(handlersFor('nonsense.event')).toEqual([]);
   });

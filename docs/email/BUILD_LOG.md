@@ -100,3 +100,27 @@ Decisions taken:
 - No `BOUNCER_API_KEY` → verification is skipped (logged), never an error.
 Tests: 8 unit (client: four statuses, timeout, 429/500/401, no key, batch), 7 integration (event on create, source and cache skips, undeliverable vs the gate, risky soft bounce, unknown retry, dormant batch); every Bouncer request asserted to hit the stub; API suite 1218 green
 Commit: (this commit)
+
+## Section 6 — Sender job, SendGrid client, event webhook — DONE 2026-11-04T18:20:00Z
+Built:
+- `modules/email/lib/sendgrid.ts`: pure `buildPayload` (custom_args, categories `[transactional|marketing, class, kind]`, List-Unsubscribe headers on marketing only, click/open tracking on, subscription tracking off, sandbox per mode) + `SendGridTransport` (429/5xx/network retryable, other 4xx permanent with the body).
+- `modules/email/lib/rate-limit.ts`: token bucket in `email_rate_limit`, row-locked `takeTokens`.
+- `modules/email/services/sender.service.ts` (replaces the section 3 stub): refuses with no send mode; takes tokens for due rows; leases rows (`FOR UPDATE SKIP LOCKED`, `not_before` +10 min); re-runs the gate with the UK window; allowlist mode; render; send; marketing sets `last_marketing_at` (and `last_digest_at` for digests); retries after 1/4/16/64 minutes then drops.
+- `modules/email/services/events.service.ts`: webhook ingestion per the spec's table, idempotent on `sg_event_id`, events with no matching send still update the contact by address; click credit from `ik`/`cid` link parameters.
+- The existing `POST /api/v1/webhooks/sendgrid` now also feeds the email event log, accepts either key name, and is mounted at `/api/webhooks/sendgrid` too.
+- `modules/email/services/maintenance.service.ts`: `reconcileSuppressions` (bounces, spam reports, invalid emails, global + group unsubscribes for the last 2 days), `deliverabilityCheck` (auto-pause + `email_alerts` row + email to `EMAIL_ALERT_EMAIL`), `pruneEvents`.
+- `modules/email/services/attribution.service.ts`: on `order.created` / `order.paid` → `email-order-placed`: most recent click within 5 days → `customer_orders.email_send_id` / `email_campaign_id`; last order date; +10 interest per ordered product; a contact for a customer without one (no consent).
+- Jobs: `email-reconcile-suppressions` 02:15, `email-decay-interests` 03:05, `email-deliverability-check` 06:45, `email-prune-events` Sundays 04:40 (UK).
+- Migration `0046_email_sending.sql`: `email_alerts`; `customer_orders.email_send_id`, `.email_campaign_id`, `.email_processed_at`.
+- The LLM-drafted marketing (`modules/messaging/send.service.ts`) now also checks the email gate for an address the email system holds, so an unsubscribe or bounce there stops those drafts too.
+Decisions taken:
+- Bucket size = one minute of sends (hourly ÷ 60): sends are smooth (600/h = 10/min) and the runbook's "120 rows at 60/h → 60 then 60" holds exactly. A full-hour bucket would burst 60 at once.
+- Rows are leased rather than held in an open transaction across the HTTP calls; a crash mid-run returns the rows after 10 minutes. The cost is a rare duplicate if a run dies after SendGrid accepted a message and before the row was marked.
+- Marketing found outside the window at send time is held until the window opens; marketing found paused is re-checked every 15 minutes (pause holds mail, it does not lose it). Other gate refusals at send time drop the row with the reason.
+- Webhook processing is inline (each event is one small transaction); the 2-second budget holds for SendGrid's normal batch sizes. A queue can be added if batches grow (IDEAS).
+- `email-order-placed` is idempotent through `customer_orders.email_processed_at`.
+- The staff alert on auto-pause uses the platform's existing internal-mail path (`integrations/sendgrid`), not the customer pipeline it reports on.
+- `emit.test.ts` pins the event→queue map; its expectations were updated for the two new reactions (a changed mapping, not a loosened assertion).
+- The live sandbox run against SendGrid could not be done (BLOCKERS B2).
+Tests: 7 unit (payload snapshot, transport), 3 rate limiter (incl. 20 parallel takers), 7 sender (120 rows at 60/h, gate at send time, 429 retry, permanent + exhausted, allowlist, window), 15 webhook/maintenance/attribution; API suite 1247 green
+Commit: (this commit)

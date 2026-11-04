@@ -349,3 +349,15 @@ export const emailRateLimit = pgTable('email_rate_limit', {
   refilledAt: timestamp('refilled_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** Alerts for the operator: auto-pause, reconciliation problems. Shown on the
+ *  admin Deliverability page; the auto-pause also emails the alert address. */
+export const emailAlerts = pgTable('email_alerts', {
+  id: pk(),
+  companyId: companyId(),
+  kind: varchar('kind', { length: 64 }).notNull(),
+  message: text('message').notNull(),
+  detail: jsonb('detail').$type<Record<string, unknown>>(),
+  acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+  acknowledgedBy: text('acknowledged_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
