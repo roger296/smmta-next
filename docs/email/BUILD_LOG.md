@@ -158,3 +158,17 @@ Decisions taken:
 - The new-product alert uses the products' `created_at`; there is no "made purchasable" timestamp in the schema.
 Tests: 6 integration (dates; full digest cycle Wednesday → Thursday → sandbox send → campaign closed; five-product roll-up with gap and hero; 48-hour skip; approval threshold 51/49 + Claude cannot approve; every segment key); API suite 1391 green
 Commit: (this commit)
+
+## Section 9 — Manual campaigns, A/B and reports — DONE 2026-11-04T23:20:00Z
+Built:
+- `modules/email/services/ab.service.ts`: `createVariant` (B is a second campaign row with `variant_of`, holding B's subject), `split` (audience ≥ 200: 10% A + 10% B by a stable hash, all as rows of campaign A tagged `variant`; smaller audience: A only, B closed), `decideDue` (2 hours after the first send, better unique click rate wins, tie → A, the rest get the winner), wired into the campaign tick.
+- `modules/email/services/reports.service.ts`: `campaignReport` (sent, delivered, deferred, bounced, dropped by reason, unique opens/clicks, per-link clicks with tracking parameters stripped, unsubscribes within 7 days of the send, attributed orders, revenue ex/inc VAT, revenue per 1,000 sent, A/B breakdown), `automationReport`, `deliverabilityReport` (per UK day and class), `contactTimeline` (sends with events, consent changes, orders; paged), `campaignSends`.
+- Migration `0048_email_report_indexes.sql`: `customer_orders(email_campaign_id)`, `customer_orders(email_send_id)`, `email_sends(kind, queued_at)`, `email_sends(sent_at)`.
+- Cancelling an A/B campaign cancels its B row too.
+Decisions taken:
+- A/B rows all belong to campaign A (with `variant` A/B) so one report covers the test; B's row only holds B's subject.
+- Opens are reported but never decide anything: the A/B winner is by clicks.
+- "Unsubscribes" for a campaign = contacts who went from `all` to `transactional_only` within 7 days after being sent it (unsubscribe links are per contact, not per send).
+- Report timing measured on 50,000 sends: the existing `(campaign_id, status)` index already keeps `campaignReport` well under 500 ms; the indexes above serve attribution joins, automation and deliverability reports.
+Tests: 3 A/B (1,000 → 100/100/800 with B winning; tie → A; 150 → A only), 3 reports (hand-worked fixture literals; 50,000 sends < 500 ms; timeline order); API suite 1397 green
+Commit: (this commit)

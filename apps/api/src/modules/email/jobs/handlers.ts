@@ -16,6 +16,7 @@ import { ContactsService } from '../services/contacts.service.js';
 import { getEmailSettings } from '../services/settings.service.js';
 import { CampaignsService } from '../services/campaigns.service.js';
 import { DigestService, reached } from '../services/digest.service.js';
+import '../services/ab.service.js';
 
 export function installEmailHandlers(logger: Logger): void {
   const log = logger.child({ module: 'email' });

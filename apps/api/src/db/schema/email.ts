@@ -269,6 +269,8 @@ export const emailSends = pgTable(
     contactIdx: index('email_sends_contact_idx').on(t.contactId, t.createdAt),
     campaignIdx: index('email_sends_campaign_idx').on(t.campaignId, t.status),
     messageIdx: index('email_sends_sendgrid_message_idx').on(t.sendgridMessageId),
+    kindIdx: index('email_sends_kind_queued_idx').on(t.kind, t.queuedAt),
+    sentIdx: index('email_sends_sent_at_idx').on(t.sentAt),
   }),
 );
 

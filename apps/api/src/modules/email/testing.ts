@@ -143,6 +143,20 @@ export async function makeApiKey(scopes: string[]): Promise<{ raw: string; remov
   return { raw: k.raw, remove: async () => void (await getDb().delete(apiKeys).where(eq(apiKeys.name, name))) };
 }
 
+/** Many contacts at once (bulk insert; `all` unless given). For load tests. */
+export async function makeContacts(n: number, over: Partial<typeof emailContacts.$inferInsert> = {}) {
+  const rows = Array.from({ length: n }, () => ({
+    companyId: getSingletonCompanyId(),
+    email: uniqueEmail('bulk'),
+    consentSource: 'test',
+    marketingStatus: 'all' as const,
+    ...over,
+  }));
+  const out: Array<typeof emailContacts.$inferSelect> = [];
+  for (let i = 0; i < rows.length; i += 1000) out.push(...(await getDb().insert(emailContacts).values(rows.slice(i, i + 1000)).returning()));
+  return out;
+}
+
 /** Override settings for a test; returns a restore function. */
 export async function withSettings(patch: Partial<Record<EmailSettingKey, unknown>>): Promise<() => Promise<void>> {
   const db = getDb();

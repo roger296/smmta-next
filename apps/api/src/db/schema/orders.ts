@@ -78,7 +78,11 @@ export const customerOrders = pgTable('customer_orders', {
   emailProcessedAt: timestamp('email_processed_at', { withTimezone: true }),
   oldId: oldId(),
   ...auditTimestamps,
-});
+}, (t) => ({
+  // Email reports join orders to the campaign / send they are credited to.
+  emailCampaignIdx: index('customer_orders_email_campaign_idx').on(t.emailCampaignId),
+  emailSendIdx: index('customer_orders_email_send_idx').on(t.emailSendId),
+}));
 
 // ============================================================
 // Order Lines
