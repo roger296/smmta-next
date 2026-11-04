@@ -177,7 +177,9 @@ const envSchema = z.object({
   // Email system (docs/email/SPEC.md). Every store email goes through one gate
   // (modules/email). EMAIL_SEND_MODE decides what the sender does:
   //   sandbox   — SendGrid validates the message and delivers nothing;
-  //   allowlist — real sends, but only to EMAIL_TEST_ALLOWLIST;
+  //   allowlist — real sends; marketing and service mail only to
+  //               EMAIL_TEST_ALLOWLIST, while mail a customer asked for
+  //               (back in stock) or needs for an order goes to everyone;
   //   live      — real sends to everyone the gate allows. Set by a person only.
   // Left unset, the sender refuses to run at all, so nothing goes out until
   // someone has chosen a mode.
@@ -195,6 +197,11 @@ const envSchema = z.object({
   /** The SendGrid Signed Event Webhook key under the name the email runbook
    *  uses. SENDGRID_WEBHOOK_VERIFICATION_KEY wins when both are set. */
   SENDGRID_WEBHOOK_PUBLIC_KEY: z.string().default(''),
+  /** SendGrid allows one Event Webhook per account on smaller plans. When the
+   *  account is shared (Bloodhound), point SendGrid at this API and set this
+   *  to the other system's webhook URL: every signature-checked batch is
+   *  passed on unchanged, signature headers included. Empty = no forwarding. */
+  SENDGRID_WEBHOOK_FORWARD_URL: z.string().default(''),
   /** Bouncer address verification. Empty = verification is skipped. */
   BOUNCER_API_KEY: z.string().default(''),
   BOUNCER_API_BASE_URL: z.string().default('https://api.usebouncer.com/v1.1'),

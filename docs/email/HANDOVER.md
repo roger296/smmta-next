@@ -63,7 +63,7 @@ These are the ones that matter most. Every section's full list is in BUILD_LOG.m
 - **Unsubscribe links live on the shop's domain.** The storefronts pass `/email/*` through to the API. The send-mode setting decides what actually happens:
   - Unset: the sender refuses to run. This is the default.
   - `sandbox`: SendGrid accepts mail and delivers nothing.
-  - `allowlist`: only the test addresses receive mail.
+  - `allowlist`: marketing and service mail reach only the test addresses; back-in-stock and order mail still reach customers.
   - `live`: mail goes to everyone the gate allows.
 - **There was no MCP server, so one was built** at `POST /api/mcp`. It needs an API key with the `email:mcp` scope. Only a key that also has `email:approve` (yours) can approve campaigns through MCP. Claude's keys never get that scope, so for Claude approval stays in the admin.
 - **Every automation starts switched off.** When one is switched on, it only acts on moments from the last few days. Turning on win-back will not mail everyone who lapsed months ago.
@@ -89,28 +89,32 @@ Also check before go-live: the Bouncer endpoints follow Bouncer's v1.1 documenta
 
 ## 4. Production go-live steps
 
-Testing happens on **real mail sent only to test addresses**, not in SendGrid's sandbox. That is `EMAIL_SEND_MODE=allowlist`: every email is really delivered, but only to the addresses in `EMAIL_TEST_ALLOWLIST`; mail for anyone else is dropped and logged as `not_in_allowlist`.
+Testing happens on **real mail**, not in SendGrid's sandbox, with `EMAIL_SEND_MODE=allowlist`:
 
-> **While you test, real customers get nothing from the new system.** Back-in-stock notices now go through it, so a customer whose item comes back in stock during the test is not emailed: the send is dropped and the request closes. Keep the test stage to a day or two, and do it at a quiet time for restocks.
+- **Marketing and service mail** (campaigns, the digest, automations, post-purchase tips) is really delivered, but only to the addresses in `EMAIL_TEST_ALLOWLIST`. For anyone else it is dropped and logged as `not_in_allowlist`.
+- **Mail a customer asked for, or needs for an order** — today that is back-in-stock notices — goes to everyone, as normal. Real customers keep getting their back-in-stock emails while you test, so there is no rush to finish the test stage.
 
 Work through these in order and tick each one off.
 
-- [ ] **Set the environment in Coolify** for both the api and worker services:
+- [ ] **Set the environment in Coolify**, once, in the stack's **Environment Variables** tab. `docker-compose.coolify.yml` hands each variable to the services that need it (the api and the worker):
   - `EMAIL_SEND_MODE=allowlist`
   - `EMAIL_TEST_ALLOWLIST` — your test addresses, comma-separated, e.g. `roger@etailsupport.com,test@cleverdeals.net`. Use mailboxes you can read, ideally one Gmail and one Outlook, so you see how both treat the mail.
   - `EMAIL_TOKEN_SECRET` — run `openssl rand -base64 32`
-  - `SENDGRID_API_KEY` — a new key scoped to Mail Send and Suppressions (read)
+  - `SENDGRID_API_KEY` — already set for the shops; keep it. It needs Mail Send and Suppressions (read); Full Access covers both.
   - `SENDGRID_WEBHOOK_PUBLIC_KEY` (or the existing `SENDGRID_WEBHOOK_VERIFICATION_KEY`)
   - `BOUNCER_API_KEY`
   - `STOREFRONT_BASE_URL` — the shop origin the emails should link to
   - `EMAIL_ALERT_EMAIL`
 - [ ] **Deploy.** Redeploy the api, worker, web and both storefronts from `main`. The API runs migrations 0043–0050 when it starts; they only add tables and columns. Check:
   - the api logs show the migrations applied and no errors;
-  - `https://admin.cleverdeals.net/messaging` loads, with a red banner reading "Allowlist mode: only the test addresses receive mail".
+  - `https://admin.cleverdeals.net/messaging` loads, with a red banner reading "Allowlist mode: marketing goes only to the test addresses…".
   - Then tag the release (`git tag -a vX.Y.Z <merge commit>` and push it).
 - [ ] **Check SendGrid's settings:**
   - Tracking: Click on, Open on, Subscription Tracking **off**.
-  - Event Webhook: add `https://admin.cleverdeals.net/api/webhooks/sendgrid` with Signed Event Webhook on and all events selected. If the account is shared with Beagle, add it as a second endpoint and leave Beagle's alone.
+  - Event Webhook: the account allows only one, and Bloodhound already uses it, so the two share it:
+    1. Copy the **Post URL** currently in SendGrid's Event Webhook settings (Bloodhound's) and set it in Coolify as `SENDGRID_WEBHOOK_FORWARD_URL`. Redeploy.
+    2. Change the Post URL to `https://admin.cleverdeals.net/api/webhooks/sendgrid`, keep Signed Event Webhook on, select all events, and save.
+    3. Every batch SendGrid sends now reaches this system first and is passed on, unchanged and still signed, to Bloodhound. Check Bloodhound still records events after the switch.
 - [ ] **Backfill contacts** from inside the api container:
   `npx tsx scripts/email/backfill-contacts.ts`
   Record the counts it prints in BUILD_LOG.
@@ -125,13 +129,13 @@ Work through these in order and tick each one off.
   - **Messaging → Deliverability** shows a recent "Last webhook event" (SendGrid is reporting back);
   - clicking a link in it shows as a click on the campaign report a few minutes later.
 - [ ] **Unsubscribe and re-subscribe.** In Gmail, use Gmail's own Unsubscribe button on that email: the address should show as transactional-only in **Messaging → Contacts**. Then re-subscribe from the preferences link in the email.
-- [ ] **Back in stock.** Put a test address on a "notify me" for an out-of-stock product, book stock in, and check the email arrives with a working add-to-basket button.
+- [ ] **Back in stock.** Put a test address on a "notify me" for an out-of-stock product, book stock in, and check the email arrives with a working add-to-basket button. (Real customers' notices go out normally throughout.)
 - [ ] **The weekly digest.** Wait for Wednesday's draft (or ask Claude to make one now with `email_create_campaign`, kind `weekly_digest`). Look at its three previews under **Messaging → Campaigns**; on Thursday it reaches only your test addresses.
 - [ ] **Check Bouncer** by forcing one real check from a contact page (**Re-verify**).
 - [ ] **Create an MCP key for Claude** with the `email:mcp` scope (see MCP.md). Give it nothing else.
 - [ ] **Register `cleverdeals.net` in Google Postmaster Tools.**
 - [ ] **Go live.** Set `EMAIL_SEND_MODE=live` in Coolify (api and worker) and redeploy.
-  - Mail sent while testing to people outside the allowlist was dropped, not saved: nobody gets a backlog of old emails when you switch.
+  - Marketing sent while testing to people outside the allowlist was dropped, not saved: nobody gets a backlog of old emails when you switch.
   - Switch on the automations you want (**Messaging → Automations**). Replenishment, abandoned basket and welcome are the high-value ones.
   - Watch the first week's digest on **Messaging → Deliverability** against SendGrid's own stats. Once it looks right, cancel SendGrid Marketing Campaigns.
   - Delete the SendGrid Marketing Contacts 30 days later. Keep the export files: they are your consent evidence, and copies are in the `email-evidence` volume.

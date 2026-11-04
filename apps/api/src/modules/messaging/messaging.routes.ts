@@ -13,12 +13,22 @@
  * (SENDGRID_WEBHOOK_VERIFICATION_KEY). Verification needs the exact raw request
  * body, so this route parses application/json as a raw string (scoped to the
  * plugin) and JSON.parses it only after the signature checks out.
+ *
+ * Sharing the webhook: SendGrid gives a smaller account one Event Webhook,
+ * which Bloodhound also needs. With SENDGRID_WEBHOOK_FORWARD_URL set, each
+ * batch that passes the signature check is posted on to that URL byte for
+ * byte, with SendGrid's signature headers, so the other system can verify it
+ * as if SendGrid had sent it. Ours is processed first; if the forward fails
+ * with a network error or 5xx we answer 503, so SendGrid resends the batch
+ * (our side ignores the duplicates). A 4xx from the other side is logged and
+ * not retried.
  */
 import { createVerify } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getDb } from '../../config/database.js';
+import { getEnv } from '../../config/env.js';
 import { storefrontUsers } from '../../db/schema/index.js';
 import { SuppressionService, type SuppressionReason } from './suppression.service.js';
 import { verifyUnsubscribe } from './unsubscribe.js';
@@ -48,6 +58,35 @@ function verifySignature(
     verifier.end();
     return verifier.verify(pem, signature, 'base64');
   } catch {
+    return false;
+  }
+}
+
+const SIGNATURE = 'x-twilio-email-event-webhook-signature';
+const TIMESTAMP = 'x-twilio-email-event-webhook-timestamp';
+
+/** Pass a verified batch on to the system sharing the webhook. Returns false
+ *  only when SendGrid should resend (network error, timeout or 5xx). */
+export async function forwardWebhook(
+  raw: string,
+  signature: string,
+  timestamp: string,
+  log: { warn: (o: object, msg: string) => void },
+): Promise<boolean> {
+  const url = getEnv().SENDGRID_WEBHOOK_FORWARD_URL;
+  if (!url) return true;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', [SIGNATURE]: signature, [TIMESTAMP]: timestamp },
+      body: raw,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.ok) return true;
+    log.warn({ status: res.status }, 'sendgrid webhook forward refused');
+    return res.status < 500;
+  } catch (err) {
+    log.warn({ err: err instanceof Error ? err.message : String(err) }, 'sendgrid webhook forward failed');
     return false;
   }
 }
@@ -102,6 +141,9 @@ export async function sendgridWebhookRoutes(app: FastifyInstance) {
     // The email system's event log: send status, deliverability, consent and
     // interests (modules/email/services/events.service.ts).
     await emailEvents.ingest(events.data as SendGridEvent[]);
+    if (!(await forwardWebhook(raw, signature!, timestamp!, request.log))) {
+      return reply.status(503).send({ success: false, error: 'forward failed; resend' });
+    }
     return reply.status(200).send({ success: true });
   });
 }

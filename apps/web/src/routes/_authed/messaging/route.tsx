@@ -29,7 +29,7 @@ function Banner() {
     : data.sendMode === 'sandbox'
       ? 'Sandbox mode: SendGrid accepts mail but delivers nothing.'
       : data.sendMode === 'allowlist'
-        ? 'Allowlist mode: only the test addresses receive mail.'
+        ? 'Allowlist mode: marketing goes only to the test addresses; back-in-stock and order emails reach customers.'
         : 'Live: mail is delivered.';
   return (
     <div data-testid="send-mode-banner" className={cn('rounded-md border px-4 py-2 text-sm', red ? 'border-red-300 bg-red-50 text-red-800' : 'border-green-300 bg-green-50 text-green-800')}>

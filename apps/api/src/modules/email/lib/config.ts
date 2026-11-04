@@ -29,6 +29,13 @@ export function isAllowlisted(email: string): boolean {
   return testAllowlist().includes(email.trim().toLowerCase());
 }
 
+/** Classes the allowlist holds back in `allowlist` mode. Mail a customer
+ *  asked for (back in stock) or needs for an order still reaches everyone,
+ *  so testing never leaves real customers without it. */
+export function allowlistApplies(cls: string): boolean {
+  return cls === 'marketing' || cls === 'service';
+}
+
 /** The SendGrid webhook verification key under either name. */
 export function webhookVerificationKey(): string {
   const env = getEnv();

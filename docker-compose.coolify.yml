@@ -87,12 +87,16 @@ services:
       # for authenticated download; the worker writes them, so both mount it.
       LABELS_DIR: /app/labels
       # Email system (docs/email). EMAIL_SEND_MODE is deliberately not given a
-      # default here: set it in Coolify (sandbox until go-live).
+      # default here: set it in Coolify (allowlist until go-live).
       EMAIL_SEND_MODE: ${EMAIL_SEND_MODE:-}
       EMAIL_TEST_ALLOWLIST: ${EMAIL_TEST_ALLOWLIST:-}
       EMAIL_TOKEN_SECRET: ${EMAIL_TOKEN_SECRET:-}
       SENDGRID_WEBHOOK_PUBLIC_KEY: ${SENDGRID_WEBHOOK_PUBLIC_KEY:-}
+      # The account's one Event Webhook is shared: verified batches are passed
+      # on to this URL (Bloodhound's webhook). Empty = no forwarding.
+      SENDGRID_WEBHOOK_FORWARD_URL: ${SENDGRID_WEBHOOK_FORWARD_URL:-}
       BOUNCER_API_KEY: ${BOUNCER_API_KEY:-}
+      EMAIL_ALERT_EMAIL: ${EMAIL_ALERT_EMAIL:-}
       STOREFRONT_BASE_URL: ${STOREFRONT_BASE_URL:-https://filament.cleverdeals.net}
       ADMIN_BASE_URL: ${ADMIN_BASE_URL:-https://admin.cleverdeals.net}
       # Copies of imported contact lists: consent evidence, personal data.
@@ -184,6 +188,8 @@ services:
       EMAIL_TEST_ALLOWLIST: ${EMAIL_TEST_ALLOWLIST:-}
       EMAIL_TOKEN_SECRET: ${EMAIL_TOKEN_SECRET:-}
       BOUNCER_API_KEY: ${BOUNCER_API_KEY:-}
+      # Deliverability alerts; falls back to SUPPLIER_ORDER_ALERT_EMAIL.
+      EMAIL_ALERT_EMAIL: ${EMAIL_ALERT_EMAIL:-}
       STOREFRONT_BASE_URL: ${STOREFRONT_BASE_URL:-https://filament.cleverdeals.net}
       EMAIL_EVIDENCE_DIR: /app/email-evidence
     volumes:
