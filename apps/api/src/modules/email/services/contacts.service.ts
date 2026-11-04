@@ -25,6 +25,10 @@ import {
   type MarketingStatus,
 } from '../../../db/schema/index.js';
 import type { Executor } from '../lib/db.js';
+import { emitDomainEvent, type DbTx } from '../../../shared/events/emit.js';
+
+/** Sources whose new contacts are address-verified (spec § Bouncer). */
+export const VERIFY_SOURCES = ['checkout', 'signup_form', 'back_in_stock_form', 'pre_order', 'subscription'] as const;
 import { isValidEmail, normaliseEmail } from '../lib/normalise.js';
 import { addInterestPoints, decayAll, type InterestPolicy } from '../lib/interests.js';
 
@@ -211,6 +215,15 @@ export class ContactsService {
         userAgent: opts.userAgent,
         evidence: opts.evidence,
       });
+      if ((VERIFY_SOURCES as readonly string[]).includes(opts.source)) {
+        // Address verification runs in the worker, after this commits.
+        await emitDomainEvent(tx as DbTx, {
+          eventType: 'email.contact_created',
+          aggregateType: 'email_contact',
+          aggregateId: inserted.id,
+          payload: { contactId: inserted.id, source: opts.source },
+        });
+      }
       return { contact: inserted, created: true };
     };
 

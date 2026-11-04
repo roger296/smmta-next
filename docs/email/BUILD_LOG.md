@@ -87,3 +87,16 @@ Decisions taken:
 - Real exports absent: the dry and live runs of step 7 could not run (BLOCKERS B1). The four-file order is proven on fixtures.
 Tests: 9 unit (six layouts, row helpers), 6 integration (four-file sequence, downgrade with evidence, re-run no-op, dry-run refusals, unknown layout, evidence copy); API suite 1218 green
 Commit: (this commit)
+
+## Section 5 — Bouncer verification — DONE 2026-11-04T16:45:00Z
+Built:
+- `modules/email/lib/bouncer.ts`: `verify` (10 s timeout) and `verifyBatch` (create → poll every 30 s up to 2 h → download); 429/5xx/timeouts are retryable `BouncerError`s; the key is never logged.
+- `modules/email/services/verification.service.ts`: `verifyContact` (90-day cache, verify sources only), `apply` (undeliverable → `invalid`; risky stored; unknown retried once after 24 h then risky), `retryUnknown`, `reverifyDormant` (batch, waits).
+- New domain event `email.contact_created`, emitted inside the contact-creating transaction for sources checkout / signup_form / back_in_stock_form / pre_order / subscription → worker queue `email-verify` (3 retries, backing off). Daily `email-verify-retry` job (04:20 UK).
+- Fixtures `apps/api/test/fixtures/email/bouncer/*.json`.
+Decisions taken:
+- Verification is queued through the outbox (a domain event in the same transaction as the contact) rather than a hook after commit: the API process does not run pg-boss, and the outbox guarantees the job exists if and only if the contact does.
+- Fixtures are synthetic, shaped after Bouncer's v1.1 documentation (the build never calls the real API); the endpoints should be confirmed against Bouncer's docs before go-live (HANDOVER).
+- No `BOUNCER_API_KEY` → verification is skipped (logged), never an error.
+Tests: 8 unit (client: four statuses, timeout, 429/500/401, no key, batch), 7 integration (event on create, source and cache skips, undeliverable vs the gate, risky soft bounce, unknown retry, dormant batch); every Bouncer request asserted to hit the stub; API suite 1218 green
+Commit: (this commit)

@@ -29,6 +29,8 @@ export const HANDLER_QUEUES = [
   'create-pick-note',
   'send-dispatch-email',
   'create-supplier-orders',
+  // Email system: verify a new contact's address with Bouncer.
+  'email-verify',
 ] as const;
 
 export type HandlerQueue = (typeof HANDLER_QUEUES)[number];
@@ -61,6 +63,8 @@ export const EVENT_HANDLERS: Partial<Record<DomainEventType, HandlerQueue[]>> = 
   'order.released': ['create-pick-note', 'create-shipping-label'],
   // A shipped order tells the customer, with the courier and tracking number.
   'order.dispatched': ['send-dispatch-email'],
+  // Email system (modules/email).
+  'email.contact_created': ['email-verify'],
 };
 
 /**
@@ -137,6 +141,8 @@ export const RETRY_POLICY: Record<string, { retryLimit: number; retryDelay: numb
   // Local inserts only, idempotent per (order, supplier); the supplier API is
   // called later by the placer loop, which has its own retry policy.
   'create-supplier-orders': { retryLimit: 5, retryDelay: 30 },
+  // Bouncer: 3 retries, a minute apart and growing (pg-boss backs off).
+  'email-verify': { retryLimit: 3, retryDelay: 60 },
 };
 
 export const DEFAULT_RETRY = { retryLimit: 3, retryDelay: 15 } as const;

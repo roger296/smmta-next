@@ -1,0 +1,1 @@
+{"email":"gone@example.com","status":"undeliverable","reason":"rejected_email","domain":{"name":"example.com","acceptAll":"no","disposable":"no","free":"no"},"account":{"role":"no","disabled":"no","fullMailbox":"no"},"dns":{"type":"MX","record":"mx.example.com"},"provider":"","score":0,"toxic":"unknown","toxicity":0}

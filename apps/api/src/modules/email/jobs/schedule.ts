@@ -9,5 +9,6 @@ import type { ScheduledJob } from '../../../worker/registry.js';
 export const EMAIL_SCHEDULED_JOBS: ScheduledJob[] = [
   { name: 'email-send', cron: '* * * * *', description: 'Every minute: send due email_sends rows within the rate limit' },
   { name: 'email-bis-recheck', cron: '55 8 * * *', tz: 'Europe/London', description: 'Daily 08:55 UK: send back-in-stock requests that are due (roll-ups go at 09:00)' },
+  { name: 'email-verify-retry', cron: '20 4 * * *', tz: 'Europe/London', description: 'Daily: re-check addresses Bouncer called unknown 24+ hours ago' },
   { name: 'email-close-stale-bis', cron: '35 3 * * *', tz: 'Europe/London', description: 'Nightly: close back-in-stock requests older than 180 days' },
 ];
