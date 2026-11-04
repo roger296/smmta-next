@@ -247,3 +247,11 @@ Audits:
 Suites: API 1420/1420 (twice); web unit 141/141, web `tsc -b` clean; worker typecheck clean; store-clothes 226/226; store 282 + 6 failures in `lib/checkout.test.ts` that fail identically without this build (a Mollie webhook-URL check in this environment); Playwright admin e2e 2/2 (section 11).
 BLOCKED skips: none were ever added.
 Commit: (this commit)
+
+## Section 14 — Handover — DONE 2026-11-05T08:40:00Z
+Built:
+- `docs/email/HANDOVER.md`: what was built (with commits and test counts), decisions outside Part B, blockers with actions, the go-live checklist, what to watch, content to write, DNS/SendGrid checks, ten Claude requests.
+- `CLAUDE.md`: an "Email system (Messaging)" section so future sessions know the gate, the send modes and the consent rule.
+Decisions taken: none beyond the handover's summary.
+Tests: none added (documentation)
+Commit: (this commit)
