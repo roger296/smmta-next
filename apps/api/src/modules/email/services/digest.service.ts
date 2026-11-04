@@ -17,7 +17,7 @@
  * gate, those inside the 7-day marketing gap — unless a hero product is in
  * the run.
  */
-import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
 import { getDb } from '../../../config/database.js';
 import {
   emailCampaigns,
@@ -130,7 +130,7 @@ export class DigestService {
     const weekAgo = new Date(now.getTime() - 7 * DAY_MS);
     const earliest = contacts.reduce((m, c) => (c.lastDigestAt && c.lastDigestAt < m ? c.lastDigestAt : m), weekAgo);
 
-    const fresh = await productCards(gte(products.createdAt, earliest));
+    const fresh = await productCards(and(gte(products.createdAt, earliest), lte(products.createdAt, now)));
     // Back in stock: older products with stock booked in this week.
     const restockedIds = (
       await db
@@ -227,7 +227,7 @@ export class DigestService {
 
   /** Daily: one new-product campaign for everything added in 24 hours. */
   async createNewProductRollup(now = new Date()): Promise<Campaign | null> {
-    const added = await productCards(gte(products.createdAt, new Date(now.getTime() - DAY_MS)));
+    const added = await productCards(and(gte(products.createdAt, new Date(now.getTime() - DAY_MS)), lte(products.createdAt, now)));
     if (added.length === 0) return null;
     const tag = `new-${ukDate(now).date}`;
     const [existing] = await getDb().select().from(emailCampaigns).where(and(eq(emailCampaigns.kind, 'new_product'), eq(emailCampaigns.utmCampaign, tag)));
@@ -254,7 +254,7 @@ export class DigestService {
     const policy = policyFrom(settings);
     const out = new Map<string, ContactContent>();
     const since = new Date((campaign.scheduledAt ?? now).getTime() - DAY_MS);
-    const added = await productCards(gte(products.createdAt, since));
+    const added = await productCards(and(gte(products.createdAt, since), lte(products.createdAt, now)));
     const digestDue = (await this.nextDigestAt(now, settings)).getTime() - now.getTime() < settings.digest_due_skip_hours * HOUR_MS;
     for (const c of contacts) {
       if (digestDue) {

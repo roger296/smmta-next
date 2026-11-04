@@ -226,3 +226,24 @@ Decisions taken:
 - Storefront Playwright at 375 px was not run (the storefront e2e needs the full stack); the newsletter form is checked by server-rendered component tests and built to stack on mobile. The 6 failing tests in `apps/store/lib/checkout.test.ts` fail identically without these changes in this environment (a Mollie webhook-URL check) and are not caused by this build.
 Tests: 10 API integration (each automation at its offsets, idempotency, orders ending sequences, service vs marketing reach, win-back re-verification, offer refusal, consent endpoints); storefront 21 (store) + 20 (store-clothes) new tests; API suite 1418 green; store-clothes 226/226; store 282 pass + 6 pre-existing failures
 Commit: (this commit)
+
+## Section 13 — Full verification pass — DONE 2026-11-05T08:10:00Z
+Built:
+- `apps/api/src/modules/email/e2e-flow.ts` + `scripts/email/e2e-sandbox.ts` + `test/email/e2e.test.ts`: backfill → the four imports (dry run then live) → digest drafted Wednesday, sent Thursday in sandbox → webhook events replayed → automations → report. Run against a brand-new database (`email_e2e`, migrated from scratch): imports created 1/1/1/2, statuses most-restrictive-wins, 2 digests sent, 3 events stored, report sent 2 / delivered 2 / clicked 1.
+- `test/email/load.test.ts`: 20,000 contacts.
+Load check (measured): digest expansion of 20,000 contacts 4.3 s (limit 30 s); sender batches of 50: 0.55–0.69 s (limit 1 s); campaign report 23 ms (limit 500 ms).
+Changes the pass forced:
+- **Render once, fill per recipient** (`templates/render.tsx`): a batch of 50 took 1.9 s, almost all React Email rendering. Each distinct email is now rendered once (10-minute cache) with placeholders for the send id and the unsubscribe token, which are swapped in per recipient. To make that possible the add-to-basket token no longer carries the contact id — it never needed to (it grants nothing personal; the link's tracking parameters say who clicked). Template snapshots updated for the new tokens only.
+- **Digest and roll-up bounded to "now"**: product queries had a lower bound only, so a product dated in the future would have been swept into today's alert (and a hero product into an override). Now `created_at <= now`.
+- The SendGrid suppression reader moved into `lib/sendgrid.ts`.
+- Test fixtures clean up after themselves (bulk contacts and their sends; products a broken earlier run left behind), so the suite is repeatable on one database: full API suite run twice in a row, green both times.
+Audits:
+1. SendGrid calls. Inside the email module: only `lib/sendgrid.ts` (mail send + suppression reads), plus the auto-pause staff alert, which uses the platform's existing internal-mail path. Outside it (pre-existing, recorded, not changed): the LLM-drafted marketing (`modules/messaging/send.service.ts`, now also checked against the email gate), staff alerts (`agent/escalation.service.ts`, `workers/supplier-order-placer.worker.ts`), and the storefronts' order emails (`apps/store*/lib/email.ts`; order-required mail, IDEAS.md).
+2. `live` never appears as a default: `.env.example` has `sandbox`; the compose files pass `${EMAIL_SEND_MODE:-}` (unset → the sender refuses); the env schema has no default.
+3. Fixture addresses: all `@example.com`/`@example.org` or syntactic examples (`a@b.co`); the one `gmail.com` example in the normalisation tests was changed.
+4. No `console.log` of tokens or keys: the only console output is in the three CLI scripts (counts and reports; addresses masked).
+5. Every marketing template has the unsubscribe link and headers: asserted per template (templates.test.ts) and per send (sender test).
+6. `imports/`, `var/email-evidence/`, `apps/api/var/` are git-ignored (`git check-ignore` confirms).
+Suites: API 1420/1420 (twice); web unit 141/141, web `tsc -b` clean; worker typecheck clean; store-clothes 226/226; store 282 + 6 failures in `lib/checkout.test.ts` that fail identically without this build (a Mollie webhook-URL check in this environment); Playwright admin e2e 2/2 (section 11).
+BLOCKED skips: none were ever added.
+Commit: (this commit)

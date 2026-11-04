@@ -18,45 +18,13 @@ import { getSingletonCompanyId } from '../../../shared/auth/company.js';
 import { emailAlerts, emailEvents, emailSends, emailSettings, type EmailClass } from '../../../db/schema/index.js';
 import { getSendGrid } from '../../../integrations/sendgrid/sendgrid.js';
 import { normaliseEmail } from '../lib/normalise.js';
+import { SendGridSuppressionSource, type SuppressionKind, type SuppressionSource } from '../lib/sendgrid.js';
 import { ContactsService } from './contacts.service.js';
 import { getEmailSettings, updateEmailSettings } from './settings.service.js';
 
 const DAY_MS = 86_400_000;
 
-export type SuppressionKind = 'bounces' | 'spam_reports' | 'invalid_emails' | 'unsubscribes' | 'group_unsubscribes';
-
-/** Reads SendGrid's suppression lists. A port so tests need no network. */
-export interface SuppressionSource {
-  list(kind: SuppressionKind, since: Date): Promise<string[]>;
-}
-
-export class SendGridSuppressionSource implements SuppressionSource {
-  constructor(private readonly apiKey = getEnv().SENDGRID_API_KEY) {}
-
-  async list(kind: SuppressionKind, since: Date): Promise<string[]> {
-    if (!this.apiKey) return [];
-    const path =
-      kind === 'group_unsubscribes'
-        ? '/v3/asm/suppressions'
-        : `/v3/suppression/${kind === 'unsubscribes' ? 'unsubscribes' : kind}`;
-    const out: string[] = [];
-    for (let offset = 0; offset < 50_000; offset += 500) {
-      const qs = kind === 'group_unsubscribes' ? '' : `?start_time=${Math.floor(since.getTime() / 1000)}&limit=500&offset=${offset}`;
-      const res = await fetch(`https://api.sendgrid.com${path}${qs}`, {
-        headers: { Authorization: `Bearer ${this.apiKey}` },
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (!res.ok) throw new Error(`SendGrid ${path} ${res.status}`);
-      const rows = (await res.json()) as Array<{ email?: string; created?: number; created_at?: number }>;
-      for (const r of rows) {
-        const created = r.created ?? r.created_at;
-        if (r.email && (kind !== 'group_unsubscribes' || !created || created * 1000 >= since.getTime())) out.push(r.email);
-      }
-      if (kind === 'group_unsubscribes' || rows.length < 500) break;
-    }
-    return out;
-  }
-}
+export type { SuppressionKind, SuppressionSource } from '../lib/sendgrid.js';
 
 export interface ReconcileResult {
   checked: number;

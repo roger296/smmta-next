@@ -93,8 +93,9 @@ describe('links', () => {
     expect(new URL(view).searchParams.get('ik')).toBe('material:pla');
     expect(new URL(view).searchParams.get('colour')).toBe('galaxy black');
     const add = links.find((h) => h.includes('/cart/add'))!;
-    const payload = verifySignedLink<{ p: string; q: number; c: string }>(new URL(add).searchParams.get('t')!);
-    expect(payload).toMatchObject({ p: '11111111-0000-4000-8000-000000000001', q: 1, c: contact.id });
+    const payload = verifySignedLink<{ p: string; q: number }>(new URL(add).searchParams.get('t')!);
+    expect(payload).toMatchObject({ p: '11111111-0000-4000-8000-000000000001', q: 1 });
+    expect(payload).not.toHaveProperty('c'); // names no person
   });
 
   it('leaves links to other sites alone', async () => {

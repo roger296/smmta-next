@@ -58,8 +58,10 @@ export function productUrl(p: { groupSlug?: string | null; slug?: string | null;
 
 /** Signed one-click add-to-cart link for an exact variant (30 days). The
  *  storefront's /cart/add route has the API check the token, adds the line
- *  and shows the cart; it grants no account access. */
-export function cartLink(productId: string, quantity: number, contactId: string, now = Date.now()): string {
-  const t = signedLink({ p: productId, q: quantity, c: contactId }, 30 * 86_400, now);
+ *  and shows the cart; it grants no account access and names no person (the
+ *  email's tracking parameters say who clicked), so one rendered email can
+ *  serve every recipient. */
+export function cartLink(productId: string, quantity: number, now = Date.now()): string {
+  const t = signedLink({ p: productId, q: quantity }, 30 * 86_400, now);
   return storeUrl(`/cart/add?t=${encodeURIComponent(t)}`);
 }

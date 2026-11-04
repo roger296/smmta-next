@@ -63,19 +63,23 @@ export function tagLinks(html: string, ctx: LinkContext): string {
   });
 }
 
+/** Rendered HTML/text keyed on everything that shapes it except the
+ *  recipient; the per-recipient parts are placeholders swapped in after. A
+ *  digest of 20,000 is a handful of distinct emails, not 20,000 renders.
+ *  Entries live 10 minutes (signed cart links carry their own expiry). */
+const EID = '00000000-0000-4000-8000-0000000e1d00';
+const TOKEN = 'RECIPIENTTOKEN00000000000000000000000000000';
+const CACHE_MS = 10 * 60_000;
+const cache = new Map<string, { at: number; html: string; text: string }>();
+
+export function clearRenderCache(): void {
+  cache.clear();
+}
+
 export async function renderTemplate(input: RenderInput): Promise<RenderedEmail> {
   const def = getTemplate(input.templateKey);
   const cls = input.cls ?? def.class;
   const campaign = input.campaign ?? null;
-  const ctx = {
-    cls,
-    kind: input.kind,
-    sendId: input.sendId,
-    campaignId: campaign?.id ?? null,
-    utmCampaign: campaign?.utmCampaign ?? null,
-    contactId: input.contact.id,
-    isTrade: input.contact.isTrade,
-  };
 
   const blocks: Block[] =
     (input.data.blocks?.length ? input.data.blocks : null) ??
@@ -92,21 +96,38 @@ export async function renderTemplate(input: RenderInput): Promise<RenderedEmail>
   const subject = fillSubject(input.data.subject ?? (campaign?.subject || def.subject(input.data)), input.firstName ?? null);
   const preheader = input.data.preheader ?? campaign?.preheader ?? def.preheader?.(input.data) ?? null;
 
-  const element = (
-    <Layout
-      preheader={preheader}
-      cls={cls}
-      why={def.why}
-      storeUrl={storeUrl('/')}
-      unsubscribeUrl={cls === 'marketing' ? unsubscribeUrl(input.contact.unsubscribeToken) : undefined}
-      preferencesUrl={cls === 'marketing' ? preferencesUrl(input.contact.unsubscribeToken) : undefined}
-    >
-      {blocks.map((b, i) => renderBlock(b, ctx, i))}
-    </Layout>
-  );
-  const html = tagLinks(await render(element), ctx);
-  const text = toPlainText(html);
-  return { subject, html, text };
+  const key = JSON.stringify([input.templateKey, cls, input.kind, blocks, preheader, campaign?.id ?? null, campaign?.utmCampaign ?? null, input.contact.isTrade, input.data.items ?? null]);
+  const now = Date.now();
+  let hit = cache.get(key);
+  if (!hit || now - hit.at > CACHE_MS) {
+    const ctx = {
+      cls,
+      kind: input.kind,
+      sendId: EID,
+      campaignId: campaign?.id ?? null,
+      utmCampaign: campaign?.utmCampaign ?? null,
+      contactId: '',
+      isTrade: input.contact.isTrade,
+    };
+    const element = (
+      <Layout
+        preheader={preheader}
+        cls={cls}
+        why={def.why}
+        storeUrl={storeUrl('/')}
+        unsubscribeUrl={cls === 'marketing' ? unsubscribeUrl(TOKEN) : undefined}
+        preferencesUrl={cls === 'marketing' ? preferencesUrl(TOKEN) : undefined}
+      >
+        {blocks.map((b, i) => renderBlock(b, ctx, i))}
+      </Layout>
+    );
+    const html = tagLinks(await render(element), ctx);
+    hit = { at: now, html, text: toPlainText(html) };
+    if (cache.size > 500) cache.clear();
+    cache.set(key, hit);
+  }
+  const fill = (s: string) => s.split(EID).join(input.sendId).split(TOKEN).join(input.contact.unsubscribeToken);
+  return { subject, html: fill(hit.html), text: fill(hit.text) };
 }
 
 async function firstNameFor(contact: Pick<Contact, 'customerId' | 'storefrontUserId'>): Promise<string | null> {

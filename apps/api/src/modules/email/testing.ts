@@ -3,7 +3,7 @@
  * small fixtures. Every address is @example.com (runbook D9).
  */
 import { randomUUID } from 'node:crypto';
-import { inArray, like } from 'drizzle-orm';
+import { inArray, like, sql } from 'drizzle-orm';
 import { getDb } from '../../config/database.js';
 import { resetEnvForTests } from '../../config/env.js';
 import { getSingletonCompanyId } from '../../shared/auth/company.js';
@@ -11,6 +11,7 @@ import {
   customerOrders,
   customers,
   emailContacts,
+  emailSends,
   emailSettings,
   orderLines,
   productGroups,
@@ -23,7 +24,7 @@ let seq = 0;
 
 /** Rows the fixtures made, so `cleanupFixtures` can remove them: other suites
  *  wipe the catalogue and must not trip over our orders. */
-const made = { orders: [] as string[], products: [] as string[], groups: [] as string[], customers: [] as string[] };
+const made = { orders: [] as string[], products: [] as string[], groups: [] as string[], customers: [] as string[], bulkContacts: [] as string[] };
 const RUN = Date.now().toString(36);
 
 /** A fresh address no other test uses. */
@@ -126,6 +127,15 @@ export async function cleanupFixtures(): Promise<void> {
     await db.delete(products).where(inArray(products.id, made.products));
   }
   if (made.groups.length) await db.delete(productGroups).where(inArray(productGroups.id, made.groups));
+  // Bulk contacts have no consent events, so they (and their sends) can go.
+  for (let i = 0; i < made.bulkContacts.length; i += 5000) {
+    const ids = made.bulkContacts.slice(i, i + 5000);
+    await db.execute(sql`delete from email_events where send_id in (select id from email_sends where contact_id in ${ids})`);
+    await db.update(customerOrders).set({ emailSendId: null }).where(sql`${customerOrders.emailSendId} in (select id from email_sends where contact_id in ${ids})`);
+    await db.delete(emailSends).where(inArray(emailSends.contactId, ids));
+    await db.execute(sql`delete from email_contacts c where c.id in ${ids} and not exists (select 1 from email_consent_events e where e.contact_id = c.id)`);
+  }
+  made.bulkContacts = [];
   made.orders = [];
   made.products = [];
   made.groups = [];
@@ -154,6 +164,7 @@ export async function makeContacts(n: number, over: Partial<typeof emailContacts
   }));
   const out: Array<typeof emailContacts.$inferSelect> = [];
   for (let i = 0; i < rows.length; i += 1000) out.push(...(await getDb().insert(emailContacts).values(rows.slice(i, i + 1000)).returning()));
+  made.bulkContacts.push(...out.map((c) => c.id));
   return out;
 }
 

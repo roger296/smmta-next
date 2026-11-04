@@ -20,7 +20,7 @@ export async function emailCartLinkRoutes(app: FastifyInstance) {
 
   app.get('/storefront/email-links/cart', async (request, reply) => {
     const { t } = request.query as { t?: string };
-    const payload = t ? verifySignedLink<{ p?: string; q?: number; c?: string }>(t) : null;
+    const payload = t ? verifySignedLink<{ p?: string; q?: number }>(t) : null;
     if (!payload?.p || typeof payload.p !== 'string') {
       return reply.status(410).send({ success: false, error: 'This link has expired.' });
     }

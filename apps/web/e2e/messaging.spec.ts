@@ -8,7 +8,8 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { authenticatePage, getOrGenerateToken } from './helpers/auth';
 
-const API = process.env.E2E_API_URL ?? 'http://localhost:8080/api/v1';
+// @ts-expect-error - Node global, available at runtime in Playwright
+const API: string = process.env.E2E_API_URL ?? 'http://localhost:8080/api/v1';
 const run = Date.now().toString(36);
 
 async function api(request: APIRequestContext, method: 'post' | 'patch' | 'put', path: string, data: unknown) {
@@ -65,7 +66,12 @@ test('a manual campaign, a status change, an import dry run and the pause switch
   // An import dry run from the Imports page.
   await page.goto('/messaging/imports');
   await page.getByLabel('List type').selectOption('unsubscribes');
-  await page.getByLabel('CSV file').setInputFiles({ name: 'unsubs.csv', mimeType: 'text/csv', buffer: Buffer.from(`email\n${emails[1]}\n`) });
+  await page.getByLabel('CSV file').setInputFiles({
+    name: 'unsubs.csv',
+    mimeType: 'text/csv',
+    // @ts-expect-error - Node global, available at runtime in Playwright
+    buffer: Buffer.from(`email\n${emails[1]}\n`),
+  });
   await page.getByRole('button', { name: 'Dry run' }).click();
   await expect(page.getByTestId('import-report')).toContainText('would downgrade: 1');
 

@@ -6,13 +6,13 @@ describe('normaliseEmail', () => {
   it('strips angle brackets', () => expect(normaliseEmail('<a@b.co>')).toBe('a@b.co'));
   it('strips mailto:', () => expect(normaliseEmail('mailto:A@B.co')).toBe('a@b.co'));
   it('strips both', () => expect(normaliseEmail('<mailto:a@b.co>')).toBe('a@b.co'));
-  it('does not fold Gmail dots or plus tags', () =>
-    expect(normaliseEmail('First.Last+tag@gmail.com')).toBe('first.last+tag@gmail.com'));
+  it('does not fold dots or plus tags (Gmail-style)', () =>
+    expect(normaliseEmail('First.Last+tag@example.com')).toBe('first.last+tag@example.com'));
 });
 
 describe('isValidEmail', () => {
   it.each(['a@b.co', 'first.last+tag@sub.example.com'])('accepts %s', (e) => expect(isValidEmail(e)).toBe(true));
-  it.each(['', 'nope', 'a@b', 'a b@c.com', 'a@@b.com', 'a@b.c'])('refuses %s', (e) =>
+  it.each(['', 'nope', 'a@b', 'a b@example.com', 'a@@b.com', 'a@b.c'])('refuses %s', (e) =>
     expect(isValidEmail(e)).toBe(false),
   );
 });

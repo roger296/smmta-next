@@ -50,6 +50,10 @@ async function product(name: string, groupName: string, createdAt: Date, extra: 
 
 beforeAll(async () => {
   await dropTestCampaigns();
+  // Products an interrupted earlier run left in this file's 2031 windows.
+  await getDb().execute(sql`delete from stock_items where product_id in (select id from products where slug like 'em-%' and created_at >= '2031-01-01' and created_at < '2032-01-01')`);
+  await getDb().execute(sql`delete from order_lines where product_id in (select id from products where slug like 'em-%' and created_at >= '2031-01-01' and created_at < '2032-01-01')`);
+  await getDb().execute(sql`delete from products where slug like 'em-%' and created_at >= '2031-01-01' and created_at < '2032-01-01'`);
   const [w] = await getDb().insert(warehouses).values({ companyId: COMPANY, name: 'Digest WH' }).returning();
   warehouseId = w!.id;
   // The fixture week: three new PLA products, one PETG back in stock, one deal.

@@ -97,7 +97,7 @@ function ProductGrid({ p, ctx }: { p: Extract<Block, { type: 'ProductGrid' }>['p
         <Row key={i} style={{ marginBottom: '16px' }}>
           {row.map((prod) => {
             const view = trackLink(productUrl(prod), ctx, prod.interestKeys);
-            const href = p.cta === 'add' ? trackLink(cartLink(prod.productId, 1, ctx.contactId), ctx, prod.interestKeys) : view;
+            const href = p.cta === 'add' ? trackLink(cartLink(prod.productId, 1), ctx, prod.interestKeys) : view;
             const trade = ctx.isTrade ? gbp(prod.tradePriceGbp) : null;
             return (
               <Column key={prod.productId} style={{ width: '50%', verticalAlign: 'top', padding: '0 8px 0 0' }}>
@@ -142,7 +142,7 @@ function BackInStockList({ p, ctx }: { p: Extract<Block, { type: 'BackInStockLis
               <strong>{name}</strong> is available again — limited stock, so don&apos;t hang about.
             </Text>
             {gbp(it.priceGbp) ? <Text style={{ ...text, margin: '0 0 10px' }}><strong>{gbp(it.priceGbp)}</strong> · inc. VAT</Text> : null}
-            <Button href={trackLink(cartLink(it.productId, 1, ctx.contactId), ctx)} style={button}>
+            <Button href={trackLink(cartLink(it.productId, 1), ctx)} style={button}>
               Add to basket
             </Button>
             <Text style={{ ...small, margin: '8px 0 0' }}>

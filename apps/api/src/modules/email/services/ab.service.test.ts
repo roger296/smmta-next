@@ -8,7 +8,7 @@ import { getDb } from '../../../config/database.js';
 import { emailCampaigns, emailSends } from '../../../db/schema/index.js';
 import { AbService } from './ab.service.js';
 import { CampaignsService } from './campaigns.service.js';
-import { makeContacts } from '../testing.js';
+import { cleanupFixtures, makeContacts } from '../testing.js';
 
 const campaigns = new CampaignsService();
 const ab = new AbService();
@@ -16,6 +16,7 @@ const T0 = new Date('2031-05-06T10:00:00Z');
 const made: string[] = [];
 
 afterAll(async () => {
+  await cleanupFixtures();
   if (made.length) {
     await getDb().delete(emailSends).where(inArray(emailSends.campaignId, made));
     await getDb().update(emailCampaigns).set({ variantOf: null }).where(inArray(emailCampaigns.id, made));
