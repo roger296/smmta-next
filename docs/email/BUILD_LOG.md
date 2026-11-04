@@ -124,3 +124,21 @@ Decisions taken:
 - The live sandbox run against SendGrid could not be done (BLOCKERS B2).
 Tests: 7 unit (payload snapshot, transport), 3 rate limiter (incl. 20 parallel takers), 7 sender (120 rows at 60/h, gate at send time, 429 retry, permanent + exhausted, allowlist, window), 15 webhook/maintenance/attribution; API suite 1247 green
 Commit: (this commit)
+
+## Section 7 — Templates and rendering — DONE 2026-11-04T20:10:00Z
+Built:
+- React Email (`@react-email/components` 1.0.12, React 19.2.5 pinned to the version the admin already uses) in the API; `jsx: react-jsx` in the api and worker tsconfigs.
+- `modules/email/templates/layout.tsx` (header, body, footer with TBV Limited's name, company number, registered office and VAT number, the "why you got this" line, unsubscribe + preferences on marketing only), `blocks.tsx` (Hero, Text, FeaturedText (markdown), ProductGrid, BackInStockList, DealsList, OrderSummary, CartContents), `registry.tsx` (all 21 template keys with class, subject, why-line, default blocks), `render.tsx` (`renderTemplate`, `renderSend`, `renderForSamples`, `ensureTemplatesRegistered`, `tagLinks`), `links.ts` (UTM + `eid` + `ik` interest keys on shop links; product URLs; signed `cartLink`), `company.ts`, `fixtures.ts`.
+- Signed add-to-cart: API `GET /api/v1/storefront/email-links/cart?t=` (storefront key) resolves the token; storefront `GET /cart/add?t=` in both shops adds the line and lands on the basket (stale link → basket with `?link=expired`). The back-in-stock email's button is now this link (IDEAS item resolved).
+- Every template is registered in `email_templates` at version 1 on first render.
+Decisions taken:
+- React Email, as Part B #14 says (it installed cleanly).
+- After rendering, the whole HTML's links are tagged once more, so links inside markdown get UTM tags and the send id too; links to other sites are untouched. Unsubscribe/preferences links carry no UTM and `clicktracking="off"` so SendGrid does not wrap them (the body never contains a sendgrid.net address of ours).
+- Interest keys travel on product links as `ik=material:pla` (the click webhook credits them); `cid` is read too when a category id is present.
+- The plain-text part is made from the final HTML (`toPlainText`), so it carries the same tagged links.
+- Footer trader details are copied from `apps/store/lib/legal.ts` and a test fails if the two drift apart.
+- Pre-order ETA change and pre-order shipping are `order_required` (the spec's class table lists "pre-order ETA change" as order-required); subscription renewal notice is `requested_service`; post-purchase tips and review request are `service`; the rest are marketing.
+- First names come from a storefront user's display name, or a customer name that looks like a person's ("Ada Lovelace"), never a business name; subjects use `{{first_name|fallback}}`.
+- Trade prices are not applied to deep links (BLOCKERS B3).
+Tests: 133 template tests (21 templates × snapshot of subject/html/text, lint, link tagging, unsubscribe-on-marketing-only, footer, no offers in service mail; deep-link signing; first names; roll-up subject; trade price display; footer vs legal.ts; renderForSamples for every key), 5 deep-link API, 2+2 storefront `/cart/add`; API suite 1385 green; worker typechecks and boots
+Commit: (this commit)

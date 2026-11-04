@@ -31,6 +31,7 @@ import {
 } from './modules/storefront/storefront.routes.js';
 import { notifyMeRoutes } from './modules/storefront/notify-me.routes.js';
 import { emailPublicRoutes } from './modules/email/public/public.routes.js';
+import { emailCartLinkRoutes } from './modules/email/public/cart-link.routes.js';
 import { registerStorefrontRequestId } from './modules/storefront/log.js';
 import { identityRoutes } from './modules/identity/identity.routes.js';
 import { inboundRoutes } from './modules/inbound/inbound.routes.js';
@@ -212,6 +213,8 @@ export async function buildApp() {
   // they also work through the admin host.
   await app.register(emailPublicRoutes);
   await app.register(emailPublicRoutes, { prefix: '/api' });
+  // Signed add-to-cart links in emails, resolved for the storefront.
+  await app.register(emailCartLinkRoutes, { prefix: '/api/v1' });
 
   // Approval queue (Prompt 10): owner's inbox — approve/edit/reject, groups,
   // graduation, escalations. JWT-gated.

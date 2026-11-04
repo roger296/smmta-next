@@ -650,3 +650,16 @@ export async function ping(timeoutMs = 2_000): Promise<{ ok: boolean; status: nu
     clearTimeout(t);
   }
 }
+
+/**
+ * GET /storefront/email-links/cart — resolve a signed add-to-cart link from
+ * an email to the product and quantity it names. Throws SmmtaApiError (410)
+ * when the link is tampered with, expired or the product is gone.
+ */
+export async function resolveEmailCartLink(token: string): Promise<{ productId: string; quantity: number }> {
+  return smmtaFetch<{ productId: string; quantity: number }>(
+    `storefront/email-links/cart?t=${encodeURIComponent(token)}`,
+    { revalidate: false },
+    0,
+  );
+}

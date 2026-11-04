@@ -132,6 +132,17 @@ export async function cleanupFixtures(): Promise<void> {
   made.customers = [];
 }
 
+/** A real API key with the given scopes; returns the raw key and a delete. */
+export async function makeApiKey(scopes: string[]): Promise<{ raw: string; remove: () => Promise<void> }> {
+  const { generateApiKey, hashSecret } = await import('../../shared/auth/api-key.js');
+  const { apiKeys } = await import('../../db/schema/index.js');
+  const { eq } = await import('drizzle-orm');
+  const k = generateApiKey();
+  const name = `email-test-${k.prefix}`;
+  await getDb().insert(apiKeys).values({ companyId: getSingletonCompanyId(), name, keyHash: await hashSecret(k.secret), prefix: k.prefix, scopes });
+  return { raw: k.raw, remove: async () => void (await getDb().delete(apiKeys).where(eq(apiKeys.name, name))) };
+}
+
 /** Override settings for a test; returns a restore function. */
 export async function withSettings(patch: Partial<Record<EmailSettingKey, unknown>>): Promise<() => Promise<void>> {
   const db = getDb();

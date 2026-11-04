@@ -17,3 +17,10 @@ instead, and what Roger needs to do.
 - **Attempted:** the runbook's section 6 "done when" asks for a sandbox-mode run of 50 sends against SendGrid and a webhook replay.
 - **Done instead:** the build has no SendGrid key (and must not use a real one), so the sender was run against a fake transport for 120 sends (pacing, retries, allowlist, window) and the webhook was exercised with SendGrid-style signed payloads for every event type. The payload sent to SendGrid is pinned by an inline snapshot.
 - **Roger:** during go-live (HANDOVER.md), with `EMAIL_SEND_MODE=sandbox` and the new API key in production, send one test from the admin and confirm a `processed` event reaches the webhook (the Deliverability page shows the last event time).
+
+## B3 — Trade prices not applied to add-to-cart links (section 7)
+
+- **Attempted:** runbook section 7 step 4 asks the signed add-to-cart link to apply the trade contact's price.
+- **Found:** the only per-customer prices are `customer_product_prices`, which nothing in the storefront or checkout uses today, and whose VAT basis (order lines are ex-VAT; storefront prices are shown inc-VAT) is not documented. Applying them in the cart could mis-price an order.
+- **Done instead:** the link adds the exact variant at the storefront's normal price. Emails show "Your trade price" only to trade contacts and only when the content supplies one (nothing does yet).
+- **Roger:** decide how trade pricing should reach the storefront (and whether `customer_product_prices` are ex- or inc-VAT). Once the checkout honours a trade price, the resolver (`modules/email/public/cart-link.routes.ts`) can return it and `/cart/add` can pass it to `addItem`.
