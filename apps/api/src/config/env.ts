@@ -202,6 +202,9 @@ const envSchema = z.object({
    *  preferences pages are served on it (the storefront proxies /email/*). */
   STOREFRONT_BASE_URL: z.string().default('https://filament.cleverdeals.net'),
   ADMIN_BASE_URL: z.string().default('https://admin.cleverdeals.net'),
+  /** Where copies of imported contact lists are kept as consent evidence.
+   *  PRIVATE (personal data): a mounted volume nothing serves publicly. */
+  EMAIL_EVIDENCE_DIR: z.string().default('./var/email-evidence'),
 
   // Storefront — used when the API needs to call the storefront's
   // internal email-rendering route (e.g. back-in-stock notifications

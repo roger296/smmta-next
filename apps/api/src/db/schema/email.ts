@@ -108,8 +108,8 @@ export const emailContacts = pgTable(
     companyId: companyId(),
     /** Lower-cased and trimmed; the check constraint refuses anything else. */
     email: varchar('email', { length: 320 }).notNull(),
-    customerId: uuid('customer_id').references((): AnyPgColumn => customers.id),
-    storefrontUserId: uuid('storefront_user_id').references(() => storefrontUsers.id),
+    customerId: uuid('customer_id').references((): AnyPgColumn => customers.id, { onDelete: 'set null' }),
+    storefrontUserId: uuid('storefront_user_id').references(() => storefrontUsers.id, { onDelete: 'set null' }),
     marketingStatus: emailMarketingStatusEnum('marketing_status').notNull().default('transactional_only'),
     statusChangedAt: timestamp('status_changed_at', { withTimezone: true }).notNull().defaultNow(),
     statusReason: text('status_reason'),
@@ -348,3 +348,4 @@ export const emailRateLimit = pgTable('email_rate_limit', {
   tokens: doublePrecision('tokens').notNull(),
   refilledAt: timestamp('refilled_at', { withTimezone: true }).notNull().defaultNow(),
 });
+

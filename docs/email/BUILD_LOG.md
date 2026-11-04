@@ -70,3 +70,20 @@ Decisions taken:
 - Deep link: IDEAS.md tracks the section 9 switch to the add-to-cart link.
 Tests: 8 integration (back in stock), existing notify-me (11) and GRN (8) tests unchanged and green; API suite 1189 green
 Commit: (this commit)
+
+## Section 4 — CSV importer — DONE 2026-11-04T16:30:00Z
+Built:
+- `modules/email/services/imports.service.ts`: streaming `csv-parse`, batches of 500 in one transaction each, header detection (`detectColumns`), created-at parsing (unix seconds / ISO / `YYYY-MM-DD HH:MM:SS`), per-row interests (`rowInterests`), dry run → live run gated on a matching dry run (same SHA-256 and list type), live re-run of an imported file = no-op report, evidence copy to `EMAIL_EVIDENCE_DIR/<sha256>-<filename>`, report shape per runbook (conflicts masked, first 50).
+- `scripts/email/import.ts` (CLI; dry run by default, `--live --dry-run-id`).
+- Fixtures: `apps/api/test/fixtures/email/sendgrid/*.csv` (synthetic, @example.com).
+- `EMAIL_EVIDENCE_DIR` env; Coolify compose files (full and back-office) give the api and worker the email env vars and a private `email-evidence` volume.
+- Migration `0045_email_links_set_null.sql`: every link between email rows and customers / storefront users / back-in-stock requests is `ON DELETE SET NULL` — a contact (and its consent history) outlives the customer row it was linked to; found when another suite's customer clean-up was blocked.
+Decisions taken:
+- Consent events written by an import use source `csv_import`; new contacts' `consent_source` is the upload's (default `sendgrid_import`).
+- A `never` contact is left completely alone by an import (status and deliverability); it is reported as a `never_unchanged` conflict.
+- An import cannot set `never` as its default status (refused): only an operator sets that, per contact.
+- Interests from an import are applied to the contacts it creates, at the "interested" score (3). Existing contacts' interests are not changed by imports.
+- Deliverability: a complaint is never replaced by a bounce.
+- Real exports absent: the dry and live runs of step 7 could not run (BLOCKERS B1). The four-file order is proven on fixtures.
+Tests: 9 unit (six layouts, row helpers), 6 integration (four-file sequence, downgrade with evidence, re-run no-op, dry-run refusals, unknown layout, evidence copy); API suite 1218 green
+Commit: (this commit)

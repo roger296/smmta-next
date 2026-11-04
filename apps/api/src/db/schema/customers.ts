@@ -40,7 +40,7 @@ export const customers = pgTable('customers', {
   warehouseId: uuid('warehouse_id'),
   /** The customer's address in the email system (email_contacts), set when
    *  the customer is created or an import matches them by email. */
-  contactId: uuid('contact_id').references((): AnyPgColumn => emailContacts.id),
+  contactId: uuid('contact_id').references((): AnyPgColumn => emailContacts.id, { onDelete: 'set null' }),
   oldId: oldId(),
   ...auditTimestamps,
 });
