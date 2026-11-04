@@ -100,7 +100,7 @@ Work through these in order and tick each one off.
   - `EMAIL_SEND_MODE=allowlist`
   - `EMAIL_TEST_ALLOWLIST` — your test addresses, comma-separated, e.g. `roger@etailsupport.com,test@cleverdeals.net`. Use mailboxes you can read, ideally one Gmail and one Outlook, so you see how both treat the mail.
   - `EMAIL_TOKEN_SECRET` — run `openssl rand -base64 32`
-  - `SENDGRID_API_KEY` — a new key scoped to Mail Send and Suppressions (read)
+  - `SENDGRID_API_KEY` — already set for the shops; keep it. It needs Mail Send and Suppressions (read); Full Access covers both.
   - `SENDGRID_WEBHOOK_PUBLIC_KEY` (or the existing `SENDGRID_WEBHOOK_VERIFICATION_KEY`)
   - `BOUNCER_API_KEY`
   - `STOREFRONT_BASE_URL` — the shop origin the emails should link to
@@ -111,7 +111,10 @@ Work through these in order and tick each one off.
   - Then tag the release (`git tag -a vX.Y.Z <merge commit>` and push it).
 - [ ] **Check SendGrid's settings:**
   - Tracking: Click on, Open on, Subscription Tracking **off**.
-  - Event Webhook: add `https://admin.cleverdeals.net/api/webhooks/sendgrid` with Signed Event Webhook on and all events selected. If the account is shared with Beagle, add it as a second endpoint and leave Beagle's alone.
+  - Event Webhook: the account allows only one, and Bloodhound already uses it, so the two share it:
+    1. Copy the **Post URL** currently in SendGrid's Event Webhook settings (Bloodhound's) and set it in Coolify as `SENDGRID_WEBHOOK_FORWARD_URL`. Redeploy.
+    2. Change the Post URL to `https://admin.cleverdeals.net/api/webhooks/sendgrid`, keep Signed Event Webhook on, select all events, and save.
+    3. Every batch SendGrid sends now reaches this system first and is passed on, unchanged and still signed, to Bloodhound. Check Bloodhound still records events after the switch.
 - [ ] **Backfill contacts** from inside the api container:
   `npx tsx scripts/email/backfill-contacts.ts`
   Record the counts it prints in BUILD_LOG.

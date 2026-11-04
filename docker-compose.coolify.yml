@@ -92,6 +92,9 @@ services:
       EMAIL_TEST_ALLOWLIST: ${EMAIL_TEST_ALLOWLIST:-}
       EMAIL_TOKEN_SECRET: ${EMAIL_TOKEN_SECRET:-}
       SENDGRID_WEBHOOK_PUBLIC_KEY: ${SENDGRID_WEBHOOK_PUBLIC_KEY:-}
+      # The account's one Event Webhook is shared: verified batches are passed
+      # on to this URL (Bloodhound's webhook). Empty = no forwarding.
+      SENDGRID_WEBHOOK_FORWARD_URL: ${SENDGRID_WEBHOOK_FORWARD_URL:-}
       BOUNCER_API_KEY: ${BOUNCER_API_KEY:-}
       EMAIL_ALERT_EMAIL: ${EMAIL_ALERT_EMAIL:-}
       STOREFRONT_BASE_URL: ${STOREFRONT_BASE_URL:-https://filament.cleverdeals.net}

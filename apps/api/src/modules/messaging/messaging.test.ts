@@ -3,6 +3,8 @@
  * FakeSendGrid (NODE_ENV=test).
  */
 import { generateKeyPairSync, createSign } from 'node:crypto';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { and, eq, inArray, like, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
@@ -249,6 +251,60 @@ describe('webhook + unsubscribe', () => {
       .where(and(eq(consentRecords.userId, user.id), eq(consentRecords.consentType, 'general_marketing')));
     expect(consents.some((c) => !c.granted)).toBe(true);
     await app.close();
+  });
+
+  it('passes a verified batch on to the shared webhook, and asks SendGrid to resend when that fails', async () => {
+    const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+    process.env.SENDGRID_WEBHOOK_VERIFICATION_KEY = publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+    const got: Array<{ body: string; sig?: string; ts?: string }> = [];
+    let status = 200;
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        got.push({
+          body,
+          sig: req.headers['x-twilio-email-event-webhook-signature'] as string,
+          ts: req.headers['x-twilio-email-event-webhook-timestamp'] as string,
+        });
+        res.statusCode = status;
+        res.end();
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const port = (server.address() as AddressInfo).port;
+    process.env.SENDGRID_WEBHOOK_FORWARD_URL = `http://127.0.0.1:${port}/hook`;
+    resetEnvForTests();
+    app = await buildApp();
+    await app.ready();
+    try {
+      const raw = JSON.stringify([{ email: 'forward@example.com', event: 'delivered', sg_event_id: `fwd-${Date.now()}` }]);
+      const timestamp = '1700000001';
+      const sig = createSign('sha256').update(timestamp + raw).sign(privateKey).toString('base64');
+      const post = (signature: string) =>
+        app.inject({
+          method: 'POST',
+          url: '/api/webhooks/sendgrid',
+          headers: { 'content-type': 'application/json', 'x-twilio-email-event-webhook-signature': signature, 'x-twilio-email-event-webhook-timestamp': timestamp },
+          payload: raw,
+        });
+
+      expect((await post('nope')).statusCode).toBe(401);
+      expect(got).toHaveLength(0); // an unverified post is never passed on
+
+      expect((await post(sig)).statusCode).toBe(200);
+      expect(got[0]).toEqual({ body: raw, sig, ts: timestamp });
+
+      status = 502;
+      expect((await post(sig)).statusCode).toBe(503);
+      status = 400;
+      expect((await post(sig)).statusCode).toBe(200);
+    } finally {
+      delete process.env.SENDGRID_WEBHOOK_FORWARD_URL;
+      resetEnvForTests();
+      await app.close();
+      await new Promise<void>((r) => server.close(() => r()));
+    }
   });
 
   it('a signed unsubscribe link revokes consent', async () => {
