@@ -30,6 +30,7 @@ import {
   storefrontWriteRoutes,
 } from './modules/storefront/storefront.routes.js';
 import { notifyMeRoutes } from './modules/storefront/notify-me.routes.js';
+import { emailPublicRoutes } from './modules/email/public/public.routes.js';
 import { registerStorefrontRequestId } from './modules/storefront/log.js';
 import { identityRoutes } from './modules/identity/identity.routes.js';
 import { inboundRoutes } from './modules/inbound/inbound.routes.js';
@@ -204,6 +205,11 @@ export async function buildApp() {
   await app.register(outboxRoutes, { prefix: '/api/v1' });
   await app.register(sendgridWebhookRoutes, { prefix: '/api/v1' });
   await app.register(unsubscribeRoutes, { prefix: '/api/v1' });
+  // Email system: public unsubscribe / preferences pages (no login; the token
+  // is the key). At /email/* for the storefront's proxy, and /api/email/* so
+  // they also work through the admin host.
+  await app.register(emailPublicRoutes);
+  await app.register(emailPublicRoutes, { prefix: '/api' });
 
   // Approval queue (Prompt 10): owner's inbox — approve/edit/reject, groups,
   // graduation, escalations. JWT-gated.

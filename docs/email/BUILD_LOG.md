@@ -35,3 +35,18 @@ Decisions taken:
 - A hero campaign's `override_gap` skips the 7-day gap but never the 24-hour floor.
 Tests: 93 unit (gate 60-cell matrix + marketing gates + window, normalise, interests), 37 integration (transitions table, trigger, deliverability, interests, backfill on 20 customers ×2 runs); API suite 1164 green
 Commit: (this commit)
+
+## Section 2 — Unsubscribe and preferences pages — DONE 2026-11-04T14:20:00Z
+Built:
+- `modules/email/lib/tokens.ts` (stored unsubscribe tokens; HMAC-SHA256 signed links with expiry, constant-time compare), `lib/headers.ts` (`marketingHeaders`, RFC 2369/8058), `lib/ip-rate-limit.ts` (30/min per IP).
+- `modules/email/public/pages.ts` + `public.routes.ts`: `GET/POST /email/u/:token` (one-click POST → 200 empty, also for unknown tokens; `confirm=1` form → result page), `GET/POST /email/preferences/:token` (interests per material, weekly email, new-product alerts, marketing on/off). Registered in `app.ts` at `/email/*` and `/api/email/*`. `noindex` meta + `X-Robots-Tag`, no scripts, no-store.
+- Storefront pass-through `app/email/[...path]/route.ts` in `apps/store` and `apps/store-clothes`, so the links live on the shop's domain (STOREFRONT_BASE_URL).
+Decisions taken:
+- The pages are rendered by the API and proxied by the storefront at request time (a Route Handler, not a `next.config` rewrite: the API address is only known at runtime in Docker, and rewrites are baked in at build). One implementation serves both shops.
+- `digest_enabled` / `new_product_alerts_enabled` were created in section 1's migration; the gate already treats them as reasons for `weekly_digest` / `new_product` only.
+- Unknown tokens: one-click and confirm POSTs answer 200 and write nothing; the GET confirm page renders without an address; the preferences page answers 404 with a generic "link expired" page.
+- Ticking a material on the preferences page sets its interest just above the "interested" threshold (unless already higher); unticking removes it. Unticking everything (or the marketing box) = unsubscribe.
+- The browser test drives real Chromium (`/opt/pw-browsers/chromium` or `PLAYWRIGHT_CHROMIUM_EXECUTABLE`) with requests routed into the app via `inject`; it skips where no browser exists (the API CI job installs none). `@playwright/test` added to the API's devDependencies.
+- Checked live: `curl -X POST -d 'List-Unsubscribe=One-Click' http://127.0.0.1:8099/email/u/<token>` → 200 and the contact became `transactional_only`.
+Tests: 4 unit (headers, signed links), 12 integration (routes), 2 e2e (Chromium, 375 px, JS off), 3 storefront proxy; all green
+Commit: (this commit)
