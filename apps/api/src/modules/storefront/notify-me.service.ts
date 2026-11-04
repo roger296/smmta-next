@@ -17,8 +17,11 @@
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { getDb } from '../../config/database.js';
+import { ContactsService } from '../email/services/contacts.service.js';
+import { DEFAULT_INTEREST_POLICY, interestKeysForProduct } from '../email/lib/interests.js';
 import {
   newsletterSubscribers,
+  productGroups,
   products,
   stockItems,
   stockNotifications,
@@ -39,6 +42,9 @@ export interface NotifyMeResult {
 
 /** Payload pushed at the storefront's internal send route. */
 export interface NotifyMeSendPayload {
+  /** The stock_notifications row being fulfilled (the email system's
+   *  idempotency key). */
+  requestId?: string;
   email: string;
   productId: string;
   productName: string;
@@ -104,7 +110,38 @@ export class NotifyMeService {
       await this.upsertNewsletterSubscriber(companyId, email);
     }
 
+    if (created) await this.recordInterest(input.productId, email);
+
     return { ok: true, created };
+  }
+
+  /**
+   * The requester becomes an email contact (source back_in_stock_form; no
+   * marketing consent from this alone) and gains interest in the product's
+   * material/category. Best effort: never fails the customer's request.
+   */
+  private async recordInterest(productId: string, email: string): Promise<void> {
+    try {
+      const product = await this.db.query.products.findFirst({ where: eq(products.id, productId) });
+      const group = product?.groupId
+        ? await this.db.query.productGroups.findFirst({ where: eq(productGroups.id, product.groupId) })
+        : undefined;
+      const contacts = new ContactsService();
+      const { contact } = await contacts.findOrCreateByEmail(email, { source: 'back_in_stock_form' });
+      await this.db
+        .update(stockNotifications)
+        .set({ contactId: contact.id })
+        .where(and(eq(stockNotifications.productId, productId), eq(stockNotifications.email, email), isNull(stockNotifications.fulfilledAt)));
+      if (product) {
+        await contacts.addInterest(
+          contact.id,
+          interestKeysForProduct({ name: product.name, groupName: group?.name, categoryId: product.categoryId }),
+          DEFAULT_INTEREST_POLICY.orderPoints,
+        );
+      }
+    } catch {
+      // The request is recorded either way; the contact is created again on send.
+    }
   }
 
   /**
@@ -200,6 +237,7 @@ export class NotifyMeService {
     for (const row of pending) {
       try {
         await sender.send({
+          requestId: row.id,
           email: row.email,
           productId: product.id,
           productName: product.name,

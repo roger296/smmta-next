@@ -50,3 +50,23 @@ Decisions taken:
 - Checked live: `curl -X POST -d 'List-Unsubscribe=One-Click' http://127.0.0.1:8099/email/u/<token>` → 200 and the contact became `transactional_only`.
 Tests: 4 unit (headers, signed links), 12 integration (routes), 2 e2e (Chromium, 375 px, JS off), 3 storefront proxy; all green
 Commit: (this commit)
+
+## Section 3 — Move back-in-stock onto the gate — DONE 2026-11-04T15:10:00Z
+Built:
+- `modules/email/services/sends.service.ts` (`SendsService.enqueue` = runbook `enqueueSend`: gate → one `email_sends` row, queued or dropped with the reason; idempotent on the key; roll-up helpers; `unengagedStreak`).
+- `modules/email/services/sender.service.ts` — section 3 stub sender (sandbox: marks due rows sent; refuses when `EMAIL_SEND_MODE` is unset). Replaced in section 6.
+- `modules/email/services/back-in-stock.service.ts`: `GateNotifyMeSender` (the `NotifyMeSender` the GRN now uses) and `BackInStockService` (daily re-check, 180-day close).
+- Migration `0044_email_back_in_stock.sql`: `stock_notifications.contact_id`, `.email_send_id`, `.close_reason`.
+- `NotifyMeService.record` creates the requester's contact (source `back_in_stock_form`, no marketing consent) and adds +10 interest for the product; `fulfilForProduct` passes the request id. `GRNService.notifyMeSender` defaults to `GateNotifyMeSender`; the old HTTP sender to the storefront route is removed.
+- Worker: `modules/email/jobs/schedule.ts` + `jobs/handlers.ts`; `ScheduledJob.tz` added and passed to `boss.schedule` (UK local time). Jobs: `email-send` (every minute), `email-bis-recheck` (08:55 UK), `email-close-stale-bis` (03:35 UK).
+Decisions taken:
+- Back in stock is class `requested_service` (the runbook's "transactional"): the spec's class table puts it there — `transactional_only` contacts get it, `never` and bad addresses do not.
+- Queue names use hyphens (`email-send`) like the worker's other queues; the runbook writes `email.send`.
+- No pg-boss publish per row: the API process does not run pg-boss; the every-minute `email-send` job drains due rows (runbook section 6 item 4 calls for that cron anyway).
+- Roll-up: a contact with only one open request is sent straight away; a contact with other requests open gets one send at the next 09:00 UK that every further item joins until it goes. This satisfies both "single request immediate" and "one email listing all that came back today".
+- 24-hour rule: a contact sent a back-in-stock email for the same product in the last 24 hours is not sent another; the request stays open and the daily re-check (which also covers stock that arrived other than through a GRN) sends it after the 24 hours.
+- A request closes when its send is queued *or* dropped by the gate (one email per request; "closes on send"). Expired requests are soft-deleted with `close_reason = 'expired'` so the customer can re-enrol.
+- Registering the `back_in_stock` row in `email_templates` and the new layout are done with the rest of the templates in section 7 (the stub sender renders nothing).
+- Deep link: IDEAS.md tracks the section 9 switch to the add-to-cart link.
+Tests: 8 integration (back in stock), existing notify-me (11) and GRN (8) tests unchanged and green; API suite 1189 green
+Commit: (this commit)

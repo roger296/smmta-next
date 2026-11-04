@@ -13,6 +13,7 @@
  * now so the outbox path is exercised end-to-end.
  */
 import type { DomainEventType } from '../shared/events/types.js';
+import { EMAIL_SCHEDULED_JOBS } from '../modules/email/jobs/schedule.js';
 
 // ---- Event-driven handler queues (§12.3 "Event-driven handlers") ----
 export const HANDLER_QUEUES = [
@@ -100,6 +101,8 @@ export interface ScheduledJob {
   name: string;
   cron: string;
   description: string;
+  /** IANA time zone the cron is read in; UTC when absent. */
+  tz?: string;
 }
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [
@@ -114,6 +117,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: 'expired-draft-sweep', cron: '10 * * * *', description: 'Hourly: expire stale drafts (§17.7)' },
   { name: 'google-feed-build', cron: '40 2 * * *', description: 'Nightly: Google Merchant Centre product feeds' },
   { name: 'google-feed-stock-build', cron: '15 * * * *', description: 'Hourly: Merchant Centre price + availability feeds' },
+  // Email system (modules/email/jobs/schedule.ts).
+  ...EMAIL_SCHEDULED_JOBS,
 ];
 
 // ---- Retry / dead-letter policy (§12.3) ----

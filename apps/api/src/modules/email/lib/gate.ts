@@ -191,3 +191,16 @@ export function nextWindowOpening(now: Date, window: { start: string; end: strin
 export function broadCategory(cls: EmailClass): 'transactional' | 'marketing' {
   return cls === 'marketing' ? 'marketing' : 'transactional';
 }
+
+/** The next moment at or after `now` whose local time in `timezone` is
+ *  `hhmmTarget` (same day if still ahead, else tomorrow). */
+export function nextLocalTime(now: Date, hhmmTarget: string, timezone: string): Date {
+  const local = localMinutes(now, timezone);
+  let delta = hhmm(hhmmTarget) - local;
+  if (delta <= 0) delta += 24 * 60;
+  const t = new Date(Math.floor(now.getTime() / 60_000) * 60_000 + delta * 60_000);
+  // A clock change between now and then shifts local time by an hour;
+  // correct for it once.
+  const off = hhmm(hhmmTarget) - localMinutes(t, timezone);
+  return off === 0 ? t : new Date(t.getTime() + off * 60_000);
+}

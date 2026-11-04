@@ -53,8 +53,8 @@ describe.skipIf(!haveBrowser)('public pages in a browser (375 px, JavaScript off
     return p;
   }
 
-  async function noHorizontalScroll(p: { evaluate: (f: () => number) => Promise<number> }) {
-    const width = await p.evaluate(() => document.documentElement.scrollWidth);
+  async function noHorizontalScroll(p: { evaluate: (expr: string) => Promise<number> }) {
+    const width = await p.evaluate('document.documentElement.scrollWidth');
     expect(width).toBeLessThanOrEqual(375);
   }
 

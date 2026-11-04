@@ -309,6 +309,13 @@
       "when": 1793795509821,
       "tag": "0043_email_core",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793796364276,
+      "tag": "0044_email_back_in_stock",
+      "breakpoints": true
     }
   ]
 }
