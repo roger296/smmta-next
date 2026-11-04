@@ -96,7 +96,7 @@ Testing happens on **real mail**, not in SendGrid's sandbox, with `EMAIL_SEND_MO
 
 Work through these in order and tick each one off.
 
-- [ ] **Set the environment in Coolify** for both the api and worker services:
+- [ ] **Set the environment in Coolify**, once, in the stack's **Environment Variables** tab. `docker-compose.coolify.yml` hands each variable to the services that need it (the api and the worker):
   - `EMAIL_SEND_MODE=allowlist`
   - `EMAIL_TEST_ALLOWLIST` — your test addresses, comma-separated, e.g. `roger@etailsupport.com,test@cleverdeals.net`. Use mailboxes you can read, ideally one Gmail and one Outlook, so you see how both treat the mail.
   - `EMAIL_TOKEN_SECRET` — run `openssl rand -base64 32`
