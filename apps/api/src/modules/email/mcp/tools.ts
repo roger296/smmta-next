@@ -14,15 +14,13 @@
  *  - Imports are dry runs unless given the id of a dry run of the same file.
  *  - Every call is written to `email_audit` with addresses masked.
  */
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { z } from 'zod';
-import { getEnv } from '../../../config/env.js';
 import { previewSegment, segmentSchema } from '../services/audience.service.js';
 import { AbService } from '../services/ab.service.js';
 import { CampaignsService } from '../services/campaigns.service.js';
 import { ContactsService } from '../services/contacts.service.js';
-import { ImportsService, LIST_TYPES } from '../services/imports.service.js';
+import { ImportsService, LIST_TYPES, saveUploadedCsv } from '../services/imports.service.js';
 import { contactFilterSchema, OperatorService } from '../services/operator.service.js';
 import { ReportsService } from '../services/reports.service.js';
 import { getEmailSettings, updateEmailSettings } from '../services/settings.service.js';
@@ -112,11 +110,7 @@ export const EMAIL_TOOLS: EmailTool[] = [
     handler: async (a, ctx) => {
       let path: string;
       if (a.csv) {
-        const dir = resolve(getEnv().EMAIL_EVIDENCE_DIR, 'uploads');
-        await mkdir(dir, { recursive: true });
-        const { createHash } = await import('node:crypto');
-        path = join(dir, `${createHash('sha256').update(a.csv).digest('hex')}.csv`);
-        await writeFile(path, a.csv);
+        path = await saveUploadedCsv(a.csv);
       } else if (a.file_path) {
         const root = resolve(process.cwd(), '../../imports');
         path = resolve(root, a.file_path.replace(/^imports\//, ''));

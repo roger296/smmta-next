@@ -26,6 +26,12 @@ export function getOrGenerateToken(): string {
 export async function authenticatePage(page: Page, token?: string) {
   const t = token ?? getOrGenerateToken();
   await page.addInitScript((jwt) => {
-    window.localStorage.setItem('smmta_token', jwt);
+    // Also runs in every frame, including sandboxed preview iframes where
+    // localStorage is off limits; only the top window needs the token.
+    try {
+      window.localStorage.setItem('smmta_token', jwt);
+    } catch {
+      /* sandboxed frame */
+    }
   }, t);
 }

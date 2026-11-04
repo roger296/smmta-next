@@ -89,7 +89,13 @@ export class SendGridTransport implements EmailTransport {
   ) {}
 
   async send(payload: Record<string, unknown>): Promise<{ messageId: string }> {
-    if (!this.apiKey) throw new SendGridError('SENDGRID_API_KEY is not set', 0, false, '');
+    if (!this.apiKey) {
+      // A sandboxed message is never delivered, so with no key (a dev or test
+      // machine) accept it locally rather than fail; a real send needs the key.
+      const sandboxed = (payload.mail_settings as { sandbox_mode?: { enable?: boolean } } | undefined)?.sandbox_mode?.enable;
+      if (sandboxed) return { messageId: `sandbox-local-${Date.now().toString(36)}` };
+      throw new SendGridError('SENDGRID_API_KEY is not set', 0, false, '');
+    }
     let res: Response;
     try {
       res = await fetch(this.url, {

@@ -478,3 +478,15 @@ export class ImportsService {
 
 /** All material interest keys — the lights-out default for a contacts import. */
 export const ALL_MATERIAL_INTERESTS = MATERIAL_KEYS;
+
+/** Keep an uploaded CSV (from the admin or MCP) under the evidence directory,
+ *  named by its hash, and return the path. Re-uploading the same text gives
+ *  the same path, which is what lets a live run follow its dry run. */
+export async function saveUploadedCsv(text: string): Promise<string> {
+  const dir = join(evidenceDir(), 'uploads');
+  await mkdir(dir, { recursive: true });
+  const path = join(dir, `${createHash('sha256').update(text).digest('hex')}.csv`);
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(path, text);
+  return path;
+}

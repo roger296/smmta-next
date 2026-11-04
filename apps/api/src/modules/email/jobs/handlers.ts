@@ -17,6 +17,7 @@ import { getEmailSettings } from '../services/settings.service.js';
 import { CampaignsService } from '../services/campaigns.service.js';
 import { DigestService, reached } from '../services/digest.service.js';
 import '../services/ab.service.js';
+import { checkDns } from '../services/dns.service.js';
 
 export function installEmailHandlers(logger: Logger): void {
   const log = logger.child({ module: 'email' });
@@ -108,6 +109,12 @@ export function installEmailHandlers(logger: Logger): void {
     if (!reached(now, null, s.new_product_rollup_time)) return;
     const c = await digest.createNewProductRollup(now);
     if (c) log.info({ campaignId: c.id }, 'new-product roll-up ready');
+  });
+
+  setHandler('email-dns-check', async () => {
+    const checks = await checkDns();
+    const failing = checks.filter((c) => !c.ok).map((c) => c.record);
+    if (failing.length) log.warn({ failing }, 'email DNS check: records missing');
   });
 
   setHandler('email-close-stale-bis', async () => {

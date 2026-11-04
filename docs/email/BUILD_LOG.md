@@ -189,3 +189,20 @@ Decisions taken:
 - Settings that are objects merge over their defaults, so a later default (a new automation) always has a value.
 Tests: 6 (tool list vs MCP.md; descriptions; every tool called through a real MCP client with shape checks, schema refusal and audit rows; 51-contact Claude campaign → pending_approval → approved by an email:approve key; HTTP auth 401/403; initialize + tools/list over HTTP); API suite 1403 green
 Commit: (this commit)
+
+## Section 11 — Admin UI — DONE 2026-11-05T03:30:00Z
+Built:
+- API: `modules/email/admin/email-admin.routes.ts` (JWT): overview, contacts (filtered list, CSV export, detail with timeline, status change with reason, bulk status, re-verify, record consent), imports (CSV text upload → dry run → live run, history), segment preview, campaigns (CRUD, preview as three contacts, schedule, approve, cancel, pause, resume, test send, A/B subject), automations, templates (+ preview with sample data), weekly content, deliverability (rates, 90-day daily series, DNS, alerts, pause/resume, check DNS now), settings, audit log. Every change audited with the user as actor.
+- `modules/email/services/dns.service.ts` + daily `email-dns-check` job (DNS-over-HTTPS: SPF includes SendGrid, both DKIM CNAMEs, DMARC, following a DMARC CNAME once).
+- Admin SPA: "Messaging" in the sidebar (`/messaging`, hideable as `messaging`), seven pages under `apps/web/src/routes/_authed/messaging/` — Campaigns (list, approval queue, editor with block picker, live segment count, schedule/window, A/B, test send, three-contact preview in a sandboxed iframe, report), Contacts (filters, bulk status, export; detail with consent, address, interests, timeline), Imports, Automations, Templates, Deliverability (recharts line chart, pause switch, DNS, alerts), Settings. A banner on every page shows the send mode and pause state, red unless live and running. Hooks in `apps/web/src/features/email/`.
+- Playwright `apps/web/e2e/messaging.spec.ts`: campaign to a 3-contact segment (preview, test send, schedule), status change with reason → consent event, import dry run, pause switch → segment count 0, and every page loading; passed against an empty database and the populated test database.
+Decisions taken:
+- Uploads follow the repo's existing CSV-import pattern (file read in the browser, sent as JSON text); the API keeps the text under the evidence directory by its hash, so the live run uses exactly the dry-run file.
+- The segment builder offers consent, materials, trade and order/engagement windows; an exact address list (`contact_ids`) is supported by the API and MCP but not typed into the UI (the e2e sets it through the API).
+- Templates are code (React Email), so the Templates page previews each with sample content and shows its registered version; campaign copy is edited per campaign.
+- Native form controls rather than Radix Select inside these pages: simpler, accessible and testable.
+- With no SendGrid key, a sandboxed message is accepted locally (it would never be delivered anyway); a non-sandbox send without a key still fails.
+- The e2e auth helper now tolerates sandboxed iframes (it seeded the token into every frame, which threw inside the email preview).
+- Playwright's Chromium path is configurable (`PLAYWRIGHT_CHROMIUM_EXECUTABLE`), defaulting to the bundled one.
+Tests: 5 API admin-route integration, 2 Playwright e2e; web unit 141 green; API suite 1408 green; web `tsc -b` clean
+Commit: (this commit)
