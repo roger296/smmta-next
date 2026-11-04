@@ -330,6 +330,13 @@
       "when": 1793797218231,
       "tag": "0046_email_sending",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793798521046,
+      "tag": "0047_email_campaigns",
+      "breakpoints": true
     }
   ]
 }

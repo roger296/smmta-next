@@ -142,3 +142,19 @@ Decisions taken:
 - Trade prices are not applied to deep links (BLOCKERS B3).
 Tests: 133 template tests (21 templates × snapshot of subject/html/text, lint, link tagging, unsubscribe-on-marketing-only, footer, no offers in service mail; deep-link signing; first names; roll-up subject; trade price display; footer vs legal.ts; renderForSamples for every key), 5 deep-link API, 2+2 storefront `/cart/add`; API suite 1385 green; worker typechecks and boots
 Commit: (this commit)
+
+## Section 8 — Weekly digest and new-product roll-up — DONE 2026-11-04T22:30:00Z
+Built:
+- `modules/email/services/audience.service.ts`: segment schema (status, interests_any/all, is_trade, last_order_within/older_than_days, engaged_within_days, source, exclude_campaign_ids, contact_ids), `segmentContacts`, `buildAudience` (gate per contact, unengaged streaks in one query), `previewSegment` (count + 10 masked samples).
+- `modules/email/services/campaigns.service.ts`: create / update / schedule / approve / cancel / pause / resume, approval threshold for Claude-made marketing, `expand` (rows keyed `campaign:<id>:<contact>`, `not_before` spread evenly across the window with ±10% deterministic jitter, per-contact content builders, empty content = no row), `tick` (expand due, close finished).
+- `modules/email/services/digest.service.ts`: per-contact digest blocks (new in their interests since `last_digest_at`; back in stock in their interests; deals and featured paragraphs from `email_weekly_content`; shop-wide new-in + best-sellers for contacts with no interests); empty digest = no send but `last_digest_at` advances for everyone considered; `createWeeklyDigest` (once per week, scheduled for Thursday 10:00 UK, 180 minutes); new-product roll-up (24 h of new products, one email per interested contact, 48-hour digest rule, hero products set `override_gap`).
+- Migration `0047_email_campaigns.sql`: `email_weekly_content`; `products.hero`.
+- Jobs: `email-campaigns-tick` (every minute), `email-digest-draft` and `email-new-product-rollup` (every 15 minutes, acting once their UK day/time in settings is reached, so changing the times in settings needs no redeploy). The sender holds rows of a paused campaign and drops rows of a cancelled one.
+Decisions taken:
+- The digest is pre-approved (a standing campaign type) and is created as `scheduled` for Thursday; a person (or Claude) can cancel it. A digest whose scheduling failed is scheduled on the next run rather than left in draft.
+- "Back in stock" in the digest = products older than a week with stock booked in this week (the platform keeps no stock-level history); requested items already got their own email.
+- Deals have no table in the platform, so the digest's deals and featured copy both come from `email_weekly_content` (week, interest key or `all`), written by the operator or by Claude (section 10).
+- The featured paragraph only rides along with real news: a paragraph alone is not a reason to email (the digest is a cap, not a target).
+- The new-product alert uses the products' `created_at`; there is no "made purchasable" timestamp in the schema.
+Tests: 6 integration (dates; full digest cycle Wednesday → Thursday → sandbox send → campaign closed; five-product roll-up with gap and hero; 48-hour skip; approval threshold 51/49 + Claude cannot approve; every segment key); API suite 1391 green
+Commit: (this commit)

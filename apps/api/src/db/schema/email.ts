@@ -361,3 +361,28 @@ export const emailAlerts = pgTable('email_alerts', {
   acknowledgedBy: text('acknowledged_by'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Copy for the weekly digest, per week and per interest key: the featured
+ *  paragraph Claude or the operator writes for each material, and the deals
+ *  the digest's deals block lists. `key` is an interest key or `all`. */
+export const emailWeeklyContent = pgTable(
+  'email_weekly_content',
+  {
+    id: pk(),
+    companyId: companyId(),
+    /** Monday of the week (UK) the content is for. */
+    weekStart: varchar('week_start', { length: 10 }).notNull(),
+    key: varchar('key', { length: 80 }).notNull(),
+    kind: varchar('kind', { length: 16 }).notNull(), // featured | deal
+    title: text('title'),
+    body: text('body').notNull(),
+    url: text('url'),
+    priceGbp: varchar('price_gbp', { length: 16 }),
+    savingGbp: varchar('saving_gbp', { length: 16 }),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    weekIdx: index('email_weekly_content_week_idx').on(t.weekStart, t.kind),
+  }),
+);

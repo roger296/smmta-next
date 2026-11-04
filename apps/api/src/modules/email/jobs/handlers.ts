@@ -14,6 +14,8 @@ import { MaintenanceService } from '../services/maintenance.service.js';
 import { AttributionService } from '../services/attribution.service.js';
 import { ContactsService } from '../services/contacts.service.js';
 import { getEmailSettings } from '../services/settings.service.js';
+import { CampaignsService } from '../services/campaigns.service.js';
+import { DigestService, reached } from '../services/digest.service.js';
 
 export function installEmailHandlers(logger: Logger): void {
   const log = logger.child({ module: 'email' });
@@ -84,6 +86,27 @@ export function installEmailHandlers(logger: Logger): void {
 
   setHandler('email-prune-events', async () => {
     log.info({ deleted: await maintenance.pruneEvents() }, 'old email events pruned');
+  });
+
+  const campaigns = new CampaignsService();
+  const digest = new DigestService();
+  setHandler('email-campaigns-tick', async () => {
+    const r = await campaigns.tick();
+    if (r.expanded || r.finished || r.decided) log.info(r, 'campaigns ticked');
+  });
+  setHandler('email-digest-draft', async () => {
+    const s = await getEmailSettings();
+    const now = new Date();
+    if (!reached(now, s.digest.draft_day, s.digest.draft_time)) return;
+    const c = await digest.createWeeklyDigest(now);
+    log.info({ campaignId: c.id, status: c.status, audience: c.audienceCount }, 'weekly digest ready');
+  });
+  setHandler('email-new-product-rollup', async () => {
+    const s = await getEmailSettings();
+    const now = new Date();
+    if (!reached(now, null, s.new_product_rollup_time)) return;
+    const c = await digest.createNewProductRollup(now);
+    if (c) log.info({ campaignId: c.id }, 'new-product roll-up ready');
   });
 
   setHandler('email-close-stale-bis', async () => {

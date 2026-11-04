@@ -103,15 +103,27 @@ export async function processQueue(opts: ProcessOptions = {}): Promise<ProcessRe
     }
 
     const campaign = send.campaignId
-      ? (await db.execute(sql`select override_gap from email_campaigns where id = ${send.campaignId}`)).rows[0]
+      ? ((await db.execute(sql`select override_gap, status from email_campaigns where id = ${send.campaignId}`)).rows[0] as
+          | { override_gap: boolean; status: string }
+          | undefined)
       : undefined;
+    if (campaign?.status === 'cancelled') {
+      await finish({ status: 'dropped', dropReason: 'campaign_cancelled' });
+      result.dropped++;
+      continue;
+    }
+    if (campaign?.status === 'paused') {
+      await finish({ notBefore: new Date(now.getTime() + 15 * MINUTE_MS), attempts: send.attempts - 1 });
+      result.deferred++;
+      continue;
+    }
     const verdict = canSend(contact, {
       class: send.class,
       kind: send.kind,
       now,
       settings,
       checkWindow: true,
-      overrideGap: Boolean((campaign as { override_gap?: boolean } | undefined)?.override_gap),
+      overrideGap: Boolean(campaign?.override_gap),
       unengagedStreak: send.class === 'marketing' ? await unengagedStreak(contact, settings.unengaged_limit) : 0,
     });
     if (!verdict.ok) {
