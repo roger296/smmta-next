@@ -1,7 +1,8 @@
-import { pgTable, varchar, decimal, boolean, integer, text, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, decimal, boolean, integer, text, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { pk, companyId, auditTimestamps, oldId, vatTreatmentEnum } from './common.js';
 import { currencies } from './reference.js';
+import { emailContacts } from './email.js';
 
 // ============================================================
 // Customer Types
@@ -37,6 +38,9 @@ export const customers = pgTable('customers', {
   countryCode: varchar('country_code', { length: 3 }),
   defaultRevenueAccountCode: varchar('default_revenue_account_code', { length: 10 }),
   warehouseId: uuid('warehouse_id'),
+  /** The customer's address in the email system (email_contacts), set when
+   *  the customer is created or an import matches them by email. */
+  contactId: uuid('contact_id').references((): AnyPgColumn => emailContacts.id),
   oldId: oldId(),
   ...auditTimestamps,
 });

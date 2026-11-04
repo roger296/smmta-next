@@ -302,6 +302,13 @@
       "when": 1790005394031,
       "tag": "0042_stock_item_scanned",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793795509821,
+      "tag": "0043_email_core",
+      "breakpoints": true
     }
   ]
 }

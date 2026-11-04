@@ -24,3 +24,5 @@ export * from './pricing.js';
 export * from './preorders.js';
 export * from './baskets.js';
 export * from './marketing.js';
+// Email system (docs/email/SPEC.md)
+export * from './email.js';
