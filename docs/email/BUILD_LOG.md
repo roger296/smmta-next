@@ -255,3 +255,7 @@ Built:
 Decisions taken: none beyond the handover's summary.
 Tests: none added (documentation)
 Commit: (this commit)
+
+## After merge — allowlist narrowed to marketing and service mail
+
+At the owner's request, `allowlist` mode now holds back only `marketing` and `service` mail. Back-in-stock (`requested_service`) and order mail reach everyone, so real customers keep their notices while testing runs on live SendGrid. Rule: `allowlistApplies` in `lib/config.ts`; covered by the sender's allowlist test.

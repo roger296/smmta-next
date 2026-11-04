@@ -77,7 +77,7 @@ Future ecosystem integrations are expected to follow the same shape: an outbound
 ### Email system (Messaging)
 
 - Every store email goes through `apps/api/src/modules/email`: one gate (`lib/gate.ts` `canSend`, the spec's class table as data), one sender (worker job `email-send`, token-bucket rate limit, `lib/sendgrid.ts` is the only SendGrid mail code), one event log (`email_sends`, `email_events`, fed by the signed webhook at `/api/v1/webhooks/sendgrid` and `/api/webhooks/sendgrid`). Spec, runbook, build log, blockers and handover: `docs/email/`.
-- **`EMAIL_SEND_MODE`**: unset = the sender refuses to run; `sandbox` = SendGrid delivers nothing; `allowlist` = only `EMAIL_TEST_ALLOWLIST`; `live` = real. Only a person sets `live`.
+- **`EMAIL_SEND_MODE`**: unset = the sender refuses to run; `sandbox` = SendGrid delivers nothing; `allowlist` = marketing and service mail only to `EMAIL_TEST_ALLOWLIST` (back-in-stock and order mail still go to everyone); `live` = real. Only a person sets `live`.
 - Consent lives on `email_contacts.marketing_status` (`all` / `transactional_only` / `never`) and only changes through `ContactsService.setMarketingStatus`, which writes an `email_consent_events` row first — a DB trigger refuses anything else. Deliverability is a separate field.
 - Four classes: `order_required` (always goes), `requested_service` and `service` (not to `never` or bad addresses), `marketing` (only `all`, plus gap / window / pause / unengaged rules).
 - Unsubscribe and preferences pages are rendered by the API at `/email/*` and passed through by both storefronts. Emails link to `STOREFRONT_BASE_URL`.

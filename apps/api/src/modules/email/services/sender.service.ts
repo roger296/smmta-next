@@ -9,7 +9,8 @@
  *     run's rows come back by themselves).
  *  4. Per row: re-runs the gate (consent can change between queueing and
  *     sending; marketing also checks the UK send window), applies the
- *     allowlist in allowlist mode, renders, and calls SendGrid.
+ *     allowlist to marketing and service mail in allowlist mode (requested
+ *     and order mail still reaches everyone), renders, and calls SendGrid.
  *  5. 429 / 5xx / network: retried after 1, 4, 16 and 64 minutes, then
  *     dropped. Other 4xx: dropped with SendGrid's error body.
  */
@@ -17,7 +18,7 @@ import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 import { getDb } from '../../../config/database.js';
 import { getEnv } from '../../../config/env.js';
 import { emailContacts, emailSends } from '../../../db/schema/index.js';
-import { configuredSendMode, isAllowlisted, type SendMode } from '../lib/config.js';
+import { allowlistApplies, configuredSendMode, isAllowlisted, type SendMode } from '../lib/config.js';
 import { canSend, nextWindowOpening } from '../lib/gate.js';
 import { marketingHeaders } from '../lib/headers.js';
 import { takeTokens } from '../lib/rate-limit.js';
@@ -141,7 +142,7 @@ export async function processQueue(opts: ProcessOptions = {}): Promise<ProcessRe
       continue;
     }
 
-    if (mode === 'allowlist' && !isAllowlisted(contact.email)) {
+    if (mode === 'allowlist' && allowlistApplies(send.class) && !isAllowlisted(contact.email)) {
       await finish({ status: 'dropped', dropReason: 'not_in_allowlist' });
       result.dropped++;
       continue;

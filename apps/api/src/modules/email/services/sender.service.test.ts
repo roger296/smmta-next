@@ -125,19 +125,21 @@ describe('processQueue', () => {
     expect(rb).toMatchObject({ status: 'dropped', dropReason: 'provider_retries_exhausted', attempts: 5 });
   });
 
-  it('in allowlist mode sends only to listed addresses', async () => {
-    const listed = await makeContact({ email: `allow-${Date.now()}@example.com` });
-    const other = await makeContact();
+  it('in allowlist mode holds marketing to listed addresses but lets back in stock reach everyone', async () => {
+    const listed = await makeContact({ email: `allow-${Date.now()}@example.com`, initialStatus: 'all' });
+    const other = await makeContact({ initialStatus: 'all' });
     const undo = setEnvAllowlist(listed.email);
-    const [x] = await queue(listed.id, 1);
-    const [y] = await queue(other.id, 1);
+    const [x] = await queue(listed.id, 1, 'marketing');
+    const [y] = await queue(other.id, 1, 'marketing');
+    const [z] = await queue(other.id, 1, 'requested_service');
     const transport = new FakeTransport();
     await processQueue({ now: minutes(0), mode: 'allowlist', transport });
     undo();
     expect(await statuses([x!])).toEqual(['sent']);
     const [ry] = await getDb().select().from(emailSends).where(eq(emailSends.id, y!));
     expect(ry).toMatchObject({ status: 'dropped', dropReason: 'not_in_allowlist' });
-    expect(transport.payloads[0]!.mail_settings.sandbox_mode.enable).toBe(false);
+    expect(await statuses([z!])).toEqual(['sent']);
+    expect(transport.payloads.map((p) => p.mail_settings.sandbox_mode.enable)).toEqual([false, false]);
   });
 
   it('holds marketing until the send window opens and adds the unsubscribe headers', async () => {

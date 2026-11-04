@@ -177,7 +177,9 @@ const envSchema = z.object({
   // Email system (docs/email/SPEC.md). Every store email goes through one gate
   // (modules/email). EMAIL_SEND_MODE decides what the sender does:
   //   sandbox   — SendGrid validates the message and delivers nothing;
-  //   allowlist — real sends, but only to EMAIL_TEST_ALLOWLIST;
+  //   allowlist — real sends; marketing and service mail only to
+  //               EMAIL_TEST_ALLOWLIST, while mail a customer asked for
+  //               (back in stock) or needs for an order goes to everyone;
   //   live      — real sends to everyone the gate allows. Set by a person only.
   // Left unset, the sender refuses to run at all, so nothing goes out until
   // someone has chosen a mode.
