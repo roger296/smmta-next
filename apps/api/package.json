@@ -31,7 +31,8 @@
     "assign-categories": "tsx scripts/assign-categories.ts",
     "repair:seo-copy": "tsx scripts/repair-seo-copy.ts",
     "import:uneek-barcodes": "tsx scripts/import-uneek-barcodes.ts",
-    "build:google-feed": "tsx scripts/build-google-feed.ts"
+    "build:google-feed": "tsx scripts/build-google-feed.ts",
+    "test:email": "vitest run src/modules/email scripts/email"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.0",

@@ -18,3 +18,9 @@ coverage/
 # They contain customer names and addresses: never commit them.
 labels/
 apps/api/labels/
+
+# Email system: SendGrid exports and the stored copies of imported files hold
+# personal data. Never commit them.
+imports/
+var/email-evidence/
+apps/api/var/
