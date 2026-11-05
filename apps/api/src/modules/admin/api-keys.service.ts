@@ -39,6 +39,7 @@ export class ApiKeyService {
   async issue(
     companyId: string,
     input: CreateApiKeyInput,
+    actingUserId: string | null = null,
   ): Promise<{ row: SafeApiKeyRow; rawKey: string }> {
     const existing = await this.db.query.apiKeys.findFirst({
       where: and(
@@ -62,6 +63,7 @@ export class ApiKeyService {
         scopes: input.scopes,
         keyHash,
         prefix,
+        actingUserId,
       })
       .returning();
     if (!row) throw new Error('Failed to insert api_keys row');

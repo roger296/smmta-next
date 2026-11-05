@@ -84,6 +84,13 @@ Future ecosystem integrations are expected to follow the same shape: an outbound
 - Admin: **Messaging** (`/messaging`). Claude: MCP server at `POST /api/mcp` (key scope `email:mcp`; `email:approve` for a person's key), tools in `docs/email/MCP.md`.
 - Automations all ship OFF; turn them on in Messaging → Automations.
 
+### Claude connector (admin MCP)
+
+- `POST /api/mcp` also serves `admin_` tools to an API key with the `admin:mcp` scope: everything the key's user can do in the web UI. Each call runs the admin's own route in-process (`app.inject`) as that user with a short JWT, so validation, Luca postings and side effects are identical to a click. Guide: `docs/MCP-CONNECTOR.md`.
+- The key acts as the person who issued it (`api_keys.acting_user_id`, set by `POST /admin/api-keys` from the signed-in user). Issue and revoke keys in **Settings → Claude connector**.
+- Code: `apps/api/src/modules/mcp/` (`catalogue.ts` = the routes it may call and the refused list: `/auth`, `/admin/api-keys`, storefront / order-feed / webhook routes, and campaign approval without `email:approve`). Every call is written to `mcp_audit` (route and status, never the body).
+- A new admin route is reachable by the connector automatically (through `admin_get` / `admin_request`). Add a named tool in `tools.ts` only for work done often, and list it in the doc (a test checks).
+
 ### Conversational search
 
 - The Clothes Shop header carries a natural-language search bar that submits to `/shop/search?q=...`. The API's `/storefront/search` endpoint parses the customer query through Claude Haiku into a structured `ParsedQuery` (category slug + filters + keywords + confidence), then feeds the structured form into the same `CategoryService.listCategoryProducts` that backs `/shop/c/...`. If the LLM call fails, the day's budget is exceeded, or `ANTHROPIC_API_KEY` isn't set, the service falls through to a plain keyword search across product names — the customer always gets something.

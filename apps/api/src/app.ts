@@ -33,6 +33,7 @@ import { notifyMeRoutes } from './modules/storefront/notify-me.routes.js';
 import { emailPublicRoutes } from './modules/email/public/public.routes.js';
 import { emailCartLinkRoutes } from './modules/email/public/cart-link.routes.js';
 import { emailMcpRoutes } from './modules/email/mcp/server.js';
+import { recordRoute } from './modules/mcp/catalogue.js';
 import { emailAdminRoutes } from './modules/email/admin/email-admin.routes.js';
 import { storefrontEmailRoutes } from './modules/email/public/storefront-email.routes.js';
 import { registerStorefrontRequestId } from './modules/storefront/log.js';
@@ -126,6 +127,10 @@ export async function buildApp() {
     timestamp: new Date().toISOString(),
     version: '0.1.0',
   }));
+
+  // Every /api/v1 route, for the admin MCP connector's catalogue
+  // (modules/mcp/catalogue.ts). Must be added before any route.
+  app.addHook('onRoute', (r) => recordRoute(r.method, r.url));
 
   // Phase 2: Products & Stock
   await app.register(productRoutes, { prefix: '/api/v1' });

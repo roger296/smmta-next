@@ -358,6 +358,13 @@
       "when": 1793809172001,
       "tag": "0050_email_automations",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793873970255,
+      "tag": "0051_mcp_connector",
+      "breakpoints": true
     }
   ]
 }

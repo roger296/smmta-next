@@ -11,7 +11,7 @@
  *    alert address is emailed.
  *  - pruneEvents: raw webhook events older than 13 months are deleted.
  */
-import { and, gte, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, gte, isNotNull, lt, lte, sql } from 'drizzle-orm';
 import { getDb } from '../../../config/database.js';
 import { getEnv } from '../../../config/env.js';
 import { getSingletonCompanyId } from '../../../shared/auth/company.js';
@@ -95,7 +95,7 @@ export class MaintenanceService {
         complained: sql<number>`count(*) filter (where ${emailSends.status} = 'complained')::int`,
       })
       .from(emailSends)
-      .where(and(isNotNull(emailSends.sentAt), gte(emailSends.sentAt, since)))
+      .where(and(isNotNull(emailSends.sentAt), gte(emailSends.sentAt, since), lte(emailSends.sentAt, now)))
       .groupBy(emailSends.class);
     return rows.map((r) => ({
       ...r,
