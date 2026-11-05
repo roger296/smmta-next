@@ -170,7 +170,7 @@ describe('POST /api/mcp', () => {
   it('initialises and lists the tools over HTTP', async () => {
     const init = await rpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } } });
     expect(init.statusCode).toBe(200);
-    expect(init.json().result.serverInfo.name).toBe('smmta-email');
+    expect(init.json().result.serverInfo.name).toBe('smmta');
     const list = await rpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
     expect(list.json().result.tools.length).toBe(EMAIL_TOOLS.length);
     expect((await app.inject({ method: 'GET', url: '/api/mcp' })).statusCode).toBe(405);

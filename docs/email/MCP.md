@@ -12,6 +12,10 @@ masked, outcome). The actor is `claude`; a key that also carries
 **`email:approve`** belongs to a person (Roger), is recorded as
 `mcp:<key prefix>`, and is the only kind that may approve campaigns.
 
+The easiest way to issue the key is **Settings → Claude connector** in the
+admin. The same endpoint also serves the `admin_` tools to a key with the
+`admin:mcp` scope (docs/MCP-CONNECTOR.md).
+
 Guard rails:
 
 - Drafting, previewing and scheduling are free. A marketing campaign that

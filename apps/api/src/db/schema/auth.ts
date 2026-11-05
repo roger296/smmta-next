@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, varchar, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, text, timestamp, uniqueIndex, uuid, integer, boolean, index, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { pk, companyId, auditTimestamps } from './common.js';
 
 // ============================================================
@@ -47,6 +47,11 @@ export const apiKeys = pgTable(
      *  price. NULL means "see everything" (back-compat, and what
      *  generic operator keys want). */
     channelId: uuid('channel_id'),
+    /** The admin user an `admin:mcp` key acts as. The MCP connector runs the
+     *  admin's own routes signed in as this user, so the key can do exactly
+     *  what that person can do in the web UI, and their actions are recorded
+     *  under that person. Null for every other kind of key. */
+    actingUserId: uuid('acting_user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     ...auditTimestamps,
@@ -84,3 +89,31 @@ export const users = pgTable('users', {
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   ...auditTimestamps,
 });
+
+// ============================================================
+// MCP audit
+// ------------------------------------------------------------
+// One row per admin MCP tool call: which key, as which user, which
+// route, and the HTTP status it got. Bodies are not stored (they can
+// carry customer details); the route and status are enough to trace
+// what was done, and the route's own records hold the detail.
+// ============================================================
+
+export const mcpAudit = pgTable(
+  'mcp_audit',
+  {
+    id: pk(),
+    companyId: companyId(),
+    keyPrefix: varchar('key_prefix', { length: 16 }).notNull(),
+    userId: uuid('user_id'),
+    tool: varchar('tool', { length: 80 }).notNull(),
+    method: varchar('method', { length: 8 }).notNull(),
+    path: text('path').notNull(),
+    status: integer('status').notNull(),
+    ok: boolean('ok').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    createdIdx: index('mcp_audit_created_idx').on(t.createdAt),
+  }),
+);

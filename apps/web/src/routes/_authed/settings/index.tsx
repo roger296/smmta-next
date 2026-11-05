@@ -28,6 +28,7 @@ import {
 } from '@/features/customers/use-customers';
 import { WarehouseDialog, SimpleNameDialog } from '@/features/reference/warehouse-dialog';
 import { useYearEndClose } from '@/features/integrations/use-integrations';
+import { ClaudeConnectorPanel } from '@/features/integrations/claude-connector-panel';
 import type { Category, Manufacturer, Warehouse, CustomerType } from '@/lib/api-types';
 import { Edit, Plus, Trash2, Warehouse as WarehouseIcon, Tag, Factory, Users, Calendar } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -53,6 +54,7 @@ function SettingsPage() {
           <TabsTrigger value="manufacturers">Manufacturers</TabsTrigger>
           <TabsTrigger value="customer-types">Customer types</TabsTrigger>
           <TabsTrigger value="year-end">Year-end close</TabsTrigger>
+          <TabsTrigger value="claude">Claude connector</TabsTrigger>
         </TabsList>
         <TabsContent value="warehouses">
           <WarehousesPanel />
@@ -68,6 +70,9 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="year-end">
           <YearEndPanel />
+        </TabsContent>
+        <TabsContent value="claude">
+          <ClaudeConnectorPanel />
         </TabsContent>
       </Tabs>
     </div>

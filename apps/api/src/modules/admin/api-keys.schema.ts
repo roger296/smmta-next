@@ -12,6 +12,13 @@ export const apiKeyScopeSchema = z.enum([
   'orders:write',
   /** An external system reading an order's progress from the order feed. */
   'orders:read',
+  /** Claude's email tools on the MCP server (docs/email/MCP.md). */
+  'email:mcp',
+  /** A person's key: may approve campaigns through MCP. */
+  'email:approve',
+  /** The admin MCP connector (docs/MCP-CONNECTOR.md): acts as the user who
+   *  issued the key, with everything that user can do in the web UI. */
+  'admin:mcp',
 ]);
 
 export const createApiKeySchema = z.object({
