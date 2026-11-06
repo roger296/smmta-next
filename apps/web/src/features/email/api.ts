@@ -17,6 +17,7 @@ export interface Overview {
   pendingApproval: number;
   openAlerts: number;
   materials: Array<{ key: string; name: string }>;
+  lists: Array<{ name: string; contacts: number }>;
 }
 
 export interface ContactRow {
@@ -26,6 +27,7 @@ export interface ContactRow {
   deliverability: Deliverability;
   isTrade: boolean;
   consentSource: string;
+  lists?: string[];
   interests: string[];
   lastOrderAt: string | null;
   lastClickAt: string | null;

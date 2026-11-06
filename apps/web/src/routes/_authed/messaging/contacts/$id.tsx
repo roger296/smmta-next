@@ -35,6 +35,7 @@ function ContactPage() {
           <CardHeader><CardTitle className="text-base">Consent</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>Source: {c.consentSource}</p>
+            {(c.lists?.length ?? 0) > 0 && <p>Lists: {c.lists!.join(', ')}</p>}
             <p>Weekly email: {c.digestEnabled ? 'on' : 'off'} · New-product alerts: {c.newProductAlertsEnabled ? 'on' : 'off'}</p>
             <div className="space-y-2 border-t border-[var(--color-border)] pt-2">
               <select aria-label="New status" className={selectClass} value={status} onChange={(e) => setStatus(e.target.value as MarketingStatus)}>

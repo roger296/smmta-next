@@ -84,6 +84,7 @@ export async function emailAdminRoutes(app: FastifyInstance) {
       pendingApproval: pending?.n ?? 0,
       openAlerts: alerts?.n ?? 0,
       materials: MATERIALS.map((m) => ({ key: m.key, name: m.name })),
+      lists: (await getDb().execute(sql`select l as name, count(*)::int as contacts from email_contacts, unnest(lists) l group by l order by l`)).rows as Array<{ name: string; contacts: number }>,
     });
   });
 
@@ -182,12 +183,13 @@ export async function emailAdminRoutes(app: FastifyInstance) {
           defaultStatus: z.enum(['all', 'transactional_only']).optional(),
           defaultInterests: z.array(z.string()).default([]),
           consentSource: z.string().default('sendgrid_import'),
+          listName: z.string().max(60).optional(),
           dryRun: z.boolean().default(true),
           dryRunId: z.string().uuid().optional(),
         })
         .parse(req.body);
       const path = await saveUploadedCsv(b.csvText);
-      const r = await imports.run({ filePath: path, filename: b.filename, listType: b.listType, defaultStatus: b.defaultStatus, defaultInterests: b.defaultInterests, consentSource: b.consentSource, dryRun: b.dryRun, dryRunId: b.dryRunId, actor: actorOf(req) });
+      const r = await imports.run({ filePath: path, filename: b.filename, listType: b.listType, defaultStatus: b.defaultStatus, defaultInterests: b.defaultInterests, consentSource: b.consentSource, listName: b.listName, dryRun: b.dryRun, dryRunId: b.dryRunId, actor: actorOf(req) });
       await audit('admin:import', actorOf(req), { filename: b.filename, listType: b.listType, dryRun: b.dryRun }, true, `rows ${r.rows_read}, create ${r.would_create}`);
       return r;
     }),

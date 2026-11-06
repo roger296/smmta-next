@@ -83,6 +83,7 @@ Future ecosystem integrations are expected to follow the same shape: an outbound
 - Unsubscribe and preferences pages are rendered by the API at `/email/*` and passed through by both storefronts. Emails link to `STOREFRONT_BASE_URL`.
 - Admin: **Messaging** (`/messaging`). Claude: MCP server at `POST /api/mcp` (key scope `email:mcp`; `email:approve` for a person's key), tools in `docs/email/MCP.md`.
 - Automations all ship OFF; turn them on in Messaging → Automations.
+- **Lists:** a contacts import can tag every address with a list name (`email_contacts.lists`, e.g. `Maki`, `Friends`). The tag never decays, an address on several lists keeps them all, and a campaign segment targets them with `lists_any` (admin: "On any of these lists"). `consent_source` keeps only the first source, so use lists, not source, to target by origin.
 
 ### Claude connector (admin MCP)
 

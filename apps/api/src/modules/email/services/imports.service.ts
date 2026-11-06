@@ -78,6 +78,10 @@ export interface ImportReport {
   would_downgrade: number;
   would_upgrade_refused: number;
   linked_customers: number;
+  /** The list name this upload tags its contacts with, if any. */
+  list?: string | null;
+  /** Contacts (new or existing) that would gain the list tag. */
+  would_tag?: number;
   conflicts: Conflict[];
   /** Live runs: what was written. */
   created?: number;
@@ -99,6 +103,10 @@ export interface RunImportInput {
   defaultInterests?: string[];
   /** consent_source on new contacts (default `sendgrid_import`). */
   consentSource?: string;
+  /** Tag every contact in the file with this list name (contacts imports),
+   *  new and existing alike, e.g. "Maki". Kept for good in
+   *  email_contacts.lists, and targeted with a segment's `lists_any`. */
+  listName?: string;
   dryRun: boolean;
   /** Required for a live run: the dry run it was approved from. */
   dryRunId?: string;
@@ -224,13 +232,18 @@ export class ImportsService {
     const threshold = settings.interest_decay.interested_threshold;
     const defaults = (input.defaultInterests ?? []).filter((k) => k.includes(':'));
     const consentSource = input.consentSource ?? 'sendgrid_import';
+    const listName = cleanListName(input.listName);
+    // An imported interest gets an order's weight: a list sign-up is a stated
+    // interest, and the bare threshold would decay below "interested" at once.
+    const interestPoints = Math.max(settings.interest_decay.order_points, threshold);
 
     if (!input.dryRun) {
       if (!input.dryRunId) throw new ImportRefusedError('a live import needs the id of a dry run of the same file', 'dry_run_required');
       const dry = await this.get(input.dryRunId);
-      if (!dry || !dry.dryRun || dry.fileSha256 !== sha256 || dry.listType !== input.listType) {
+      const dryList = ((dry?.report as { list?: string | null } | undefined)?.list ?? null) || null;
+      if (!dry || !dry.dryRun || dry.fileSha256 !== sha256 || dry.listType !== input.listType || dryList !== listName) {
         throw new ImportRefusedError(
-          'the dry run does not match this file (different file, list type or not a dry run); run a new dry run',
+          'the dry run does not match this file (different file, list type, list name or not a dry run); run a new dry run',
           'dry_run_mismatch',
         );
       }
@@ -272,6 +285,8 @@ export class ImportsService {
       would_downgrade: 0,
       would_upgrade_refused: 0,
       linked_customers: 0,
+      list: listName,
+      would_tag: 0,
       conflicts: [],
       ...(input.dryRun ? {} : { created: 0, updated: 0, skipped: 0 }),
     };
@@ -341,11 +356,11 @@ export class ImportsService {
         ),
       });
       if (batch.length >= BATCH) {
-        await this.processBatch(batch, input, target, imp!.id, filename, sha256, consentSource, threshold, report);
+        await this.processBatch(batch, input, target, imp!.id, filename, sha256, consentSource, interestPoints, listName, report);
         batch = [];
       }
     }
-    if (batch.length) await this.processBatch(batch, input, target, imp!.id, filename, sha256, consentSource, threshold, report);
+    if (batch.length) await this.processBatch(batch, input, target, imp!.id, filename, sha256, consentSource, interestPoints, listName, report);
 
     await db
       .update(emailImports)
@@ -369,7 +384,8 @@ export class ImportsService {
     filename: string,
     sha256: string,
     consentSource: string,
-    threshold: number,
+    interestPoints: number,
+    listName: string | null,
     report: ImportReport,
   ): Promise<void> {
     const db = getDb();
@@ -398,10 +414,11 @@ export class ImportsService {
 
         if (!current) {
           report.would_create++;
+          if (listName) report.would_tag!++;
           if (customerId) report.linked_customers++;
           if (input.dryRun) continue;
           const now = new Date();
-          const interests: InterestMap = r.interests.length ? addInterestPoints({}, r.interests, threshold, now) : {};
+          const interests: InterestMap = r.interests.length ? addInterestPoints({}, r.interests, interestPoints, now) : {};
           const { contact } = await this.contacts.findOrCreateByEmail(
             r.email,
             {
@@ -418,6 +435,7 @@ export class ImportsService {
           if (target.deliverability) {
             await this.contacts.recordDeliverability(contact.id, target.deliverability, now, 30, tx);
           }
+          if (listName) await tagList(tx, contact.id, listName);
           if (customerId) {
             await tx.update(customers).set({ contactId: contact.id }).where(and(eq(customers.id, customerId), isNull(customers.contactId)));
           }
@@ -426,6 +444,12 @@ export class ImportsService {
         }
 
         report.already_present++;
+        // The list tag records where the address came from, so every contact
+        // in the file gets it, whatever happens to its status below.
+        if (listName && !(current.lists ?? []).includes(listName)) {
+          report.would_tag!++;
+          if (!input.dryRun) await tagList(tx, current.id, listName);
+        }
         const willLink = Boolean(customerId && !current.customerId);
         const statusChange = RANK[target.status] < RANK[current.marketingStatus] && current.marketingStatus !== 'never';
         const deliverabilityChange =
@@ -474,6 +498,21 @@ export class ImportsService {
       }
     });
   }
+}
+
+/** A list name as stored: trimmed, single spaces, at most 60 characters;
+ *  empty means none. */
+export function cleanListName(raw: string | null | undefined): string | null {
+  const name = (raw ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return name || null;
+}
+
+/** Add a list to a contact's lists, once. */
+async function tagList(tx: Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0], contactId: string, list: string): Promise<void> {
+  await tx
+    .update(emailContacts)
+    .set({ lists: sql`case when ${list} = any(${emailContacts.lists}) then ${emailContacts.lists} else array_append(${emailContacts.lists}, ${list}::text) end` })
+    .where(eq(emailContacts.id, contactId));
 }
 
 /** All material interest keys — the lights-out default for a contacts import. */

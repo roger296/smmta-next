@@ -51,7 +51,7 @@ const campaignShape = {
   name: z.string().min(1).describe('Internal name'),
   kind: z.enum(['manual', 'weekly_digest', 'new_product', 'automation']).default('manual'),
   class: z.enum(['marketing', 'service', 'requested_service']).default('marketing'),
-  segment: segmentSchema.default({}).describe('Who: {status, interests_any, interests_all, is_trade, last_order_within_days, last_order_older_than_days, engaged_within_days, source, exclude_campaign_ids, contact_ids}'),
+  segment: segmentSchema.default({}).describe('Who: {status, interests_any, interests_all, is_trade, last_order_within_days, last_order_older_than_days, engaged_within_days, source, lists_any, exclude_campaign_ids, contact_ids}'),
   subject: z.string().default(''),
   preheader: z.string().optional(),
   template_key: z.enum(TEMPLATE_KEYS as [string, ...string[]]).default('manual'),
@@ -106,6 +106,7 @@ export const EMAIL_TOOLS: EmailTool[] = [
       dry_run_id: z.string().uuid().optional(),
       default_interests: z.array(z.string()).optional(),
       consent_source: z.string().optional(),
+      list_name: z.string().max(60).optional().describe('Tag every contact in the file with this list, e.g. "Maki"; target it later with segment.lists_any'),
     },
     handler: async (a, ctx) => {
       let path: string;
@@ -124,6 +125,7 @@ export const EMAIL_TOOLS: EmailTool[] = [
         dryRunId: a.dry_run_id,
         defaultInterests: a.default_interests,
         consentSource: a.consent_source ?? 'mcp',
+        listName: a.list_name,
         actor: ctx.actor,
       });
     },

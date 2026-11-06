@@ -128,6 +128,10 @@ export const emailContacts = pgTable(
     bouncerReason: text('bouncer_reason'),
     bouncerCheckedAt: timestamp('bouncer_checked_at', { withTimezone: true }),
     interests: jsonb('interests').$type<InterestMap>().notNull().default({}),
+    /** Every list the contact was imported from, e.g. {Maki, Friends}. A fact
+     *  about where the address came from: it never decays and an address on
+     *  several lists keeps them all (consent_source holds only the first). */
+    lists: text('lists').array().notNull().default(sql`'{}'::text[]`),
     isTrade: boolean('is_trade').notNull().default(false),
     /** Preferences page switches (section 2). */
     digestEnabled: boolean('digest_enabled').notNull().default(true),
@@ -148,6 +152,7 @@ export const emailContacts = pgTable(
   },
   (t) => ({
     emailUnq: uniqueIndex('email_contacts_email_unq').on(t.email),
+    listsIdx: index('email_contacts_lists_idx').using('gin', t.lists),
     tokenUnq: uniqueIndex('email_contacts_unsubscribe_token_unq').on(t.unsubscribeToken),
     customerIdx: index('email_contacts_customer_idx').on(t.customerId),
     statusIdx: index('email_contacts_status_idx').on(t.marketingStatus, t.deliverability),

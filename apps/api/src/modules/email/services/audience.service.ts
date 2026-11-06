@@ -28,6 +28,8 @@ export const segmentSchema = z
     /** A click or an order within N days. */
     engaged_within_days: z.number().int().positive().optional(),
     source: z.string().optional(),
+    /** On any of these imported lists (email_contacts.lists), e.g. ["Maki"]. */
+    lists_any: z.array(z.string().min(1)).optional(),
     exclude_campaign_ids: z.array(z.string().uuid()).optional(),
     contact_ids: z.array(z.string().uuid()).optional(),
   })
@@ -64,6 +66,7 @@ function where(segment: Segment, now: Date): SQL[] {
     w.push(sql`(${emailContacts.lastClickAt} >= ${since} or ${emailContacts.lastOrderAt} >= ${since})`);
   }
   if (segment.source) w.push(eq(emailContacts.consentSource, segment.source));
+  if (segment.lists_any?.length) w.push(sql`${emailContacts.lists} && ${sql.param(segment.lists_any)}::text[]`);
   if (segment.contact_ids) w.push(segment.contact_ids.length ? inArray(emailContacts.id, segment.contact_ids) : sql`false`);
   if (segment.exclude_campaign_ids?.length) {
     w.push(
