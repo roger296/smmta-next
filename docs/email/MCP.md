@@ -35,7 +35,7 @@ Guard rails:
 | `email_list_contacts` | `search?, status?, deliverability?, interest?, is_trade?, engaged_within_days?, last_order_within_days?, source?, page?, page_size?` | Lists contacts (read) |
 | `email_get_contact` | `id?` or `email?` | Consent history, last 50 sends with events, interests, orders (read) |
 | `email_set_marketing_status` | `contact_id, status, reason, confirm?` | Changes consent, logged |
-| `email_import_csv` | `list_type, csv? or file_path?, dry_run? (true), dry_run_id?, default_interests?, consent_source?` | Imports a list |
+| `email_import_csv` | `list_type, csv? or file_path?, dry_run? (true), dry_run_id?, default_interests?, consent_source?, list_name?` | Imports a list |
 | `email_get_import` | `id?` | An import's report, or recent imports (read) |
 | `email_preview_segment` | `segment, class?, kind?` | Audience count after the gate + 10 samples (read) |
 | `email_create_campaign` | `name, kind?, class?, segment?, subject?, preheader?, template_key?, content?, scheduled_at?, send_window_minutes?, subject_b?` | Creates a draft (A/B with `subject_b`) |

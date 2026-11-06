@@ -122,7 +122,7 @@ Work through these in order and tick each one off.
   `npx tsx scripts/email/import.ts --type bounces --file /path/bounces.csv`
   Live run, using the dry-run id it printed:
   `… --live --dry-run-id <id>`
-  The admin's **Messaging → Imports** page does the same.
+  The admin's **Messaging → Imports** page does the same. For a contacts file, fill in **List name** (it defaults to the file name, e.g. `Maki`): every address in the file is tagged with it, an address on two lists keeps both, and campaigns can then target "On any of these lists".
 - [ ] **Give your test addresses marketing consent**, so marketing emails can reach them: sign each one up with the newsletter form in the shop footer (this also tests the form), or add it under **Messaging → Contacts → Record consent**.
 - [ ] **First real send.** Make a small campaign to your test addresses (**Messaging → Campaigns → New campaign**) and use **Send test**. Check:
   - it arrives, in the inbox rather than spam, with the From name, links and footer right;

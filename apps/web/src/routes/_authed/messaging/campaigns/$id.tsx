@@ -24,6 +24,7 @@ export const Route = createFileRoute('/_authed/messaging/campaigns/$id')({ compo
 interface Seg {
   status?: string;
   interests_any?: string[];
+  lists_any?: string[];
   is_trade?: boolean;
   last_order_within_days?: number;
   last_order_older_than_days?: number;
@@ -183,6 +184,17 @@ function CampaignPage() {
                 ))}
               </div>
             </Field>
+            {(overview?.lists?.length ?? 0) > 0 && (
+              <Field label="On any of these lists">
+                <div className="flex flex-wrap gap-2">
+                  {overview!.lists.map((l) => (
+                    <label key={l.name} className="flex items-center gap-1 text-sm">
+                      <input type="checkbox" disabled={!editable} checked={(seg.lists_any ?? []).includes(l.name)} onChange={(e) => { const cur = seg.lists_any ?? []; const next = e.target.checked ? [...cur, l.name] : cur.filter((k) => k !== l.name); setSeg({ ...seg, lists_any: next.length ? next : undefined }); }} /> {l.name} <span className="text-[var(--color-muted-foreground)]">({l.contacts})</span>
+                    </label>
+                  ))}
+                </div>
+              </Field>
+            )}
             <Field label="Trade">
               <select aria-label="Segment trade" className={selectClass} value={seg.is_trade === undefined ? '' : String(seg.is_trade)} disabled={!editable} onChange={(e) => setSeg({ ...seg, is_trade: e.target.value === '' ? undefined : e.target.value === 'true' })}>
                 <option value="">Trade and retail</option><option value="true">Trade only</option><option value="false">Retail only</option>

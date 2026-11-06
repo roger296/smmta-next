@@ -131,7 +131,7 @@ describe('ImportsService', () => {
     expect(only.consentSource).toBe('sendgrid_import');
     expect(only.consentAt!.toISOString()).toBe('2024-02-03T04:05:06.000Z');
     expect(only.consentEvidence).toMatchObject({ import_id: c.live.importId, row: 4, filename: 'c.csv' });
-    expect(only.interests['material:pla']!.score).toBe(3);
+    expect(only.interests['material:pla']!.score).toBe(10); // an order's weight, so it outlasts the decay
     expect((await contacts.getByEmail(neverOne))!.marketingStatus).toBe('never');
 
     const linked = (await contacts.getByEmail(customerEmail))!;
@@ -182,6 +182,47 @@ describe('ImportsService', () => {
     await expect(svc.run({ filePath: join(FIXTURES, 'unknown-layout.csv'), listType: 'contacts', dryRun: true, actor: 't' })).rejects.toSatisfy(
       (e: unknown) => e instanceof ImportRefusedError && e.code === 'unknown_layout' && e.message.includes('name, phone'),
     );
+  });
+
+  it('tags every contact with its list, keeps every list for an address on two, and targets by list', async () => {
+    const both = uniqueEmail('imp-both');
+    const onlyA = uniqueEmail('imp-a');
+    const already = await makeContact({ initialStatus: 'transactional_only' });
+    const tag = `Maki ${Date.now()}`;
+    const other = `Friends ${Date.now()}`;
+    const a = file('maki.csv', `EMAIL,CREATED_AT\n${both},2025-08-05T08:58:57Z\n${onlyA},2025-08-05T08:58:57Z\n${already.email},2025-08-05T08:58:57Z\n`);
+    const b = file('friends.csv', `EMAIL,CREATED_AT\n${both},2025-03-01T10:00:00Z\n`);
+
+    const dryA = await svc.run({ filePath: a, listType: 'contacts', dryRun: true, actor: 't', listName: `  ${tag} ` });
+    expect(dryA).toMatchObject({ list: tag, would_create: 2, already_present: 1, would_tag: 3 });
+    // The live run must name the same list as its dry run.
+    await expect(svc.run({ filePath: a, listType: 'contacts', dryRun: false, dryRunId: dryA.importId, actor: 't', listName: other })).rejects.toMatchObject({ code: 'dry_run_mismatch' });
+    await svc.run({ filePath: a, listType: 'contacts', dryRun: false, dryRunId: dryA.importId, actor: 't', listName: tag });
+    const dryB = await svc.run({ filePath: b, listType: 'contacts', dryRun: true, actor: 't', listName: other });
+    expect(dryB).toMatchObject({ would_create: 0, already_present: 1, would_tag: 1 });
+    await svc.run({ filePath: b, listType: 'contacts', dryRun: false, dryRunId: dryB.importId, actor: 't', listName: other });
+
+    const rows = await getDb().select().from(emailContacts).where(inArray(emailContacts.email, [both, onlyA, already.email]));
+    const lists = Object.fromEntries(rows.map((r) => [r.email, r.lists]));
+    expect(lists[both]).toEqual([tag, other]);
+    expect(lists[onlyA]).toEqual([tag]);
+    // An existing contact is tagged, but its consent is not raised.
+    expect(lists[already.email]).toEqual([tag]);
+    expect(rows.find((r) => r.email === already.email)!.marketingStatus).toBe('transactional_only');
+
+    const { segmentContacts } = await import('./audience.service.js');
+    const onTag = (await segmentContacts({ lists_any: [tag] })).map((c) => c.email).sort();
+    expect(onTag).toEqual([both, onlyA, already.email].sort());
+    expect((await segmentContacts({ lists_any: [other] })).map((c) => c.email)).toEqual([both]);
+  });
+
+  it('gives an imported interest enough weight to still count a month later', async () => {
+    const email = uniqueEmail('imp-int');
+    const p = file('int.csv', `email\n${email}\n`);
+    await run('contacts', p); // defaultInterests: material:pla
+    const [c] = await getDb().select().from(emailContacts).where(eq(emailContacts.email, email));
+    const { isInterested } = await import('../lib/interests.js');
+    expect(isInterested(c!.interests, 'material:pla', new Date(Date.now() + 30 * 86_400_000))).toBe(true);
   });
 
   it('keeps a copy of a live-imported file in the evidence store', async () => {

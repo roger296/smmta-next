@@ -259,3 +259,7 @@ Commit: (this commit)
 ## After merge — allowlist narrowed to marketing and service mail
 
 At the owner's request, `allowlist` mode now holds back only `marketing` and `service` mail. Back-in-stock (`requested_service`) and order mail reach everyone, so real customers keep their notices while testing runs on live SendGrid. Rule: `allowlistApplies` in `lib/config.ts`; covered by the sender's allowlist test.
+
+## After merge — list tags on imported contacts
+
+SendGrid's four contact lists (Maki, CD Web Signups, BWC, Friends: 14,198 unique addresses, 643 on more than one list) had to keep their origin for targeting. `consent_source` holds one value, and imported interests were seeded at exactly the "interested" threshold, so they decayed below it at once. Now: `email_contacts.lists` (text[], GIN-indexed, migration 0052) is set by a contacts import's **List name**, for new and existing contacts alike, without changing consent; the live run must name the same list as its dry run; segments take `lists_any`; the admin shows the lists with counts on the campaign page and on a contact. Imported interests now get an order's weight (10). Tests: list tagging, overlap, segment and the interest weight in `imports.service.test.ts`.
