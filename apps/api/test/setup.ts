@@ -24,3 +24,13 @@ const testDbUrl =
 
 process.env.DATABASE_URL = testDbUrl;
 process.env.NODE_ENV = 'test';
+
+// The OpenRouter daily spend cap sums llm_log across the whole database for
+// today, so every scripted FakeLlm call from every earlier suite (and every
+// earlier run that day) counts towards it. At the production default of
+// 2,000,000 micro-USD a busy day of test runs, or one suite that died before
+// its cleanup, would trip the cap for every later suite until UTC midnight.
+// Tests run with a cap no realistic run can reach; the spend-cap test seeds
+// spend relative to whatever cap is configured. Kept within Postgres
+// `integer` range because llm_log.cost_micro_usd is an int4 column.
+process.env.OPENROUTER_DAILY_CAP_MICROUSD ??= '1000000000';

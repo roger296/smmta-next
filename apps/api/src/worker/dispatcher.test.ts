@@ -8,7 +8,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type PgBoss from 'pg-boss';
-import { eq } from 'drizzle-orm';
+import { eq, isNull, sql } from 'drizzle-orm';
 import { closeDatabase, getDb, getPool } from '../config/database.js';
 import { getEnv } from '../config/env.js';
 import { domainEvents } from '../db/schema/index.js';
@@ -77,6 +77,12 @@ afterAll(async () => {
 beforeEach(async () => {
   const db = getDb();
   await db.delete(domainEvents).where(eq(domainEvents.companyId, TEST_COMPANY));
+  // dispatchPending polls every company's unprocessed events, oldest first,
+  // 100 at a time. Earlier suites leave their events unprocessed (nothing
+  // dispatches them in tests), so a backlog would push this test's event out
+  // of the batch and inflate the dispatched counts. Stamp that backlog as
+  // processed so each test only sees the events it emits.
+  await db.update(domainEvents).set({ processedAt: sql`now()` }).where(isNull(domainEvents.processedAt));
   await boss.purgeQueue(HANDLER);
   await boss.purgeQueue(DEAD_LETTER_QUEUE);
 });
