@@ -112,13 +112,13 @@ Work through these in order and tick each one off.
 - [ ] **Check SendGrid's settings:**
   - Tracking: Click on, Open on, Subscription Tracking **off**.
   - Event Webhook: the account allows only one, and Bloodhound already uses it, so the two share it:
-    1. Copy the **Post URL** currently in SendGrid's Event Webhook settings (Bloodhound's) and set it in Coolify as `SENDGRID_WEBHOOK_FORWARD_URL`. Redeploy.
-    2. Change the Post URL to `https://admin.cleverdeals.net/api/webhooks/sendgrid`, keep Signed Event Webhook on, select all events, and save.
+    1. In SendGrid, open the **Bloodhound** webhook (gear icon). Copy its Post URL into Coolify as `SENDGRID_WEBHOOK_FORWARD_URL`, and its **verification key** as `SENDGRID_WEBHOOK_PUBLIC_KEY`: each webhook has its own signing key, and both systems check signatures with this one. Redeploy.
+    2. Change that webhook's Post URL to `https://admin.cleverdeals.net/api/webhooks/sendgrid` and save. Edit only the URL: switching signing off and on can issue a new key.
     3. Every batch SendGrid sends now reaches this system first and is passed on, unchanged and still signed, to Bloodhound. Check Bloodhound still records events after the switch.
-- [ ] **Backfill contacts** from inside the api container:
-  `npx tsx scripts/email/backfill-contacts.ts`
+- [ ] **Backfill contacts** from the api container's terminal in Coolify. The scripts run from the API's folder, `/app/apps/api`, not the repo root:
+  `cd /app/apps/api && npx tsx scripts/email/backfill-contacts.ts`
   Record the counts it prints in BUILD_LOG.
-- [ ] **Import the SendGrid exports.** For each list, run a dry run first, read the report, then run it live. Order: bounces, then spam reports, then unsubscribes, then contacts. Dry run:
+- [ ] **Import the SendGrid exports.** For each list, run a dry run first, read the report, then run it live. Order: bounces, then spam reports, then unsubscribes, then contacts. From `/app/apps/api`, dry run:
   `npx tsx scripts/email/import.ts --type bounces --file /path/bounces.csv`
   Live run, using the dry-run id it printed:
   `… --live --dry-run-id <id>`
