@@ -20,7 +20,8 @@ labels/
 apps/api/labels/
 
 # Email system: SendGrid exports and the stored copies of imported files hold
-# personal data. Never commit them.
-imports/
+# personal data. Never commit them. Anchored to the repo root: a bare
+# "imports/" also hid the admin page apps/web/src/routes/_authed/messaging/imports/.
+/imports/
 var/email-evidence/
 apps/api/var/
