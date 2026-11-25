@@ -1692,3 +1692,22 @@ listed, because nobody has decided about it.
 **All or nothing; the dry run is the real run rolled back.** The whole run is
 one transaction, and without `--apply` that transaction is rolled back at the
 end. So the dry run's report is exactly what `--apply` does.
+
+**After the live dry run (owners, 25 Nov 2026):** four decisions.
+1. **Open counts are cancelled in the same run.** `--cancel-open-counts` does
+   what the Cancel button does: the counts are kept as records and never
+   applied. Their counted lines were downloaded first.
+2. **The seven products the sheet removes but recipes still use stay as they
+   are for now.** These are the flours, golden syrup, salt, Funkin puree,
+   fresh berries and Shredded Wheat bricks.
+3. **Where no factor exists and no recipe uses the product, it takes the
+   list's unit anyway.** Its stock figures and reorder points are in the old
+   unit and cannot be converted, so they are cleared rather than reinterpreted
+   (three bottles is not three litres). Products a recipe uses still keep their
+   old unit.
+4. **Aquafaba merges at 1 g = 1 ml.** `densities.csv` names the products where
+   grams and millilitres may be exchanged, at what density and why. Nothing
+   else converts between mass and volume.
+The dry run's "lines deleted" figure for merged duplicates now separates
+counted lines from blank ones. Every sheet lists every product, so most of the
+lines it deletes were never filled in.

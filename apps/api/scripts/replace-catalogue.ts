@@ -3,6 +3,7 @@
  *
  *   npx tsx apps/api/scripts/replace-catalogue.ts            # dry run
  *   npx tsx apps/api/scripts/replace-catalogue.ts --apply
+ *   ... --cancel-open-counts   also cancel every OPEN stock-take, in the same run
  *
  * Reads three files in `data/catalogue-2026-11/`, all taken from head
  * office's reconciliation workbook ("New Stock Data - Reconciliation Tabs",
@@ -36,9 +37,15 @@
  * known, every one of those quantities is multiplied by it, in the same
  * transaction. When it is NOT known — litres against grams, "1 lemon", a
  * bottle becoming litres — or converting would round a recipe quantity away,
- * the product is still re-coded and re-named but KEEPS ITS OLD UNIT AND ITS
- * OLD COUNT INSTRUCTION, and is listed. An instruction saying "count tubs" on a
- * product whose number is read as kilograms is worse than either alone.
+ * then what happens depends on whether a recipe uses the product:
+ *   - a recipe does: it is still re-coded and re-named but KEEPS ITS OLD UNIT
+ *     AND ITS OLD COUNT INSTRUCTION, and is listed. An instruction saying
+ *     "count tubs" on a figure read as kilograms is worse than either alone;
+ *   - nothing does: it takes the list's unit and instruction, and its stock
+ *     figures, which cannot be converted, are CLEARED rather than reinterpreted
+ *     (owners' decision, 25 Nov 2026). They are test data due for the reset.
+ * `densities.csv` names the few products where grams and millilitres may be
+ * treated as interchangeable at a stated density (aquafaba: 1 g = 1 ml).
  *
  * ⚠️ MERGED DUPLICATES LOSE THEIR STOCK-TAKE LINES. As in
  * `merge-duplicate-products`: the duplicate's quantities are in its own unit,
@@ -75,6 +82,7 @@ import {
   newProductKind,
   packDescriptionFor,
   readCatalogueMapping,
+  readDensities,
   readRemovals,
   readNewCatalogue,
   scaleQty,
@@ -88,11 +96,21 @@ export interface ReplaceReport {
   dryRun: boolean;
   updated: Array<{ code: string; from: string; oldName: string; unit: string; recipeLines: number; check: string }>;
   /** Re-coded and re-named, but the unit could not be converted. */
-  unitKept: Array<{ code: string; from: string; keptUom: string; listUom: string; reason: string }>;
+  unitKept: Array<{ code: string; from: string; keptUom: string; listUom: string; reason: string; recipeLines: number }>;
+  /**
+   * No factor existed, but no recipe uses the product, so it takes the list's
+   * unit anyway (owners' decision, 25 Nov 2026). Its stock figures were in the
+   * old unit and are cleared - they are test data due for the ledger reset.
+   */
+  unitSwitched: Array<{ code: string; from: string; oldUom: string; newUom: string; reason: string }>;
   created: Array<{ code: string; name: string }>;
   merged: Array<{
     code: string; retired: string; oldName: string; recipeLines: number; supplierCodes: number;
-    historyDeleted: number; unit: string;
+    /** Counted stock-take lines, bake lines and wastage events deleted. */
+    historyDeleted: number;
+    /** Uncounted lines on count sheets - every sheet lists every product. */
+    blankLinesDeleted: number;
+    unit: string;
   }>;
   /** Duplicates left exactly as they were. */
   mergeRefused: Array<{ code: string; duplicate: string; oldName: string; reason: string }>;
@@ -102,6 +120,8 @@ export interface ReplaceReport {
   categoriesCreated: string[];
   categoriesRetired: string[];
   openStockTakes: number;
+  /** Set with --cancel-open-counts: those OPEN counts were cancelled first. */
+  openStockTakesCancelled: number;
 }
 
 class DryRunRollback extends Error {}
@@ -233,19 +253,30 @@ async function moveSupplierCodes(tx: Tx, keepId: string, retireId: string, now: 
 }
 
 export async function replaceCatalogue(
-  opts: { apply?: boolean; companyId?: string; listText?: string; mappingText?: string; removalsText?: string } = {},
+  opts: {
+    apply?: boolean;
+    companyId?: string;
+    /** Cancel every OPEN stock-take in the same transaction (kept as records). */
+    cancelOpenCounts?: boolean;
+    listText?: string;
+    mappingText?: string;
+    removalsText?: string;
+    densitiesText?: string;
+  } = {},
 ): Promise<ReplaceReport> {
   const companyId = opts.companyId ?? getSingletonCompanyId();
   const apply = opts.apply ?? false;
   const list = readNewCatalogue(opts.listText ?? readFileSync(join(DATA_DIR, 'new-list.csv'), 'utf8'));
   const mapping = readCatalogueMapping(opts.mappingText ?? readFileSync(join(DATA_DIR, 'mapping.csv'), 'utf8'));
   const removals = readRemovals(opts.removalsText ?? readFileSync(join(DATA_DIR, 'removals.csv'), 'utf8'));
+  const densities = readDensities(opts.densitiesText ?? readFileSync(join(DATA_DIR, 'densities.csv'), 'utf8'));
   const fileProblems = crossCheck(list, mapping, removals);
   if (fileProblems.length > 0) throw new Error(`the list and the mapping disagree:\n  ${fileProblems.join('\n  ')}`);
 
   const report: ReplaceReport = {
-    dryRun: !apply, updated: [], unitKept: [], created: [], merged: [], mergeRefused: [],
+    dryRun: !apply, updated: [], unitKept: [], unitSwitched: [], created: [], merged: [], mergeRefused: [],
     retired: [], keptNotOnList: [], categoriesCreated: [], categoriesRetired: [], openStockTakes: 0,
+    openStockTakesCancelled: 0,
   };
   const listByCode = new Map(list.map((r) => [r.stockCode.toUpperCase(), r]));
   const db = getDb();
@@ -285,6 +316,15 @@ export async function replaceCatalogue(
         .from(stockTakes)
         .where(and(eq(stockTakes.companyId, companyId), eq(stockTakes.status, 'OPEN')));
       report.openStockTakes = open?.n ?? 0;
+      if (opts.cancelOpenCounts && report.openStockTakes > 0) {
+        // Exactly what the Cancel button does: kept as a record, never applied.
+        const cancelled = await tx
+          .update(stockTakes)
+          .set({ status: 'CANCELLED', updatedAt: now })
+          .where(and(eq(stockTakes.companyId, companyId), eq(stockTakes.status, 'OPEN')))
+          .returning({ id: stockTakes.id });
+        report.openStockTakesCancelled = cancelled.length;
+      }
 
       // ── Item categories: the list's sub-categories, reused case-insensitively.
       const cats = await tx
@@ -331,7 +371,7 @@ export async function replaceCatalogue(
 
         const keep = byCode.get(m.oldStockCodes[0]!.toUpperCase())!;
         const recipeCount = await countWhere(tx, recipeLines, keep.id);
-        const uf = unitFactor(keep.stockUom, row.stockUom, row.size);
+        const uf = unitFactor(keep.stockUom, row.stockUom, row.size, densities.get(m.oldStockCodes[0]!.toUpperCase()));
         let finalUom = keep.stockUom;
         const refusal = 'refusal' in uf ? uf.refusal : await recipeRoundingProblem(tx, keep.id, uf.factor);
 
@@ -355,10 +395,29 @@ export async function replaceCatalogue(
             unit: uf.factor === 1 ? uf.how : `${uf.how} (x${Number(uf.factor.toPrecision(6))})`,
             recipeLines: recipeCount, check: m.check,
           });
+        } else if (recipeCount === 0) {
+          // No factor, but nothing a recipe depends on: take the list's unit.
+          // The stock figures are in the old unit and cannot be converted, so
+          // they are cleared rather than reinterpreted (a "3" of bottles is
+          // not 3 litres). Reorder points are configuration in the old unit,
+          // so they go too.
+          await tx.delete(stockMovements).where(eq(stockMovements.productId, keep.id));
+          await tx.delete(stockBatches).where(eq(stockBatches.productId, keep.id));
+          await tx
+            .update(stockLevels)
+            .set({ onHand: '0', allocated: '0', reorderPoint: null, reorderUpTo: null, updatedAt: now })
+            .where(eq(stockLevels.productId, keep.id));
+          finalUom = row.stockUom;
+          patch.stockUom = row.stockUom;
+          patch.stockCheckInstruction = row.stockCheckInstruction || null;
+          report.unitSwitched.push({
+            code: row.stockCode, from: keep.stockCode ?? '', oldUom: keep.stockUom, newUom: row.stockUom,
+            reason: refusal ?? 'no factor',
+          });
         } else {
           report.unitKept.push({
             code: row.stockCode, from: keep.stockCode ?? '', keptUom: keep.stockUom, listUom: row.stockUom,
-            reason: refusal ?? 'no factor',
+            reason: refusal ?? 'no factor', recipeLines: recipeCount,
           });
         }
         await tx.update(products).set(patch).where(eq(products.id, keep.id));
@@ -367,7 +426,7 @@ export async function replaceCatalogue(
         for (const dupCode of m.oldStockCodes.slice(1)) {
           const dup = byCode.get(dupCode.toUpperCase())!;
           const dupRecipes = await countWhere(tx, recipeLines, dup.id);
-          const df = unitFactor(dup.stockUom, finalUom, row.size);
+          const df = unitFactor(dup.stockUom, finalUom, row.size, densities.get(dupCode.toUpperCase()));
           let why: string | null = null;
           let factor = 1;
           if (dupRecipes > 0) {
@@ -407,8 +466,13 @@ export async function replaceCatalogue(
           }
           const codes = await moveSupplierCodes(tx, keep.id, dup.id, now);
           await tx.update(squareItemMap).set({ productId: keep.id, updatedAt: now }).where(eq(squareItemMap.productId, dup.id));
+          const [counted] = await tx
+            .select({ n: N })
+            .from(stockTakeLines)
+            .where(and(eq(stockTakeLines.productId, dup.id), sql`${stockTakeLines.countedQty} is not null`));
+          const blank = (await countWhere(tx, stockTakeLines, dup.id)) - (counted?.n ?? 0);
           const history =
-            (await countWhere(tx, stockTakeLines, dup.id)) +
+            (counted?.n ?? 0) +
             (await countWhere(tx, sessionConsumptionLines, dup.id)) +
             (await countWhere(tx, wastageEvents, dup.id));
           await tx.delete(stockMovements).where(eq(stockMovements.productId, dup.id));
@@ -420,7 +484,7 @@ export async function replaceCatalogue(
           await tx.update(products).set({ deletedAt: now, updatedAt: now }).where(eq(products.id, dup.id));
           report.merged.push({
             code: row.stockCode, retired: dup.stockCode ?? '', oldName: dup.name, recipeLines: dupRecipes,
-            supplierCodes: codes, historyDeleted: history,
+            supplierCodes: codes, historyDeleted: history, blankLinesDeleted: blank,
             unit: dupRecipes === 0 ? 'no recipe lines to convert' : factor === 1 ? 'same unit' : `x${Number(factor.toPrecision(6))}`,
           });
         }
@@ -494,12 +558,14 @@ const isCliEntry = process.argv[1]?.endsWith('replace-catalogue.ts') ?? false;
 
 if (isCliEntry) {
   const apply = process.argv.includes('--apply');
-  replaceCatalogue({ apply })
+  const cancelOpenCounts = process.argv.includes('--cancel-open-counts');
+  replaceCatalogue({ apply, cancelOpenCounts })
     .then((r) => {
       const say = (s = '') => console.log(s);
       say(`[replace-catalogue] ${r.dryRun ? 'DRY RUN - nothing written (pass --apply to commit)' : 'APPLIED'}`);
       say();
-      say(`  re-coded in place     : ${r.updated.length + r.unitKept.length}  (${r.unitKept.length} keep their old unit - see below)`);
+      say(`  re-coded in place     : ${r.updated.length + r.unitKept.length + r.unitSwitched.length}  ` +
+        `(${r.unitSwitched.length} switch unit with stock cleared, ${r.unitKept.length} keep their old unit - see below)`);
       say(`  created               : ${r.created.length}`);
       say(`  duplicates merged in  : ${r.merged.length}`);
       say(`  duplicates NOT merged : ${r.mergeRefused.length}`);
@@ -507,11 +573,21 @@ if (isCliEntry) {
       say(`  KEPT, not on list     : ${r.keptNotOnList.length}  (still used, or not in the sheet - see below)`);
       say(`  categories created    : ${r.categoriesCreated.length}  ${r.categoriesCreated.join(', ')}`);
       say(`  categories retired    : ${r.categoriesRetired.length}  ${r.categoriesRetired.join(', ')}`);
-      if (r.openStockTakes > 0) say(`  ⚠️  ${r.openStockTakes} stock-take(s) are OPEN - best cancelled or approved first`);
+      if (r.openStockTakesCancelled > 0) say(`  open stock-takes      : ${r.openStockTakesCancelled} cancelled first (kept as records)`);
+      else if (r.openStockTakes > 0) {
+        say(`  ⚠️  ${r.openStockTakes} stock-take(s) are OPEN - add --cancel-open-counts to cancel them in the same run`);
+      }
       say();
       if (r.unitKept.length > 0) {
         say('  ── RE-CODED BUT UNIT KEPT (change these by hand once decided) ──');
-        for (const u of r.unitKept) say(`  ${u.code}  (was ${u.from})  keeps ${u.keptUom}, list says ${u.listUom}: ${u.reason}`);
+        for (const u of r.unitKept) {
+          say(`  ${u.code}  (was ${u.from})  keeps ${u.keptUom}, list says ${u.listUom} - ${u.recipeLines} recipe line(s): ${u.reason}`);
+        }
+        say();
+      }
+      if (r.unitSwitched.length > 0) {
+        say('  ── UNIT SWITCHED WITHOUT CONVERSION (no recipe uses it; its stock figures are cleared) ──');
+        for (const u of r.unitSwitched) say(`  ${u.code}  (was ${u.from})  ${u.oldUom} -> ${u.newUom}`);
         say();
       }
       if (r.keptNotOnList.length > 0) {
@@ -530,7 +606,8 @@ if (isCliEntry) {
         say('  ── duplicates merged ──');
         for (const m of r.merged) {
           say(`  ${m.retired}  ${m.oldName}  -> ${m.code}  (${m.recipeLines} recipe line(s) ${m.unit}, ` +
-            `${m.supplierCodes} supplier code(s), ${m.historyDeleted} count/bake/wastage line(s) deleted)`);
+            `${m.supplierCodes} supplier code(s); deleted: ${m.historyDeleted} counted/bake/wastage line(s), ` +
+            `${m.blankLinesDeleted} blank count-sheet line(s))`);
         }
         say();
       }

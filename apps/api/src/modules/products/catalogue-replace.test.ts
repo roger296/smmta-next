@@ -77,6 +77,13 @@ describe('unitFactor - how many new units one old unit is', () => {
     expect(unitFactor('kg', 'each', '1 lemon')).toMatchObject({ refusal: expect.stringMatching(/not a weight/) });
   });
 
+  it('converts grams into litre bottles only at a density somebody named', () => {
+    const f = unitFactor('g', 'each', '1l', 1);
+    expect('factor' in f && f.factor).toBeCloseTo(0.001, 10); // 1 g = 1 ml = a thousandth of a bottle
+    const g = unitFactor('kg', 'l', '', 0.92);
+    expect('factor' in g && g.factor).toBeCloseTo(1 / 0.92, 10);
+  });
+
   it('refuses a bottle becoming litres - the bottle size was never recorded', () => {
     expect(unitFactor('bottle', 'l', 'Made in-house')).toMatchObject({ refusal: expect.stringMatching(/not recorded/) });
   });

@@ -48,7 +48,9 @@ const listOf = (...rows: string[]) => [HEADER, ...rows].join('\n');
 const mappingOf = (...rows: string[]) => ['new_stock_code,old_stock_codes,check', ...rows].join('\n');
 const removalsOf = (...codes: string[]) => ['old_stock_code,name,reason', ...codes.map((c) => `${c},,Remove.`)].join('\n');
 /** Each test names its own removals, so the committed file never leaks in. */
-const run = (o: Parameters<typeof replaceCatalogue>[0]) => replaceCatalogue({ removalsText: removalsOf(), ...o });
+const run = (o: Parameters<typeof replaceCatalogue>[0]) =>
+  replaceCatalogue({ removalsText: removalsOf(), densitiesText: 'old_stock_code,grams_per_ml,why', ...o });
+const COCKTAIL = 'SYR-COM-NEGR,Cocktail Mix - Negroni,Bar,"Syrups, Purees & Cocktail Mixes",l,Made in-house,Made in-house,Count litres (estimate part bottles),';
 
 const SUGAR = 'BAK-SUGA-CAST,Sugar - Caster,Baking,Baking Ingredients,each,25kg,1 x 25kg,"Count bags, to the nearest quarter bag",';
 const LEMON = 'BAK-FRUI-LEMO,Fruit - Lemons,Baking,Baking Ingredients,each,1 lemon,1 x net (5 lemons),Count individual lemons,';
@@ -150,11 +152,21 @@ describe('replaceCatalogue', () => {
     const [dupBrakes] = await db.insert(supplierProducts).values({ companyId: COMPANY, productId: dup, supplierId: brakes, supplierSku: '33891' }).returning();
     await db.insert(supplierProductAliases).values({ companyId: COMPANY, supplierProductId: dupBrakes!.id, supplierId: brakes, aliasSku: 'A33891' });
     await db.insert(supplierProducts).values({ companyId: COMPANY, productId: dup, supplierId: booker, supplierSku: '777' });
+    // One sheet where the duplicate was counted, one where it was left blank.
+    const [site] = await db.insert(sites).values({ companyId: COMPANY, name: 'S', canonicalName: 'S', slug: `${P}-s` }).returning();
+    const [t1] = await db.insert(stockTakes).values({ companyId: COMPANY, siteId: site!.id, status: 'CANCELLED' }).returning();
+    const [t2] = await db.insert(stockTakes).values({ companyId: COMPANY, siteId: site!.id, status: 'CANCELLED' }).returning();
+    await db.insert(stockTakeLines).values([
+      { stockTakeId: t1!.id, productId: dup, bookQty: '0', countedQty: '500' },
+      { stockTakeId: t2!.id, productId: dup, bookQty: '0' },
+    ]);
 
     const r = await run({
       companyId: COMPANY, apply: true, listText: listOf(SUGAR), mappingText: mappingOf('BAK-SUGA-CAST,BAKE-CAST-SUGR|CASTER-SUGAR,'),
     });
-    expect(r.merged).toMatchObject([{ code: 'BAK-SUGA-CAST', retired: 'CASTER-SUGAR', recipeLines: 1, supplierCodes: 2 }]);
+    expect(r.merged).toMatchObject([
+      { code: 'BAK-SUGA-CAST', retired: 'CASTER-SUGAR', recipeLines: 1, supplierCodes: 2, historyDeleted: 1, blankLinesDeleted: 1 },
+    ]);
     expect((await row(dup)).deletedAt).not.toBeNull();
 
     const [rl] = await db.select().from(recipeLines).where(eq(recipeLines.companyId, COMPANY));
@@ -255,6 +267,62 @@ describe('replaceCatalogue', () => {
     expect(Number(rl!.qtyPerCover)).toBe(0.1);
     const all = await getDb().select().from(products).where(eq(products.companyId, COMPANY));
     expect(all).toHaveLength(2);
+  });
+
+  it('merges grams into litre bottles at a density the owners named', async () => {
+    const keep = await mkProduct('Aquafaba - Oggs', 'AQUA', 'l');
+    const dup = await mkProduct('Aquafaba', 'AQUAFABA', 'g');
+    await mkRecipeLine(dup, '30', 'g');
+    const r = await run({
+      companyId: COMPANY, apply: true,
+      listText: listOf('BAK-AQUA-OGGS,Aquafaba - Oggs,Baking,Baking Ingredients,each,1l,1 x 1l,Count bottles,'),
+      mappingText: mappingOf('BAK-AQUA-OGGS,AQUA|AQUAFABA,'),
+      densitiesText: 'old_stock_code,grams_per_ml,why\nAQUAFABA,1,bean water',
+    });
+    expect(r.mergeRefused).toEqual([]);
+    expect(r.merged).toMatchObject([{ retired: 'AQUAFABA', recipeLines: 1 }]);
+    const [rl] = await getDb().select().from(recipeLines).where(eq(recipeLines.companyId, COMPANY));
+    expect(rl!.productId).toBe(keep);
+    expect(Number(rl!.qtyPerCover)).toBe(0.03); // 30 g of a 1 l bottle at 1 g/ml
+  });
+
+  it('switches the unit of a product no recipe uses, clearing stock it cannot convert', async () => {
+    const db = getDb();
+    const mix = await mkProduct('Negroni Cocktail Mix', 'COCK-NEGR-ONI', 'bottle', { stockCheckInstruction: 'count bottles' });
+    const [site] = await db.insert(sites).values({ companyId: COMPANY, name: 'S', canonicalName: 'S', slug: `${P}-s` }).returning();
+    await db.insert(stockMovements).values({
+      companyId: COMPANY, productId: mix, siteId: site!.id, qtyDelta: '3', movementType: 'GRN',
+      sourceSystem: 'TEST', sourceKey: `${P}-m`, contentHash: `${P}-h`,
+    });
+    await db.insert(stockLevels).values({ companyId: COMPANY, productId: mix, siteId: site!.id, onHand: '3', reorderPoint: '2' });
+
+    const r = await run({
+      companyId: COMPANY, apply: true, listText: listOf(COCKTAIL), mappingText: mappingOf('SYR-COM-NEGR,COCK-NEGR-ONI,'),
+    });
+    expect(r.unitKept).toEqual([]);
+    expect(r.unitSwitched).toMatchObject([{ code: 'SYR-COM-NEGR', oldUom: 'bottle', newUom: 'l' }]);
+    expect(await row(mix)).toMatchObject({ stockUom: 'l', stockCheckInstruction: 'Count litres (estimate part bottles)' });
+    // 3 bottles is not 3 litres: cleared, not reinterpreted.
+    const [lvl] = await db.select().from(stockLevels).where(eq(stockLevels.productId, mix));
+    expect(Number(lvl!.onHand)).toBe(0);
+    expect(lvl!.reorderPoint).toBeNull();
+    expect(await db.select().from(stockMovements).where(eq(stockMovements.productId, mix))).toHaveLength(0);
+  });
+
+  it('cancels the open counts first when asked, and only then', async () => {
+    const db = getDb();
+    await mkProduct('Caster Sugar', 'BAKE-CAST-SUGR', 'kg');
+    const [site] = await db.insert(sites).values({ companyId: COMPANY, name: 'S', canonicalName: 'S', slug: `${P}-s` }).returning();
+    const [take] = await db.insert(stockTakes).values({ companyId: COMPANY, siteId: site!.id, status: 'OPEN' }).returning();
+    const args = { companyId: COMPANY, apply: true, listText: listOf(SUGAR), mappingText: mappingOf('BAK-SUGA-CAST,BAKE-CAST-SUGR,') };
+
+    const dry = await run({ ...args, apply: false });
+    expect(dry).toMatchObject({ openStockTakes: 1, openStockTakesCancelled: 0 });
+
+    const r = await run({ ...args, cancelOpenCounts: true });
+    expect(r).toMatchObject({ openStockTakes: 1, openStockTakesCancelled: 1 });
+    const [t] = await db.select().from(stockTakes).where(eq(stockTakes.id, take!.id));
+    expect(t!.status).toBe('CANCELLED');
   });
 
   it('refuses outright when the mapping names a product this catalogue does not have', async () => {

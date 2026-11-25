@@ -92,6 +92,20 @@ export function readRemovals(text: string): CatalogueRemovalRow[] {
 }
 
 /**
+ * Densities somebody has decided, per OLD stock code. Without one, grams and
+ * litres never convert (see `conversionFactor`); with one, they do, and the
+ * file records who decided and why.
+ */
+export function readDensities(text: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of records(text)) {
+    const g = Number(r.grams_per_ml);
+    if (r.old_stock_code && g > 0) out.set(r.old_stock_code.toUpperCase(), g);
+  }
+  return out;
+}
+
+/**
  * Units that mean "one of a thing". A bottle, a bag and an `each` are all one
  * item, so moving between them changes the word, not the number — the
  * precedent the product import set ("each" -> "can" keeps its cost).
@@ -142,7 +156,7 @@ export type UnitFactor = { factor: number; how: string } | { refusal: string };
  * (a density, which differs per liquid — see `conversionFactor`), a weight
  * against "1 lemon", and a bottle against litres (how big was the bottle?).
  */
-export function unitFactor(oldUom: string, newUom: string, size: string): UnitFactor {
+export function unitFactor(oldUom: string, newUom: string, size: string, gramsPerMl?: number): UnitFactor {
   const from = canonicalUom(oldUom);
   const to = canonicalUom(newUom);
   if (!from || !to) return { refusal: `missing stock unit (${oldUom || '-'} -> ${newUom || '-'})` };
@@ -150,9 +164,17 @@ export function unitFactor(oldUom: string, newUom: string, size: string): UnitFa
   if (isCountUnit(from) && isCountUnit(to)) return { factor: 1, how: `${from} -> ${to}, one for one` };
 
   const measured = (u: string) => MASS.has(u) || VOLUME.has(u);
+  /** Grams or millilitres in one of `u`. */
+  const base = (u: string) => (u === 'kg' || u === 'l' ? 1000 : 1);
   if (measured(from) && measured(to)) {
     const f = conversionFactor(from, to);
-    return typeof f === 'number' ? { factor: f, how: `${from} -> ${to}` } : { refusal: f.reason };
+    if (typeof f === 'number') return { factor: f, how: `${from} -> ${to}` };
+    if (!gramsPerMl) return { refusal: f.reason };
+    // Mass <-> volume with a density somebody has named for this product.
+    const factor = MASS.has(from)
+      ? base(from) / gramsPerMl / base(to)
+      : (base(from) * gramsPerMl) / base(to);
+    return { factor, how: `${from} -> ${to} at ${gramsPerMl} g/ml` };
   }
 
   if (measured(from) && isCountUnit(to)) {
@@ -165,6 +187,11 @@ export function unitFactor(oldUom: string, newUom: string, size: string): UnitFa
       };
     }
     const fromBase = MASS.has(from) ? 'g' : 'ml';
+    if (fromBase !== s.base && gramsPerMl) {
+      // e.g. grams of aquafaba into 1 l bottles, at a named density.
+      const inSizeBase = fromBase === 'g' ? base(from) / gramsPerMl : base(from) * gramsPerMl;
+      return { factor: inSizeBase / s.qty, how: `${from} -> ${to} of ${size} at ${gramsPerMl} g/ml` };
+    }
     if (fromBase !== s.base) {
       return {
         refusal:
