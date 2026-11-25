@@ -215,6 +215,17 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   open count, which keeps it as a record and never applies it;
   `scripts/cancel-empty-stock-takes.ts` clears the empty ones.
   `scripts/report-stock-takes.ts` is the terminal version of the results page.
+- **The catalogue was replaced with head office's Nov-2026 list**
+  (`scripts/replace-catalogue.ts`; `data/catalogue-2026-11/`; `DECISIONS.md`
+  §F27). 438 lines, all with new stock codes, and the 18 sub-categories as
+  item categories. Products were **re-coded in place**, so ids, recipes,
+  supplier codes and history survive. `mapping.csv` says which old product(s)
+  each line replaces. Unit changes convert every stored quantity by the
+  list's Size; where no factor exists, the old unit and instruction are kept
+  and the run lists them. ⚠️ Products not on the list are retired **unless a
+  recipe or Square item uses them**; flour is not on the list. ⚠️ The mapping
+  matches the 25 Nov catalogue. Re-running against a changed catalogue stops
+  with the drift listed, and that is intended.
 - **Supplier ordering — Phase 0 groundwork** (`docs/plans/SUPPLIER_ORDERING_PLAN.md`;
   `DECISIONS.md` §F23). Nothing places an order yet. Goods-in now commits
   receipt, lines, movements and batches in ONE transaction; GRN movements are

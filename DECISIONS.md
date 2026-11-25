@@ -1641,3 +1641,44 @@ because its figures are already in the levels.
 counts with nothing counted that are older than `--min-age-hours` (default 12),
 so a count opened a minute ago is not swept away. A sheet with counts on it is
 never cancelled by the script; that is a manager's decision.
+
+## §F27 — Replacing the catalogue with head office's new list (Nov 2026)
+
+**Asked:** replace the product list with a new 438-line list. Every line has a
+new stock code, a new name, a category and sub-category, a stock unit and size,
+how it is bought, and a count instruction ("Count bags, to the nearest quarter
+bag"). The owners chose the **18 sub-categories** as the item category, since
+that is what splits the stock-take sheet into sections.
+
+**Re-coded in place, not imported.** The products page import upserts on stock
+code. With every code new, it would have created 438 products beside the 640
+old ones and left recipes, supplier codes and history on the old ones.
+`scripts/replace-catalogue.ts` instead updates the product each line replaces,
+so its id and everything attached to it survive. The list does not say which
+product each line replaces, so `data/catalogue-2026-11/mapping.csv` does. It
+was paired by hand against the 25 Nov export, and its `check` column carries
+the judgement calls (e.g. "Hats" folded into "Baker's Hat - Branded"). Where
+a line names two or more old products, the first is re-coded and the others are
+merged into it, under the same rules as `merge-duplicate-products.ts`.
+
+**Units are converted, or kept.** Most lines change the stock unit (caster
+sugar: kg → one 25 kg sack). Recipe quantities and unit costs, the expected
+cost, reorder points, the stock position and stock-take lines are all
+multiplied by the factor between the two, using the list's Size column. When
+the factor cannot be known, the product is re-coded and re-named but **keeps
+its old unit and its old count instruction**, and the run lists it. That covers
+grams against litres (a density), "1 lemon", "60 falafel box", or a bottle
+becoming litres. It also covers conversions that would round a recipe line
+below 4 dp. A "count tubs" instruction on a figure read as kilograms would be
+worse than leaving both.
+
+**Retire, unless used.** Live products the mapping does not mention are
+soft-deleted, along with their supplier codes, because `aliasConflict` does not
+look at whether the owning product is dead. **Products a recipe or a Square
+item still uses are kept and listed instead.** The new list leaves out recipe
+staples such as flour, golden syrup and cinnamon, and retiring them would take
+an ingredient out of a cake without anyone noticing.
+
+**All or nothing; the dry run is the real run rolled back.** The whole run is
+one transaction, and without `--apply` that transaction is rolled back at the
+end. So the dry run's report is exactly what `--apply` does.
