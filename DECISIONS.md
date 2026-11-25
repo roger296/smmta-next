@@ -1654,12 +1654,19 @@ that is what splits the stock-take sheet into sections.
 code. With every code new, it would have created 438 products beside the 640
 old ones and left recipes, supplier codes and history on the old ones.
 `scripts/replace-catalogue.ts` instead updates the product each line replaces,
-so its id and everything attached to it survive. The list does not say which
-product each line replaces, so `data/catalogue-2026-11/mapping.csv` does. It
-was paired by hand against the 25 Nov export, and its `check` column carries
-the judgement calls (e.g. "Hats" folded into "Baker's Hat - Branded"). Where
-a line names two or more old products, the first is re-coded and the others are
-merged into it, under the same rules as `merge-duplicate-products.ts`.
+so its id and everything attached to it survive. Which product each line
+replaces comes from head office's reconciliation workbook (25 Nov 2026):
+`data/catalogue-2026-11/mapping.csv` is its "Clean" tab's old code followed by
+everything its "Removed" tab merges into that line (73 merges), and
+`removals.csv` is the 167 it removes outright. A first, hand-made pairing was
+replaced by the workbook wherever they disagreed (39 lines). The workbook is
+authoritative because it records head office's decisions about what is the
+same item, e.g. Gordon's Gin folded into the Mediterranean Orange line.
+Where a line names two or more old products, the first is re-coded and the
+others are merged into it, under the same rules as
+`merge-duplicate-products.ts`. Eleven lines name an old code that is not a
+live product (the Cake It Easy T-shirts, three ProGel colours, two sprinkles),
+so those are created new, with a note in `check`.
 
 **Units are converted, or kept.** Most lines change the stock unit (caster
 sugar: kg → one 25 kg sack). Recipe quantities and unit costs, the expected
@@ -1672,12 +1679,15 @@ becoming litres. It also covers conversions that would round a recipe line
 below 4 dp. A "count tubs" instruction on a figure read as kilograms would be
 worse than leaving both.
 
-**Retire, unless used.** Live products the mapping does not mention are
-soft-deleted, along with their supplier codes, because `aliasConflict` does not
-look at whether the owning product is dead. **Products a recipe or a Square
-item still uses are kept and listed instead.** The new list leaves out recipe
-staples such as flour, golden syrup and cinnamon, and retiring them would take
-an ingredient out of a cake without anyone noticing.
+**Retire what the sheet removes, unless used.** Products in `removals.csv`
+are soft-deleted, along with their supplier codes, because `aliasConflict` does
+not look at whether the owning product is dead. **Products a recipe or a Square
+item still uses are kept and listed instead.** The sheet removes flour ("delivered
+free via our partner Homepride"), but recipes call for it, and retiring it would
+take an ingredient out of every cake without anyone noticing. Whether to take
+flour out of the recipes too is a separate decision. A live product the
+sheet does not mention at all (one made after it was drawn up) is also kept and
+listed, because nobody has decided about it.
 
 **All or nothing; the dry run is the real run rolled back.** The whole run is
 one transaction, and without `--apply` that transaction is rolled back at the

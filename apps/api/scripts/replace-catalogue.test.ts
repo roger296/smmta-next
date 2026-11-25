@@ -46,6 +46,9 @@ afterAll(async () => {
 const HEADER = 'stock_code,name,item_category,sub_category,stock_uom,size,purchase_uom,stock_check_instruction,comments';
 const listOf = (...rows: string[]) => [HEADER, ...rows].join('\n');
 const mappingOf = (...rows: string[]) => ['new_stock_code,old_stock_codes,check', ...rows].join('\n');
+const removalsOf = (...codes: string[]) => ['old_stock_code,name,reason', ...codes.map((c) => `${c},,Remove.`)].join('\n');
+/** Each test names its own removals, so the committed file never leaks in. */
+const run = (o: Parameters<typeof replaceCatalogue>[0]) => replaceCatalogue({ removalsText: removalsOf(), ...o });
 
 const SUGAR = 'BAK-SUGA-CAST,Sugar - Caster,Baking,Baking Ingredients,each,25kg,1 x 25kg,"Count bags, to the nearest quarter bag",';
 const LEMON = 'BAK-FRUI-LEMO,Fruit - Lemons,Baking,Baking Ingredients,each,1 lemon,1 x net (5 lemons),Count individual lemons,';
@@ -83,7 +86,7 @@ describe('replaceCatalogue', () => {
     const [take] = await db.insert(stockTakes).values({ companyId: COMPANY, siteId: site!.id, status: 'CANCELLED' }).returning();
     await db.insert(stockTakeLines).values({ stockTakeId: take!.id, productId: sugar, bookQty: '50', countedQty: '25', variance: '-25' });
 
-    const r = await replaceCatalogue({
+    const r = await run({
       companyId: COMPANY, apply: true, listText: listOf(SUGAR), mappingText: mappingOf('BAK-SUGA-CAST,BAKE-CAST-SUGR,'),
     });
     expect(r.updated).toMatchObject([{ code: 'BAK-SUGA-CAST', from: 'BAKE-CAST-SUGR', recipeLines: 1 }]);
@@ -113,7 +116,7 @@ describe('replaceCatalogue', () => {
     const lemon = await mkProduct('Lemons', 'LEMO', 'kg', { stockCheckInstruction: 'weigh the bag' });
     await mkRecipeLine(lemon, '0.0500', 'kg');
 
-    const r = await replaceCatalogue({
+    const r = await run({
       companyId: COMPANY, apply: true, listText: listOf(LEMON), mappingText: mappingOf('BAK-FRUI-LEMO,LEMO,'),
     });
     expect(r.unitKept).toMatchObject([{ code: 'BAK-FRUI-LEMO', keptUom: 'kg', listUom: 'each', reason: expect.stringMatching(/1 lemon/) }]);
@@ -128,7 +131,7 @@ describe('replaceCatalogue', () => {
     const sugar = await mkProduct('Caster Sugar', 'BAKE-CAST-SUGR', 'kg');
     await mkRecipeLine(sugar, '0.0010', 'kg'); // 1 g = 0.00004 sacks -> 0.0000
 
-    const r = await replaceCatalogue({
+    const r = await run({
       companyId: COMPANY, apply: true, listText: listOf(SUGAR), mappingText: mappingOf('BAK-SUGA-CAST,BAKE-CAST-SUGR,'),
     });
     expect(r.unitKept[0]!.reason).toMatch(/too small/);
@@ -148,7 +151,7 @@ describe('replaceCatalogue', () => {
     await db.insert(supplierProductAliases).values({ companyId: COMPANY, supplierProductId: dupBrakes!.id, supplierId: brakes, aliasSku: 'A33891' });
     await db.insert(supplierProducts).values({ companyId: COMPANY, productId: dup, supplierId: booker, supplierSku: '777' });
 
-    const r = await replaceCatalogue({
+    const r = await run({
       companyId: COMPANY, apply: true, listText: listOf(SUGAR), mappingText: mappingOf('BAK-SUGA-CAST,BAKE-CAST-SUGR|CASTER-SUGAR,'),
     });
     expect(r.merged).toMatchObject([{ code: 'BAK-SUGA-CAST', retired: 'CASTER-SUGAR', recipeLines: 1, supplierCodes: 2 }]);
@@ -174,7 +177,7 @@ describe('replaceCatalogue', () => {
     await mkProduct('Aquafaba - Oggs', 'AQUA', 'l');
     const dup = await mkProduct('Aquafaba', 'AQUAFABA', 'g');
     await mkRecipeLine(dup, '30', 'g');
-    const r = await replaceCatalogue({
+    const r = await run({
       companyId: COMPANY, apply: true,
       listText: listOf('BAK-AQUA-OGGS,Aquafaba - Oggs,Baking,Baking Ingredients,each,1l,1 x 1l,Count bottles,'),
       mappingText: mappingOf('BAK-AQUA-OGGS,AQUA|AQUAFABA,'),
@@ -183,7 +186,7 @@ describe('replaceCatalogue', () => {
     expect(await row(dup)).toMatchObject({ deletedAt: null, stockCode: 'AQUAFABA' });
   });
 
-  it('creates new lines, retires what is not on the list, and keeps what a recipe still uses', async () => {
+  it('creates new lines, retires what the sheet removes, and keeps what is still used or was never decided', async () => {
     const db = getDb();
     const flour = await mkProduct('HP Plain Flour', 'BAKE-PLAN-FLOR', 'kg');
     await mkRecipeLine(flour, '0.2000', 'kg');
@@ -193,14 +196,23 @@ describe('replaceCatalogue', () => {
     const brakes = await mkSupplier('brakes');
     const [code] = await db.insert(supplierProducts).values({ companyId: COMPANY, productId: masks, supplierId: brakes, supplierSku: '555' }).returning();
 
-    const r = await replaceCatalogue({
+    // Made after the sheet was drawn up: not named for removal, so nobody decided.
+    const later = await mkProduct('Something New', 'MADE-LATER', 'each');
+
+    const r = await run({
       companyId: COMPANY, apply: true, listText: listOf(PIN), mappingText: mappingOf('GFT-PIN-NEW,,'),
+      removalsText: removalsOf('BAKE-PLAN-FLOR', 'REDB', 'SURG-FACE-MASK'),
     });
     expect(r.created).toEqual([{ code: 'GFT-PIN-NEW', name: 'Pin - Brand New' }]);
     const [pin] = await db.select().from(products).where(and(eq(products.companyId, COMPANY), eq(products.stockCode, 'GFT-PIN-NEW')));
     expect(pin).toMatchObject({ itemKind: 'MERCH', isSold: true, stockUom: 'each', packDescription: 'Custom order' });
 
-    expect(r.keptNotOnList.map((k) => k.code).sort()).toEqual(['BAKE-PLAN-FLOR', 'REDB']);
+    expect(r.keptNotOnList.map((k) => [k.code, k.reason]).sort()).toEqual([
+      ['BAKE-PLAN-FLOR', 'the sheet says remove, but recipes still use it'],
+      ['MADE-LATER', 'not in the sheet at all'],
+      ['REDB', 'the sheet says remove, but a Square item still maps to it'],
+    ]);
+    expect((await row(later)).deletedAt).toBeNull();
     expect((await row(flour)).deletedAt).toBeNull();
     expect((await row(till)).deletedAt).toBeNull();
 
@@ -217,7 +229,7 @@ describe('replaceCatalogue', () => {
     const [old] = await db.insert(itemCategories).values({ companyId: COMPANY, name: 'Ingredients' }).returning();
     const fondant = await mkProduct('Black Fondant', 'BAKE-FOND-BLAK', 'kg', { itemCategoryId: old!.id });
 
-    const r = await replaceCatalogue({
+    const r = await run({
       companyId: COMPANY, apply: true,
       listText: listOf('CRC-FOND-BLAC,Fondant - Black,Baking,Creation Corner,kg,1kg,1 x 1kg,Count kilos,'),
       mappingText: mappingOf('CRC-FOND-BLAC,BAKE-FOND-BLAK,'),
@@ -232,8 +244,9 @@ describe('replaceCatalogue', () => {
     await mkRecipeLine(sugar, '0.1000', 'kg');
     const masks = await mkProduct('Surgical Face Masks', 'SURG-FACE-MASK', 'each');
 
-    const r = await replaceCatalogue({
+    const r = await run({
       companyId: COMPANY, listText: listOf(SUGAR, PIN), mappingText: mappingOf('BAK-SUGA-CAST,BAKE-CAST-SUGR,', 'GFT-PIN-NEW,,'),
+      removalsText: removalsOf('SURG-FACE-MASK'),
     });
     expect(r).toMatchObject({ dryRun: true, updated: [{ code: 'BAK-SUGA-CAST' }], created: [{ code: 'GFT-PIN-NEW' }], retired: [{ code: 'SURG-FACE-MASK' }] });
     expect(await row(sugar)).toMatchObject({ stockCode: 'BAKE-CAST-SUGR', stockUom: 'kg' });
@@ -246,7 +259,7 @@ describe('replaceCatalogue', () => {
 
   it('refuses outright when the mapping names a product this catalogue does not have', async () => {
     await expect(
-      replaceCatalogue({ companyId: COMPANY, apply: true, listText: listOf(SUGAR), mappingText: mappingOf('BAK-SUGA-CAST,NO-SUCH-CODE,') }),
+      run({ companyId: COMPANY, apply: true, listText: listOf(SUGAR), mappingText: mappingOf('BAK-SUGA-CAST,NO-SUCH-CODE,') }),
     ).rejects.toThrow(/no live product with stock code NO-SUCH-CODE/);
   });
 });

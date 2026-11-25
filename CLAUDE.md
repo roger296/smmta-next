@@ -219,11 +219,13 @@ Nine changes after live venue testing. Full reasoning in `DECISIONS.md` §F17.
   (`scripts/replace-catalogue.ts`; `data/catalogue-2026-11/`; `DECISIONS.md`
   §F27). 438 lines, all with new stock codes, and the 18 sub-categories as
   item categories. Products were **re-coded in place**, so ids, recipes,
-  supplier codes and history survive. `mapping.csv` says which old product(s)
-  each line replaces. Unit changes convert every stored quantity by the
+  supplier codes and history survive. `mapping.csv` (which old product(s)
+  each line replaces) and `removals.csv` come from head office's
+  reconciliation workbook. Unit changes convert every stored quantity by the
   list's Size; where no factor exists, the old unit and instruction are kept
-  and the run lists them. ⚠️ Products not on the list are retired **unless a
-  recipe or Square item uses them**; flour is not on the list. ⚠️ The mapping
+  and the run lists them. ⚠️ Only products `removals.csv` names are retired,
+  and **not if a recipe or Square item uses them**. The sheet removes flour,
+  but recipes use it. ⚠️ The mapping
   matches the 25 Nov catalogue. Re-running against a changed catalogue stops
   with the drift listed, and that is intended.
 - **Supplier ordering — Phase 0 groundwork** (`docs/plans/SUPPLIER_ORDERING_PLAN.md`;

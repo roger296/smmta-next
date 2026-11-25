@@ -4,11 +4,15 @@
  *   npx tsx apps/api/scripts/replace-catalogue.ts            # dry run
  *   npx tsx apps/api/scripts/replace-catalogue.ts --apply
  *
- * Reads `data/catalogue-2026-11/new-list.csv` (the 438-line list, every line
- * with a new stock code, name, sub-category, unit and count instruction) and
- * `data/catalogue-2026-11/mapping.csv` (which existing product(s) each line
- * replaces — the list itself does not say, so the pairing was made by hand and
- * the judgement calls carry a note in its `check` column).
+ * Reads three files in `data/catalogue-2026-11/`, all taken from head
+ * office's reconciliation workbook ("New Stock Data - Reconciliation Tabs",
+ * 25 Nov 2026):
+ *   - `new-list.csv`  the 438 lines, each with a new stock code, name,
+ *                     sub-category, unit, size and count instruction;
+ *   - `mapping.csv`   which existing product(s) each line replaces: the
+ *                     "Clean" tab's old stock code first, then everything the
+ *                     "Removed" tab merges into it;
+ *   - `removals.csv`  what the "Removed" tab removes outright.
  *
  * WHAT IT DOES, per list line:
  *   - no old product  -> a new product is created;
@@ -20,8 +24,8 @@
  *   - two or more     -> the first is re-coded as above and the others are
  *     MERGED into it (recipe lines and supplier codes move across, converted;
  *     the duplicate is soft-deleted). Same rules as `merge-duplicate-products`.
- * Then every live product the mapping does not mention is RETIRED (soft
- * deleted, its supplier codes with it) — unless a recipe or a Square item still
+ * Then every live product `data/catalogue-2026-11/removals.csv` names is
+ * RETIRED (soft deleted, its supplier codes with it) — unless a recipe or a Square item still
  * uses it (or it is an experience-ticket package), in which case it is KEPT and
  * listed, because retiring it would take an ingredient out of a cake or stop a
  * till sale decrementing stock.
@@ -71,6 +75,7 @@ import {
   newProductKind,
   packDescriptionFor,
   readCatalogueMapping,
+  readRemovals,
   readNewCatalogue,
   scaleQty,
   unitFactor,
@@ -93,7 +98,7 @@ export interface ReplaceReport {
   mergeRefused: Array<{ code: string; duplicate: string; oldName: string; reason: string }>;
   retired: Array<{ code: string; name: string; supplierCodes: number; onHand: number }>;
   /** Not on the list, still used — left live for a decision. */
-  keptNotOnList: Array<{ code: string; name: string; recipeLines: number; squareItems: number }>;
+  keptNotOnList: Array<{ code: string; name: string; recipeLines: number; squareItems: number; reason: string }>;
   categoriesCreated: string[];
   categoriesRetired: string[];
   openStockTakes: number;
@@ -228,13 +233,14 @@ async function moveSupplierCodes(tx: Tx, keepId: string, retireId: string, now: 
 }
 
 export async function replaceCatalogue(
-  opts: { apply?: boolean; companyId?: string; listText?: string; mappingText?: string } = {},
+  opts: { apply?: boolean; companyId?: string; listText?: string; mappingText?: string; removalsText?: string } = {},
 ): Promise<ReplaceReport> {
   const companyId = opts.companyId ?? getSingletonCompanyId();
   const apply = opts.apply ?? false;
   const list = readNewCatalogue(opts.listText ?? readFileSync(join(DATA_DIR, 'new-list.csv'), 'utf8'));
   const mapping = readCatalogueMapping(opts.mappingText ?? readFileSync(join(DATA_DIR, 'mapping.csv'), 'utf8'));
-  const fileProblems = crossCheck(list, mapping);
+  const removals = readRemovals(opts.removalsText ?? readFileSync(join(DATA_DIR, 'removals.csv'), 'utf8'));
+  const fileProblems = crossCheck(list, mapping, removals);
   if (fileProblems.length > 0) throw new Error(`the list and the mapping disagree:\n  ${fileProblems.join('\n  ')}`);
 
   const report: ReplaceReport = {
@@ -420,14 +426,27 @@ export async function replaceCatalogue(
         }
       }
 
-      // ── Everything the mapping does not mention.
+      // ── Everything the mapping does not mention. Only what the sheet names
+      // for removal is retired: a product created after the sheet was drawn
+      // up is nobody's decision yet, so it is kept and listed.
+      const toRemove = new Set(removals.map((r) => r.stockCode.toUpperCase()));
       for (const p of live) {
-        if (p.stockCode && mentioned.has(p.stockCode.trim().toUpperCase())) continue;
+        const code = p.stockCode?.trim().toUpperCase() ?? '';
+        if (code && mentioned.has(code)) continue;
         const recipeCount = await countWhere(tx, recipeLines, p.id);
         const squareCount = await countWhere(tx, squareItemMap, p.id);
         // A ticket package sums a session's covers; never retire one as "stock".
-        if (recipeCount > 0 || squareCount > 0 || p.isExperienceBooking) {
-          report.keptNotOnList.push({ code: p.stockCode ?? '', name: p.name, recipeLines: recipeCount, squareItems: squareCount });
+        const reason = !toRemove.has(code)
+          ? 'not in the sheet at all'
+          : recipeCount > 0
+            ? 'the sheet says remove, but recipes still use it'
+            : squareCount > 0
+              ? 'the sheet says remove, but a Square item still maps to it'
+              : p.isExperienceBooking
+                ? 'an experience-ticket package'
+                : null;
+        if (reason) {
+          report.keptNotOnList.push({ code: p.stockCode ?? '', name: p.name, recipeLines: recipeCount, squareItems: squareCount, reason });
           continue;
         }
         const codes = await tx
@@ -485,7 +504,7 @@ if (isCliEntry) {
       say(`  duplicates merged in  : ${r.merged.length}`);
       say(`  duplicates NOT merged : ${r.mergeRefused.length}`);
       say(`  retired (not on list) : ${r.retired.length}`);
-      say(`  KEPT, not on list     : ${r.keptNotOnList.length}  (still used by a recipe or Square)`);
+      say(`  KEPT, not on list     : ${r.keptNotOnList.length}  (still used, or not in the sheet - see below)`);
       say(`  categories created    : ${r.categoriesCreated.length}  ${r.categoriesCreated.join(', ')}`);
       say(`  categories retired    : ${r.categoriesRetired.length}  ${r.categoriesRetired.join(', ')}`);
       if (r.openStockTakes > 0) say(`  ⚠️  ${r.openStockTakes} stock-take(s) are OPEN - best cancelled or approved first`);
@@ -497,7 +516,9 @@ if (isCliEntry) {
       }
       if (r.keptNotOnList.length > 0) {
         say('  ── NOT ON THE LIST BUT STILL USED - left live ──');
-        for (const k of r.keptNotOnList) say(`  ${k.code}  ${k.name}  (${k.recipeLines} recipe line(s), ${k.squareItems} Square item(s))`);
+        for (const k of r.keptNotOnList) {
+          say(`  ${k.code}  ${k.name}: ${k.reason} (${k.recipeLines} recipe line(s), ${k.squareItems} Square item(s))`);
+        }
         say();
       }
       if (r.mergeRefused.length > 0) {

@@ -77,6 +77,20 @@ export function readCatalogueMapping(text: string): CatalogueMappingRow[] {
   }));
 }
 
+export interface CatalogueRemovalRow {
+  stockCode: string;
+  name: string;
+  reason: string;
+}
+
+export function readRemovals(text: string): CatalogueRemovalRow[] {
+  return records(text).map((r) => ({
+    stockCode: r.old_stock_code ?? '',
+    name: r.name ?? '',
+    reason: r.reason ?? '',
+  }));
+}
+
 /**
  * Units that mean "one of a thing". A bottle, a bag and an `each` are all one
  * item, so moving between them changes the word, not the number — the
@@ -212,9 +226,13 @@ export function newProductKind(row: NewCatalogueRow): { itemKind: 'MERCH' | 'RET
 /**
  * Everything wrong with the two files together, before any database is
  * touched: a list line with no mapping row (or two), an old code claimed by
- * two lines. An empty array means they agree.
+ * two lines, or one both removed and kept. An empty array means they agree.
  */
-export function crossCheck(list: NewCatalogueRow[], mapping: CatalogueMappingRow[]): string[] {
+export function crossCheck(
+  list: NewCatalogueRow[],
+  mapping: CatalogueMappingRow[],
+  removals: CatalogueRemovalRow[] = [],
+): string[] {
   const problems: string[] = [];
   const listCodes = new Map<string, number>();
   for (const r of list) {
@@ -238,6 +256,10 @@ export function crossCheck(list: NewCatalogueRow[], mapping: CatalogueMappingRow
       if (prior) problems.push(`old code ${o} is mapped to both ${prior} and ${m.newStockCode}`);
       else claimed.set(ok, m.newStockCode);
     }
+  }
+  for (const r of removals) {
+    const prior = claimed.get(r.stockCode.toUpperCase());
+    if (prior) problems.push(`old code ${r.stockCode} is both removed and mapped to ${prior}`);
   }
   for (const code of listCodes.keys()) {
     const n = mapped.get(code) ?? 0;

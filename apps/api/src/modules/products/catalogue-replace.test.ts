@@ -10,6 +10,7 @@ import {
   parseSize,
   readCatalogueMapping,
   readNewCatalogue,
+  readRemovals,
   scaleQty,
   unitFactor,
 } from './catalogue-replace.js';
@@ -104,10 +105,12 @@ describe('the committed files', () => {
   const dir = join(import.meta.dirname, '..', '..', '..', 'data', 'catalogue-2026-11');
   const list = readNewCatalogue(readFileSync(join(dir, 'new-list.csv'), 'utf8'));
   const mapping = readCatalogueMapping(readFileSync(join(dir, 'mapping.csv'), 'utf8'));
+  const removals = readRemovals(readFileSync(join(dir, 'removals.csv'), 'utf8'));
 
   it('agree with each other', () => {
     expect(list).toHaveLength(438);
-    expect(crossCheck(list, mapping)).toEqual([]);
+    expect(removals).toHaveLength(167);
+    expect(crossCheck(list, mapping, removals)).toEqual([]);
   });
 
   it('use the 18 sub-categories the owners chose', () => {
@@ -128,5 +131,13 @@ describe('crossCheck', () => {
         { newStockCode: 'B', oldStockCodes: ['OLD'], check: '' },
       ]),
     ).toEqual(['old code OLD is mapped to both A and B', 'C has no mapping row']);
+  });
+
+  it('names an old code that is both removed and kept', () => {
+    expect(
+      crossCheck([row('A')], [{ newStockCode: 'A', oldStockCodes: ['OLD'], check: '' }], [
+        { stockCode: 'OLD', name: '', reason: 'Remove.' },
+      ]),
+    ).toEqual(['old code OLD is both removed and mapped to A']);
   });
 });
