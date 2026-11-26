@@ -2,7 +2,7 @@
 
 Open-source stock control, order management, and product management platform with a customer-facing web store module. Single-tenant per deployment — clone the repo, run your own instance on your own VPS.
 
-The reference deployment is **Filament Store** (`filament.shop.cleverdeals.net`), selling 3D printer filament. The storefront module is intended to be re-skinned and re-deployed for other brands the same business runs.
+The reference deployment is **Filament Store** (`filament.cleverdeals.net`), selling 3D printer filament. The storefront module is intended to be re-skinned and re-deployed for other brands the same business runs.
 
 ## Quick install (Ubuntu 22.04+ / Debian 12+)
 

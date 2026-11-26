@@ -109,7 +109,7 @@ A Turborepo monorepo with three deployable apps and one shared package:
 1. **SMMTA-NEXT** — the core platform.
    - `apps/api` — Fastify + Drizzle + Postgres back end. The thing every other module talks to.
    - `apps/web` — Vite/React admin SPA. Product / group / order / refund / customer management for company operators.
-2. **Filament Store** (`apps/store`) — the reference customer-facing storefront, currently running at **filament.shop.cleverdeals.net**, selling 3D printer filament. This is one tenant's deployment of the storefront module; the same module is intended to be re-skinned for other tenants over time. Single-axis variants (`colour`) only.
+2. **Filament Store** (`apps/store`) — the reference customer-facing storefront, currently running at **filament.cleverdeals.net** (Coolify, 165.84.215.47), selling 3D printer filament. The old address `filament.shop.cleverdeals.net` is **retired** (Nov 2026): its DNS pointed at the old VPS (165.84.215.138) with a certificate for another name, so never link to it. This is one tenant's deployment of the storefront module; the same module is intended to be re-skinned for other tenants over time. Single-axis variants (`colour`) only.
 3. **Clothes Shop** (`apps/store-clothes`) — second storefront, friendly/colourful palette (warm cream + cheerful pink, Fraunces serif headings), drop-ship-sourced clothing. Same back end + admin SPA + data model. **Multi-axis variants** (`{ size, colour }`) via the `products.attributes` JSONB column and `productGroups.attribute_axes` array. Runs on port 5000 in production at `clothes.shop.cleverdeals.net`. nginx + systemd templates at `infra/{nginx,systemd}/clothes-store.*.template` / `smmta-clothes-store.service.template`. Bootstrap channel + api-key with `npx tsx apps/api/scripts/bootstrap-clothes-shop.ts`.
 
 **Filament Store specifics** (the first tenant): a sub-brand of CleverDeals.net, selling PLA / PETG / ABS / ASA / TPU spools (LANDU / Polymaker / Prusament etc.), 1.75mm × 1kg vacuum-sealed, customers are makers / engineers / hobbyists. **Despite older seed data still mentioning lamps / lighting in some test fixtures, the actual product is 3D printer filament.** Tenant-specific copy and assets live under `apps/store/` only.
@@ -124,7 +124,7 @@ The repo lives at https://github.com/roger296/smmta-next. Roger is the project o
 apps/
   api/           Fastify + Drizzle + Postgres back end (SMMTA-NEXT API). Port 3000 in prod.
   web/           Vite/React admin SPA. Login via pasted JWT (no user DB). Not deployed yet.
-  store/         Next.js 15 + Tailwind 4 storefront (filament.shop.cleverdeals.net). Port 4000 in prod.
+  store/         Next.js 15 + Tailwind 4 storefront (filament.cleverdeals.net). Port 4000 in prod.
 packages/
   shared-types/  TS types shared across apps (must be built before apps/api compiles).
 infra/
@@ -195,7 +195,7 @@ Filament Store has its own visual identity but acknowledges the CleverDeals pare
 
 **Photography:** Clinical / catalogue (neutral background, sharp light, products centred). Product photos currently from `app.etailsupport.com` and `i.ebayimg.com` (allowed via `apps/store/next.config.js` remotePatterns).
 
-**Footer email:** `orders@filament.shop.cleverdeals.net` — full subdomain. NB the TLD is **.net**, not .com (handover doc had the wrong TLD).
+**Footer email:** `orders@filament.shop.cleverdeals.net` — full subdomain. NB the TLD is **.net**, not .com (handover doc had the wrong TLD). The *website* address `filament.shop.cleverdeals.net` is retired, but this mail address may still be in use: when retiring the domain, delete only its A/AAAA records and keep any MX/SPF/DKIM records until the shop's mail has moved to another address.
 
 ---
 
@@ -230,7 +230,7 @@ The VPS hostname is `striped-acrobats.metalseed.io` (referred to internally as "
 
 Two logical Postgres databases on the same Docker container: **`smmta_next`** (SMMTA-NEXT — products, orders, customers, api_keys, etc.) and **`smmta_store`** (storefront-side: cart sessions, idempotency, outbox). `DATABASE_URL` in apps/api/.env points to `smmta_next`; storefront `DATABASE_URL` in apps/store/.env points to `smmta_store`.
 
-**TLS / certs:** Let's Encrypt issued by certbot on `filament.shop.cleverdeals.net`. Auto-renews; cert is healthy as of the last verified deploy. nginx config at `/etc/nginx/sites-enabled/filament.shop.cleverdeals.net.conf` includes the HTTP→HTTPS 301, HSTS (`max-age=31536000; includeSubDomains; preload`), and proxies to the storefront on `:4000`.
+**TLS / certs (old VPS, historical):** Let's Encrypt issued by certbot on `filament.shop.cleverdeals.net`, now retired. Production runs on Coolify, whose proxy issues the certificates for every domain listed on a service (store: `https://filament.cleverdeals.net`). Auto-renews; cert is healthy as of the last verified deploy. nginx config at `/etc/nginx/sites-enabled/filament.shop.cleverdeals.net.conf` includes the HTTP→HTTPS 301, HSTS (`max-age=31536000; includeSubDomains; preload`), and proxies to the storefront on `:4000`.
 
 **Standalone build gotcha:** `next build` with `output: 'standalone'` does NOT copy `apps/store/.next/static` or `apps/store/public`. After every build, recreate the symlinks:
 
@@ -411,7 +411,7 @@ If a customer-facing browser ever hits a CSP violation, check `apps/store/next.c
 - **Admin SPA deployment** — `apps/web` is built but not deployed anywhere. Plan: `smmta.cleverdeals.net` (or a chosen subdomain) → static Vite build served by nginx, with `/api/v1/*` proxied to the API.
 - **API security hardening** — set `HOST=127.0.0.1` in `apps/api/.env` so only nginx reaches it (currently `0.0.0.0`).
 - **Sudoers** — add `smmta ALL=(root) NOPASSWD: /bin/systemctl restart smmta-store` so deploy scripts don't prompt for a password.
-- **SendGrid SPF + DKIM** for `filament.shop.cleverdeals.net` before serious email volume — emails will land in spam without it.
+- **SendGrid SPF + DKIM** for the shop's sending domain before serious email volume — emails will land in spam without it.
 - **Admin SPA UI for product groups** — currently editable via direct API calls / DB; needs a proper page in `apps/web`.
 - **Soft-delete in the seed** — the seed wipes orders/order_lines on rerun, breaking when there are real customer orders. Should soft-delete instead.
 - **Nonce-based CSP** — replace `'unsafe-inline'` for `script-src` with per-request nonces in middleware.
@@ -424,6 +424,6 @@ If a customer-facing browser ever hits a CSP violation, check `apps/store/next.c
 ## Reference
 
 - **Repo:** https://github.com/roger296/smmta-next
-- **Storefront live URL:** https://filament.shop.cleverdeals.net
+- **Storefront live URL:** https://filament.cleverdeals.net (`filament.shop.cleverdeals.net` is retired; don't link to it)
 - **Project docs folder** (runbooks, deploy guide, patch history, lives outside the repo): `C:\Filament Store\` on Roger's machine.
 - **Architecture doc:** older internal document at `C:\Filament Store\` — refer to but treat as **superseded** by this CLAUDE.md and the code itself wherever they conflict.
